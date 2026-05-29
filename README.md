@@ -21,8 +21,19 @@ npm run dev
 ## Build
 
 ```bash
-npm run build
+pnpm run build          # local preview build
+pnpm run build:pages    # GitHub Pages paths (/InnocenZ-proto/)
+pnpm run deploy         # same as build:pages
 ```
+
+## Publish (GitHub Pages)
+
+1. Run `pnpm run deploy` to verify the production build locally.
+2. Commit and **push to `main`** (or run the workflow manually under Actions → *Deploy to GitHub Pages*).
+
+CI uses pnpm, `build:pages`, and uploads `dist/client`.
+
+Site URL: `https://<your-username>.github.io/InnocenZ-proto/`
 
 ## Legacy static prototype
 

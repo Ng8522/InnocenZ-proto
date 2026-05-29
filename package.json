@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build && node scripts/generate-spa-html.mjs",
+    "build:pages": "cross-env GITHUB_PAGES=true vite build && cross-env GITHUB_PAGES=true node scripts/generate-spa-html.mjs",
+    "deploy": "pnpm run build:pages",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
@@ -80,6 +82,7 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
     "nitro": "3.0.260429-beta",
+    "cross-env": "^7.0.3",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",

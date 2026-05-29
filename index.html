@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -67,12 +67,24 @@ body{ margin:0; background:#050409; }
   -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
 #iz-root .view > .topbar + .scroll{ padding-top:6px; }
 #iz-root .scroll::-webkit-scrollbar{ width:0; }
-#iz-root .center{ display:flex; flex-direction:column; justify-content:center; }
+#iz-root .center{ display:flex; flex-direction:column; justify-content:flex-start; }
 
 /* type */
-#iz-root .logo{ font-family:var(--display); letter-spacing:1.5px; font-size:22px;
+#iz-root .logo{ font-family:var(--display); letter-spacing:1.5px; font-size:22px; color:var(--gold-bright);
   background:linear-gradient(120deg,#ecd9a4,#cdab68 50%,#a9854a);
   -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  #iz-root .logo{ background:none; -webkit-text-fill-color:currentColor; }
+}
+#iz-root .brand{ text-align:center; padding-top:8px; flex:none; }
+#iz-root .logo-mark{ font-family:var(--display); font-size:46px; line-height:1; letter-spacing:3px; color:var(--gold-bright);
+  background:linear-gradient(120deg,#a855f7,#ecd9a4,#cdab68);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  #iz-root .logo-mark{ background:none; -webkit-text-fill-color:currentColor; }
+}
+#iz-root .logo-lg{ font-size:30px; margin-top:2px; }
+#iz-root .tagline{ letter-spacing:3px; margin-top:6px; color:var(--txt-faint); font-size:11px; }
 #iz-root .eyebrow{ font-size:10.5px; letter-spacing:3px; text-transform:uppercase; color:var(--violet); font-weight:600; }
 #iz-root .h2{ font-family:var(--serif); font-size:30px; font-weight:600; line-height:1.05; }
 #iz-root .h3{ font-family:var(--serif); font-size:22px; font-weight:600; }
@@ -185,7 +197,7 @@ body{ margin:0; background:#050409; }
   margin:0 auto; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:34px; color:#0a0a0a; font-weight:700; }
 #iz-root .star-row{ color:var(--gold-bright); letter-spacing:3px; font-size:15px; }
 #iz-root .toast{ position:absolute; left:max(18px,var(--safe-left)); right:max(18px,var(--safe-right));
-  bottom:calc(88px + var(--safe-bottom)); background:linear-gradient(120deg,#1c1826,#100e16);
+  bottom:calc(24px + var(--safe-bottom)); background:linear-gradient(120deg,#1c1826,#100e16);
   border:1px solid var(--line); border-radius:14px; padding:14px 16px; z-index:80; display:flex; gap:11px; align-items:center;
   box-shadow:0 16px 40px -16px rgba(0,0,0,.9); opacity:0; transform:translateY(20px); transition:.35s; pointer-events:none; }
 #iz-root .toast.show{ opacity:1; transform:none; }
@@ -201,6 +213,11 @@ body{ margin:0; background:#050409; }
 #iz-root .legend span{ display:inline-flex; gap:6px; align-items:center; }
 #iz-root .legend i{ width:18px; height:10px; border-radius:3px; display:inline-block; }
 #iz-root .nav-hint{ font-size:11px; color:var(--txt-faint); text-align:center; margin-top:4px; }
+
+#iz-root .mod-card{ cursor:pointer; margin-top:11px; transition:border-color .2s, transform .15s; }
+#iz-root .mod-card:active{ transform:scale(.98); }
+#iz-root .mod-card .mod-ico{ font-size:22px; }
+#iz-root label.faint{ display:block; margin-bottom:6px; text-align:left; }
 
 /* small phones */
 @media (max-width:380px){
@@ -241,331 +258,12 @@ body{ margin:0; background:#050409; }
   #iz-root .topbar{ padding:4px 22px 10px; }
   #iz-root .tabbar{ padding:12px 14px 22px; }
   #iz-root .toast{ left:22px; right:22px; bottom:96px; }
+  #iz-root .scroll.center{ justify-content:center; }
 }
 </style>
 </head>
 <body>
 <div id="iz-root"></div>
-<script>
-(function(){
-  var root = document.getElementById('iz-root');
-
-  root.innerHTML =
-    '<div class="iz-head">' +
-      '<h1>InnocenZ — Mobile Prototype</h1>' +
-      '<p>PR Personnel app · clickable UI/UX wired to the MVP flows</p>' +
-      '<div class="tip">✦ Tap cards, buttons &amp; the bottom nav to move through the journey</div>' +
-    '</div>' +
-    '<div class="phone"><div class="notch"></div><div class="screen" id="iz-screen"></div></div>' +
-    '<div class="legend">' +
-      '<span><i style="background:linear-gradient(120deg,#a855f7,#7c3aed)"></i> Primary action</span>' +
-      '<span><i style="background:linear-gradient(120deg,#ecd9a4,#cdab68)"></i> Confirm / money</span>' +
-      '<span><i style="background:rgba(255,255,255,.12)"></i> Secondary</span>' +
-      '<span><i style="background:linear-gradient(120deg,#fb7185,#e11d48)"></i> Emergency</span>' +
-    '</div>' +
-    '<div class="nav-hint">Welcome → Sign In → Shifts → Detail → Check-In → Wallet → Sign PV → SOS → Profile</div>';
-
-  var screenEl = document.getElementById('iz-screen');
-
-  /* ---------- navigation ---------- */
-  window.izGo = function(name){
-    var fn = views[name] || views.welcome;
-    var html;
-    try { html = statusBar() + '<div class="view">' + fn() + '</div>'; }
-    catch(e){ html = statusBar() + '<div class="view"><div class="scroll"><div class="card" style="margin-top:40px">'
-      + '<div class="eyebrow" style="color:#f43f5e">RENDER ERROR</div><div class="muted" style="margin-top:8px">'
-      + String(e) + '</div></div></div></div>'; }
-    screenEl.innerHTML = html;
-    bind(name);
-    var sc = screenEl.querySelector('.scroll'); if(sc) sc.scrollTop = 0;
-  };
-
-  window.izToast = function(msg){
-    var t = document.createElement('div');
-    t.className = 'toast';
-    t.innerHTML = '<div class="ti">✓</div><div style="font-size:13px">' + msg + '</div>';
-    screenEl.appendChild(t);
-    requestAnimationFrame(function(){ t.classList.add('show'); });
-    setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ t.remove(); }, 400); }, 2200);
-  };
-
-  function bind(name){
-    if(name === 'welcome'){
-      var roles = screenEl.querySelectorAll('.role');
-      roles.forEach(function(r){
-        r.onclick = function(){
-          roles.forEach(function(x){ x.classList.remove('sel'); });
-          r.classList.add('sel');
-        };
-      });
-    }
-    if(name === 'shift'){
-      var ring = screenEl.querySelector('#checkRing');
-      if(ring){
-        ring.onclick = function(){
-          ring.classList.add('done');
-          ring.querySelector('.ico').textContent = '✓';
-          ring.querySelector('.lbl').textContent = 'Velvet 23';
-          ring.querySelector('.sub').textContent = 'Checked in · 23:47';
-          var ls = screenEl.querySelector('#liveStats'); if(ls) ls.style.display = 'grid';
-          izToast('Geo check-in confirmed — within 50m');
-        };
-      }
-    }
-  }
-
-  /* ---------- shared bits ---------- */
-  function statusBar(){
-    return '<div class="statusbar"><span>9:41</span><span class="dots">●●● ✦ ▮</span></div>';
-  }
-  function tab(id, ico, lbl, scr, active){
-    return '<button class="tab ' + (active===id?'on':'') + '" onclick="izGo(\'' + scr + '\')">' +
-           '<span class="tico">' + ico + '</span>' + lbl + '</button>';
-  }
-  function tabbar(active){
-    return '<div class="tabbar">' +
-      tab('home','⌂','Home','home',active) +
-      tab('shift','◈','Shift','shift',active) +
-      '<button class="tab sos" onclick="izGo(\'sos\')"><span class="tico">SOS</span>Safety</button>' +
-      tab('wallet','◇','Wallet','wallet',active) +
-      tab('profile','◐','Profile','profile',active) +
-    '</div>';
-  }
-
-  /* ---------- views ---------- */
-  var views = {
-    welcome: function(){
-      return '<div class="scroll center" style="text-align:center;padding-top:24px;">' +
-        '<div style="font-family:var(--display);font-size:46px;letter-spacing:3px;' +
-          'background:linear-gradient(120deg,#a855f7,#ecd9a4,#cdab68);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Z</div>' +
-        '<div class="logo" style="font-size:30px;margin-top:2px;">InnocenZ</div>' +
-        '<div class="faint" style="letter-spacing:3px;margin-top:6px;">CONNECT · ENGAGE · ENTERTAIN</div>' +
-        '<div class="h2" style="margin-top:30px;">Welcome to <span class="gold">InnocenZ</span></div>' +
-        '<div class="muted" style="margin-top:8px;padding:0 14px;">Choose your role to personalise your experience and get started.</div>' +
-        '<div class="role-grid" style="margin-top:24px;text-align:left;">' +
-          role('👥','PR Personnel','Discover shifts, earn &amp; track payouts.', true) +
-          role('🏛️','PR Agency','Deploy &amp; manage your PR workforce.', false) +
-          role('🍸','Outlet','Request manpower &amp; track sales.', false, true) +
-        '</div>' +
-        '<div style="margin-top:22px;"><button class="btn btn-violet" onclick="izGo(\'signin\')">Continue →</button></div>' +
-        '<div class="divider">or</div>' +
-        '<div style="display:flex;gap:11px;">' +
-          '<button class="btn btn-ghost" onclick="izGo(\'signin\')">Sign In</button>' +
-          '<button class="btn btn-ghost" onclick="izGo(\'signin\')">Create Account</button>' +
-        '</div>' +
-        '<div class="faint" style="margin-top:18px;">🛡 Your data is secure with us · PDA compliant</div>' +
-      '</div>';
-    },
-
-    signin: function(){
-      return '<div class="topbar"><button class="back" onclick="izGo(\'welcome\')">‹</button><div class="logo">InnocenZ</div><div style="width:36px"></div></div>' +
-        '<div class="scroll center">' +
-          '<div class="eyebrow">PR PERSONNEL</div>' +
-          '<div class="h2" style="margin-top:8px;">Sign in to<br>your account</div>' +
-          '<div class="muted" style="margin-top:8px;">Enter your phone number — we will send a one-time code (OTP).</div>' +
-          '<div style="margin-top:26px;">' +
-            '<input class="input" value="+60 12-987 6543"/>' +
-            '<input class="input" value="• • • • • •"/>' +
-          '</div>' +
-          '<button class="btn btn-violet" onclick="izGo(\'home\')">Verify &amp; Enter →</button>' +
-          '<div class="faint" style="text-align:center;margin-top:14px;cursor:pointer;">Forgot password? · Resend OTP</div>' +
-          '<div class="card" style="margin-top:26px;"><div class="faint" style="line-height:1.6;">' +
-            '<span class="gold">⛓ MVP note —</span> Registration captures IC photo (unique ID), languages &amp; PDA consent. Account stays <b>Pending Review</b> until the Agency approves.' +
-          '</div></div>' +
-        '</div>';
-    },
-
-    home: function(){
-      return '<div class="topbar">' +
-          '<div><div class="logo">InnocenZ</div><div class="faint" style="margin-top:1px;">Tonight\u2019s shifts, <span class="gold">Maya</span></div></div>' +
-          '<div style="display:flex;gap:10px;align-items:center;"><div class="bell">🔔</div><div class="av" onclick="izGo(\'profile\')">M</div></div>' +
-        '</div>' +
-        '<div class="scroll">' +
-          '<div class="seg"><button class="on">Nearby</button><button>Top Paid</button><button>Top Rated</button></div>' +
-          shiftCard('Velvet 23','Bukit Bintang · 1.2km','22:00 — 04:00','320','4.9',true,'accept') +
-          shiftCard('Onyx KL','TREC · 3.4km','23:00 — 05:00','280','4.7',false,'view') +
-          shiftCard('Pearl Lounge','Damansara · 5.1km','22:30 — 04:30','260','4.6',false,'view') +
-          '<div class="card" style="margin-top:4px;background:linear-gradient(120deg,rgba(124,58,237,.12),rgba(16,14,22,.9));">' +
-            '<div class="eyebrow">TONIGHT</div>' +
-            '<div class="muted" style="margin-top:6px;">You have <span class="gold">1 confirmed shift</span>. Estimated earnings <span class="gold">RM 320+</span>. Tap a shift to begin geo check-in when you arrive.</div>' +
-          '</div>' +
-        '</div>' +
-        tabbar('home');
-    },
-
-    detail: function(){
-      return '<div class="topbar"><button class="back" onclick="izGo(\'home\')">‹</button><div class="logo" style="font-size:16px;">Shift Details</div><div class="bell">🔔</div></div>' +
-        '<div class="scroll">' +
-          '<div class="card neon">' +
-            '<div class="row"><div><div class="venue" style="font-size:24px;">Velvet 23</div><div class="loc">📍 Bukit Bintang, KL · 1.2km away</div></div><span class="badge vip">VIP Request</span></div>' +
-            '<div class="tiles" style="margin-top:16px;">' +
-              tile('Base Rate','RM 320','21px') + tile('Shift Window','22:00–04:00','16px') +
-              tile('Outlet Rating','4.9 ★','21px') + tile('Languages','EN · 中文 · 粤语','14px') +
-            '</div>' +
-          '</div>' +
-          '<div class="card" style="margin-top:13px;"><div class="eyebrow">ESTIMATED EARNINGS</div>' +
-            li('Base wage (6 hrs)','RM 320') + li('Drink commission (est.)','RM 120') +
-            li('Table commission (est.)','RM 80') + li('Tips (variable)','+ tips') +
-            '<div class="li total"><span class="k">Est. total</span><span class="v">RM 520+</span></div>' +
-          '</div>' +
-          '<div class="card" style="margin-top:13px;"><div class="eyebrow">EVENT</div>' +
-            '<div class="muted" style="margin-top:6px;">Private VIP — Hennessy launch. Table 7 prefers Mandarin/Cantonese hosts. Smart-casual dress code.</div>' +
-            '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><span class="pill">🚗 Transport support</span><span class="pill">⏱ Check-in opens 21:30</span></div>' +
-          '</div>' +
-          '<div style="margin-top:16px;"><button class="btn btn-gold" onclick="izAccept()">Accept Shift →</button></div>' +
-          '<div class="faint" style="text-align:center;margin-top:10px;">Cancelling under 2h before shift adds a penalty flag</div>' +
-        '</div>';
-    },
-
-    shift: function(){
-      return '<div class="topbar"><div class="logo" style="font-size:16px;">During Shift</div><span class="pill"><span class="live-dot"></span> Live</span></div>' +
-        '<div class="scroll">' +
-          '<div class="ring-wrap"><div class="ring" id="checkRing">' +
-            '<div class="ico">◎</div><div class="lbl">Tap to Check-In</div><div class="sub">GPS · within 50m</div>' +
-          '</div>' +
-          '<div class="faint" style="margin-top:14px;text-align:center;">Geo check-in captures a selfie + locked timestamp.<br>Auto-capture in 4s, or 6-tap manual via Maps.</div></div>' +
-          '<div id="liveStats" class="tiles" style="display:none;margin-top:18px;">' +
-            '<div class="tile" style="grid-column:span 2;background:linear-gradient(120deg,rgba(74,222,128,.1),rgba(16,14,22,.9));">' +
-              '<div class="t-lbl">Live Earnings</div><div class="t-val" style="color:var(--green);">RM 184</div>' +
-              '<div class="faint" style="color:var(--green);margin-top:2px;">▲ +RM 12 last hour</div>' +
-            '</div>' +
-          '</div>' +
-          '<div class="card" style="margin-top:14px;"><div class="eyebrow">CUSTOMER PREFERENCES</div>' +
-            '<div class="muted" style="margin-top:6px;">Table 7 — VIP · Mandarin/Cantonese · prefers Hennessy. Repeat guest, tips well.</div></div>' +
-          '<div class="card" style="margin-top:13px;"><div class="eyebrow">QUICK ACTIONS</div>' +
-            '<div style="display:flex;gap:10px;margin-top:11px;">' +
-              '<button class="btn btn-ghost btn-sm" style="flex:1" onclick="izGo(\'wallet\')">◇ Wallet</button>' +
-              '<button class="btn btn-danger btn-sm" style="flex:1" onclick="izGo(\'sos\')">⚠ Emergency</button>' +
-            '</div></div>' +
-        '</div>' +
-        tabbar('shift');
-    },
-
-    wallet: function(){
-      return '<div class="topbar"><div class="logo" style="font-size:16px;">Wallet</div><div class="bell">🔔</div></div>' +
-        '<div class="scroll">' +
-          '<div class="card neon" style="background:linear-gradient(135deg,rgba(124,58,237,.25),rgba(16,14,22,.95));">' +
-            '<div class="faint" style="letter-spacing:1px;">AVAILABLE BALANCE</div>' +
-            '<div style="font-family:var(--serif);font-size:38px;font-weight:700;margin-top:4px;">RM 1,284<span style="font-size:20px;color:var(--txt-dim);">.50</span></div>' +
-            '<div style="display:flex;gap:11px;margin-top:16px;">' +
-              '<button class="btn btn-violet btn-sm" style="flex:1" onclick="izToast(\'Top-up via FPX / DuitNow\')">⤓ Top Up</button>' +
-              '<button class="btn btn-gold btn-sm" style="flex:1" onclick="izToast(\'Withdrawal needs a signed PV first\')">⤒ Withdraw</button>' +
-            '</div>' +
-          '</div>' +
-          '<div class="tiles" style="margin-top:13px;">' +
-            '<div class="tile"><div class="t-lbl">Pending Payout</div><div class="t-val" style="font-size:20px;color:var(--gold-bright);">RM 320</div><div class="faint" style="margin-top:2px;">1 unsigned PV</div></div>' +
-            '<div class="tile"><div class="t-lbl">This Month</div><div class="t-val" style="font-size:20px;color:var(--green);">RM 4,870</div><div class="faint" style="margin-top:2px;">12 shifts</div></div>' +
-          '</div>' +
-          '<div class="card" style="margin-top:13px;background:linear-gradient(120deg,rgba(201,168,106,.12),rgba(16,14,22,.9));">' +
-            '<div class="row"><div><div class="eyebrow" style="color:var(--gold);">ACTION NEEDED</div>' +
-              '<div style="font-weight:600;margin-top:5px;">Payment Voucher ready</div><div class="faint" style="margin-top:2px;">Velvet 23 · 24 May · RM 320</div></div>' +
-              '<div style="font-size:24px;">🧾</div></div>' +
-            '<button class="btn btn-gold btn-sm" style="width:100%;margin-top:13px;" onclick="izGo(\'pv\')">Review &amp; Sign PV →</button>' +
-          '</div>' +
-          '<div class="card" style="margin-top:13px;"><div class="eyebrow">RECENT TRANSACTIONS</div>' +
-            '<div class="li"><span class="k">⤓ Payout · Onyx KL</span><span class="v" style="color:var(--green)">+ RM 280</span></div>' +
-            '<div class="li"><span class="k">⤓ Payout · Pearl Lounge</span><span class="v" style="color:var(--green)">+ RM 260</span></div>' +
-            '<div class="li"><span class="k">⤒ Withdrawal · DuitNow</span><span class="v" style="color:var(--red)">− RM 500</span></div>' +
-          '</div>' +
-        '</div>' +
-        tabbar('wallet');
-    },
-
-    pv: function(){
-      return '<div class="topbar"><button class="back" onclick="izGo(\'wallet\')">‹</button><div class="logo" style="font-size:16px;">Payment Voucher</div><div style="width:36px"></div></div>' +
-        '<div class="scroll">' +
-          '<div class="card neon">' +
-            '<div class="row"><div><div class="eyebrow">PV #01872</div><div class="h3" style="margin-top:5px;">Velvet 23</div><div class="faint">24 May 2026 · 22:00–04:00</div></div><span class="badge star">★ Sealed</span></div>' +
-            '<div style="margin-top:14px;">' +
-              li('Daily wage (6 hrs)','RM 320.00') + li('Drink commission','RM 140.00') +
-              li('Table commission','RM 95.00') + li('Tips','RM 60.00') +
-              '<div class="li total"><span class="k">Total payout</span><span class="v">RM 615.00</span></div>' +
-            '</div>' +
-          '</div>' +
-          '<div class="card" style="margin-top:13px;"><div class="faint" style="line-height:1.6;">' +
-            '<span class="gold">⛓ Rule —</span> Review every line. If anything is wrong, raise a dispute — payment is held until resolved. You only sign once satisfied.</div></div>' +
-          '<div style="margin-top:16px;display:flex;flex-direction:column;gap:11px;">' +
-            '<button class="btn btn-gold" onclick="izSignPV()">✓ Sign &amp; Confirm</button>' +
-            '<button class="btn btn-ghost" onclick="izToast(\'Dispute raised — agency notified, payment held\')">⚠ Raise a Dispute</button>' +
-          '</div>' +
-        '</div>';
-    },
-
-    sos: function(){
-      return '<div class="topbar"><button class="back" onclick="izGo(\'shift\')">‹</button><div class="logo" style="font-size:16px;">SOS &amp; Safety</div><div class="bell">🔔</div></div>' +
-        '<div class="scroll" style="text-align:center;">' +
-          '<div class="muted">We have your back. Tap, connect, get help.</div>' +
-          '<div class="card" style="margin-top:18px;background:radial-gradient(circle at 50% 30%,rgba(244,63,94,.22),rgba(16,14,22,.95));border-color:rgba(244,63,94,.4);">' +
-            '<button onclick="izToast(\'SOS sent — live GPS streamed to Agency\')" style="width:118px;height:118px;border-radius:50%;border:none;cursor:pointer;margin:6px auto 0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:26px;font-weight:700;color:#fff;background:radial-gradient(circle at 50% 40%,#fb7185,#e11d48);box-shadow:0 0 0 10px rgba(244,63,94,.15),0 0 50px rgba(244,63,94,.6);">SOS</button>' +
-            '<div style="font-weight:600;margin-top:14px;">Emergency SOS</div>' +
-            '<div class="muted" style="margin-top:4px;">Hold to alert contacts &amp; emergency services. Works even on lock screen.</div>' +
-          '</div>' +
-          '<div class="tiles" style="margin-top:14px;text-align:left;">' +
-            '<div class="tile"><div class="t-lbl">Current Shift</div><div style="font-size:13px;font-weight:600;margin-top:6px;">Velvet 23</div><div class="faint">22:00–04:00 · Active</div></div>' +
-            '<div class="tile"><div class="t-lbl">Location</div><div style="font-size:13px;font-weight:600;margin-top:6px;color:var(--green)">Live tracking ON</div><div class="faint">Sharing with 3 contacts</div></div>' +
-          '</div>' +
-          '<div class="map-mock" style="margin-top:13px;"><div class="map-pin"></div></div>' +
-          '<div class="card" style="margin-top:13px;text-align:left;">' +
-            '<div class="li"><span class="k">🚗 Safe Ride Home</span><span class="v" style="color:var(--violet)">Book ›</span></div>' +
-            '<div class="li"><span class="k">👥 Emergency Contacts</span><span class="v">3 saved ›</span></div>' +
-            '<div class="li"><span class="k">💬 24/7 Support Chat</span><span class="v" style="color:var(--violet)">Chat ›</span></div>' +
-            '<div class="li"><span class="k">📄 Incident Report</span><span class="v">File ›</span></div>' +
-          '</div>' +
-        '</div>' +
-        tabbar('sos');
-    },
-
-    profile: function(){
-      return '<div class="topbar"><button class="back" onclick="izGo(\'home\')">‹</button><div class="logo" style="font-size:16px;">Profile</div><div class="bell">🔔</div></div>' +
-        '<div class="scroll" style="text-align:center;">' +
-          '<div class="prof-pic">M</div>' +
-          '<div class="h3" style="margin-top:12px;">Maya Tan <span style="font-size:13px;color:var(--violet)">✓</span></div>' +
-          '<div class="faint">PR Personnel · Agency-Tied · Atlas Agency</div>' +
-          '<div class="star-row" style="margin-top:8px;">★★★★★ <span style="font-family:var(--sans);font-size:13px;color:var(--txt-dim)">4.9 · 128 reviews</span></div>' +
-          '<div class="tiles" style="margin-top:18px;text-align:left;">' +
-            tile('Total Shifts','86','24px') +
-            '<div class="tile"><div class="t-lbl">Repeat Rate</div><div class="t-val" style="font-size:24px;color:var(--green)">92%</div></div>' +
-            '<div class="tile"><div class="t-lbl">Tier</div><div class="t-val" style="font-size:17px;margin-top:9px;color:var(--gold-bright)">👑 Gold</div></div>' +
-            tile('This Month','RM 4.8k','20px') +
-          '</div>' +
-          '<div class="card" style="margin-top:14px;text-align:left;"><div class="eyebrow">VERIFIED PROFILE</div>' +
-            '<div class="li"><span class="k">🪪 IC Verified</span><span class="v" style="color:var(--green)">✓ Done</span></div>' +
-            '<div class="li"><span class="k">🗣 Languages</span><span class="v">EN · 中文 · 粤语</span></div>' +
-            '<div class="li"><span class="k">📋 PDA Consent</span><span class="v" style="color:var(--green)">✓ Signed</span></div>' +
-            '<div class="li"><span class="k">🏛 Agency Tie</span><span class="v">Atlas · 8 mo</span></div>' +
-          '</div>' +
-          '<div style="margin-top:16px;"><button class="btn btn-ghost" onclick="izGo(\'welcome\')">↩ Sign Out</button></div>' +
-        '</div>';
-    }
-  };
-
-  /* ---------- small builders ---------- */
-  function role(ico, name, desc, sel, center){
-    return '<div class="role ' + (sel?'sel':'') + (center?' role-center':'') + '"><div class="arrow">→</div><div class="ico">' + ico + '</div>' +
-           '<div class="rname">' + name + '</div><div class="rdesc">' + desc + '</div></div>';
-  }
-  function shiftCard(venue, loc, time, rate, star, vip, act){
-    return '<div class="card shift neon">' +
-      '<div class="row"><div><div class="venue">' + venue + '</div><div class="loc">📍 ' + loc + '</div></div>' +
-        '<div style="text-align:right"><div class="rate">RM ' + rate + '</div><div class="faint">+ tips</div></div></div>' +
-      '<div class="row" style="margin-top:8px;align-items:center;"><div class="time">🕙 ' + time +
-        ' &nbsp; <span class="badge star">★ ' + star + '</span> ' + (vip?'<span class="badge vip">VIP Request</span>':'') + '</div></div>' +
-      '<button class="btn ' + (act==='accept'?'btn-gold':'btn-ghost') + ' btn-sm" style="width:100%;margin-top:13px;" onclick="izGo(\'detail\')">' +
-        (act==='accept'?'Accept Shift':'View Details') + '</button>' +
-    '</div>';
-  }
-  function tile(lbl, val, size){
-    return '<div class="tile"><div class="t-lbl">' + lbl + '</div><div class="t-val" style="font-size:' + size + ';' +
-      (size==='16px'||size==='14px'?'margin-top:10px;':'') + '">' + val + '</div></div>';
-  }
-  function li(k, v){ return '<div class="li"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>'; }
-
-  /* ---------- multi-step actions (avoid inline apostrophes) ---------- */
-  window.izAccept = function(){ izToast('Shift accepted — you are on the Velvet 23 roster'); setTimeout(function(){ izGo('shift'); }, 900); };
-  window.izSignPV = function(){ izToast('PV signed — RM 615 credited to wallet'); setTimeout(function(){ izGo('wallet'); }, 1000); };
-
-  izGo('welcome');
-})();
-</script>
+<script src="js/app.js"></script>
 </body>
 </html>

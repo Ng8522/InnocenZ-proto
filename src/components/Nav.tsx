@@ -7,15 +7,20 @@ export interface NavItem {
   icon: LucideIcon;
 }
 
+function navIsActive(pathname: string, to: string) {
+  if (pathname === to || pathname === `${to}/`) return true;
+  const hubs = ["/host", "/outlet", "/agency"];
+  if (hubs.includes(to)) return false;
+  return pathname.startsWith(`${to}/`);
+}
+
 export function BottomNav({ items }: { items: NavItem[] }) {
   const { pathname } = useLocation();
   return (
     <nav className="sticky bottom-0 z-40 mt-auto border-t border-border bg-background/85 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[440px] items-center justify-around px-2 py-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {items.map((i) => {
-          const active = pathname === i.to || (i.to !== "/host" && i.to !== "/outlet" && i.to !== "/agency" && pathname.startsWith(i.to + "/"));
-          const activeExact = pathname === i.to || (i.to === "/host" && pathname === "/host/") || (i.to === "/outlet" && pathname === "/outlet/") || (i.to === "/agency" && pathname === "/agency/");
-          const isActive = i.to.endsWith("/history") || i.to.endsWith("/tonight") || i.to.endsWith("/wallet") || i.to.endsWith("/profile") ? active : activeExact;
+          const isActive = navIsActive(pathname, i.to);
           return (
             <Link
               key={i.to}

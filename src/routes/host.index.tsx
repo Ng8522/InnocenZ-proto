@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppHeader } from "@/components/Nav";
 import { useStore } from "@/lib/store";
 import { Link } from "@tanstack/react-router";
-import { Check, Clock, Languages, Sparkles, ChevronRight } from "lucide-react";
+import { Clock, Languages, Sparkles, ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/host/")({
   component: HostShifts,
@@ -60,16 +60,12 @@ function HostShifts() {
                 <span className="flex items-center gap-1"><Languages className="h-3 w-3" /> {b.languages}</span>
               </div>
               <div className="mt-3 flex gap-2">
-                {b.status === "offered" ? (
-                  <>
-                    <button onClick={() => acceptBooking(b.id)} className="flex-1 rounded-full bg-gradient-primary py-2 text-xs font-semibold">Accept</button>
-                    <button className="rounded-full border border-border px-4 py-2 text-xs">Decline</button>
-                  </>
-                ) : (
-                  <span className="flex flex-1 items-center justify-center gap-1 rounded-full bg-success/20 py-2 text-xs text-success">
-                    <Check className="h-3 w-3" /> Accepted
-                  </span>
-                )}
+                <button onClick={() => acceptBooking(b.id)} className="flex-1 rounded-full bg-gradient-primary py-2 text-xs font-semibold">
+                  Accept
+                </button>
+                <button type="button" className="rounded-full border border-border px-4 py-2 text-xs">
+                  Decline
+                </button>
               </div>
             </div>
           ))}

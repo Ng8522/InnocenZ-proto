@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppHeader } from "@/components/Nav";
 import { useStore } from "@/lib/store";
 import { MapPin, LogIn, LogOut, CheckCircle2 } from "lucide-react";
@@ -10,7 +10,8 @@ export const Route = createFileRoute("/host/tonight")({
 
 function TonightPage() {
   const { bookings, checkIn, checkOut } = useStore();
-  const active = bookings.find((b) => b.status !== "offered" && b.status !== "completed") ?? bookings.find((b) => b.status === "accepted");
+  const active = bookings.find((b) => b.status === "accepted" || b.status === "checked-in");
+  const completedCount = bookings.filter((b) => b.status === "completed").length;
   const [holding, setHolding] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -36,6 +37,14 @@ function TonightPage() {
         {!active ? (
           <div className="rounded-2xl bg-gradient-surface p-6 text-center shadow-card">
             <p className="text-sm text-muted-foreground">No active shift. Accept a shift to enable check-in.</p>
+            {completedCount > 0 && (
+              <Link
+                to="/host/history"
+                className="mt-4 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
+              >
+                View {completedCount} completed shift{completedCount === 1 ? "" : "s"} in History
+              </Link>
+            )}
           </div>
         ) : (
           <>

@@ -9,6 +9,12 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 export default defineConfig({
   vite: {
     base: process.env.GITHUB_PAGES === "true" ? "/InnocenZ-proto/" : "/",
+    resolve: {
+      dedupe: ["@tanstack/query-core", "@tanstack/react-query"],
+    },
+    ssr: {
+      noExternal: ["@tanstack/react-query", "@tanstack/query-core"],
+    },
   },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).

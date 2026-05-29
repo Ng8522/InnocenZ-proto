@@ -1,0 +1,510 @@
+<!-- InnocenZ — Clickable Mobile Prototype (PR Personnel App) v2 -->
+<div id="iz-root"></div>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Marcellus&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+#iz-root, #iz-root * { box-sizing:border-box; margin:0; padding:0; }
+
+#iz-root{
+  --bg:#08070c; --panel:#100e16; --line:rgba(201,168,106,.18);
+  --gold:#cdab68; --gold-bright:#ecd9a4; --violet:#a855f7; --violet-deep:#7c3aed;
+  --txt:#f3eee4; --txt-dim:#9890a8; --txt-faint:#5f586e;
+  --green:#4ade80; --red:#f43f5e;
+  --serif:'Cormorant Garamond',Georgia,serif; --display:'Marcellus',serif; --sans:'Outfit',sans-serif;
+  font-family:var(--sans);
+  display:flex; flex-direction:column; align-items:center; gap:18px;
+  padding:30px 12px 50px; min-height:100vh; color:var(--txt);
+  background:
+    radial-gradient(900px 500px at 80% -5%, rgba(124,58,237,.22), transparent 60%),
+    radial-gradient(700px 500px at 10% 110%, rgba(201,168,106,.12), transparent 55%),
+    #050409;
+}
+
+#iz-root .iz-head{ text-align:center; max-width:880px; }
+#iz-root .iz-head h1{ font-family:var(--display); font-size:30px; letter-spacing:2px; font-weight:400;
+  background:linear-gradient(120deg,#ecd9a4,#cdab68 45%,#9a7b3e 75%,#ecd9a4);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+#iz-root .iz-head p{ color:var(--txt-dim); font-size:13px; margin-top:6px; font-weight:300; letter-spacing:.3px; }
+#iz-root .iz-head .tip{ margin-top:14px; display:inline-flex; gap:8px; align-items:center; font-size:11.5px;
+  color:var(--gold); background:rgba(201,168,106,.08); border:1px solid var(--line); padding:7px 14px; border-radius:30px; }
+
+/* phone */
+#iz-root .phone{ position:relative; width:390px; height:820px; border-radius:54px; flex:none;
+  background:linear-gradient(160deg,#22202c,#0c0b12); padding:13px;
+  box-shadow:0 0 0 2px rgba(201,168,106,.25),0 40px 90px -20px rgba(0,0,0,.9),0 0 120px -30px rgba(124,58,237,.5); }
+#iz-root .screen{ position:relative; width:100%; height:100%; border-radius:42px; overflow:hidden;
+  background:var(--bg); display:flex; flex-direction:column; }
+/* ambient glow sits BEHIND everything */
+#iz-root .screen::before{ content:''; position:absolute; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(420px 300px at 85% 6%, rgba(124,58,237,.26), transparent 60%),
+    radial-gradient(360px 260px at 0% 92%, rgba(201,168,106,.13), transparent 60%); }
+/* EVERY direct child of screen sits ABOVE the glow */
+#iz-root .screen > *{ position:relative; z-index:1; }
+
+#iz-root .notch{ position:absolute; top:0; left:50%; transform:translateX(-50%); width:130px; height:26px;
+  background:#000; border-radius:0 0 18px 18px; z-index:60; }
+#iz-root .statusbar{ display:flex; justify-content:space-between; align-items:center;
+  padding:13px 26px 6px; font-size:12px; color:var(--txt); font-weight:500; }
+#iz-root .statusbar .dots{ letter-spacing:1px; opacity:.85; }
+
+/* layout */
+#iz-root .view{ display:flex; flex-direction:column; flex:1; min-height:0; animation:fade .32s ease; }
+@keyframes fade{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+#iz-root .scroll{ flex:1; overflow-y:auto; padding:6px 22px 26px; }
+#iz-root .scroll::-webkit-scrollbar{ width:0; }
+#iz-root .center{ display:flex; flex-direction:column; justify-content:center; }
+
+/* type */
+#iz-root .logo{ font-family:var(--display); letter-spacing:1.5px; font-size:22px;
+  background:linear-gradient(120deg,#ecd9a4,#cdab68 50%,#a9854a);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+#iz-root .eyebrow{ font-size:10.5px; letter-spacing:3px; text-transform:uppercase; color:var(--violet); font-weight:600; }
+#iz-root .h2{ font-family:var(--serif); font-size:30px; font-weight:600; line-height:1.05; }
+#iz-root .h3{ font-family:var(--serif); font-size:22px; font-weight:600; }
+#iz-root .muted{ color:var(--txt-dim); font-size:13px; font-weight:300; line-height:1.5; }
+#iz-root .faint{ color:var(--txt-faint); font-size:11px; }
+#iz-root .gold{ color:var(--gold-bright); }
+
+/* cards */
+#iz-root .card{ background:linear-gradient(160deg,rgba(28,24,38,.92),rgba(16,14,22,.94));
+  border:1px solid var(--line); border-radius:20px; padding:16px; }
+#iz-root .card.neon{ box-shadow:0 18px 40px -22px rgba(124,58,237,.7); position:relative; }
+#iz-root .card.neon::after{ content:''; position:absolute; left:18px; right:18px; bottom:-1px; height:2px;
+  border-radius:2px; background:linear-gradient(90deg,transparent,var(--violet),transparent); opacity:.9; }
+
+/* buttons */
+#iz-root .btn{ display:flex; align-items:center; justify-content:center; gap:9px; width:100%; padding:15px;
+  border:none; border-radius:16px; cursor:pointer; font-family:var(--sans); font-size:15px; font-weight:600;
+  letter-spacing:.3px; transition:transform .15s ease; }
+#iz-root .btn:active{ transform:scale(.97); }
+#iz-root .btn-violet{ color:#fff; background:linear-gradient(120deg,#a855f7,#7c3aed); box-shadow:0 14px 34px -12px rgba(124,58,237,.9); }
+#iz-root .btn-gold{ color:#1a1206; background:linear-gradient(120deg,#ecd9a4,#cdab68); box-shadow:0 14px 30px -14px rgba(201,168,106,.8); }
+#iz-root .btn-ghost{ background:rgba(255,255,255,.04); border:1px solid var(--line); color:var(--txt); }
+#iz-root .btn-danger{ color:#fff; background:linear-gradient(120deg,#fb7185,#e11d48); box-shadow:0 14px 34px -12px rgba(225,29,72,.8); }
+#iz-root .btn-sm{ padding:9px 16px; font-size:12.5px; border-radius:11px; width:auto; }
+
+/* roles */
+#iz-root .role-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+#iz-root .role{ position:relative; border:1px solid var(--line); border-radius:18px; padding:15px;
+  background:linear-gradient(160deg,rgba(26,22,36,.75),rgba(13,11,18,.9)); cursor:pointer; transition:all .2s ease; }
+#iz-root .role:hover{ border-color:rgba(168,85,247,.6); transform:translateY(-2px); }
+#iz-root .role.sel{ border-color:var(--violet); box-shadow:0 0 0 1px var(--violet),0 16px 36px -18px rgba(124,58,237,.9); }
+#iz-root .role .ico{ font-size:22px; }
+#iz-root .role .rname{ font-weight:600; font-size:15px; margin-top:10px; }
+#iz-root .role .rdesc{ font-size:11px; color:var(--txt-dim); margin-top:3px; line-height:1.45; font-weight:300; }
+#iz-root .role .arrow{ position:absolute; top:14px; right:14px; width:26px; height:26px; border-radius:50%;
+  border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--txt-dim); }
+
+/* shift */
+#iz-root .shift{ margin-bottom:13px; }
+#iz-root .row{ display:flex; justify-content:space-between; align-items:flex-start; }
+#iz-root .venue{ font-family:var(--serif); font-size:20px; font-weight:600; }
+#iz-root .loc{ font-size:11.5px; color:var(--txt-dim); margin-top:1px; }
+#iz-root .rate{ font-family:var(--serif); font-size:21px; font-weight:700; color:var(--gold-bright); }
+#iz-root .time{ font-size:12px; color:var(--txt-dim); margin-top:9px; display:flex; gap:8px; align-items:center; }
+#iz-root .badge{ font-size:9.5px; font-weight:700; letter-spacing:.6px; padding:4px 9px; border-radius:20px; text-transform:uppercase; }
+#iz-root .badge.vip{ background:linear-gradient(120deg,#a855f7,#7c3aed); color:#fff; }
+#iz-root .badge.star{ background:rgba(201,168,106,.15); color:var(--gold-bright); border:1px solid var(--line); }
+
+/* segmented */
+#iz-root .seg{ display:flex; gap:6px; background:rgba(255,255,255,.04); padding:5px; border-radius:14px; margin:4px 0 16px; }
+#iz-root .seg button{ flex:1; border:none; background:transparent; color:var(--txt-dim); padding:8px; border-radius:10px;
+  font-family:var(--sans); font-size:12.5px; font-weight:500; cursor:pointer; transition:.2s; }
+#iz-root .seg button.on{ background:linear-gradient(120deg,#ecd9a4,#cdab68); color:#1a1206; font-weight:600; }
+
+/* ring */
+#iz-root .ring-wrap{ display:flex; flex-direction:column; align-items:center; padding:18px 0 6px; }
+#iz-root .ring{ width:200px; height:200px; border-radius:50%; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; cursor:pointer; background:radial-gradient(circle at 50% 50%, rgba(201,168,106,.08), transparent 70%);
+  border:2px solid rgba(201,168,106,.3); transition:.4s; }
+#iz-root .ring.done{ border-color:var(--gold); box-shadow:0 0 0 6px rgba(201,168,106,.07),0 0 50px rgba(201,168,106,.4); }
+#iz-root .ring .ico{ font-size:34px; }
+#iz-root .ring .lbl{ font-family:var(--serif); font-size:24px; font-weight:600; margin-top:6px; }
+#iz-root .ring .sub{ font-size:11px; color:var(--txt-dim); margin-top:2px; letter-spacing:1px; text-transform:uppercase; }
+
+/* tiles */
+#iz-root .tiles{ display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+#iz-root .tile{ background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:16px; padding:14px; }
+#iz-root .tile .t-lbl{ font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--txt-faint); }
+#iz-root .tile .t-val{ font-family:var(--serif); font-size:26px; font-weight:700; margin-top:5px; }
+
+/* line items */
+#iz-root .li{ display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px dashed rgba(255,255,255,.07); font-size:13.5px; }
+#iz-root .li:last-child{ border-bottom:none; }
+#iz-root .li .k{ color:var(--txt-dim); }
+#iz-root .li .v{ font-weight:600; color:var(--txt); }
+#iz-root .li.total .k, #iz-root .li.total .v{ font-family:var(--serif); font-size:18px; color:var(--gold-bright); font-weight:700; }
+
+/* nav */
+#iz-root .tabbar{ display:flex; justify-content:space-around; align-items:center; padding:12px 14px 22px;
+  background:linear-gradient(0deg,rgba(8,7,12,1),rgba(8,7,12,.6)); border-top:1px solid var(--line); }
+#iz-root .tab{ display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:var(--txt-faint);
+  font-size:9.5px; letter-spacing:.5px; transition:.2s; background:none; border:none; font-family:var(--sans); }
+#iz-root .tab .tico{ font-size:19px; }
+#iz-root .tab.on{ color:var(--gold-bright); }
+#iz-root .tab.sos .tico{ width:46px; height:46px; margin-top:-26px; border-radius:50%; display:flex; align-items:center;
+  justify-content:center; background:linear-gradient(120deg,#a855f7,#7c3aed); box-shadow:0 0 24px rgba(124,58,237,.8);
+  font-size:14px; font-weight:700; color:#fff; border:3px solid var(--bg); }
+
+/* topbar / misc */
+#iz-root .topbar{ display:flex; align-items:center; justify-content:space-between; padding:4px 22px 10px; }
+#iz-root .av{ width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#a855f7,#cdab68);
+  display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; color:#0a0a0a; cursor:pointer; }
+#iz-root .bell{ width:36px; height:36px; border-radius:50%; border:1px solid var(--line); display:flex; align-items:center;
+  justify-content:center; position:relative; }
+#iz-root .bell::after{ content:''; position:absolute; top:9px; right:10px; width:6px; height:6px; border-radius:50%; background:var(--violet); }
+#iz-root .back{ background:none; border:1px solid var(--line); color:var(--txt); width:36px; height:36px; border-radius:50%; cursor:pointer; font-size:15px; }
+#iz-root .pill{ display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:5px 11px; border-radius:20px;
+  background:rgba(255,255,255,.04); border:1px solid var(--line); color:var(--txt-dim); }
+#iz-root .live-dot{ width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.4s infinite; }
+@keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.3} }
+#iz-root .input{ width:100%; background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:13px; padding:14px;
+  color:var(--txt); font-family:var(--sans); font-size:14px; margin-bottom:11px; }
+#iz-root .input::placeholder{ color:var(--txt-faint); }
+#iz-root .divider{ display:flex; align-items:center; gap:12px; color:var(--txt-faint); font-size:11px; margin:16px 0; }
+#iz-root .divider::before, #iz-root .divider::after{ content:''; flex:1; height:1px; background:var(--line); }
+#iz-root .prof-pic{ width:84px; height:84px; border-radius:50%; background:linear-gradient(135deg,#a855f7,#cdab68);
+  margin:0 auto; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:34px; color:#0a0a0a; font-weight:700; }
+#iz-root .star-row{ color:var(--gold-bright); letter-spacing:3px; font-size:15px; }
+#iz-root .toast{ position:absolute; left:22px; right:22px; bottom:96px; background:linear-gradient(120deg,#1c1826,#100e16);
+  border:1px solid var(--line); border-radius:14px; padding:14px 16px; z-index:80; display:flex; gap:11px; align-items:center;
+  box-shadow:0 16px 40px -16px rgba(0,0,0,.9); opacity:0; transform:translateY(20px); transition:.35s; pointer-events:none; }
+#iz-root .toast.show{ opacity:1; transform:none; }
+#iz-root .toast .ti{ width:30px; height:30px; border-radius:50%; background:rgba(74,222,128,.15); color:var(--green);
+  display:flex; align-items:center; justify-content:center; flex:none; }
+#iz-root .map-mock{ height:150px; border-radius:16px; position:relative; overflow:hidden; border:1px solid var(--line);
+  background:linear-gradient(rgba(124,58,237,.08),rgba(124,58,237,.08)),
+    repeating-linear-gradient(0deg,#0e0c14,#0e0c14 22px,#13111b 22px,#13111b 23px),
+    repeating-linear-gradient(90deg,#0e0c14,#0e0c14 22px,#13111b 22px,#13111b 23px); }
+#iz-root .map-pin{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:18px; height:18px; border-radius:50%;
+  background:var(--violet); box-shadow:0 0 0 8px rgba(124,58,237,.25),0 0 0 18px rgba(124,58,237,.12); }
+#iz-root .legend{ display:flex; flex-wrap:wrap; gap:14px; justify-content:center; max-width:880px; font-size:11.5px; color:var(--txt-dim); }
+#iz-root .legend span{ display:inline-flex; gap:6px; align-items:center; }
+#iz-root .legend i{ width:18px; height:10px; border-radius:3px; display:inline-block; }
+#iz-root .nav-hint{ font-size:11px; color:var(--txt-faint); text-align:center; margin-top:4px; }
+</style>
+
+<script>
+(function(){
+  var root = document.getElementById('iz-root');
+
+  root.innerHTML =
+    '<div class="iz-head">' +
+      '<h1>InnocenZ — Mobile Prototype</h1>' +
+      '<p>PR Personnel app · clickable UI/UX wired to the MVP flows</p>' +
+      '<div class="tip">✦ Tap cards, buttons &amp; the bottom nav to move through the journey</div>' +
+    '</div>' +
+    '<div class="phone"><div class="notch"></div><div class="screen" id="iz-screen"></div></div>' +
+    '<div class="legend">' +
+      '<span><i style="background:linear-gradient(120deg,#a855f7,#7c3aed)"></i> Primary action</span>' +
+      '<span><i style="background:linear-gradient(120deg,#ecd9a4,#cdab68)"></i> Confirm / money</span>' +
+      '<span><i style="background:rgba(255,255,255,.12)"></i> Secondary</span>' +
+      '<span><i style="background:linear-gradient(120deg,#fb7185,#e11d48)"></i> Emergency</span>' +
+    '</div>' +
+    '<div class="nav-hint">Welcome → Sign In → Shifts → Detail → Check-In → Wallet → Sign PV → SOS → Profile</div>';
+
+  var screenEl = document.getElementById('iz-screen');
+
+  /* ---------- navigation ---------- */
+  window.izGo = function(name){
+    var fn = views[name] || views.welcome;
+    var html;
+    try { html = statusBar() + '<div class="view">' + fn() + '</div>'; }
+    catch(e){ html = statusBar() + '<div class="view"><div class="scroll"><div class="card" style="margin-top:40px">'
+      + '<div class="eyebrow" style="color:#f43f5e">RENDER ERROR</div><div class="muted" style="margin-top:8px">'
+      + String(e) + '</div></div></div></div>'; }
+    screenEl.innerHTML = html;
+    bind(name);
+    var sc = screenEl.querySelector('.scroll'); if(sc) sc.scrollTop = 0;
+  };
+
+  window.izToast = function(msg){
+    var t = document.createElement('div');
+    t.className = 'toast';
+    t.innerHTML = '<div class="ti">✓</div><div style="font-size:13px">' + msg + '</div>';
+    screenEl.appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add('show'); });
+    setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ t.remove(); }, 400); }, 2200);
+  };
+
+  function bind(name){
+    if(name === 'welcome'){
+      var roles = screenEl.querySelectorAll('.role');
+      roles.forEach(function(r){
+        r.onclick = function(){
+          roles.forEach(function(x){ x.classList.remove('sel'); });
+          r.classList.add('sel');
+        };
+      });
+    }
+    if(name === 'shift'){
+      var ring = screenEl.querySelector('#checkRing');
+      if(ring){
+        ring.onclick = function(){
+          ring.classList.add('done');
+          ring.querySelector('.ico').textContent = '✓';
+          ring.querySelector('.lbl').textContent = 'Velvet 23';
+          ring.querySelector('.sub').textContent = 'Checked in · 23:47';
+          var ls = screenEl.querySelector('#liveStats'); if(ls) ls.style.display = 'grid';
+          izToast('Geo check-in confirmed — within 50m');
+        };
+      }
+    }
+  }
+
+  /* ---------- shared bits ---------- */
+  function statusBar(){
+    return '<div class="statusbar"><span>9:41</span><span class="dots">●●● ✦ ▮</span></div>';
+  }
+  function tab(id, ico, lbl, scr, active){
+    return '<button class="tab ' + (active===id?'on':'') + '" onclick="izGo(\'' + scr + '\')">' +
+           '<span class="tico">' + ico + '</span>' + lbl + '</button>';
+  }
+  function tabbar(active){
+    return '<div class="tabbar">' +
+      tab('home','⌂','Home','home',active) +
+      tab('shift','◈','Shift','shift',active) +
+      '<button class="tab sos" onclick="izGo(\'sos\')"><span class="tico">SOS</span>Safety</button>' +
+      tab('wallet','◇','Wallet','wallet',active) +
+      tab('profile','◐','Profile','profile',active) +
+    '</div>';
+  }
+
+  /* ---------- views ---------- */
+  var views = {
+    welcome: function(){
+      return '<div class="scroll center" style="text-align:center;padding-top:24px;">' +
+        '<div style="font-family:var(--display);font-size:46px;letter-spacing:3px;' +
+          'background:linear-gradient(120deg,#a855f7,#ecd9a4,#cdab68);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Z</div>' +
+        '<div class="logo" style="font-size:30px;margin-top:2px;">InnocenZ</div>' +
+        '<div class="faint" style="letter-spacing:3px;margin-top:6px;">CONNECT · ENGAGE · ENTERTAIN</div>' +
+        '<div class="h2" style="margin-top:30px;">Welcome to <span class="gold">InnocenZ</span></div>' +
+        '<div class="muted" style="margin-top:8px;padding:0 14px;">Choose your role to personalise your experience and get started.</div>' +
+        '<div class="role-grid" style="margin-top:24px;text-align:left;">' +
+          role('👥','PR Personnel','Discover shifts, earn &amp; track payouts.', true) +
+          role('🏛️','PR Agency','Deploy &amp; manage your PR workforce.', false) +
+          role('🍸','Outlet','Request manpower &amp; track sales.', false) +
+          role('🛡️','Admin','Oversee &amp; configure the platform.', false) +
+        '</div>' +
+        '<div style="margin-top:22px;"><button class="btn btn-violet" onclick="izGo(\'signin\')">Continue →</button></div>' +
+        '<div class="divider">or</div>' +
+        '<div style="display:flex;gap:11px;">' +
+          '<button class="btn btn-ghost" onclick="izGo(\'signin\')">Sign In</button>' +
+          '<button class="btn btn-ghost" onclick="izGo(\'signin\')">Create Account</button>' +
+        '</div>' +
+        '<div class="faint" style="margin-top:18px;">🛡 Your data is secure with us · PDA compliant</div>' +
+      '</div>';
+    },
+
+    signin: function(){
+      return '<div class="topbar"><button class="back" onclick="izGo(\'welcome\')">‹</button><div class="logo">InnocenZ</div><div style="width:36px"></div></div>' +
+        '<div class="scroll center">' +
+          '<div class="eyebrow">PR PERSONNEL</div>' +
+          '<div class="h2" style="margin-top:8px;">Sign in to<br>your account</div>' +
+          '<div class="muted" style="margin-top:8px;">Enter your phone number — we will send a one-time code (OTP).</div>' +
+          '<div style="margin-top:26px;">' +
+            '<input class="input" value="+60 12-987 6543"/>' +
+            '<input class="input" value="• • • • • •"/>' +
+          '</div>' +
+          '<button class="btn btn-violet" onclick="izGo(\'home\')">Verify &amp; Enter →</button>' +
+          '<div class="faint" style="text-align:center;margin-top:14px;cursor:pointer;">Forgot password? · Resend OTP</div>' +
+          '<div class="card" style="margin-top:26px;"><div class="faint" style="line-height:1.6;">' +
+            '<span class="gold">⛓ MVP note —</span> Registration captures IC photo (unique ID), languages &amp; PDA consent. Account stays <b>Pending Review</b> until the Agency approves.' +
+          '</div></div>' +
+        '</div>';
+    },
+
+    home: function(){
+      return '<div class="topbar">' +
+          '<div><div class="logo">InnocenZ</div><div class="faint" style="margin-top:1px;">Tonight\u2019s shifts, <span class="gold">Maya</span></div></div>' +
+          '<div style="display:flex;gap:10px;align-items:center;"><div class="bell">🔔</div><div class="av" onclick="izGo(\'profile\')">M</div></div>' +
+        '</div>' +
+        '<div class="scroll">' +
+          '<div class="seg"><button class="on">Nearby</button><button>Top Paid</button><button>Top Rated</button></div>' +
+          shiftCard('Velvet 23','Bukit Bintang · 1.2km','22:00 — 04:00','320','4.9',true,'accept') +
+          shiftCard('Onyx KL','TREC · 3.4km','23:00 — 05:00','280','4.7',false,'view') +
+          shiftCard('Pearl Lounge','Damansara · 5.1km','22:30 — 04:30','260','4.6',false,'view') +
+          '<div class="card" style="margin-top:4px;background:linear-gradient(120deg,rgba(124,58,237,.12),rgba(16,14,22,.9));">' +
+            '<div class="eyebrow">TONIGHT</div>' +
+            '<div class="muted" style="margin-top:6px;">You have <span class="gold">1 confirmed shift</span>. Estimated earnings <span class="gold">RM 320+</span>. Tap a shift to begin geo check-in when you arrive.</div>' +
+          '</div>' +
+        '</div>' +
+        tabbar('home');
+    },
+
+    detail: function(){
+      return '<div class="topbar"><button class="back" onclick="izGo(\'home\')">‹</button><div class="logo" style="font-size:16px;">Shift Details</div><div class="bell">🔔</div></div>' +
+        '<div class="scroll">' +
+          '<div class="card neon">' +
+            '<div class="row"><div><div class="venue" style="font-size:24px;">Velvet 23</div><div class="loc">📍 Bukit Bintang, KL · 1.2km away</div></div><span class="badge vip">VIP Request</span></div>' +
+            '<div class="tiles" style="margin-top:16px;">' +
+              tile('Base Rate','RM 320','21px') + tile('Shift Window','22:00–04:00','16px') +
+              tile('Outlet Rating','4.9 ★','21px') + tile('Languages','EN · 中文 · 粤语','14px') +
+            '</div>' +
+          '</div>' +
+          '<div class="card" style="margin-top:13px;"><div class="eyebrow">ESTIMATED EARNINGS</div>' +
+            li('Base wage (6 hrs)','RM 320') + li('Drink commission (est.)','RM 120') +
+            li('Table commission (est.)','RM 80') + li('Tips (variable)','+ tips') +
+            '<div class="li total"><span class="k">Est. total</span><span class="v">RM 520+</span></div>' +
+          '</div>' +
+          '<div class="card" style="margin-top:13px;"><div class="eyebrow">EVENT</div>' +
+            '<div class="muted" style="margin-top:6px;">Private VIP — Hennessy launch. Table 7 prefers Mandarin/Cantonese hosts. Smart-casual dress code.</div>' +
+            '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><span class="pill">🚗 Transport support</span><span class="pill">⏱ Check-in opens 21:30</span></div>' +
+          '</div>' +
+          '<div style="margin-top:16px;"><button class="btn btn-gold" onclick="izAccept()">Accept Shift →</button></div>' +
+          '<div class="faint" style="text-align:center;margin-top:10px;">Cancelling under 2h before shift adds a penalty flag</div>' +
+        '</div>';
+    },
+
+    shift: function(){
+      return '<div class="topbar"><div class="logo" style="font-size:16px;">During Shift</div><span class="pill"><span class="live-dot"></span> Live</span></div>' +
+        '<div class="scroll">' +
+          '<div class="ring-wrap"><div class="ring" id="checkRing">' +
+            '<div class="ico">◎</div><div class="lbl">Tap to Check-In</div><div class="sub">GPS · within 50m</div>' +
+          '</div>' +
+          '<div class="faint" style="margin-top:14px;text-align:center;">Geo check-in captures a selfie + locked timestamp.<br>Auto-capture in 4s, or 6-tap manual via Maps.</div></div>' +
+          '<div id="liveStats" class="tiles" style="display:none;margin-top:18px;">' +
+            '<div class="tile" style="grid-column:span 2;background:linear-gradient(120deg,rgba(74,222,128,.1),rgba(16,14,22,.9));">' +
+              '<div class="t-lbl">Live Earnings</div><div class="t-val" style="color:var(--green);">RM 184</div>' +
+              '<div class="faint" style="color:var(--green);margin-top:2px;">▲ +RM 12 last hour</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="card" style="margin-top:14px;"><div class="eyebrow">CUSTOMER PREFERENCES</div>' +
+            '<div class="muted" style="margin-top:6px;">Table 7 — VIP · Mandarin/Cantonese · prefers Hennessy. Repeat guest, tips well.</div></div>' +
+          '<div class="card" style="margin-top:13px;"><div class="eyebrow">QUICK ACTIONS</div>' +
+            '<div style="display:flex;gap:10px;margin-top:11px;">' +
+              '<button class="btn btn-ghost btn-sm" style="flex:1" onclick="izGo(\'wallet\')">◇ Wallet</button>' +
+              '<button class="btn btn-danger btn-sm" style="flex:1" onclick="izGo(\'sos\')">⚠ Emergency</button>' +
+            '</div></div>' +
+        '</div>' +
+        tabbar('shift');
+    },
+
+    wallet: function(){
+      return '<div class="topbar"><div class="logo" style="font-size:16px;">Wallet</div><div class="bell">🔔</div></div>' +
+        '<div class="scroll">' +
+          '<div class="card neon" style="background:linear-gradient(135deg,rgba(124,58,237,.25),rgba(16,14,22,.95));">' +
+            '<div class="faint" style="letter-spacing:1px;">AVAILABLE BALANCE</div>' +
+            '<div style="font-family:var(--serif);font-size:38px;font-weight:700;margin-top:4px;">RM 1,284<span style="font-size:20px;color:var(--txt-dim);">.50</span></div>' +
+            '<div style="display:flex;gap:11px;margin-top:16px;">' +
+              '<button class="btn btn-violet btn-sm" style="flex:1" onclick="izToast(\'Top-up via FPX / DuitNow\')">⤓ Top Up</button>' +
+              '<button class="btn btn-gold btn-sm" style="flex:1" onclick="izToast(\'Withdrawal needs a signed PV first\')">⤒ Withdraw</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="tiles" style="margin-top:13px;">' +
+            '<div class="tile"><div class="t-lbl">Pending Payout</div><div class="t-val" style="font-size:20px;color:var(--gold-bright);">RM 320</div><div class="faint" style="margin-top:2px;">1 unsigned PV</div></div>' +
+            '<div class="tile"><div class="t-lbl">This Month</div><div class="t-val" style="font-size:20px;color:var(--green);">RM 4,870</div><div class="faint" style="margin-top:2px;">12 shifts</div></div>' +
+          '</div>' +
+          '<div class="card" style="margin-top:13px;background:linear-gradient(120deg,rgba(201,168,106,.12),rgba(16,14,22,.9));">' +
+            '<div class="row"><div><div class="eyebrow" style="color:var(--gold);">ACTION NEEDED</div>' +
+              '<div style="font-weight:600;margin-top:5px;">Payment Voucher ready</div><div class="faint" style="margin-top:2px;">Velvet 23 · 24 May · RM 320</div></div>' +
+              '<div style="font-size:24px;">🧾</div></div>' +
+            '<button class="btn btn-gold btn-sm" style="width:100%;margin-top:13px;" onclick="izGo(\'pv\')">Review &amp; Sign PV →</button>' +
+          '</div>' +
+          '<div class="card" style="margin-top:13px;"><div class="eyebrow">RECENT TRANSACTIONS</div>' +
+            '<div class="li"><span class="k">⤓ Payout · Onyx KL</span><span class="v" style="color:var(--green)">+ RM 280</span></div>' +
+            '<div class="li"><span class="k">⤓ Payout · Pearl Lounge</span><span class="v" style="color:var(--green)">+ RM 260</span></div>' +
+            '<div class="li"><span class="k">⤒ Withdrawal · DuitNow</span><span class="v" style="color:var(--red)">− RM 500</span></div>' +
+          '</div>' +
+        '</div>' +
+        tabbar('wallet');
+    },
+
+    pv: function(){
+      return '<div class="topbar"><button class="back" onclick="izGo(\'wallet\')">‹</button><div class="logo" style="font-size:16px;">Payment Voucher</div><div style="width:36px"></div></div>' +
+        '<div class="scroll">' +
+          '<div class="card neon">' +
+            '<div class="row"><div><div class="eyebrow">PV #01872</div><div class="h3" style="margin-top:5px;">Velvet 23</div><div class="faint">24 May 2026 · 22:00–04:00</div></div><span class="badge star">★ Sealed</span></div>' +
+            '<div style="margin-top:14px;">' +
+              li('Daily wage (6 hrs)','RM 320.00') + li('Drink commission','RM 140.00') +
+              li('Table commission','RM 95.00') + li('Tips','RM 60.00') +
+              '<div class="li total"><span class="k">Total payout</span><span class="v">RM 615.00</span></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="card" style="margin-top:13px;"><div class="faint" style="line-height:1.6;">' +
+            '<span class="gold">⛓ Rule —</span> Review every line. If anything is wrong, raise a dispute — payment is held until resolved. You only sign once satisfied.</div></div>' +
+          '<div style="margin-top:16px;display:flex;flex-direction:column;gap:11px;">' +
+            '<button class="btn btn-gold" onclick="izSignPV()">✓ Sign &amp; Confirm</button>' +
+            '<button class="btn btn-ghost" onclick="izToast(\'Dispute raised — agency notified, payment held\')">⚠ Raise a Dispute</button>' +
+          '</div>' +
+        '</div>';
+    },
+
+    sos: function(){
+      return '<div class="topbar"><button class="back" onclick="izGo(\'shift\')">‹</button><div class="logo" style="font-size:16px;">SOS &amp; Safety</div><div class="bell">🔔</div></div>' +
+        '<div class="scroll" style="text-align:center;">' +
+          '<div class="muted">We have your back. Tap, connect, get help.</div>' +
+          '<div class="card" style="margin-top:18px;background:radial-gradient(circle at 50% 30%,rgba(244,63,94,.22),rgba(16,14,22,.95));border-color:rgba(244,63,94,.4);">' +
+            '<button onclick="izToast(\'SOS sent — live GPS streamed to Agency\')" style="width:118px;height:118px;border-radius:50%;border:none;cursor:pointer;margin:6px auto 0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:26px;font-weight:700;color:#fff;background:radial-gradient(circle at 50% 40%,#fb7185,#e11d48);box-shadow:0 0 0 10px rgba(244,63,94,.15),0 0 50px rgba(244,63,94,.6);">SOS</button>' +
+            '<div style="font-weight:600;margin-top:14px;">Emergency SOS</div>' +
+            '<div class="muted" style="margin-top:4px;">Hold to alert contacts &amp; emergency services. Works even on lock screen.</div>' +
+          '</div>' +
+          '<div class="tiles" style="margin-top:14px;text-align:left;">' +
+            '<div class="tile"><div class="t-lbl">Current Shift</div><div style="font-size:13px;font-weight:600;margin-top:6px;">Velvet 23</div><div class="faint">22:00–04:00 · Active</div></div>' +
+            '<div class="tile"><div class="t-lbl">Location</div><div style="font-size:13px;font-weight:600;margin-top:6px;color:var(--green)">Live tracking ON</div><div class="faint">Sharing with 3 contacts</div></div>' +
+          '</div>' +
+          '<div class="map-mock" style="margin-top:13px;"><div class="map-pin"></div></div>' +
+          '<div class="card" style="margin-top:13px;text-align:left;">' +
+            '<div class="li"><span class="k">🚗 Safe Ride Home</span><span class="v" style="color:var(--violet)">Book ›</span></div>' +
+            '<div class="li"><span class="k">👥 Emergency Contacts</span><span class="v">3 saved ›</span></div>' +
+            '<div class="li"><span class="k">💬 24/7 Support Chat</span><span class="v" style="color:var(--violet)">Chat ›</span></div>' +
+            '<div class="li"><span class="k">📄 Incident Report</span><span class="v">File ›</span></div>' +
+          '</div>' +
+        '</div>' +
+        tabbar('sos');
+    },
+
+    profile: function(){
+      return '<div class="topbar"><button class="back" onclick="izGo(\'home\')">‹</button><div class="logo" style="font-size:16px;">Profile</div><div class="bell">🔔</div></div>' +
+        '<div class="scroll" style="text-align:center;">' +
+          '<div class="prof-pic">M</div>' +
+          '<div class="h3" style="margin-top:12px;">Maya Tan <span style="font-size:13px;color:var(--violet)">✓</span></div>' +
+          '<div class="faint">PR Personnel · Agency-Tied · Atlas Agency</div>' +
+          '<div class="star-row" style="margin-top:8px;">★★★★★ <span style="font-family:var(--sans);font-size:13px;color:var(--txt-dim)">4.9 · 128 reviews</span></div>' +
+          '<div class="tiles" style="margin-top:18px;text-align:left;">' +
+            tile('Total Shifts','86','24px') +
+            '<div class="tile"><div class="t-lbl">Repeat Rate</div><div class="t-val" style="font-size:24px;color:var(--green)">92%</div></div>' +
+            '<div class="tile"><div class="t-lbl">Tier</div><div class="t-val" style="font-size:17px;margin-top:9px;color:var(--gold-bright)">👑 Gold</div></div>' +
+            tile('This Month','RM 4.8k','20px') +
+          '</div>' +
+          '<div class="card" style="margin-top:14px;text-align:left;"><div class="eyebrow">VERIFIED PROFILE</div>' +
+            '<div class="li"><span class="k">🪪 IC Verified</span><span class="v" style="color:var(--green)">✓ Done</span></div>' +
+            '<div class="li"><span class="k">🗣 Languages</span><span class="v">EN · 中文 · 粤语</span></div>' +
+            '<div class="li"><span class="k">📋 PDA Consent</span><span class="v" style="color:var(--green)">✓ Signed</span></div>' +
+            '<div class="li"><span class="k">🏛 Agency Tie</span><span class="v">Atlas · 8 mo</span></div>' +
+          '</div>' +
+          '<div style="margin-top:16px;"><button class="btn btn-ghost" onclick="izGo(\'welcome\')">↩ Sign Out</button></div>' +
+        '</div>';
+    }
+  };
+
+  /* ---------- small builders ---------- */
+  function role(ico, name, desc, sel){
+    return '<div class="role ' + (sel?'sel':'') + '"><div class="arrow">→</div><div class="ico">' + ico + '</div>' +
+           '<div class="rname">' + name + '</div><div class="rdesc">' + desc + '</div></div>';
+  }
+  function shiftCard(venue, loc, time, rate, star, vip, act){
+    return '<div class="card shift neon">' +
+      '<div class="row"><div><div class="venue">' + venue + '</div><div class="loc">📍 ' + loc + '</div></div>' +
+        '<div style="text-align:right"><div class="rate">RM ' + rate + '</div><div class="faint">+ tips</div></div></div>' +
+      '<div class="row" style="margin-top:8px;align-items:center;"><div class="time">🕙 ' + time +
+        ' &nbsp; <span class="badge star">★ ' + star + '</span> ' + (vip?'<span class="badge vip">VIP Request</span>':'') + '</div></div>' +
+      '<button class="btn ' + (act==='accept'?'btn-gold':'btn-ghost') + ' btn-sm" style="width:100%;margin-top:13px;" onclick="izGo(\'detail\')">' +
+        (act==='accept'?'Accept Shift':'View Details') + '</button>' +
+    '</div>';
+  }
+  function tile(lbl, val, size){
+    return '<div class="tile"><div class="t-lbl">' + lbl + '</div><div class="t-val" style="font-size:' + size + ';' +
+      (size==='16px'||size==='14px'?'margin-top:10px;':'') + '">' + val + '</div></div>';
+  }
+  function li(k, v){ return '<div class="li"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>'; }
+
+  /* ---------- multi-step actions (avoid inline apostrophes) ---------- */
+  window.izAccept = function(){ izToast('Shift accepted — you are on the Velvet 23 roster'); setTimeout(function(){ izGo('shift'); }, 900); };
+  window.izSignPV = function(){ izToast('PV signed — RM 615 credited to wallet'); setTimeout(function(){ izGo('wallet'); }, 1000); };
+
+  izGo('welcome');
+})();
+</script>

@@ -96,6 +96,7 @@
 #iz-root .role .rdesc{ font-size:11px; color:var(--txt-dim); margin-top:3px; line-height:1.45; font-weight:300; }
 #iz-root .role .arrow{ position:absolute; top:14px; right:14px; width:26px; height:26px; border-radius:50%;
   border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--txt-dim); }
+#iz-root .role.role-center{ grid-column:1 / -1; justify-self:center; width:calc((100% - 12px) / 2); }
 
 /* shift */
 #iz-root .shift{ margin-bottom:13px; }
@@ -285,8 +286,7 @@
         '<div class="role-grid" style="margin-top:24px;text-align:left;">' +
           role('👥','PR Personnel','Discover shifts, earn &amp; track payouts.', true) +
           role('🏛️','PR Agency','Deploy &amp; manage your PR workforce.', false) +
-          role('🍸','Outlet','Request manpower &amp; track sales.', false) +
-          role('🛡️','Admin','Oversee &amp; configure the platform.', false) +
+          role('🍸','Outlet','Request manpower &amp; track sales.', false, true) +
         '</div>' +
         '<div style="margin-top:22px;"><button class="btn btn-violet" onclick="izGo(\'signin\')">Continue →</button></div>' +
         '<div class="divider">or</div>' +
@@ -481,8 +481,8 @@
   };
 
   /* ---------- small builders ---------- */
-  function role(ico, name, desc, sel){
-    return '<div class="role ' + (sel?'sel':'') + '"><div class="arrow">→</div><div class="ico">' + ico + '</div>' +
+  function role(ico, name, desc, sel, center){
+    return '<div class="role ' + (sel?'sel':'') + (center?' role-center':'') + '"><div class="arrow">→</div><div class="ico">' + ico + '</div>' +
            '<div class="rname">' + name + '</div><div class="rdesc">' + desc + '</div></div>';
   }
   function shiftCard(venue, loc, time, rate, star, vip, act){

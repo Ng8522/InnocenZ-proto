@@ -1,10 +1,20 @@
-<!-- InnocenZ — Clickable Mobile Prototype (PR Personnel App) v2 -->
-<div id="iz-root"></div>
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08070c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>InnocenZ</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Marcellus&family=Outfit:wght@300;400;500;600;700&display=swap');
 
+html, body{ height:100%; overflow:hidden; -webkit-text-size-adjust:100%; }
+body{ margin:0; background:#050409; }
+
 #iz-root, #iz-root * { box-sizing:border-box; margin:0; padding:0; }
+#iz-root button, #iz-root input{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 
 #iz-root{
   --bg:#08070c; --panel:#100e16; --line:rgba(201,168,106,.18);
@@ -12,14 +22,18 @@
   --txt:#f3eee4; --txt-dim:#9890a8; --txt-faint:#5f586e;
   --green:#4ade80; --red:#f43f5e;
   --serif:'Cormorant Garamond',Georgia,serif; --display:'Marcellus',serif; --sans:'Outfit',sans-serif;
+  --safe-top:env(safe-area-inset-top, 0px); --safe-right:env(safe-area-inset-right, 0px);
+  --safe-bottom:env(safe-area-inset-bottom, 0px); --safe-left:env(safe-area-inset-left, 0px);
   font-family:var(--sans);
-  display:flex; flex-direction:column; align-items:center; gap:18px;
-  padding:30px 12px 50px; min-height:100vh; color:var(--txt);
-  background:
-    radial-gradient(900px 500px at 80% -5%, rgba(124,58,237,.22), transparent 60%),
-    radial-gradient(700px 500px at 10% 110%, rgba(201,168,106,.12), transparent 55%),
-    #050409;
+  display:flex; flex-direction:column; align-items:stretch;
+  width:100%; height:100dvh; min-height:100dvh; max-height:100dvh;
+  gap:0; padding:0; color:var(--txt); overflow:hidden;
+  background:var(--bg);
 }
+
+#iz-root .iz-head,
+#iz-root .legend,
+#iz-root .nav-hint{ display:none; }
 
 #iz-root .iz-head{ text-align:center; max-width:880px; }
 #iz-root .iz-head h1{ font-family:var(--display); font-size:30px; letter-spacing:2px; font-weight:400;
@@ -29,12 +43,12 @@
 #iz-root .iz-head .tip{ margin-top:14px; display:inline-flex; gap:8px; align-items:center; font-size:11.5px;
   color:var(--gold); background:rgba(201,168,106,.08); border:1px solid var(--line); padding:7px 14px; border-radius:30px; }
 
-/* phone */
-#iz-root .phone{ position:relative; width:390px; height:820px; border-radius:54px; flex:none;
-  background:linear-gradient(160deg,#22202c,#0c0b12); padding:13px;
-  box-shadow:0 0 0 2px rgba(201,168,106,.25),0 40px 90px -20px rgba(0,0,0,.9),0 0 120px -30px rgba(124,58,237,.5); }
-#iz-root .screen{ position:relative; width:100%; height:100%; border-radius:42px; overflow:hidden;
-  background:var(--bg); display:flex; flex-direction:column; }
+/* app shell */
+#iz-root .phone{ position:relative; flex:1; width:100%; min-height:0; height:auto;
+  border-radius:0; padding:0; background:var(--bg); box-shadow:none; }
+#iz-root .screen{ position:relative; width:100%; height:100%; border-radius:0; overflow:hidden;
+  background:var(--bg); display:flex; flex-direction:column; min-height:0; }
+#iz-root .notch{ display:none; }
 /* ambient glow sits BEHIND everything */
 #iz-root .screen::before{ content:''; position:absolute; inset:0; z-index:0; pointer-events:none;
   background:
@@ -43,16 +57,15 @@
 /* EVERY direct child of screen sits ABOVE the glow */
 #iz-root .screen > *{ position:relative; z-index:1; }
 
-#iz-root .notch{ position:absolute; top:0; left:50%; transform:translateX(-50%); width:130px; height:26px;
-  background:#000; border-radius:0 0 18px 18px; z-index:60; }
-#iz-root .statusbar{ display:flex; justify-content:space-between; align-items:center;
-  padding:13px 26px 6px; font-size:12px; color:var(--txt); font-weight:500; }
-#iz-root .statusbar .dots{ letter-spacing:1px; opacity:.85; }
+#iz-root .statusbar{ display:none; }
 
 /* layout */
 #iz-root .view{ display:flex; flex-direction:column; flex:1; min-height:0; animation:fade .32s ease; }
 @keyframes fade{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
-#iz-root .scroll{ flex:1; overflow-y:auto; padding:6px 22px 26px; }
+#iz-root .scroll{ flex:1; overflow-y:auto; overflow-x:hidden;
+  padding:max(8px,var(--safe-top)) max(18px,var(--safe-right)) calc(20px + var(--safe-bottom)) max(18px,var(--safe-left));
+  -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
+#iz-root .view > .topbar + .scroll{ padding-top:6px; }
 #iz-root .scroll::-webkit-scrollbar{ width:0; }
 #iz-root .center{ display:flex; flex-direction:column; justify-content:center; }
 
@@ -139,7 +152,8 @@
 #iz-root .li.total .k, #iz-root .li.total .v{ font-family:var(--serif); font-size:18px; color:var(--gold-bright); font-weight:700; }
 
 /* nav */
-#iz-root .tabbar{ display:flex; justify-content:space-around; align-items:center; padding:12px 14px 22px;
+#iz-root .tabbar{ display:flex; justify-content:space-around; align-items:center; flex:none;
+  padding:10px max(14px,var(--safe-right)) max(12px,calc(10px + var(--safe-bottom))) max(14px,var(--safe-left));
   background:linear-gradient(0deg,rgba(8,7,12,1),rgba(8,7,12,.6)); border-top:1px solid var(--line); }
 #iz-root .tab{ display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:var(--txt-faint);
   font-size:9.5px; letter-spacing:.5px; transition:.2s; background:none; border:none; font-family:var(--sans); }
@@ -150,7 +164,8 @@
   font-size:14px; font-weight:700; color:#fff; border:3px solid var(--bg); }
 
 /* topbar / misc */
-#iz-root .topbar{ display:flex; align-items:center; justify-content:space-between; padding:4px 22px 10px; }
+#iz-root .topbar{ display:flex; align-items:center; justify-content:space-between; flex:none;
+  padding:max(10px,var(--safe-top)) max(18px,var(--safe-right)) 10px max(18px,var(--safe-left)); }
 #iz-root .av{ width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#a855f7,#cdab68);
   display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; color:#0a0a0a; cursor:pointer; }
 #iz-root .bell{ width:36px; height:36px; border-radius:50%; border:1px solid var(--line); display:flex; align-items:center;
@@ -169,7 +184,8 @@
 #iz-root .prof-pic{ width:84px; height:84px; border-radius:50%; background:linear-gradient(135deg,#a855f7,#cdab68);
   margin:0 auto; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:34px; color:#0a0a0a; font-weight:700; }
 #iz-root .star-row{ color:var(--gold-bright); letter-spacing:3px; font-size:15px; }
-#iz-root .toast{ position:absolute; left:22px; right:22px; bottom:96px; background:linear-gradient(120deg,#1c1826,#100e16);
+#iz-root .toast{ position:absolute; left:max(18px,var(--safe-left)); right:max(18px,var(--safe-right));
+  bottom:calc(88px + var(--safe-bottom)); background:linear-gradient(120deg,#1c1826,#100e16);
   border:1px solid var(--line); border-radius:14px; padding:14px 16px; z-index:80; display:flex; gap:11px; align-items:center;
   box-shadow:0 16px 40px -16px rgba(0,0,0,.9); opacity:0; transform:translateY(20px); transition:.35s; pointer-events:none; }
 #iz-root .toast.show{ opacity:1; transform:none; }
@@ -185,8 +201,51 @@
 #iz-root .legend span{ display:inline-flex; gap:6px; align-items:center; }
 #iz-root .legend i{ width:18px; height:10px; border-radius:3px; display:inline-block; }
 #iz-root .nav-hint{ font-size:11px; color:var(--txt-faint); text-align:center; margin-top:4px; }
-</style>
 
+/* small phones */
+@media (max-width:380px){
+  #iz-root .h2{ font-size:26px; }
+  #iz-root .role{ padding:13px; }
+  #iz-root .role .rname{ font-size:14px; }
+  #iz-root .seg button{ font-size:11px; padding:7px 4px; }
+  #iz-root .ring{ width:170px; height:170px; }
+}
+
+/* desktop: prototype presentation frame */
+@media (min-width:900px){
+  html, body{ overflow:auto; height:auto; }
+  #iz-root{
+    align-items:center; gap:18px; width:auto; height:auto; min-height:100vh; max-height:none;
+    padding:30px 12px 50px; overflow:visible;
+    background:
+      radial-gradient(900px 500px at 80% -5%, rgba(124,58,237,.22), transparent 60%),
+      radial-gradient(700px 500px at 10% 110%, rgba(201,168,106,.12), transparent 55%),
+      #050409;
+  }
+  #iz-root .iz-head,
+  #iz-root .legend{ display:block; }
+  #iz-root .nav-hint{ display:block; }
+  #iz-root .legend{ display:flex; }
+  #iz-root .phone{
+    flex:none; width:390px; height:820px; border-radius:54px;
+    background:linear-gradient(160deg,#22202c,#0c0b12); padding:13px;
+    box-shadow:0 0 0 2px rgba(201,168,106,.25),0 40px 90px -20px rgba(0,0,0,.9),0 0 120px -30px rgba(124,58,237,.5);
+  }
+  #iz-root .screen{ border-radius:42px; }
+  #iz-root .notch{ display:block; position:absolute; top:0; left:50%; transform:translateX(-50%);
+    width:130px; height:26px; background:#000; border-radius:0 0 18px 18px; z-index:60; }
+  #iz-root .statusbar{ display:flex; justify-content:space-between; align-items:center;
+    padding:13px 26px 6px; font-size:12px; color:var(--txt); font-weight:500; }
+  #iz-root .statusbar .dots{ letter-spacing:1px; opacity:.85; }
+  #iz-root .scroll{ padding:6px 22px 26px; }
+  #iz-root .topbar{ padding:4px 22px 10px; }
+  #iz-root .tabbar{ padding:12px 14px 22px; }
+  #iz-root .toast{ left:22px; right:22px; bottom:96px; }
+}
+</style>
+</head>
+<body>
+<div id="iz-root"></div>
 <script>
 (function(){
   var root = document.getElementById('iz-root');
@@ -508,3 +567,5 @@
   izGo('welcome');
 })();
 </script>
+</body>
+</html>

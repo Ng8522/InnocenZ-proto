@@ -26,6 +26,7 @@ import { Route as OutletBillingRouteImport } from './routes/outlet.billing'
 import { Route as HostWalletRouteImport } from './routes/host.wallet'
 import { Route as HostTonightRouteImport } from './routes/host.tonight'
 import { Route as HostProfileRouteImport } from './routes/host.profile'
+import { Route as HostHistoryRouteImport } from './routes/host.history'
 import { Route as AgencyReportsRouteImport } from './routes/agency.reports'
 import { Route as AgencyPvRouteImport } from './routes/agency.pv'
 import { Route as AgencyProfileRouteImport } from './routes/agency.profile'
@@ -116,6 +117,11 @@ const HostProfileRoute = HostProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => HostRoute,
 } as any)
+const HostHistoryRoute = HostHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => HostRoute,
+} as any)
 const AgencyReportsRoute = AgencyReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -148,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/agency/profile': typeof AgencyProfileRoute
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
+  '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
@@ -168,6 +175,7 @@ export interface FileRoutesByTo {
   '/agency/profile': typeof AgencyProfileRoute
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
+  '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
@@ -192,6 +200,7 @@ export interface FileRoutesById {
   '/agency/profile': typeof AgencyProfileRoute
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
+  '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
@@ -217,6 +226,7 @@ export interface FileRouteTypes {
     | '/agency/profile'
     | '/agency/pv'
     | '/agency/reports'
+    | '/host/history'
     | '/host/profile'
     | '/host/tonight'
     | '/host/wallet'
@@ -237,6 +247,7 @@ export interface FileRouteTypes {
     | '/agency/profile'
     | '/agency/pv'
     | '/agency/reports'
+    | '/host/history'
     | '/host/profile'
     | '/host/tonight'
     | '/host/wallet'
@@ -260,6 +271,7 @@ export interface FileRouteTypes {
     | '/agency/profile'
     | '/agency/pv'
     | '/agency/reports'
+    | '/host/history'
     | '/host/profile'
     | '/host/tonight'
     | '/host/wallet'
@@ -403,6 +415,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HostProfileRouteImport
       parentRoute: typeof HostRoute
     }
+    '/host/history': {
+      id: '/host/history'
+      path: '/history'
+      fullPath: '/host/history'
+      preLoaderRoute: typeof HostHistoryRouteImport
+      parentRoute: typeof HostRoute
+    }
     '/agency/reports': {
       id: '/agency/reports'
       path: '/reports'
@@ -454,6 +473,7 @@ const AgencyRouteWithChildren =
   AgencyRoute._addFileChildren(AgencyRouteChildren)
 
 interface HostRouteChildren {
+  HostHistoryRoute: typeof HostHistoryRoute
   HostProfileRoute: typeof HostProfileRoute
   HostTonightRoute: typeof HostTonightRoute
   HostWalletRoute: typeof HostWalletRoute
@@ -461,6 +481,7 @@ interface HostRouteChildren {
 }
 
 const HostRouteChildren: HostRouteChildren = {
+  HostHistoryRoute: HostHistoryRoute,
   HostProfileRoute: HostProfileRoute,
   HostTonightRoute: HostTonightRoute,
   HostWalletRoute: HostWalletRoute,

@@ -43,14 +43,7 @@ function Welcome() {
 
   return (
     <PhoneFrame className="px-6 pb-8 pt-10">
-      <div className="flex items-center justify-between">
-        <span />
-        <button onClick={go} className="glass rounded-full px-4 py-1.5 text-xs font-medium">
-          Skip
-        </button>
-      </div>
-
-      <div className="mt-8 flex flex-col items-center">
+      <div className="flex flex-col items-center">
         <Logo size="lg" />
       </div>
 

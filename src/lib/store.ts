@@ -51,6 +51,8 @@ export interface Booking {
   status: "offered" | "accepted" | "checked-in" | "completed";
   event: string;
   languages: string;
+  checkedInAt?: string;
+  checkedOutAt?: string;
 }
 
 export interface PendingPR {
@@ -120,6 +122,18 @@ const seedShifts: ShiftRequest[] = [
 const seedBookings: Booking[] = [
   { id: "b1", outletName: "Velvet 23", date: "Tonight", shift: "22:00 — 04:00", pay: 360, status: "offered", event: "Hennessy Launch", languages: "EN / 中文" },
   { id: "b2", outletName: "Noir Lounge", date: "Tomorrow", shift: "21:00 — 03:00", pay: 320, status: "offered", event: "Ladies Night", languages: "EN / 粤语" },
+  {
+    id: "b0",
+    outletName: "Onyx KL",
+    date: "Last Fri",
+    shift: "23:00 — 05:00",
+    pay: 340,
+    status: "completed",
+    event: "VIP Table Night",
+    languages: "EN / 中文",
+    checkedInAt: "23:02",
+    checkedOutAt: "05:01",
+  },
 ];
 
 const seedPVs: PV[] = [
@@ -198,12 +212,22 @@ export const useStore = create<StoreState>()(
         get().toast("Shift accepted", "success");
       },
       checkIn: (id) => {
-        set((st) => ({ bookings: st.bookings.map((b) => b.id === id ? { ...b, status: "checked-in" } : b) }));
+        const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        set((st) => ({
+          bookings: st.bookings.map((b) =>
+            b.id === id ? { ...b, status: "checked-in", checkedInAt: time } : b,
+          ),
+        }));
         get().toast("Checked in · GPS verified", "success");
       },
       checkOut: (id) => {
-        set((st) => ({ bookings: st.bookings.map((b) => b.id === id ? { ...b, status: "completed" } : b) }));
-        get().toast("Checked out · awaiting PV", "info");
+        const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        set((st) => ({
+          bookings: st.bookings.map((b) =>
+            b.id === id ? { ...b, status: "completed", checkedOutAt: time } : b,
+          ),
+        }));
+        get().toast("Checked out · shift saved to history", "info");
       },
 
       signPv: (id) => {

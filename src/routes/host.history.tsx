@@ -1,17 +1,21 @@
+import { useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppHeader } from "@/components/Nav";
 import { useStore, type Booking } from "@/lib/store";
-import { Clock, History, Languages, LogIn, LogOut } from "lucide-react";
+import { Clock, History as HistoryIcon, Languages, LogIn, LogOut } from "lucide-react";
 
 export const Route = createFileRoute("/host/history")({
   component: ShiftHistoryPage,
 });
 
 function ShiftHistoryPage() {
-  const history = useStore((s) =>
-    s.bookings
-      .filter((b) => b.status === "completed")
-      .sort((a, b) => (b.checkedOutAt ?? "").localeCompare(a.checkedOutAt ?? "")),
+  const bookings = useStore((s) => s.bookings);
+  const history = useMemo(
+    () =>
+      [...(bookings ?? [])]
+        .filter((b) => b.status === "completed")
+        .sort((a, b) => (b.checkedOutAt ?? "").localeCompare(a.checkedOutAt ?? "")),
+    [bookings],
   );
 
   return (
@@ -20,7 +24,7 @@ function ShiftHistoryPage() {
       <div className="px-5 pt-5">
         {history.length === 0 ? (
           <div className="rounded-2xl bg-gradient-surface p-6 text-center shadow-card">
-            <History className="mx-auto h-8 w-8 text-muted-foreground" />
+            <HistoryIcon className="mx-auto h-8 w-8 text-muted-foreground" />
             <p className="mt-3 text-sm font-medium">No completed shifts yet</p>
             <p className="mt-1 text-[11px] text-muted-foreground">
               Accept a shift, check in on Tonight, then check out — your shift will appear here.

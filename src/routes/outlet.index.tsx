@@ -15,7 +15,7 @@ function OutletRequest() {
   const [qty, setQty] = useState(tonight?.quantity ?? 6);
   const [shift, setShift] = useState(tonight?.shift ?? "22:00 — 04:00");
   const [event, setEvent] = useState(tonight?.event ?? "Private VIP — Hennessy Launch");
-  const [langs, setLangs] = useState<string[]>(["EN", "中文", "粤语"]);
+  const [langs, setLangs] = useState<string[]>(["EN", "中文"]);
   const [minRating, setMinRating] = useState(tonight?.preferredRating ?? 4.5);
 
   const recommended = useMemo(
@@ -71,7 +71,7 @@ function OutletRequest() {
           </Row>
           <Row label="Languages">
             <div className="flex flex-wrap justify-end gap-1.5">
-              {["EN", "中文", "粤语", "BM"].map((l) => (
+              {["EN", "中文", "BM"].map((l) => (
                 <button key={l} onClick={() => toggleLang(l)}
                   className={`rounded-full border px-2.5 py-0.5 text-[11px] ${langs.includes(l) ? "border-primary bg-primary/20 text-primary" : "border-border text-muted-foreground"}`}>
                   {l}

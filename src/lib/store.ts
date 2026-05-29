@@ -102,10 +102,10 @@ interface StoreState {
 }
 
 const seedPRs: PR[] = [
-  { id: "p1", name: "Luna", rating: 4.9, languages: ["EN", "中文", "粤语"], status: "available", avatar: "🌙" },
+  { id: "p1", name: "Luna", rating: 4.9, languages: ["EN", "中文"], status: "available", avatar: "🌙" },
   { id: "p2", name: "Mia", rating: 4.8, languages: ["EN", "中文"], status: "available", avatar: "✨" },
-  { id: "p3", name: "Vivi", rating: 4.7, languages: ["EN", "粤语"], status: "available", avatar: "🥂" },
-  { id: "p4", name: "Cici", rating: 4.6, languages: ["EN", "中文", "粤语"], status: "available", avatar: "💎" },
+  { id: "p3", name: "Vivi", rating: 4.7, languages: ["EN", "BM"], status: "available", avatar: "🥂" },
+  { id: "p4", name: "Cici", rating: 4.6, languages: ["EN", "中文"], status: "available", avatar: "💎" },
   { id: "p5", name: "Nina", rating: 4.5, languages: ["EN", "BM"], status: "available", avatar: "🌹" },
   { id: "p6", name: "Yuki", rating: 4.8, languages: ["EN", "中文", "日本語"], status: "available", avatar: "🎐" },
 ];
@@ -113,7 +113,7 @@ const seedPRs: PR[] = [
 const seedShifts: ShiftRequest[] = [
   {
     id: "s1", outletName: "Velvet 23", date: "Tonight", shift: "22:00 — 04:00",
-    quantity: 6, filled: 6, languages: "EN / 中文 / 粤语", event: "Private VIP — Hennessy Launch",
+    quantity: 6, filled: 6, languages: "EN / 中文", event: "Private VIP — Hennessy Launch",
     preferredRating: 4.5, estimatedCost: 2180, liveSales: 14820,
     status: "confirmed", prs: ["p1", "p2", "p3", "p4"], payPerHour: 60,
   },
@@ -121,7 +121,7 @@ const seedShifts: ShiftRequest[] = [
 
 const seedBookings: Booking[] = [
   { id: "b1", outletName: "Velvet 23", date: "Tonight", shift: "22:00 — 04:00", pay: 360, status: "offered", event: "Hennessy Launch", languages: "EN / 中文" },
-  { id: "b2", outletName: "Noir Lounge", date: "Tomorrow", shift: "21:00 — 03:00", pay: 320, status: "offered", event: "Ladies Night", languages: "EN / 粤语" },
+  { id: "b2", outletName: "Noir Lounge", date: "Tomorrow", shift: "21:00 — 03:00", pay: 320, status: "offered", event: "Ladies Night", languages: "EN / BM" },
   {
     id: "b0",
     outletName: "Onyx KL",

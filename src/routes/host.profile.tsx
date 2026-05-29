@@ -28,7 +28,7 @@ function ProfilePage() {
 
         <div className="mt-4 rounded-2xl bg-gradient-surface p-4 shadow-card">
           <Row icon={<IdCard className="h-4 w-4" />} label="IC verified" value="••• 4421" />
-          <Row icon={<Languages className="h-4 w-4" />} label="Languages" value="EN · 中文 · 粤语" />
+          <Row icon={<Languages className="h-4 w-4" />} label="Languages" value="EN · 中文" />
           <Row icon={<Shield className="h-4 w-4" />} label="Agency" value="Velvet Talent" />
         </div>
 

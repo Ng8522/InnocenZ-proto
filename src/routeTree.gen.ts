@@ -20,6 +20,7 @@ import { Route as HostIndexRouteImport } from './routes/host.index'
 import { Route as AgencyIndexRouteImport } from './routes/agency.index'
 import { Route as OutletSalesRouteImport } from './routes/outlet.sales'
 import { Route as OutletRatingsRouteImport } from './routes/outlet.ratings'
+import { Route as OutletProfileRouteImport } from './routes/outlet.profile'
 import { Route as OutletBookingsRouteImport } from './routes/outlet.bookings'
 import { Route as OutletBillingRouteImport } from './routes/outlet.billing'
 import { Route as HostWalletRouteImport } from './routes/host.wallet'
@@ -27,6 +28,7 @@ import { Route as HostTonightRouteImport } from './routes/host.tonight'
 import { Route as HostProfileRouteImport } from './routes/host.profile'
 import { Route as AgencyReportsRouteImport } from './routes/agency.reports'
 import { Route as AgencyPvRouteImport } from './routes/agency.pv'
+import { Route as AgencyProfileRouteImport } from './routes/agency.profile'
 import { Route as AgencyPendingRouteImport } from './routes/agency.pending'
 
 const SigninRoute = SigninRouteImport.update({
@@ -84,6 +86,11 @@ const OutletRatingsRoute = OutletRatingsRouteImport.update({
   path: '/ratings',
   getParentRoute: () => OutletRoute,
 } as any)
+const OutletProfileRoute = OutletProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => OutletRoute,
+} as any)
 const OutletBookingsRoute = OutletBookingsRouteImport.update({
   id: '/bookings',
   path: '/bookings',
@@ -119,6 +126,11 @@ const AgencyPvRoute = AgencyPvRouteImport.update({
   path: '/pv',
   getParentRoute: () => AgencyRoute,
 } as any)
+const AgencyProfileRoute = AgencyProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AgencyRoute,
+} as any)
 const AgencyPendingRoute = AgencyPendingRouteImport.update({
   id: '/pending',
   path: '/pending',
@@ -133,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/outlet': typeof OutletRouteWithChildren
   '/signin': typeof SigninRoute
   '/agency/pending': typeof AgencyPendingRoute
+  '/agency/profile': typeof AgencyProfileRoute
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
   '/host/profile': typeof HostProfileRoute
@@ -140,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
   '/outlet/bookings': typeof OutletBookingsRoute
+  '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
   '/outlet/sales': typeof OutletSalesRoute
   '/agency/': typeof AgencyIndexRoute
@@ -151,6 +165,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/signin': typeof SigninRoute
   '/agency/pending': typeof AgencyPendingRoute
+  '/agency/profile': typeof AgencyProfileRoute
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
   '/host/profile': typeof HostProfileRoute
@@ -158,6 +173,7 @@ export interface FileRoutesByTo {
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
   '/outlet/bookings': typeof OutletBookingsRoute
+  '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
   '/outlet/sales': typeof OutletSalesRoute
   '/agency': typeof AgencyIndexRoute
@@ -173,6 +189,7 @@ export interface FileRoutesById {
   '/outlet': typeof OutletRouteWithChildren
   '/signin': typeof SigninRoute
   '/agency/pending': typeof AgencyPendingRoute
+  '/agency/profile': typeof AgencyProfileRoute
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
   '/host/profile': typeof HostProfileRoute
@@ -180,6 +197,7 @@ export interface FileRoutesById {
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
   '/outlet/bookings': typeof OutletBookingsRoute
+  '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
   '/outlet/sales': typeof OutletSalesRoute
   '/agency/': typeof AgencyIndexRoute
@@ -196,6 +214,7 @@ export interface FileRouteTypes {
     | '/outlet'
     | '/signin'
     | '/agency/pending'
+    | '/agency/profile'
     | '/agency/pv'
     | '/agency/reports'
     | '/host/profile'
@@ -203,6 +222,7 @@ export interface FileRouteTypes {
     | '/host/wallet'
     | '/outlet/billing'
     | '/outlet/bookings'
+    | '/outlet/profile'
     | '/outlet/ratings'
     | '/outlet/sales'
     | '/agency/'
@@ -214,6 +234,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/signin'
     | '/agency/pending'
+    | '/agency/profile'
     | '/agency/pv'
     | '/agency/reports'
     | '/host/profile'
@@ -221,6 +242,7 @@ export interface FileRouteTypes {
     | '/host/wallet'
     | '/outlet/billing'
     | '/outlet/bookings'
+    | '/outlet/profile'
     | '/outlet/ratings'
     | '/outlet/sales'
     | '/agency'
@@ -235,6 +257,7 @@ export interface FileRouteTypes {
     | '/outlet'
     | '/signin'
     | '/agency/pending'
+    | '/agency/profile'
     | '/agency/pv'
     | '/agency/reports'
     | '/host/profile'
@@ -242,6 +265,7 @@ export interface FileRouteTypes {
     | '/host/wallet'
     | '/outlet/billing'
     | '/outlet/bookings'
+    | '/outlet/profile'
     | '/outlet/ratings'
     | '/outlet/sales'
     | '/agency/'
@@ -337,6 +361,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutletRatingsRouteImport
       parentRoute: typeof OutletRoute
     }
+    '/outlet/profile': {
+      id: '/outlet/profile'
+      path: '/profile'
+      fullPath: '/outlet/profile'
+      preLoaderRoute: typeof OutletProfileRouteImport
+      parentRoute: typeof OutletRoute
+    }
     '/outlet/bookings': {
       id: '/outlet/bookings'
       path: '/bookings'
@@ -386,6 +417,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgencyPvRouteImport
       parentRoute: typeof AgencyRoute
     }
+    '/agency/profile': {
+      id: '/agency/profile'
+      path: '/profile'
+      fullPath: '/agency/profile'
+      preLoaderRoute: typeof AgencyProfileRouteImport
+      parentRoute: typeof AgencyRoute
+    }
     '/agency/pending': {
       id: '/agency/pending'
       path: '/pending'
@@ -398,6 +436,7 @@ declare module '@tanstack/react-router' {
 
 interface AgencyRouteChildren {
   AgencyPendingRoute: typeof AgencyPendingRoute
+  AgencyProfileRoute: typeof AgencyProfileRoute
   AgencyPvRoute: typeof AgencyPvRoute
   AgencyReportsRoute: typeof AgencyReportsRoute
   AgencyIndexRoute: typeof AgencyIndexRoute
@@ -405,6 +444,7 @@ interface AgencyRouteChildren {
 
 const AgencyRouteChildren: AgencyRouteChildren = {
   AgencyPendingRoute: AgencyPendingRoute,
+  AgencyProfileRoute: AgencyProfileRoute,
   AgencyPvRoute: AgencyPvRoute,
   AgencyReportsRoute: AgencyReportsRoute,
   AgencyIndexRoute: AgencyIndexRoute,
@@ -432,6 +472,7 @@ const HostRouteWithChildren = HostRoute._addFileChildren(HostRouteChildren)
 interface OutletRouteChildren {
   OutletBillingRoute: typeof OutletBillingRoute
   OutletBookingsRoute: typeof OutletBookingsRoute
+  OutletProfileRoute: typeof OutletProfileRoute
   OutletRatingsRoute: typeof OutletRatingsRoute
   OutletSalesRoute: typeof OutletSalesRoute
   OutletIndexRoute: typeof OutletIndexRoute
@@ -440,6 +481,7 @@ interface OutletRouteChildren {
 const OutletRouteChildren: OutletRouteChildren = {
   OutletBillingRoute: OutletBillingRoute,
   OutletBookingsRoute: OutletBookingsRoute,
+  OutletProfileRoute: OutletProfileRoute,
   OutletRatingsRoute: OutletRatingsRoute,
   OutletSalesRoute: OutletSalesRoute,
   OutletIndexRoute: OutletIndexRoute,

@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && node scripts/generate-spa-html.mjs",
-    "build:pages": "cross-env GITHUB_PAGES=true vite build && cross-env GITHUB_PAGES=true node scripts/generate-spa-html.mjs",
+    "build": "vite build && node scripts/prerender-pages.mjs",
+    "build:pages": "cross-env GITHUB_PAGES=true vite build && cross-env GITHUB_PAGES=true node scripts/prerender-pages.mjs",
     "deploy": "pnpm run build:pages",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",

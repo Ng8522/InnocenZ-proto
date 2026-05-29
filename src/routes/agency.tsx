@@ -2,7 +2,7 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { BottomNav } from "@/components/Nav";
 import { PhoneFrame } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
-import { LayoutDashboard, UserCheck, FileText, BarChart3 } from "lucide-react";
+import { LayoutDashboard, UserCheck, FileText, BarChart3, User } from "lucide-react";
 
 export const Route = createFileRoute("/agency")({
   component: AgencyLayout,
@@ -21,6 +21,7 @@ function AgencyLayout() {
           { to: "/agency/pending", label: "PRs", icon: UserCheck },
           { to: "/agency/pv", label: "PV", icon: FileText },
           { to: "/agency/reports", label: "Reports", icon: BarChart3 },
+          { to: "/agency/profile", label: "Profile", icon: User },
         ]}
       />
     </PhoneFrame>

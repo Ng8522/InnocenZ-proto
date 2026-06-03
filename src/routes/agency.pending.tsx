@@ -11,7 +11,7 @@ function AgencyPending() {
   const list = pendingPRs.filter((p) => p.status === "pending");
 
   return (
-    <div>
+    <div className="iz-screen">
       <AppHeader subtitle="Module 1" title="Pending PR approvals" />
       <div className="space-y-3 px-5 pt-5">
         {list.length === 0 ? (

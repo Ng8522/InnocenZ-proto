@@ -15,9 +15,9 @@ function SalesPage() {
   const bars = [62, 48, 80, 35, 92, 70, 88];
 
   return (
-    <div>
+    <div className="iz-screen">
       <AppHeader subtitle="InnocenZ · Outlet" title="Sales" />
-      <div className="px-5 pt-5">
+      <div className="pt-2">
         <div className="rounded-3xl bg-gradient-surface p-5 shadow-card">
           <div className="flex items-center justify-between">
             <div>

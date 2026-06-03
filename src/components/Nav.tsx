@@ -1,5 +1,8 @@
-import { Link, useLocation } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
+import { Shield } from "lucide-react";
+import { getPrProfile } from "@/lib/pr-demo";
+import { useStore } from "@/lib/store";
 
 export interface NavItem {
   to: string;
@@ -17,38 +20,106 @@ function navIsActive(pathname: string, to: string) {
 export function BottomNav({ items }: { items: NavItem[] }) {
   const { pathname } = useLocation();
   return (
-    <nav className="sticky bottom-0 z-40 mt-auto border-t border-border bg-background/85 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[440px] items-center justify-around px-2 py-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        {items.map((i) => {
-          const isActive = navIsActive(pathname, i.to);
-          return (
-            <Link
-              key={i.to}
-              to={i.to}
-              className={`flex flex-1 flex-col items-center gap-1 rounded-xl px-2 py-1.5 transition ${
-                isActive ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              <i.icon className={`h-5 w-5 ${isActive ? "drop-shadow-[0_0_8px_oklch(0.62_0.24_305)]" : ""}`} />
-              <span className="text-[10px] font-medium">{i.label}</span>
-            </Link>
-          );
-        })}
-      </div>
+    <nav className="iz-tabbar">
+      {items.map((i) => {
+        const isActive = navIsActive(pathname, i.to);
+        return (
+          <Link
+            key={i.to}
+            to={i.to}
+            className={isActive ? "on" : ""}
+            data-active={isActive ? "true" : undefined}
+          >
+            <i.icon className="h-5 w-5" strokeWidth={1.8} />
+            <span>{i.label}</span>
+          </Link>
+        );
+      })}
     </nav>
   );
 }
 
+const ROLE_LABELS: Record<string, { name: string; label: string; av: string; gradient: string }> = {
+  host: { name: "Maggie Chan", label: "PR", av: "M", gradient: "linear-gradient(135deg,#C99B4E,#8a5e22)" },
+  host_tied: { name: "Maggie Chan", label: "PR \u00b7 Agency-Tied", av: "M", gradient: "linear-gradient(135deg,#C99B4E,#8a5e22)" },
+  host_free: { name: "Jaya Nair", label: "PR \u00b7 Freelancer", av: "J", gradient: "linear-gradient(135deg,#5BA8FF,#2d63b8)" },
+  agency: { name: "Atlas Agency", label: "PR Agency", av: "A", gradient: "var(--iz-grad)" },
+  vendor: { name: "Velvet Room KL", label: "Outlet", av: "V", gradient: "linear-gradient(135deg,#39D98A,#1f8f5c)" },
+};
+
+export function AppTopbar({
+  backTo,
+  backLabel = "Back",
+}: {
+  backTo?: string;
+  backLabel?: string;
+}) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  const prSubRole = useStore((s) => s.prSubRole);
+
+  let role: keyof typeof ROLE_LABELS = "host";
+  if (pathname.startsWith("/outlet")) role = "vendor";
+  else if (pathname.startsWith("/agency")) role = "agency";
+  else if (pathname.startsWith("/host")) {
+    role = prSubRole === "pr_free" ? "host_free" : "host_tied";
+  }
+
+  const prProfile = prSubRole ? getPrProfile(prSubRole) : null;
+  const meta = ROLE_LABELS[role];
+  const displayName = prProfile?.name ?? meta.name;
+  const displayAv = prProfile?.av ?? meta.av;
+  const displayGradient = prProfile?.avg ?? meta.gradient;
+
+  return (
+    <div className="iz-topbar">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        {backTo && (
+          <button type="button" className="iz-chip" onClick={() => navigate({ to: backTo })}>
+            ← {backLabel}
+          </button>
+        )}
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div className="iz-avatar" style={{ background: displayGradient }}>
+            {displayAv}
+          </div>
+          <div className="min-w-0 overflow-hidden">
+            <div className="iz-topbar-name">{displayName}</div>
+            <div className="iz-topbar-role">{meta.label}</div>
+          </div>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span className="iz-chip">
+          <Shield className="h-3 w-3" />
+        </span>
+        <Link to="/" className="iz-chip">
+          Switch
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/** Screen shell: topbar + optional page title (wrap route content in `iz-screen`). */
 export function AppHeader({ title, subtitle, right }: { title: string; subtitle?: string; right?: React.ReactNode }) {
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/85 px-5 py-4 backdrop-blur-xl">
-      <div className="flex items-center justify-between">
-        <div>
-          {subtitle && <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">{subtitle}</p>}
-          <h1 className="text-lg font-display font-semibold">{title}</h1>
+    <>
+      <AppTopbar />
+      {(subtitle || title || right) && (
+        <div className="pb-2">
+          {subtitle && <p className="iz-tiny iz-muted2 uppercase tracking-widest">{subtitle}</p>}
+          <div className="flex items-start justify-between gap-2">
+            {title ? (
+              <h1 className="font-sora text-[22px] font-extrabold tracking-tight text-[var(--iz-txt)]">{title}</h1>
+            ) : (
+              <span />
+            )}
+            {right}
+          </div>
         </div>
-        {right}
-      </div>
-    </header>
+      )}
+    </>
   );
 }

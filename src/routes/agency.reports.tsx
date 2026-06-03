@@ -7,7 +7,7 @@ export const Route = createFileRoute("/agency/reports")({
 
 function AgencyReports() {
   return (
-    <div>
+    <div className="iz-screen">
       <AppHeader subtitle="Module 6" title="Agency analytics" />
       <div className="grid grid-cols-2 gap-3 px-5 pt-5">
         <div className="rounded-2xl bg-gradient-surface p-4 shadow-card">

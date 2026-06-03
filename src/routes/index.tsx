@@ -1,119 +1,175 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Store, GlassWater, Building2, ArrowRight } from "lucide-react";
+import { Building2, Users, Star, Shield, ArrowRight } from "lucide-react";
 import { useStore, type Role } from "@/lib/store";
-import { Logo, PhoneFrame } from "@/components/Brand";
+import type { PrSubRole } from "@/lib/pr-demo";
+import { PhoneFrame } from "@/components/Brand";
+import { IzSheet } from "@/components/iz/Sheet";
+import { IzCard } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "InnocenZ — Connect. Engage. Entertain." },
+      { title: "InnocenZ ? Nightlife, Powered by Trust" },
       {
         name: "description",
-        content: "InnocenZ connects outlets, agencies, PR talent and guests in one platform.",
+        content: "InnocenZ connects outlets, agencies, PR and guests in one platform.",
       },
     ],
   }),
   component: Welcome,
 });
 
-const ROLES: { id: Role; icon: typeof Users; title: string; desc: string; wide?: boolean }[] = [
-  { id: "host", icon: GlassWater, title: "PR Personnel", desc: "Shifts · check-in · wallet · PV · SOS." },
-  { id: "agency", icon: Building2, title: "PR Agency", desc: "Approve PRs · roster · payroll · PV." },
-  { id: "vendor", icon: Store, title: "Outlet", desc: "Request manpower · track sales · seal shifts.", wide: true },
+type Side = "outlet" | "agency" | "pr";
+
+const ROLES: { side: Side; role: Role; icon: typeof Building2; title: string; desc: string }[] = [
+  { side: "outlet", role: "vendor", icon: Building2, title: "Outlet", desc: "Book PR. Run the floor." },
+  { side: "agency", role: "agency", icon: Users, title: "PR Agency", desc: "Roster, deploy, settle." },
+  { side: "pr", role: "host", icon: Star, title: "PR", desc: "Shifts, earnings, safety." },
 ];
 
-function rolePath(role: Role) {
-  if (role === "vendor") return "/outlet";
-  if (role === "host") return "/host";
-  if (role === "agency") return "/agency";
-  if (role === "admin") return "/admin";
-  return "/host";
-}
+const SUB_ROLES: Record<
+  Side,
+  { title: string; items: { label: string; desc: string; role: Role; path: string; prSubRole?: PrSubRole }[] }
+> = {
+  outlet: {
+    title: "Outlet sub-role",
+    items: [
+      { label: "Owner", desc: "Full venue access ? jobs, floor, billing", role: "vendor", path: "/outlet" },
+      { label: "Finance", desc: "Billing & spend reports only", role: "vendor", path: "/outlet" },
+      { label: "Operations Head", desc: "Shifts, floor & sealing", role: "vendor", path: "/outlet" },
+    ],
+  },
+  agency: {
+    title: "Agency sub-role",
+    items: [
+      { label: "Owner", desc: "Full dashboard, roster & approvals", role: "agency", path: "/agency" },
+      { label: "Finance", desc: "Payroll, PV & collections only", role: "agency", path: "/agency" },
+    ],
+  },
+  pr: {
+    title: "PR type",
+    items: [
+      { label: "Agency-Tied", desc: "Shifts may need agency approval", role: "host", path: "/host", prSubRole: "pr_tied" },
+      { label: "Freelancer", desc: "Accept shifts independently", role: "host", path: "/host", prSubRole: "pr_free" },
+    ],
+  },
+};
 
 function Welcome() {
   const navigate = useNavigate();
   const setRole = useStore((s) => s.setRole);
-  const [picked, setPicked] = useState<Role>("host");
+  const setPrSubRole = useStore((s) => s.setPrSubRole);
+  const resetPrShift = useStore((s) => s.resetPrShift);
+  const [sheetSide, setSheetSide] = useState<Side | null>(null);
 
-  const go = () => {
-    setRole(picked);
-    navigate({ to: rolePath(picked) });
+  const enter = (role: Role, path: string, prSubRole?: PrSubRole) => {
+    setRole(role);
+    setPrSubRole(prSubRole ?? null);
+    if (role === "host") resetPrShift();
+    setSheetSide(null);
+    navigate({ to: path });
   };
 
+  const sheet = sheetSide ? SUB_ROLES[sheetSide] : null;
+
   return (
-    <PhoneFrame className="px-6 pb-8 pt-10">
-      <div className="flex flex-col items-center">
-        <Logo size="lg" />
-      </div>
-
-      <div className="mt-10">
-        <h1 className="text-3xl font-display font-semibold leading-tight">
-          Welcome to <span className="text-gradient-primary">InnocenZ</span>
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">Choose your role to personalize your experience.</p>
-      </div>
-
-      <div className="mt-6 grid grid-cols-2 gap-3">
-        {ROLES.map((r) => {
-          const active = picked === r.id;
-          return (
-            <button
-              key={r.id}
-              onClick={() => setPicked(r.id)}
-              className={`relative flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all ${
-                r.wide ? "col-span-2 mx-auto w-[calc(50%-6px)]" : ""
-              } ${
-                active
-                  ? "border-primary bg-primary/10 shadow-glow"
-                  : "border-border bg-surface/60 hover:border-primary/50"
-              }`}
-            >
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${active ? "bg-gradient-primary" : "bg-surface-elevated"}`}>
-                <r.icon className="h-5 w-5" />
-              </div>
-              <ArrowRight className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-              <div>
-                <div className="text-sm font-semibold">{r.title}</div>
-                <div className="mt-1 text-[11px] leading-tight text-muted-foreground">{r.desc}</div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-auto pt-8">
-        <button
-          onClick={go}
-          className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-primary py-4 font-semibold shadow-glow transition active:scale-[0.98]"
-        >
-          Continue <ArrowRight className="h-4 w-4" />
-        </button>
-
-        <div className="my-4 flex items-center gap-3 text-[11px] text-muted-foreground">
-          <div className="h-px flex-1 bg-border" /> or <div className="h-px flex-1 bg-border" />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => navigate({ to: "/signin" })} className="rounded-full border border-border bg-surface/60 py-3 text-sm font-medium">
-            Sign In
-          </button>
-          <button
-            onClick={() => navigate({ to: "/signin", search: { mode: "create" } as never })}
-            className="rounded-full border border-border bg-surface/60 py-3 text-sm font-medium"
-          >
-            Create Account
+    <PhoneFrame
+      showStatusBar
+      overlay={
+        <IzSheet open={!!sheet} onClose={() => setSheetSide(null)}>
+          {sheet && (
+            <>
+              <div className="iz-cardttl">{sheet.title}</div>
+              <p className="iz-tiny iz-muted mb-3.5">
+                Permissions differ per sub-role ? pick how you sign in.
+              </p>
+              {sheet.items.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  className="iz-card iz-between mb-2.5 w-full cursor-pointer text-left"
+                  onClick={() => enter(item.role, item.path, item.prSubRole)}
+                >
+                  <div>
+                    <div className="font-sora text-[15px] font-bold text-[var(--iz-txt)]">{item.label}</div>
+                    <p className="iz-tiny iz-muted mt-0.5">{item.desc}</p>
+                  </div>
+                  <span className="iz-iconbox">
+                    <ArrowRight className="h-4 w-4" />
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
+        </IzSheet>
+      }
+    >
+      <div className="iz-welcome">
+        <div className="iz-between mt-1.5">
+          <div className="iz-wordmark">
+            Innocen<span className="iz-wordmark-z">Z</span>
+          </div>
+          <button type="button" className="iz-chip" onClick={() => enter("host", "/host")}>
+            Skip
           </button>
         </div>
 
-        <p className="mt-4 text-center text-[10px] text-muted-foreground">
-          UAB Admin uses a{" "}
-          <Link to="/admin" className="text-primary underline-offset-2 hover:underline">
-            separate portal
-          </Link>{" "}
-          (not on public login).
+        <div className="iz-logo-tile !mt-[26px]">
+          <span>Z</span>
+        </div>
+
+        <div className="text-center">
+          <div className="font-sora iz-tiny font-bold tracking-[0.3em] text-[var(--iz-gold)]">
+            CONNECT ? ENGAGE ? ENTERTAIN
+          </div>
+          <h1 className="font-sora mt-3 text-[27px] font-extrabold text-[var(--iz-txt)]">
+            Welcome to Innocen<span className="iz-wordmark-z">Z</span>
+          </h1>
+          <p className="iz-sm iz-muted mx-auto mt-1.5 max-w-[290px]">
+            One platform for the entertainment hospitality workforce. Choose your role ? each unlocks only its
+            permitted tools.
+          </p>
+        </div>
+
+        <div className="iz-role-grid">
+          {ROLES.map((r) => (
+            <RoleCard key={r.side} role={r} onPick={() => setSheetSide(r.side)} />
+          ))}
+        </div>
+
+        <div className="mt-3.5 text-center">
+          <Link to="/signin" className="iz-chip inline-flex">
+            <Shield className="h-3 w-3" /> Forgot password / OTP recovery
+          </Link>
+        </div>
+
+        <p className="iz-tiny iz-muted2 mt-3 text-center">
+          <Shield className="mr-1 inline h-3 w-3" />
+          Your data is secure with us ? RBAC + PDPA enforced
         </p>
       </div>
     </PhoneFrame>
+  );
+}
+
+function RoleCard({
+  role,
+  onPick,
+}: {
+  role: (typeof ROLES)[number];
+  onPick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onPick} className="iz-role-card w-full text-left">
+      <div className="iz-role-icon">
+        <role.icon className="h-[21px] w-[21px]" strokeWidth={1.8} />
+      </div>
+      <span className="iz-role-arrow">
+        <ArrowRight className="h-3.5 w-3.5" />
+      </span>
+      <h4>{role.title}</h4>
+      <p>{role.desc}</p>
+    </button>
   );
 }

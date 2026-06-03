@@ -1,91 +1,108 @@
 import { useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AppHeader } from "@/components/Nav";
-import { useStore, type Booking } from "@/lib/store";
-import { Clock, History as HistoryIcon, Languages, LogIn, LogOut } from "lucide-react";
+import { AppTopbar } from "@/components/Nav";
+import { HIST_ROWS, dayName, fmtDtable } from "@/lib/pr-demo";
+import { useStore } from "@/lib/store";
+import { Calendar, FileText, Shield } from "lucide-react";
+import { IzCard, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/host/history")({
-  component: ShiftHistoryPage,
+  component: HistoryPage,
 });
 
-function ShiftHistoryPage() {
-  const bookings = useStore((s) => s.bookings);
-  const history = useMemo(
-    () =>
-      [...(bookings ?? [])]
-        .filter((b) => b.status === "completed")
-        .sort((a, b) => (b.checkedOutAt ?? "").localeCompare(a.checkedOutAt ?? "")),
-    [bookings],
+function HistoryPage() {
+  const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
+
+  const lifetime = prPaymentVouchers.reduce(
+    (a, p) => (p.status === "SIGNED" || p.status === "PAID" ? a + p.net : a),
+    0,
   );
+  const paid = prPaymentVouchers.filter((p) => p.status === "PAID").reduce((a, p) => a + p.net, 0);
+  const pending = prPaymentVouchers.filter((p) => p.status === "SENT").reduce((a, p) => a + p.net, 0);
+
+  const rows = useMemo(() => [...HIST_ROWS].reverse(), []);
 
   return (
-    <div>
-      <AppHeader subtitle="InnocenZ ¬∑ Host" title="Shift History" />
-      <div className="px-5 pt-5">
-        {history.length === 0 ? (
-          <div className="rounded-2xl bg-gradient-surface p-6 text-center shadow-card">
-            <HistoryIcon className="mx-auto h-8 w-8 text-muted-foreground" />
-            <p className="mt-3 text-sm font-medium">No completed shifts yet</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Accept a shift, check in on Tonight, then check out ‚Äî your shift will appear here.
-            </p>
-            <Link
-              to="/host"
-              className="mt-4 inline-block rounded-full bg-gradient-primary px-5 py-2 text-xs font-semibold"
-            >
-              Browse shifts
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {history.map((b) => (
-              <HistoryCard key={b.id} booking={b} />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+    <div className="iz-screen">
+      <AppTopbar />
+      <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">History</h2>
+      <p className="iz-tiny iz-muted mt-0.5">
+        Every shift you&apos;ve worked. No manual withdraw ù weekly auto-bank-transfer from Agency to your bank after
+        dual-sign.
+      </p>
 
-function HistoryCard({ booking: b }: { booking: Booking }) {
-  return (
-    <div className="rounded-2xl bg-gradient-surface p-4 shadow-card">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="text-sm font-semibold">{b.outletName}</div>
-          <div className="text-[11px] text-muted-foreground">{b.event}</div>
+      <div className="iz-feature-card mt-3">
+        <div className="lbl">Lifetime earnings</div>
+        <div className="big-num">{formatRM(lifetime)}</div>
+        <div className="iz-grid2 mt-1">
+          <div>
+            <div className="iz-tiny iz-muted2 tracking-wide">PAID THIS CYCLE</div>
+            <b className="font-sora mt-0.5 block text-base text-[var(--iz-gold-l)]">{formatRM(paid)}</b>
+          </div>
+          <div>
+            <div className="iz-tiny iz-muted2 tracking-wide">PENDING PV</div>
+            <b className="font-sora mt-0.5 block text-base text-[var(--iz-gold-l)]">{formatRM(pending)}</b>
+          </div>
         </div>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-          Completed
-        </span>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <Clock className="h-3 w-3" /> {b.date} ¬∑ {b.shift}
-        </span>
-        <span className="flex items-center gap-1">
-          <Languages className="h-3 w-3" /> {b.languages}
-        </span>
-      </div>
-      {(b.checkedInAt || b.checkedOutAt) && (
-        <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
-          {b.checkedInAt && (
-            <span className="flex items-center gap-1 rounded-full bg-success/15 px-2 py-1 text-success">
-              <LogIn className="h-3 w-3" /> In {b.checkedInAt}
-            </span>
-          )}
-          {b.checkedOutAt && (
-            <span className="flex items-center gap-1 rounded-full bg-gold/15 px-2 py-1 text-gold">
-              <LogOut className="h-3 w-3" /> Out {b.checkedOutAt}
-            </span>
-          )}
-        </div>
-      )}
-      <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Earned</span>
-        <span className="text-sm font-semibold text-gradient-gold">RM {b.pay}</span>
-      </div>
+
+      <IzCard flat className="iz-tiny iz-muted mt-2.5">
+        <Shield className="mr-1 inline h-3 w-3" />
+        Funds auto-route Agency ? your bank account on the weekly cron. PV status flips <b>Signed ? PAID</b> on transfer
+        completion.
+      </IzCard>
+
+      <IzSectionLabel>Shift history</IzSectionLabel>
+
+      {rows.map((r) => {
+        const pill =
+          r.pill === "green" ? "green" : r.pill === "amber" ? "amber" : r.pill === "red" ? "red" : "ink";
+        return (
+          <IzCard key={`${r.venue}-${r.d.join("-")}`} className="mb-2.5">
+            <div className="iz-between mb-2">
+              <div>
+                <div className="font-sora text-sm font-bold">{r.venue}</div>
+                <div className="iz-tiny iz-muted2 mt-0.5 tracking-wide">
+                  <Calendar className="mr-1 inline h-2.5 w-2.5" />
+                  {dayName(r.d[0], r.d[1], r.d[2])} ù {fmtDtable(r.d[0], r.d[1], r.d[2])} {r.d[0]}
+                </div>
+              </div>
+              <IzPill variant={pill}>{r.st}</IzPill>
+            </div>
+            <div className="iz-grid2 gap-2">
+              <div className="iz-stat-tile p-2">
+                <div className="n text-[15px] text-[var(--iz-gold)]">{formatRM(r.wages)}</div>
+                <div className="l">Daily wages</div>
+              </div>
+              <div className="iz-stat-tile p-2">
+                <div className="n text-[15px] text-[var(--iz-gold)]">{formatRM(r.sales)}</div>
+                <div className="l">Total sales</div>
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <IzPill variant="ink" className="flex-1 justify-center py-1.5 text-center">
+                <span className="iz-tiny iz-muted2 text-[9px]">TABLES</span>
+                <br />
+                <b className="text-[13px] text-[var(--iz-gold-l)]">RM {r.table}</b>
+              </IzPill>
+              <IzPill variant="ink" className="flex-1 justify-center py-1.5 text-center">
+                <span className="iz-tiny iz-muted2 text-[9px]">DRINKS</span>
+                <br />
+                <b className="text-[13px] text-[var(--iz-gold-l)]">{r.drinks}</b>
+              </IzPill>
+              <IzPill variant="ink" className="flex-1 justify-center py-1.5 text-center">
+                <span className="iz-tiny iz-muted2 text-[9px]">TIPS</span>
+                <br />
+                <b className="text-[13px] text-[var(--iz-gold-l)]">RM {r.tips}</b>
+              </IzPill>
+            </div>
+          </IzCard>
+        );
+      })}
+
+      <Link to="/host/wallet" className="iz-btn iz-btn-soft mt-2">
+        <FileText className="h-4 w-4" /> View payment vouchers
+      </Link>
     </div>
   );
 }

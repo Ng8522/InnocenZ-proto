@@ -1,14 +1,11 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@import "./prototype-theme.css";
 
 @custom-variant dark (&:is(.dark *));
 
-/*
- * InnocenZ design system — dark luxury nightlife aesthetic.
- * Deep midnight base, electric violet primary, champagne gold accent.
- */
-
+/* Map Tailwind/shadcn tokens to InnocenZ HTML prototype palette */
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -41,68 +38,80 @@
   --color-ring: var(--ring);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
-
-  --font-display: "Cormorant Garamond", "Times New Roman", serif;
+  --font-display: "Sora", sans-serif;
+  --font-body: "Manrope", sans-serif;
 }
 
-:root, .dark {
-  --radius: 1rem;
-  --background: oklch(0.13 0.03 290);
-  --foreground: oklch(0.97 0.01 280);
-  --surface: oklch(0.17 0.035 290);
-  --surface-elevated: oklch(0.21 0.045 290);
-  --card: oklch(0.17 0.035 290);
-  --card-foreground: oklch(0.97 0.01 280);
-  --popover: oklch(0.19 0.04 290);
-  --popover-foreground: oklch(0.97 0.01 280);
-  --primary: oklch(0.62 0.24 305);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.25 0.06 290);
-  --secondary-foreground: oklch(0.97 0.01 280);
-  --muted: oklch(0.22 0.04 290);
-  --muted-foreground: oklch(0.68 0.03 280);
-  --accent: oklch(0.55 0.22 310);
-  --accent-foreground: oklch(0.99 0 0);
-  --gold: oklch(0.82 0.13 85);
-  --gold-foreground: oklch(0.15 0.03 290);
-  --success: oklch(0.72 0.17 155);
-  --warning: oklch(0.78 0.16 65);
-  --destructive: oklch(0.62 0.23 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.3 0.05 290 / 60%);
-  --input: oklch(0.25 0.05 290);
-  --ring: oklch(0.62 0.24 305);
+:root,
+.dark {
+  --radius: 1.25rem;
+  --background: #07040e;
+  --foreground: #ede7f7;
+  --surface: #120a20;
+  --surface-elevated: #180d28;
+  --card: #120a20;
+  --card-foreground: #ede7f7;
+  --popover: #180d28;
+  --popover-foreground: #ede7f7;
+  --primary: #9f7aea;
+  --primary-foreground: #ffffff;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: #ede7f7;
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: #928699;
+  --accent: #b79df5;
+  --accent-foreground: #ffffff;
+  --gold: #d9b97a;
+  --gold-foreground: #1f1208;
+  --success: #39d98a;
+  --warning: #f4b740;
+  --destructive: #ff7575;
+  --destructive-foreground: #ffffff;
+  --border: rgba(255, 255, 255, 0.06);
+  --input: rgba(255, 255, 255, 0.11);
+  --ring: #a8843d;
 
-  --gradient-primary: linear-gradient(135deg, oklch(0.55 0.24 305), oklch(0.7 0.22 310));
-  --gradient-gold: linear-gradient(135deg, oklch(0.78 0.14 80), oklch(0.88 0.1 90));
-  --gradient-surface: linear-gradient(160deg, oklch(0.19 0.04 290), oklch(0.14 0.03 290));
-  --gradient-hero: radial-gradient(ellipse at top, oklch(0.3 0.15 305 / 60%), transparent 60%),
-    radial-gradient(ellipse at bottom right, oklch(0.35 0.12 85 / 25%), transparent 55%),
-    oklch(0.11 0.03 290);
-  --shadow-glow: 0 0 40px oklch(0.62 0.24 305 / 35%);
-  --shadow-gold: 0 0 30px oklch(0.82 0.13 85 / 25%);
-  --shadow-card: 0 10px 30px -10px oklch(0 0 0 / 60%);
+  --gradient-primary: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 55%, #3d1f87 100%);
+  --gradient-gold: linear-gradient(135deg, #f4dca0 0%, #d9b97a 45%, #a8843d 100%);
+  --gradient-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+  --gradient-hero: radial-gradient(1100px 700px at 70% -10%, rgba(124, 58, 237, 0.14), transparent 60%),
+    radial-gradient(800px 500px at -10% 110%, rgba(217, 185, 122, 0.07), transparent 55%),
+    #03020a;
+  --shadow-glow: 0 0 40px rgba(124, 58, 237, 0.22);
+  --shadow-gold: 0 0 30px rgba(217, 185, 122, 0.25);
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 14px -8px rgba(0, 0, 0, 0.5);
 }
 
 @layer base {
   * {
     border-color: var(--color-border);
   }
-  html, body {
-    background: var(--gradient-hero);
-    background-attachment: fixed;
+  html,
+  body {
+    background: #03020a;
+    background-image: var(--gradient-hero);
     color: var(--color-foreground);
-    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
   }
 }
 
 @layer utilities {
-  .font-display { font-family: var(--font-display); }
-  .bg-gradient-primary { background: var(--gradient-primary); }
-  .bg-gradient-gold { background: var(--gradient-gold); }
-  .bg-gradient-surface { background: var(--gradient-surface); }
-  .bg-gradient-hero { background: var(--gradient-hero); }
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .bg-gradient-primary {
+    background: var(--gradient-primary);
+  }
+  .bg-gradient-gold {
+    background: var(--gradient-gold);
+  }
+  .bg-gradient-surface {
+    background: var(--gradient-surface);
+  }
+  .bg-gradient-hero {
+    background: var(--gradient-hero);
+  }
   .text-gradient-gold {
     background: var(--gradient-gold);
     -webkit-background-clip: text;
@@ -115,12 +124,33 @@
     background-clip: text;
     color: transparent;
   }
-  .shadow-glow { box-shadow: var(--shadow-glow); }
-  .shadow-gold { box-shadow: var(--shadow-gold); }
-  .shadow-card { box-shadow: var(--shadow-card); }
-  .glass {
-    background: oklch(0.2 0.04 290 / 50%);
-    backdrop-filter: blur(20px);
-    border: 1px solid oklch(0.4 0.08 290 / 30%);
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
   }
+  .shadow-gold {
+    box-shadow: var(--shadow-gold);
+  }
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  .glass {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.11);
+  }
+}
+
+/* Legacy pages: shadcn cards → prototype card look */
+.rounded-2xl.bg-gradient-surface,
+.rounded-3xl.bg-gradient-surface,
+.rounded-xl.bg-gradient-surface {
+  background: var(--iz-grad-card) !important;
+  border: 1px solid var(--iz-line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 14px -8px rgba(0, 0, 0, 0.5);
+}
+.rounded-full.bg-gradient-primary {
+  background: var(--iz-grad-gold) !important;
+  color: #1f1208 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 14px 28px -10px rgba(217, 185, 122, 0.45),
+    0 0 0 1px rgba(217, 185, 122, 0.3);
 }

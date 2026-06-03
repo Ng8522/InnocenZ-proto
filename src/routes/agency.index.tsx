@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AppHeader } from "@/components/Nav";
+import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
 import { ChevronRight } from "lucide-react";
+import { IzCard, IzPill } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/agency/")({
   component: AgencyHub,
@@ -18,29 +19,31 @@ function AgencyHub() {
   ];
 
   return (
-    <div>
-      <AppHeader subtitle="InnocenZ · PR Agency" title="Agency Portal" />
-      <div className="space-y-3 px-5 pt-5">
-        <div className="rounded-2xl border border-primary/40 bg-primary/10 p-4 text-sm">
+    <div className="iz-screen">
+      <AppTopbar />
+      <h2 className="font-sora text-[22px] font-extrabold text-[var(--iz-txt)]">Agency home</h2>
+      <p className="iz-tiny iz-muted">Live roster · payroll · collections</p>
+
+      <IzCard glow className="mt-4">
+        <p className="iz-sm text-[var(--iz-txt)]">
           Owner / Finance sub-roles · Agency approves PR onboarding before shifts unlock.
-        </div>
-        {cards.map((c) => (
-          <Link
-            key={c.to}
-            to={c.to}
-            className="flex items-center justify-between rounded-2xl bg-gradient-surface p-4 shadow-card"
-          >
+        </p>
+      </IzCard>
+
+      {cards.map((c) => (
+        <Link key={c.to} to={c.to} className="block">
+          <IzCard className="flex items-center justify-between !mb-3">
             <div>
-              <div className="text-sm font-semibold">{c.title}</div>
-              <div className="mt-1 text-[11px] text-muted-foreground">{c.desc}</div>
+              <div className="font-sora text-sm font-bold text-[var(--iz-txt)]">{c.title}</div>
+              <div className="iz-tiny iz-muted mt-1">{c.desc}</div>
             </div>
             <div className="flex items-center gap-2">
-              {c.badge && <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">{c.badge}</span>}
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              {c.badge && <IzPill variant="violet">{c.badge}</IzPill>}
+              <ChevronRight className="h-4 w-4 text-[var(--iz-muted)]" />
             </div>
-          </Link>
-        ))}
-      </div>
+          </IzCard>
+        </Link>
+      ))}
     </div>
   );
 }

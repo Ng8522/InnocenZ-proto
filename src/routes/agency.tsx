@@ -2,7 +2,7 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { BottomNav } from "@/components/Nav";
 import { PhoneFrame } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
-import { LayoutDashboard, UserCheck, FileText, BarChart3, User } from "lucide-react";
+import { Home, Calendar, FileText, LayoutGrid, BarChart3 } from "lucide-react";
 
 export const Route = createFileRoute("/agency")({
   component: AgencyLayout,
@@ -10,20 +10,21 @@ export const Route = createFileRoute("/agency")({
 
 function AgencyLayout() {
   return (
-    <PhoneFrame>
-      <Toasts />
-      <main className="flex-1 pb-4">
-        <Outlet />
-      </main>
-      <BottomNav
-        items={[
-          { to: "/agency", label: "Hub", icon: LayoutDashboard },
-          { to: "/agency/pending", label: "PRs", icon: UserCheck },
-          { to: "/agency/pv", label: "PV", icon: FileText },
-          { to: "/agency/reports", label: "Reports", icon: BarChart3 },
-          { to: "/agency/profile", label: "Profile", icon: User },
-        ]}
-      />
+    <PhoneFrame
+      overlay={<Toasts />}
+      footer={
+        <BottomNav
+          items={[
+            { to: "/agency", label: "Home", icon: Home },
+            { to: "/agency/pending", label: "Roster", icon: Calendar },
+            { to: "/agency/pv", label: "Payroll", icon: FileText },
+            { to: "/agency/reports", label: "Live", icon: LayoutGrid },
+            { to: "/agency/profile", label: "Analytics", icon: BarChart3 },
+          ]}
+        />
+      }
+    >
+      <Outlet />
     </PhoneFrame>
   );
 }

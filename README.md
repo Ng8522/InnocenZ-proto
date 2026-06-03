@@ -9,7 +9,6 @@ Combined **React app** (`your-app-idea-clicked`) + **MVP v3** flows (static prot
 | PR Personnel | `/host` | React app |
 | PR Agency | `/agency` | MVP v3 + React |
 | Outlet | `/outlet` | React app |
-| Admin | `/admin` | Separate portal (linked from welcome) |
 
 ## Develop
 

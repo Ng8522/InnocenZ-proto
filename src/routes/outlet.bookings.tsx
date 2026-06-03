@@ -11,7 +11,7 @@ function BookingsPage() {
   const { shifts, sealShift, confirmShift } = useStore();
 
   return (
-    <div>
+    <div className="iz-screen">
       <AppHeader subtitle="InnocenZ · Outlet" title="Bookings" />
       <div className="space-y-3 px-5 pt-5">
         {shifts.map((s) => {

@@ -2,10 +2,24 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppHeader } from "@/components/Nav";
 import { useStore } from "@/lib/store";
 import { Download, Receipt } from "lucide-react";
+import { IzCard, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/outlet/billing")({
   component: BillingPage,
 });
+
+const CALCULATED_THROUGH = "10 Jun 2026";
+
+/** One invoice per sealed shift day (newest first). */
+const INVOICES = [
+  { id: "INV-2026-0610", date: "10 Jun 2026", day: "Wed", amt: 428, paid: true },
+  { id: "INV-2026-0609", date: "9 Jun 2026", day: "Tue", amt: 392, paid: true },
+  { id: "INV-2026-0608", date: "8 Jun 2026", day: "Mon", amt: 365, paid: true },
+  { id: "INV-2026-0607", date: "7 Jun 2026", day: "Sun", amt: 410, paid: true },
+  { id: "INV-2026-0606", date: "6 Jun 2026", day: "Sat", amt: 445, paid: true },
+  { id: "INV-2026-0605", date: "5 Jun 2026", day: "Fri", amt: 388, paid: false },
+  { id: "INV-2026-0604", date: "4 Jun 2026", day: "Thu", amt: 360, paid: true },
+];
 
 function BillingPage() {
   const { shifts, toast } = useStore();
@@ -15,47 +29,59 @@ function BillingPage() {
   const total = subtotal + platformFee + subscription;
 
   return (
-    <div>
+    <div className="iz-screen">
       <AppHeader subtitle="InnocenZ · Outlet" title="Billing" />
-      <div className="px-5 pt-5">
-        <div className="rounded-3xl bg-gradient-surface p-5 shadow-card">
-          <p className="text-xs text-muted-foreground">Outstanding · this cycle</p>
-          <p className="mt-1 text-4xl font-display font-semibold text-gradient-gold">RM {total.toLocaleString()}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">Due 28th · auto-debit enabled</p>
-          <button onClick={() => toast("Payment of RM " + total + " queued", "success")} className="mt-4 w-full rounded-full bg-gradient-primary py-3 text-sm font-semibold shadow-glow">
-            Settle now
-          </button>
-        </div>
 
-        <div className="mt-4 rounded-2xl bg-gradient-surface p-4 shadow-card">
-          <Line label="Manpower (shifts)" value={`RM ${subtotal.toLocaleString()}`} />
-          <Line label="Platform fee (5%)" value={`RM ${platformFee}`} />
-          <Line label="Subscription (monthly)" value={`RM ${subscription}`} />
-          <div className="my-2 border-t border-border" />
-          <Line label="Total" value={`RM ${total.toLocaleString()}`} bold />
-        </div>
+      <IzSectionLabel>Breakdown</IzSectionLabel>
+      <p className="iz-tiny iz-muted2 -mt-1 mb-2">
+        All line items through{" "}
+        <span className="font-sora font-bold text-[var(--iz-gold-l)]">{CALCULATED_THROUGH}</span>
+      </p>
+      <IzCard>
+        {shifts.map((s) => (
+          <Line key={s.id} label={`Manpower \u00b7 ${s.outletName}`} value={formatRM(s.estimatedCost)} />
+        ))}
+        {shifts.length === 0 && (
+          <p className="iz-tiny iz-muted py-2">No sealed shifts in this cycle yet.</p>
+        )}
+        <div className="iz-divider my-2" />
+        <Line label="Platform fee (5%)" value={formatRM(platformFee)} />
+        <Line label="Subscription (monthly)" value={formatRM(subscription)} />
+        <div className="iz-divider my-2" />
+        <Line label="Total" value={formatRM(total)} bold />
+      </IzCard>
 
-        <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Invoices</h3>
-        <div className="space-y-2">
-          {[
-            { id: "INV-0042", date: "May 2026", amt: 3120, paid: true },
-            { id: "INV-0041", date: "Apr 2026", amt: 2890, paid: true },
-            { id: "INV-0040", date: "Mar 2026", amt: 2640, paid: true },
-          ].map((i) => (
-            <div key={i.id} className="flex items-center gap-3 rounded-2xl bg-gradient-surface p-3 shadow-card">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
-                <Receipt className="h-4 w-4 text-primary" />
+      <IzSectionLabel>Invoices</IzSectionLabel>
+      <p className="iz-tiny iz-muted2 -mt-1 mb-2">Daily sealed-shift statements</p>
+      <div className="space-y-2.5">
+        {INVOICES.map((i) => (
+          <IzCard key={i.id} className="iz-between gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <span className="iz-iconbox shrink-0">
+                <Receipt className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <div className="font-sora text-[15px] font-bold text-[var(--iz-gold-l)]">
+                  {i.day} · {i.date}
+                </div>
+                <p className="iz-tiny iz-muted mt-0.5">
+                  {i.id} · {formatRM(i.amt)}
+                </p>
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-semibold">{i.id}</div>
-                <div className="text-[11px] text-muted-foreground">{i.date} · RM {i.amt}</div>
-              </div>
-              <button onClick={() => toast("Invoice downloaded", "success")} className="flex h-8 w-8 items-center justify-center rounded-full glass">
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <IzPill variant={i.paid ? "green" : "amber"}>{i.paid ? "Paid" : "Due"}</IzPill>
+              <button
+                type="button"
+                onClick={() => toast(`${i.id}.pdf downloaded`, "success")}
+                className="iz-chip"
+                aria-label="Download invoice"
+              >
                 <Download className="h-3.5 w-3.5" />
               </button>
             </div>
-          ))}
-        </div>
+          </IzCard>
+        ))}
       </div>
     </div>
   );
@@ -63,9 +89,9 @@ function BillingPage() {
 
 function Line({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div className={`flex items-center justify-between py-1.5 ${bold ? "font-semibold" : ""}`}>
-      <span className={`text-sm ${bold ? "" : "text-muted-foreground"}`}>{label}</span>
-      <span className={`text-sm ${bold ? "text-gradient-gold" : ""}`}>{value}</span>
+    <div className={`iz-v-sum ${bold ? "tot" : ""}`}>
+      <span className={bold ? "font-sora font-bold" : "iz-sm iz-muted"}>{label}</span>
+      <span className={`iz-ledger shrink-0 ${bold ? "text-[var(--iz-gold)]" : ""}`}>{value}</span>
     </div>
   );
 }

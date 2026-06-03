@@ -1,7 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import {
+  type PrSubRole,
+  type PrPaymentVoucher,
+  SEED_PR_PVS,
+} from "@/lib/pr-demo";
 
-export type Role = "vendor" | "host" | "agency" | "admin";
+export type Role = "vendor" | "host" | "agency";
 
 export interface PR {
   id: string;
@@ -66,10 +71,33 @@ interface Toast { id: number; message: string; tone?: "success" | "info" | "warn
 
 interface StoreState {
   role: Role | null;
+  prSubRole: PrSubRole | null;
   user: { name: string; email: string } | null;
   setRole: (r: Role | null) => void;
+  setPrSubRole: (r: PrSubRole | null) => void;
   signIn: (name: string, email: string) => void;
   signOut: () => void;
+
+  /** PR Talent shift lifecycle (prototype flow) */
+  shiftAccepted: boolean;
+  pendingApproval: boolean;
+  acceptedShiftIndex: number | null;
+  checkedIn: boolean;
+  checkedOut: boolean;
+  drinks: number;
+  tables: number;
+  outletRatingStars: number;
+  acceptPrShift: () => void;
+  approvePrShift: () => void;
+  cancelPrShift: () => void;
+  resetPrShift: () => void;
+  prCheckIn: () => void;
+  prCheckOut: () => void;
+  setOutletRatingStars: (n: number) => void;
+
+  prPaymentVouchers: PrPaymentVoucher[];
+  signPrPv: (id: string) => void;
+  disputePrPv: (id: string) => void;
 
   prs: PR[];
   shifts: ShiftRequest[];
@@ -151,10 +179,106 @@ export const useStore = create<StoreState>()(
   persist(
     (set, get) => ({
       role: null,
+      prSubRole: null,
       user: null,
       setRole: (r) => set({ role: r }),
+      setPrSubRole: (r) => set({ prSubRole: r }),
       signIn: (name, email) => set({ user: { name, email } }),
-      signOut: () => set({ user: null, role: null }),
+      signOut: () =>
+        set({
+          user: null,
+          role: null,
+          prSubRole: null,
+          shiftAccepted: false,
+          pendingApproval: false,
+          acceptedShiftIndex: null,
+          checkedIn: false,
+          checkedOut: false,
+          drinks: 0,
+          tables: 0,
+        }),
+
+      shiftAccepted: false,
+      pendingApproval: false,
+      acceptedShiftIndex: null,
+      checkedIn: false,
+      checkedOut: false,
+      drinks: 0,
+      tables: 0,
+      outletRatingStars: 0,
+
+      acceptPrShift: () => {
+        const tied = get().prSubRole === "pr_tied";
+        if (tied) {
+          set({ pendingApproval: true, acceptedShiftIndex: 0 });
+          get().toast("Sent to Atlas Agency for approval", "warn");
+        } else {
+          set({ shiftAccepted: true, acceptedShiftIndex: 0, pendingApproval: false });
+          get().toast("Shift accepted — slot locked", "success");
+        }
+      },
+      approvePrShift: () => {
+        set({ pendingApproval: false, shiftAccepted: true });
+        get().toast("Agency approved — slot locked", "success");
+      },
+      cancelPrShift: () => {
+        set({
+          shiftAccepted: false,
+          pendingApproval: false,
+          acceptedShiftIndex: null,
+          checkedIn: false,
+          checkedOut: false,
+          drinks: 0,
+          tables: 0,
+        });
+        get().toast("Shift cancelled — penalty flag logged", "warn");
+      },
+      resetPrShift: () => {
+        set({
+          shiftAccepted: false,
+          pendingApproval: false,
+          acceptedShiftIndex: null,
+          checkedIn: false,
+          checkedOut: false,
+          drinks: 0,
+          tables: 0,
+        });
+      },
+      prCheckIn: () => {
+        set({ checkedIn: true });
+        get().toast("Checked in ✓ selfie captured · Time-In locked", "success");
+      },
+      prCheckOut: () => {
+        set({ checkedOut: true });
+        get().toast("Checked out ✓ duration recorded · sent to agency", "success");
+      },
+      setOutletRatingStars: (n) => set({ outletRatingStars: n }),
+
+      prPaymentVouchers: SEED_PR_PVS,
+      signPrPv: (id) => {
+        set((st) => ({
+          prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
+            p.id === id ? { ...p, status: "SIGNED" as const } : p,
+          ),
+        }));
+        get().toast("Dual-signed ✓ — queued for weekly auto-bank-transfer", "success");
+        setTimeout(() => {
+          set((st) => ({
+            prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
+              p.id === id ? { ...p, status: "PAID" as const } : p,
+            ),
+          }));
+          get().toast("Bank-transfer complete · status flipped Signed → PAID", "success");
+        }, 2400);
+      },
+      disputePrPv: (id) => {
+        set((st) => ({
+          prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
+            p.id === id ? { ...p, status: "DISPUTED" as const } : p,
+          ),
+        }));
+        get().toast("Dispute raised — agency notified", "warn");
+      },
 
       prs: seedPRs,
       shifts: seedShifts,
@@ -269,9 +393,48 @@ export const useStore = create<StoreState>()(
     {
       name: "innocenz-store",
       partialize: (s) => ({
-        role: s.role, user: s.user, shifts: s.shifts, bookings: s.bookings,
-        pvs: s.pvs, walletBalance: s.walletBalance, ratings: s.ratings, pendingPRs: s.pendingPRs,
+        role: s.role,
+        prSubRole: s.prSubRole,
+        user: s.user,
+        shifts: s.shifts,
+        bookings: s.bookings,
+        pvs: s.pvs,
+        walletBalance: s.walletBalance,
+        ratings: s.ratings,
+        pendingPRs: s.pendingPRs,
+        shiftAccepted: s.shiftAccepted,
+        pendingApproval: s.pendingApproval,
+        acceptedShiftIndex: s.acceptedShiftIndex,
+        checkedIn: s.checkedIn,
+        checkedOut: s.checkedOut,
+        drinks: s.drinks,
+        tables: s.tables,
+        prPaymentVouchers: s.prPaymentVouchers,
       }),
+      merge: (persisted, current) => {
+        const p = persisted as Partial<StoreState> | undefined;
+        const seedById = Object.fromEntries(SEED_PR_PVS.map((s) => [s.id, s]));
+        const mergedPvs =
+          p?.prPaymentVouchers && p.prPaymentVouchers.length > 0
+            ? p.prPaymentVouchers.map((pv) => {
+                const seed = seedById[pv.id];
+                if (!seed) return pv;
+                return {
+                  ...seed,
+                  ...pv,
+                  prName: pv.prName ?? seed.prName,
+                  issued: pv.issued ?? seed.issued,
+                  due: pv.due ?? seed.due,
+                  cycle: pv.cycle ?? seed.cycle,
+                };
+              })
+            : current.prPaymentVouchers;
+        return {
+          ...current,
+          ...p,
+          prPaymentVouchers: mergedPvs,
+        };
+      },
     }
   )
 );

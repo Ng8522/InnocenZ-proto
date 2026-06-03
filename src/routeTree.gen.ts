@@ -13,7 +13,6 @@ import { Route as SigninRouteImport } from './routes/signin'
 import { Route as OutletRouteImport } from './routes/outlet'
 import { Route as HostRouteImport } from './routes/host'
 import { Route as AgencyRouteImport } from './routes/agency'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutletIndexRouteImport } from './routes/outlet.index'
 import { Route as HostIndexRouteImport } from './routes/host.index'
@@ -25,6 +24,7 @@ import { Route as OutletBookingsRouteImport } from './routes/outlet.bookings'
 import { Route as OutletBillingRouteImport } from './routes/outlet.billing'
 import { Route as HostWalletRouteImport } from './routes/host.wallet'
 import { Route as HostTonightRouteImport } from './routes/host.tonight'
+import { Route as HostScanRouteImport } from './routes/host.scan'
 import { Route as HostProfileRouteImport } from './routes/host.profile'
 import { Route as HostHistoryRouteImport } from './routes/host.history'
 import { Route as AgencyReportsRouteImport } from './routes/agency.reports'
@@ -50,11 +50,6 @@ const HostRoute = HostRouteImport.update({
 const AgencyRoute = AgencyRouteImport.update({
   id: '/agency',
   path: '/agency',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -112,6 +107,11 @@ const HostTonightRoute = HostTonightRouteImport.update({
   path: '/tonight',
   getParentRoute: () => HostRoute,
 } as any)
+const HostScanRoute = HostScanRouteImport.update({
+  id: '/scan',
+  path: '/scan',
+  getParentRoute: () => HostRoute,
+} as any)
 const HostProfileRoute = HostProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -145,7 +145,6 @@ const AgencyPendingRoute = AgencyPendingRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/agency': typeof AgencyRouteWithChildren
   '/host': typeof HostRouteWithChildren
   '/outlet': typeof OutletRouteWithChildren
@@ -156,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/agency/reports': typeof AgencyReportsRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
+  '/host/scan': typeof HostScanRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
@@ -169,7 +169,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/signin': typeof SigninRoute
   '/agency/pending': typeof AgencyPendingRoute
   '/agency/profile': typeof AgencyProfileRoute
@@ -177,6 +176,7 @@ export interface FileRoutesByTo {
   '/agency/reports': typeof AgencyReportsRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
+  '/host/scan': typeof HostScanRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
@@ -191,7 +191,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
   '/agency': typeof AgencyRouteWithChildren
   '/host': typeof HostRouteWithChildren
   '/outlet': typeof OutletRouteWithChildren
@@ -202,6 +201,7 @@ export interface FileRoutesById {
   '/agency/reports': typeof AgencyReportsRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
+  '/host/scan': typeof HostScanRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
@@ -217,7 +217,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/admin'
     | '/agency'
     | '/host'
     | '/outlet'
@@ -228,6 +227,7 @@ export interface FileRouteTypes {
     | '/agency/reports'
     | '/host/history'
     | '/host/profile'
+    | '/host/scan'
     | '/host/tonight'
     | '/host/wallet'
     | '/outlet/billing'
@@ -241,7 +241,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/admin'
     | '/signin'
     | '/agency/pending'
     | '/agency/profile'
@@ -249,6 +248,7 @@ export interface FileRouteTypes {
     | '/agency/reports'
     | '/host/history'
     | '/host/profile'
+    | '/host/scan'
     | '/host/tonight'
     | '/host/wallet'
     | '/outlet/billing'
@@ -262,7 +262,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/admin'
     | '/agency'
     | '/host'
     | '/outlet'
@@ -273,6 +272,7 @@ export interface FileRouteTypes {
     | '/agency/reports'
     | '/host/history'
     | '/host/profile'
+    | '/host/scan'
     | '/host/tonight'
     | '/host/wallet'
     | '/outlet/billing'
@@ -287,7 +287,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AdminRoute: typeof AdminRoute
   AgencyRoute: typeof AgencyRouteWithChildren
   HostRoute: typeof HostRouteWithChildren
   OutletRoute: typeof OutletRouteWithChildren
@@ -322,13 +321,6 @@ declare module '@tanstack/react-router' {
       path: '/agency'
       fullPath: '/agency'
       preLoaderRoute: typeof AgencyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -408,6 +400,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HostTonightRouteImport
       parentRoute: typeof HostRoute
     }
+    '/host/scan': {
+      id: '/host/scan'
+      path: '/scan'
+      fullPath: '/host/scan'
+      preLoaderRoute: typeof HostScanRouteImport
+      parentRoute: typeof HostRoute
+    }
     '/host/profile': {
       id: '/host/profile'
       path: '/profile'
@@ -475,6 +474,7 @@ const AgencyRouteWithChildren =
 interface HostRouteChildren {
   HostHistoryRoute: typeof HostHistoryRoute
   HostProfileRoute: typeof HostProfileRoute
+  HostScanRoute: typeof HostScanRoute
   HostTonightRoute: typeof HostTonightRoute
   HostWalletRoute: typeof HostWalletRoute
   HostIndexRoute: typeof HostIndexRoute
@@ -483,6 +483,7 @@ interface HostRouteChildren {
 const HostRouteChildren: HostRouteChildren = {
   HostHistoryRoute: HostHistoryRoute,
   HostProfileRoute: HostProfileRoute,
+  HostScanRoute: HostScanRoute,
   HostTonightRoute: HostTonightRoute,
   HostWalletRoute: HostWalletRoute,
   HostIndexRoute: HostIndexRoute,
@@ -513,7 +514,6 @@ const OutletRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AdminRoute: AdminRoute,
   AgencyRoute: AgencyRouteWithChildren,
   HostRoute: HostRouteWithChildren,
   OutletRoute: OutletRouteWithChildren,

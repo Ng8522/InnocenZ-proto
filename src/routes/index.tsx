@@ -159,7 +159,7 @@ function Welcome() {
 
         <div className="text-center">
           <div className="font-sora iz-tiny font-bold tracking-[0.3em] text-[var(--iz-gold)]">
-            CONNECT ? ENGAGE ? ENTERTAIN
+            CONNECT . ENGAGE . ENTERTAIN
           </div>
           <h1 className="font-sora mt-3 text-[27px] font-extrabold text-[var(--iz-txt)]">
             Welcome to Innocen<span className="iz-wordmark-z">Z</span>

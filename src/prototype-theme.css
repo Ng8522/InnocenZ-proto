@@ -1165,6 +1165,7 @@
 .iz-sheet-bg {
   position: absolute;
   inset: 0;
+  z-index: 0;
   background: rgba(2, 1, 6, 0.7);
   backdrop-filter: blur(2px);
   border: none;
@@ -1176,6 +1177,7 @@
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 1;
   background: linear-gradient(180deg, var(--iz-panel2) 0%, var(--iz-panel) 100%);
   border: 1px solid var(--iz-line2);
   border-bottom: none;

@@ -6,7 +6,6 @@ import { getOutletDefaultRoute, type OutletSubRole } from "@/lib/outlet-rbac";
 import type { PrSubRole } from "@/lib/pr-demo";
 import { PhoneFrame } from "@/components/Brand";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzCard } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -122,22 +121,34 @@ function Welcome() {
               <p className="iz-tiny iz-muted mb-3.5">
                 Permissions differ per sub-role ? pick how you sign in.
               </p>
-              {sheet.items.map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  className="iz-card iz-between mb-2.5 w-full cursor-pointer text-left"
-                  onClick={() => enter(item.role, item.path, item.prSubRole, item.outletSubRole)}
-                >
-                  <div>
-                    <div className="font-sora text-[15px] font-bold text-[var(--iz-txt)]">{item.label}</div>
-                    <p className="iz-tiny iz-muted mt-0.5">{item.desc}</p>
-                  </div>
-                  <span className="iz-iconbox">
-                    <ArrowRight className="h-4 w-4" />
-                  </span>
-                </button>
-              ))}
+              {sheet.items.map((item) => {
+                const to =
+                  item.role === "vendor" && item.outletSubRole
+                    ? getOutletDefaultRoute(item.outletSubRole)
+                    : item.path;
+                return (
+                  <Link
+                    key={item.label}
+                    to={to}
+                    className="iz-card iz-between mb-2.5 block w-full cursor-pointer text-left no-underline"
+                    onClick={() => {
+                      setRole(item.role);
+                      setPrSubRole(item.prSubRole ?? null);
+                      setOutletSubRole(item.outletSubRole ?? null);
+                      if (item.role === "host") resetPrShift();
+                      setSheetSide(null);
+                    }}
+                  >
+                    <div>
+                      <div className="font-sora text-[15px] font-bold text-[var(--iz-txt)]">{item.label}</div>
+                      <p className="iz-tiny iz-muted mt-0.5">{item.desc}</p>
+                    </div>
+                    <span className="iz-iconbox">
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </Link>
+                );
+              })}
             </>
           )}
         </IzSheet>

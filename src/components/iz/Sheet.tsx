@@ -14,7 +14,12 @@ export function IzSheet({
   return (
     <div className="iz-sheet-wrap open">
       <button type="button" className="iz-sheet-bg" aria-label="Close" onClick={onClose} />
-      <div className="iz-sheet" role="dialog" aria-modal="true">
+      <div
+        className="iz-sheet"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="iz-sheet-grab" />
         {children}
       </div>

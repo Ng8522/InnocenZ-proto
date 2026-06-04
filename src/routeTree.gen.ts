@@ -27,10 +27,14 @@ import { Route as HostTonightRouteImport } from './routes/host.tonight'
 import { Route as HostScanRouteImport } from './routes/host.scan'
 import { Route as HostProfileRouteImport } from './routes/host.profile'
 import { Route as HostHistoryRouteImport } from './routes/host.history'
+import { Route as AgencyRosterRouteImport } from './routes/agency.roster'
 import { Route as AgencyReportsRouteImport } from './routes/agency.reports'
 import { Route as AgencyPvRouteImport } from './routes/agency.pv'
+import { Route as AgencyPrsRouteImport } from './routes/agency.prs'
 import { Route as AgencyProfileRouteImport } from './routes/agency.profile'
 import { Route as AgencyPendingRouteImport } from './routes/agency.pending'
+import { Route as AgencyLiveRouteImport } from './routes/agency.live'
+import { Route as AgencyHistoryRouteImport } from './routes/agency.history'
 
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
@@ -122,6 +126,11 @@ const HostHistoryRoute = HostHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => HostRoute,
 } as any)
+const AgencyRosterRoute = AgencyRosterRouteImport.update({
+  id: '/roster',
+  path: '/roster',
+  getParentRoute: () => AgencyRoute,
+} as any)
 const AgencyReportsRoute = AgencyReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -130,6 +139,11 @@ const AgencyReportsRoute = AgencyReportsRouteImport.update({
 const AgencyPvRoute = AgencyPvRouteImport.update({
   id: '/pv',
   path: '/pv',
+  getParentRoute: () => AgencyRoute,
+} as any)
+const AgencyPrsRoute = AgencyPrsRouteImport.update({
+  id: '/prs',
+  path: '/prs',
   getParentRoute: () => AgencyRoute,
 } as any)
 const AgencyProfileRoute = AgencyProfileRouteImport.update({
@@ -142,6 +156,16 @@ const AgencyPendingRoute = AgencyPendingRouteImport.update({
   path: '/pending',
   getParentRoute: () => AgencyRoute,
 } as any)
+const AgencyLiveRoute = AgencyLiveRouteImport.update({
+  id: '/live',
+  path: '/live',
+  getParentRoute: () => AgencyRoute,
+} as any)
+const AgencyHistoryRoute = AgencyHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => AgencyRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -149,10 +173,14 @@ export interface FileRoutesByFullPath {
   '/host': typeof HostRouteWithChildren
   '/outlet': typeof OutletRouteWithChildren
   '/signin': typeof SigninRoute
+  '/agency/history': typeof AgencyHistoryRoute
+  '/agency/live': typeof AgencyLiveRoute
   '/agency/pending': typeof AgencyPendingRoute
   '/agency/profile': typeof AgencyProfileRoute
+  '/agency/prs': typeof AgencyPrsRoute
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
+  '/agency/roster': typeof AgencyRosterRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
@@ -170,10 +198,14 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/signin': typeof SigninRoute
+  '/agency/history': typeof AgencyHistoryRoute
+  '/agency/live': typeof AgencyLiveRoute
   '/agency/pending': typeof AgencyPendingRoute
   '/agency/profile': typeof AgencyProfileRoute
+  '/agency/prs': typeof AgencyPrsRoute
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
+  '/agency/roster': typeof AgencyRosterRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
@@ -195,10 +227,14 @@ export interface FileRoutesById {
   '/host': typeof HostRouteWithChildren
   '/outlet': typeof OutletRouteWithChildren
   '/signin': typeof SigninRoute
+  '/agency/history': typeof AgencyHistoryRoute
+  '/agency/live': typeof AgencyLiveRoute
   '/agency/pending': typeof AgencyPendingRoute
   '/agency/profile': typeof AgencyProfileRoute
+  '/agency/prs': typeof AgencyPrsRoute
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
+  '/agency/roster': typeof AgencyRosterRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
@@ -221,10 +257,14 @@ export interface FileRouteTypes {
     | '/host'
     | '/outlet'
     | '/signin'
+    | '/agency/history'
+    | '/agency/live'
     | '/agency/pending'
     | '/agency/profile'
+    | '/agency/prs'
     | '/agency/pv'
     | '/agency/reports'
+    | '/agency/roster'
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
@@ -242,10 +282,14 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/signin'
+    | '/agency/history'
+    | '/agency/live'
     | '/agency/pending'
     | '/agency/profile'
+    | '/agency/prs'
     | '/agency/pv'
     | '/agency/reports'
+    | '/agency/roster'
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
@@ -266,10 +310,14 @@ export interface FileRouteTypes {
     | '/host'
     | '/outlet'
     | '/signin'
+    | '/agency/history'
+    | '/agency/live'
     | '/agency/pending'
     | '/agency/profile'
+    | '/agency/prs'
     | '/agency/pv'
     | '/agency/reports'
+    | '/agency/roster'
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
@@ -421,6 +469,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HostHistoryRouteImport
       parentRoute: typeof HostRoute
     }
+    '/agency/roster': {
+      id: '/agency/roster'
+      path: '/roster'
+      fullPath: '/agency/roster'
+      preLoaderRoute: typeof AgencyRosterRouteImport
+      parentRoute: typeof AgencyRoute
+    }
     '/agency/reports': {
       id: '/agency/reports'
       path: '/reports'
@@ -433,6 +488,13 @@ declare module '@tanstack/react-router' {
       path: '/pv'
       fullPath: '/agency/pv'
       preLoaderRoute: typeof AgencyPvRouteImport
+      parentRoute: typeof AgencyRoute
+    }
+    '/agency/prs': {
+      id: '/agency/prs'
+      path: '/prs'
+      fullPath: '/agency/prs'
+      preLoaderRoute: typeof AgencyPrsRouteImport
       parentRoute: typeof AgencyRoute
     }
     '/agency/profile': {
@@ -449,22 +511,44 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgencyPendingRouteImport
       parentRoute: typeof AgencyRoute
     }
+    '/agency/live': {
+      id: '/agency/live'
+      path: '/live'
+      fullPath: '/agency/live'
+      preLoaderRoute: typeof AgencyLiveRouteImport
+      parentRoute: typeof AgencyRoute
+    }
+    '/agency/history': {
+      id: '/agency/history'
+      path: '/history'
+      fullPath: '/agency/history'
+      preLoaderRoute: typeof AgencyHistoryRouteImport
+      parentRoute: typeof AgencyRoute
+    }
   }
 }
 
 interface AgencyRouteChildren {
+  AgencyHistoryRoute: typeof AgencyHistoryRoute
+  AgencyLiveRoute: typeof AgencyLiveRoute
   AgencyPendingRoute: typeof AgencyPendingRoute
   AgencyProfileRoute: typeof AgencyProfileRoute
+  AgencyPrsRoute: typeof AgencyPrsRoute
   AgencyPvRoute: typeof AgencyPvRoute
   AgencyReportsRoute: typeof AgencyReportsRoute
+  AgencyRosterRoute: typeof AgencyRosterRoute
   AgencyIndexRoute: typeof AgencyIndexRoute
 }
 
 const AgencyRouteChildren: AgencyRouteChildren = {
+  AgencyHistoryRoute: AgencyHistoryRoute,
+  AgencyLiveRoute: AgencyLiveRoute,
   AgencyPendingRoute: AgencyPendingRoute,
   AgencyProfileRoute: AgencyProfileRoute,
+  AgencyPrsRoute: AgencyPrsRoute,
   AgencyPvRoute: AgencyPvRoute,
   AgencyReportsRoute: AgencyReportsRoute,
+  AgencyRosterRoute: AgencyRosterRoute,
   AgencyIndexRoute: AgencyIndexRoute,
 }
 

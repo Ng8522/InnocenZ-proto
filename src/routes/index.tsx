@@ -80,7 +80,7 @@ const SUB_ROLES: Record<
     title: "PR type",
     items: [
       { label: "Agency-Tied", desc: "Shifts may need agency approval", role: "host", path: "/host", prSubRole: "pr_tied" },
-      { label: "Freelancer", desc: "Accept shifts independently", role: "host", path: "/host", prSubRole: "pr_free" },
+      { label: "Freelancer", desc: "Accept shifts independently — appoint any agency for payroll", role: "host", path: "/host", prSubRole: "pr_free" },
     ],
   },
 };

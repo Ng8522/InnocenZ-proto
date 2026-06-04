@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
+import {
+  DEFAULT_PER_DRINK_RM,
+  DEFAULT_PER_TABLE_RM,
+} from "@/lib/outlet-financial-sync";
 import { IzCard } from "@/components/iz/ui";
 import { Minus, ScanLine, UtensilsCrossed, Wine } from "lucide-react";
 
@@ -18,28 +22,12 @@ export function OutletShiftSalesPanel({
   compact = false,
 }: OutletShiftSalesPanelProps) {
   const shift = useStore((s) => s.shifts.find((sh) => sh.id === shiftId));
-  const logOutletSale = useStore((s) => s.logOutletSale);
-  const setShiftLiveSales = useStore((s) => s.setShiftLiveSales);
+  const adjustOutletShiftUnits = useStore((s) => s.adjustOutletShiftUnits);
   const toast = useStore((s) => s.toast);
-
-  const liveSales = shift?.liveSales ?? 0;
-  const [totalInput, setTotalInput] = useState(String(liveSales));
-
-  useEffect(() => {
-    setTotalInput(String(liveSales));
-  }, [liveSales, shiftId]);
 
   if (!shift) return null;
 
-  const saveTotal = () => {
-    const raw = totalInput.replace(/,/g, "").trim();
-    const n = parseFloat(raw);
-    if (Number.isNaN(n) || raw === "") {
-      toast("Enter a valid sales amount", "warn");
-      return;
-    }
-    setShiftLiveSales(shiftId, n);
-  };
+  const liveSales = shift.liveSales ?? 0;
 
   if (sealed) {
     return (
@@ -56,32 +44,15 @@ export function OutletShiftSalesPanel({
       </div>
       {!compact && (
         <p className="iz-tiny iz-muted mt-1 mb-2.5">
-          Enter the total gathered during the shift, or adjust with drink/table quick adds. Seal only after sales are
-          final.
+          Adjust drink/table counts — live sales sync to agency PNL automatically.
         </p>
       )}
 
-      <div className={`flex flex-wrap items-stretch gap-2 ${compact ? "mt-2" : ""}`}>
-        <div className="flex min-w-[8rem] flex-1 items-center gap-1.5 rounded-xl border border-[var(--iz-line2)] bg-[rgba(255,255,255,0.03)] px-2.5 py-1.5">
-          <span className="text-[11px] font-semibold text-[var(--iz-muted)]">RM</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={totalInput}
-            onChange={(e) => setTotalInput(e.target.value.replace(/[^\d.]/g, ""))}
-            onKeyDown={(e) => e.key === "Enter" && saveTotal()}
-            placeholder="0"
-            className="min-w-0 flex-1 bg-transparent text-sm font-semibold tabular-nums text-[var(--iz-txt)] outline-none"
-            aria-label="Total shift sales in RM"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={saveTotal}
-          className="iz-btn iz-btn-primary iz-btn-sm shrink-0 self-center"
-        >
-          Save
-        </button>
+      <div className={`flex items-center gap-2 ${compact ? "mt-2" : "mt-2.5"}`}>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">Live total</span>
+        <span className="font-sora ml-auto text-sm font-bold tabular-nums text-[var(--iz-green)]">
+          RM {liveSales.toLocaleString()}
+        </span>
       </div>
 
       <div className={`grid grid-cols-2 gap-2 ${compact ? "mt-2" : "mt-2.5"}`}>
@@ -90,14 +61,16 @@ export function OutletShiftSalesPanel({
           label="Drink"
           icon={<Wine className="h-3.5 w-3.5" />}
           shiftId={shiftId}
-          onAdjust={logOutletSale}
+          bump={shift.perDrinkRm ?? DEFAULT_PER_DRINK_RM}
+          onAdjust={adjustOutletShiftUnits}
         />
         <SaleKindStepper
           kind="table"
           label="Table"
           icon={<UtensilsCrossed className="h-3.5 w-3.5" />}
           shiftId={shiftId}
-          onAdjust={logOutletSale}
+          bump={shift.perTableRm ?? DEFAULT_PER_TABLE_RM}
+          onAdjust={adjustOutletShiftUnits}
         />
       </div>
       <button
@@ -117,21 +90,21 @@ function SaleKindStepper({
   label,
   icon,
   shiftId,
+  bump,
   onAdjust,
 }: {
   kind: "drink" | "table";
   label: string;
   icon: React.ReactNode;
   shiftId: string;
-  onAdjust: (shiftId: string, kind: "drink" | "table", direction: "add" | "subtract") => void;
+  bump: number;
+  onAdjust: (shiftId: string, kind: "drink" | "table", delta: number) => void;
 }) {
-  const bump = useStore((s) => s.saleUnitCosts[kind]);
-
   return (
     <div className="flex min-w-0 items-center gap-1">
       <button
         type="button"
-        onClick={() => onAdjust(shiftId, kind, "subtract")}
+        onClick={() => onAdjust(shiftId, kind, -1)}
         className="iz-chip flex h-8 w-8 shrink-0 items-center justify-center !p-0"
         aria-label={`Remove ${label} sale (RM ${bump})`}
       >
@@ -139,7 +112,7 @@ function SaleKindStepper({
       </button>
       <button
         type="button"
-        onClick={() => onAdjust(shiftId, kind, "add")}
+        onClick={() => onAdjust(shiftId, kind, 1)}
         className="iz-btn iz-btn-soft iz-btn-sm min-w-0 flex-1 !py-2 text-[11px]"
       >
         {icon} +{label}
@@ -192,10 +165,23 @@ function UnitCostField({
   );
 }
 
-/** Home: set RM per drink/table tap before logging sales on bookings */
+/** Home: set RM per drink/table for tonight's shift before logging sales on bookings */
 export function OutletSaleUnitCosts() {
-  const saleUnitCosts = useStore((s) => s.saleUnitCosts);
-  const setSaleUnitCost = useStore((s) => s.setSaleUnitCost);
+  const shifts = useStore((s) => s.shifts);
+  const updateOutletShiftMoney = useStore((s) => s.updateOutletShiftMoney);
+  const tonight = shifts.find((s) => s.date === "Tonight") ?? shifts[0];
+
+  if (!tonight) return null;
+
+  const perDrink = tonight.perDrinkRm ?? DEFAULT_PER_DRINK_RM;
+  const perTable = tonight.perTableRm ?? DEFAULT_PER_TABLE_RM;
+
+  const saveUnit = (kind: "drink" | "table", amount: number) => {
+    updateOutletShiftMoney(
+      tonight.id,
+      kind === "drink" ? { perDrinkRm: amount } : { perTableRm: amount },
+    );
+  };
 
   return (
     <IzCard className="mt-3 !mb-0">
@@ -206,8 +192,8 @@ export function OutletSaleUnitCosts() {
         Each +Drink or +Table on a booking adds or removes this amount from live sales.
       </p>
       <div className="flex gap-3">
-        <UnitCostField kind="drink" label="Per drink" value={saleUnitCosts.drink} onSave={setSaleUnitCost} />
-        <UnitCostField kind="table" label="Per table" value={saleUnitCosts.table} onSave={setSaleUnitCost} />
+        <UnitCostField kind="drink" label="Per drink" value={perDrink} onSave={saveUnit} />
+        <UnitCostField kind="table" label="Per table" value={perTable} onSave={saveUnit} />
       </div>
     </IzCard>
   );

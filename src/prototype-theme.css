@@ -134,6 +134,33 @@
   padding: 6px 18px 26px;
   animation: iz-fade 0.34s ease;
 }
+
+/* Horizontal swipe carousel — hidden scrollbar, touch swipe + mouse drag */
+.iz-hscroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  cursor: grab;
+}
+.iz-hscroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+.iz-hscroll--dragging {
+  scroll-snap-type: none;
+  cursor: grabbing;
+  user-select: none;
+}
+.iz-hscroll--dragging * {
+  cursor: grabbing;
+}
+
 @keyframes iz-fade {
   from {
     opacity: 0;

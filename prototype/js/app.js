@@ -42,7 +42,7 @@
       },
       wallet: { balance: 1284.5, pending: 615 },
       pendingPRs: [
-        { id: 'p1', name: 'Siti Rahman', langs: 'EN · Malay', status: 'pending' },
+        { id: 'p1', name: 'Siti Rahman', langs: 'EN', status: 'pending' },
         { id: 'p2', name: 'Chen Wei', langs: 'EN · 中文', status: 'pending' }
       ],
       ratingDone: false,

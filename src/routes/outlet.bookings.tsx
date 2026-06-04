@@ -47,6 +47,9 @@ function BookingsPage() {
                 <div className="rounded-xl bg-background/60 p-2">
                   <div className="text-muted-foreground">Sales</div>
                   <div className="font-semibold text-success">RM {s.liveSales.toLocaleString()}</div>
+                  <div className="text-[9px] text-muted-foreground mt-0.5">
+                    {s.drinkUnits ?? 0} drinks · {s.tableUnits ?? 0} tables
+                  </div>
                 </div>
               </div>
               <div className="mt-3 flex gap-2">

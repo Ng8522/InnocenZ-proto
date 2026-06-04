@@ -17,8 +17,8 @@ function HostLayout() {
           items={[
             { to: "/host", label: "Shifts", icon: Briefcase },
             { to: "/host/tonight", label: "Check-In", icon: MapPin },
-            { to: "/host/history", label: "History", icon: History },
             { to: "/host/wallet", label: "Vouchers", icon: FileText },
+            { to: "/host/history", label: "History", icon: History },
             { to: "/host/profile", label: "Profile", icon: User },
           ]}
         />

@@ -50,14 +50,18 @@ const ROLE_LABELS: Record<string, { name: string; label: string; av: string; gra
 export function AppTopbar({
   backTo,
   backLabel = "Back",
+  showDateTime,
 }: {
   backTo?: string;
   backLabel?: string;
+  showDateTime?: boolean;
 }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
   const prSubRole = useStore((s) => s.prSubRole);
+  const prDisplayName = useStore((s) => s.prDisplayName);
+  const prAvatarPhoto = useStore((s) => s.prAvatarPhoto);
 
   let role: keyof typeof ROLE_LABELS = "host";
   if (pathname.startsWith("/outlet")) role = "vendor";
@@ -68,8 +72,8 @@ export function AppTopbar({
 
   const prProfile = prSubRole ? getPrProfile(prSubRole) : null;
   const meta = ROLE_LABELS[role];
-  const displayName = prProfile?.name ?? meta.name;
-  const displayAv = prProfile?.av ?? meta.av;
+  const displayName = prDisplayName ?? prProfile?.name ?? meta.name;
+  const displayAv = displayName.trim()[0]?.toUpperCase() ?? prProfile?.av ?? meta.av;
   const displayGradient = prProfile?.avg ?? meta.gradient;
 
   return (
@@ -81,8 +85,11 @@ export function AppTopbar({
           </button>
         )}
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <div className="iz-avatar" style={{ background: displayGradient }}>
-            {displayAv}
+          <div
+            className={`iz-avatar${prAvatarPhoto ? " iz-avatar-photo" : ""}`}
+            style={prAvatarPhoto ? undefined : { background: displayGradient }}
+          >
+            {prAvatarPhoto ? <img src={prAvatarPhoto} alt="" /> : displayAv}
           </div>
           <div className="min-w-0 overflow-hidden">
             <div className="iz-topbar-name">{displayName}</div>
@@ -91,6 +98,12 @@ export function AppTopbar({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
+        {showDateTime && pathname.startsWith("/agency") && (
+          <span className="iz-chip hidden text-[10px] sm:inline">
+            {new Date().toLocaleDateString("en-MY", { day: "numeric", month: "short" })}{" "}
+            {new Date().toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
+          </span>
+        )}
         <span className="iz-chip">
           <Shield className="h-3 w-3" />
         </span>

@@ -8,10 +8,11 @@ export const Route = createFileRoute("/outlet/sales")({
 });
 
 function SalesPage() {
-  const { shifts } = useStore();
-  const totalSales = shifts.reduce((a, s) => a + s.liveSales, 0);
-  const totalCost = shifts.reduce((a, s) => a + s.estimatedCost, 0);
-  const margin = totalSales - totalCost;
+  const { shifts, outletPnl } = useStore();
+  const totalSales = outletPnl.reduce((a, r) => a + r.grossRevenue, 0);
+  const totalCost = outletPnl.reduce((a, r) => a + r.prPayout, 0);
+  const margin = outletPnl.reduce((a, r) => a + r.outletNet, 0);
+  const floorTonight = shifts.find((s) => s.date === "Tonight")?.liveSales ?? 0;
   const bars = [62, 48, 80, 35, 92, 70, 88];
 
   return (
@@ -21,8 +22,11 @@ function SalesPage() {
         <div className="rounded-3xl bg-gradient-surface p-5 shadow-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground">This week</p>
+              <p className="text-xs text-muted-foreground">This week · synced to agency</p>
               <p className="text-3xl font-display font-semibold text-gradient-gold">RM {totalSales.toLocaleString()}</p>
+              {floorTonight > 0 && (
+                <p className="text-[10px] text-muted-foreground mt-1">Tonight floor RM {floorTonight.toLocaleString()}</p>
+              )}
             </div>
             <span className="flex items-center gap-1 rounded-full bg-success/20 px-2.5 py-1 text-[11px] text-success">
               <TrendingUp className="h-3 w-3" /> +18%
@@ -39,8 +43,8 @@ function SalesPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <KV label="Manpower cost" value={`RM ${totalCost.toLocaleString()}`} />
-          <KV label="Net margin" value={`RM ${margin.toLocaleString()}`} tone="text-success" />
+          <KV label="PR payout (agency)" value={`RM ${totalCost.toLocaleString()}`} />
+          <KV label="Outlet net" value={`RM ${margin.toLocaleString()}`} tone="text-success" />
           <KV label="Shifts" value={String(shifts.length)} />
           <KV label="Avg ticket" value="RM 184" />
         </div>

@@ -19,9 +19,12 @@ function AttendancePage() {
   const tables = useStore((s) => s.tables);
   const prCheckIn = useStore((s) => s.prCheckIn);
   const prCheckOut = useStore((s) => s.prCheckOut);
+  const prActiveShift = useStore((s) => s.prActiveShift);
   const cancelPrShift = useStore((s) => s.cancelPrShift);
   const resetPrShift = useStore((s) => s.resetPrShift);
   const toast = useStore((s) => s.toast);
+  const prSubRole = useStore((s) => s.prSubRole);
+  const isFreelancer = prSubRole === "pr_free";
 
   const [holding, setHolding] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -130,6 +133,11 @@ function AttendancePage() {
         </IzCard>
         <IzCard className="mt-2.5">
           <p className="iz-sm iz-muted mb-2">Live earnings ticker</p>
+          {prActiveShift && (
+            <p className="iz-tiny text-[var(--iz-gold-l)] mb-2">
+              Shift PV <b>{prActiveShift.pvId}</b> · {prActiveShift.receiptIds.length} receipt(s) attached
+            </p>
+          )}
           <div className="iz-grid2">
             <div className="iz-stat-tile">
               <div className="n text-[var(--iz-gold)]">{formatRM(runningPayout)}</div>
@@ -142,7 +150,7 @@ function AttendancePage() {
           </div>
         </IzCard>
         <Link to="/host/scan" className="iz-btn iz-btn-soft mt-2.5">
-          <ScanLine className="h-4 w-4" /> Scan a receipt (timestamp drives OT)
+          <ScanLine className="h-4 w-4" /> Scan receipt (logs to {prActiveShift?.pvId ?? "shift PV"})
         </Link>
         <HoldButton
           label="Check-Out (GPS + final selfie)"
@@ -196,7 +204,9 @@ function AttendancePage() {
         </IzCard>
         <IzCard flat className="iz-tiny iz-muted mt-2.5">
           <Shield className="mr-1 inline h-3 w-3" />
-          Your PV will be auto-generated once the outlet seals the shift. Sign it under Vouchers to get paid.
+          {isFreelancer
+            ? "One PV per shift is generated at Time-Out from wages + every receipt you scanned while on duty."
+            : "PV auto-generated at Time-Out — Time-In/Out, wages, tips & all shift receipts in one voucher."}
         </IzCard>
         <Link to="/host/wallet" className="iz-btn iz-btn-primary mt-2.5">
           Go to Vouchers

@@ -1,31 +1,26 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { AppTopbar } from "@/components/Nav";
 import { IzCard, IzSectionLabel, IzPill } from "@/components/iz/ui";
-import { Bell, Minus, Plus, Sparkles, ChevronRight, Check } from "lucide-react";
+import { computeShiftLiveSales, DEFAULT_DRINK_UNITS, DEFAULT_PER_DRINK_RM, DEFAULT_PER_TABLE_RM, DEFAULT_TABLE_UNITS } from "@/lib/outlet-financial-sync";
+import { Bell, Lock, Minus, Plus, ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/outlet/")({
-  component: OutletRequest,
+  component: OutletTonight,
 });
 
-function OutletRequest() {
-  const { shifts, prs, togglePrOnShift, confirmShift, sealShift, createShift } = useStore();
+function OutletTonight() {
+  const {
+    shifts,
+    updateOutletShiftMoney,
+    adjustOutletShiftUnits,
+  } = useStore();
   const tonight = shifts.find((s) => s.date === "Tonight") ?? shifts[0];
 
-  const [qty, setQty] = useState(tonight?.quantity ?? 6);
-  const [shift, setShift] = useState(tonight?.shift ?? "22:00 - 04:00");
-  const [event, setEvent] = useState(tonight?.event ?? "Private VIP - Hennessy Launch");
-  const [langs, setLangs] = useState<string[]>(["EN", "??"]);
-  const [minRating, setMinRating] = useState(tonight?.preferredRating ?? 4.5);
-
-  const recommended = useMemo(
-    () => [...prs].sort((a, b) => b.rating - a.rating).filter((p) => p.rating >= minRating),
-    [prs, minRating],
-  );
-
-  const confirmed = tonight?.prs.length ?? 0;
-  const estimatedCost = qty * 60 * 6;
+  const confirmed = tonight?.filled ?? tonight?.prs.length ?? 0;
+  const qty = tonight?.quantity ?? 6;
+  const estimatedCost = tonight?.estimatedCost ?? qty * (tonight?.payPerHour ?? 60) * 6;
   const onTimeRisk = confirmed >= qty ? "Low" : confirmed >= qty / 2 ? "Medium" : "High";
   const riskTone =
     onTimeRisk === "Low"
@@ -34,30 +29,33 @@ function OutletRequest() {
         ? "text-[var(--iz-amber)]"
         : "text-[var(--iz-red)]";
 
-  const toggleLang = (l: string) =>
-    setLangs((cur) => (cur.includes(l) ? cur.filter((x) => x !== l) : [...cur, l]));
+  const livePreview = useMemo(() => {
+    if (!tonight) return 0;
+    return computeShiftLiveSales(tonight);
+  }, [tonight]);
 
-  const submitNew = () => {
-    createShift({
-      outletName: "Velvet 23",
-      date: "Tomorrow",
-      shift,
-      quantity: qty,
-      languages: langs.join(" / "),
-      event,
-      preferredRating: minRating,
-      estimatedCost,
-      liveSales: 0,
-      payPerHour: 60,
-    });
-  };
+  if (!tonight) {
+    return (
+      <div className="iz-screen">
+        <AppTopbar />
+        <IzCard className="text-center">
+          <p className="iz-sm iz-muted">No active shift — post a job to get started</p>
+          <Link to="/outlet/bookings" className="iz-btn iz-btn-primary mt-3 inline-flex">
+            Post job <ChevronRight className="h-4 w-4" />
+          </Link>
+        </IzCard>
+      </div>
+    );
+  }
+
+  const sealed = tonight.status === "sealed";
 
   return (
     <div className="iz-screen">
       <AppTopbar />
       <div className="flex items-center justify-between">
-        <h2 className="font-sora text-xl font-extrabold text-[var(--iz-txt)]">
-          Post shift - <span className="text-[var(--iz-gold-l)]">Tonight</span>
+        <h2 className="font-sora text-xl font-extrabold leading-tight text-[var(--iz-txt)]">
+          Tonight — <span className="text-[var(--iz-gold-l)]">{tonight.event}</span>
         </h2>
         <button type="button" className="iz-chip relative">
           <Bell className="h-3.5 w-3.5" />
@@ -65,159 +63,155 @@ function OutletRequest() {
         </button>
       </div>
 
-      <section className="pt-2">
-        <IzCard className="mt-3">
-          <Row label="Quantity">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setQty(Math.max(1, qty - 1))}
-                className="iz-chip flex h-7 w-7 items-center justify-center !p-0"
-              >
-                <Minus className="h-3.5 w-3.5" />
-              </button>
-              <span className="w-6 text-center font-semibold">{qty}</span>
-              <button
-                type="button"
-                onClick={() => setQty(qty + 1)}
-                className="iz-chip flex h-7 w-7 items-center justify-center !p-0"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </Row>
-          <Row label="Shift">
-            <input
-              value={shift}
-              onChange={(e) => setShift(e.target.value)}
-              className="w-40 bg-transparent text-right text-sm outline-none"
-            />
-          </Row>
-          <Row label="Languages">
-            <div className="flex flex-wrap justify-end gap-1.5">
-              {["EN", "??", "BM"].map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => toggleLang(l)}
-                  className={`iz-pill ${langs.includes(l) ? "iz-pill-violet" : "iz-pill-ink"} !text-[11px]`}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-          </Row>
-          <Row label="Event">
-            <input
-              value={event}
-              onChange={(e) => setEvent(e.target.value)}
-              className="w-48 bg-transparent text-right text-sm outline-none"
-            />
-          </Row>
-          <Row label="Preferred profile" last>
-            <div className="flex items-center gap-1">
-              {[4, 4.3, 4.5, 4.7].map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setMinRating(r)}
-                  className={`iz-pill ${minRating === r ? "iz-pill-gold" : "iz-pill-ink"} !text-[11px]`}
-                >
-                  {r}+
-                </button>
-              ))}
-            </div>
-          </Row>
-        </IzCard>
+      <div className="mt-3 grid grid-cols-2 gap-2.5">
+        <Stat label="Confirmed PRs" value={`${confirmed}/${qty}`} />
+        <Stat label="On-time risk" value={onTimeRisk} valueClass={riskTone} />
+        <Stat label="Estimated cost" value={`RM ${estimatedCost.toLocaleString()}`} valueClass="text-[var(--iz-gold)]" />
+        <Stat
+          label="Live sales"
+          value={`RM ${(tonight.liveSales ?? livePreview).toLocaleString()}`}
+          valueClass="text-[var(--iz-green)]"
+        />
+      </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2.5">
-          <Stat label="Confirmed PRs" value={`${confirmed}/${qty}`} />
-          <Stat label="On-time risk" value={onTimeRisk} valueClass={riskTone} />
-          <Stat label="Estimated cost" value={`RM ${estimatedCost.toLocaleString()}`} valueClass="text-[var(--iz-gold)]" />
-          <Stat
-            label="Live sales"
-            value={`RM ${(tonight?.liveSales ?? 0).toLocaleString()}`}
-            valueClass="text-[var(--iz-green)]"
+      <IzCard flat className="mt-3">
+        <p className="iz-tiny iz-muted leading-relaxed">
+          Each +Drink or +Table on a booking adds or removes this amount from live sales. Changes sync to{" "}
+          <span className="text-[var(--iz-gold-l)]">Atlas Agency</span> immediately.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <MoneyField
+            label="Per drink"
+            value={tonight.perDrinkRm ?? DEFAULT_PER_DRINK_RM}
+            disabled={sealed}
+            onChange={(v) => updateOutletShiftMoney(tonight.id, { perDrinkRm: v })}
+          />
+          <MoneyField
+            label="Per table"
+            value={tonight.perTableRm ?? DEFAULT_PER_TABLE_RM}
+            disabled={sealed}
+            onChange={(v) => updateOutletShiftMoney(tonight.id, { perTableRm: v })}
           />
         </div>
-      </section>
-
-      <section className="mt-4">
-        <div className="mb-3 flex items-center justify-between">
-          <IzSectionLabel>Recommended PRs</IzSectionLabel>
-          <IzPill variant="gold">
-            <Sparkles className="h-3 w-3" /> Smart match
-          </IzPill>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <UnitStepper
+            label="+Drink units"
+            value={tonight.drinkUnits ?? DEFAULT_DRINK_UNITS}
+            disabled={sealed}
+            onDelta={(d) => adjustOutletShiftUnits(tonight.id, "drink", d)}
+          />
+          <UnitStepper
+            label="+Table units"
+            value={tonight.tableUnits ?? DEFAULT_TABLE_UNITS}
+            disabled={sealed}
+            step={0.5}
+            onDelta={(d) => adjustOutletShiftUnits(tonight.id, "table", d)}
+          />
         </div>
-        <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 snap-x">
-          {recommended.map((p) => {
-            const selected = tonight?.prs.includes(p.id);
-            return (
-              <div key={p.id} className="iz-card iz-card-flat w-[140px] shrink-0 snap-start !mb-0 p-3">
-                <div className="flex h-24 items-center justify-center rounded-xl bg-[var(--iz-violet-ink)] text-4xl">
-                  {p.avatar}
-                </div>
-                <div className="mt-2 text-sm font-semibold">{p.name}</div>
-                <div className="text-[11px] text-[var(--iz-gold)]">{p.rating} star</div>
-                <div className="text-[10px] text-[var(--iz-muted)]">{p.languages.join(" / ")}</div>
-                <button
-                  type="button"
-                  onClick={() => tonight && togglePrOnShift(tonight.id, p.id)}
-                  className={`mt-2 flex w-full items-center justify-center gap-1 rounded-full py-1.5 text-[11px] font-semibold ${
-                    selected ? "bg-[var(--iz-green-bg)] text-[var(--iz-green)]" : "iz-btn-primary iz-btn-sm"
-                  }`}
-                >
-                  {selected ? (
-                    <>
-                      <Check className="h-3 w-3" /> Added
-                    </>
-                  ) : (
-                    "Add"
-                  )}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+        <p className="iz-tiny iz-muted2 mt-2 text-center">
+          Live sales = {tonight.drinkUnits ?? DEFAULT_DRINK_UNITS}×{tonight.perDrinkRm ?? DEFAULT_PER_DRINK_RM} +{" "}
+          {tonight.tableUnits ?? DEFAULT_TABLE_UNITS}×{tonight.perTableRm ?? DEFAULT_PER_TABLE_RM} = RM{" "}
+          {livePreview.toLocaleString()}
+        </p>
+      </IzCard>
 
-      <section className="mt-4">
-        <div className="flex gap-2">
-          {tonight && tonight.status !== "sealed" && (
-            <>
-              <button
-                type="button"
-                onClick={() => tonight && confirmShift(tonight.id)}
-                disabled={confirmed < 1}
-                className="iz-btn iz-btn-violet flex-1 disabled:opacity-40"
-              >
-                {tonight.status === "confirmed" ? "Re-confirm" : "Confirm booking"}
-              </button>
-              <button
-                type="button"
-                onClick={() => tonight && sealShift(tonight.id)}
-                className="iz-btn iz-btn-soft !w-auto px-4"
-              >
-                Seal shift
-              </button>
-            </>
+      <IzSectionLabel className="mt-4">Your bookings</IzSectionLabel>
+      <IzCard>
+        <div className="iz-between">
+          <div>
+            <div className="font-sora text-sm font-bold">{tonight.event}</div>
+            <p className="iz-tiny iz-muted mt-0.5">
+              {tonight.date} · {tonight.shift}
+            </p>
+          </div>
+          {sealed ? (
+            <IzPill variant="ink">
+              <Lock className="mr-1 inline h-3 w-3" /> Sealed
+            </IzPill>
+          ) : (
+            <IzPill variant="green">{tonight.status}</IzPill>
           )}
         </div>
-        <button type="button" onClick={submitNew} className="iz-btn iz-btn-ghost mt-2">
-          Save as new request <ChevronRight className="h-4 w-4" />
-        </button>
-      </section>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <MiniStat label="Filled" value={`${confirmed}/${qty}`} />
+          <MiniStat label="Cost" value={`RM ${estimatedCost.toLocaleString()}`} tone="text-[var(--iz-gold)]" />
+          <MiniStat label="Sales" value={`RM ${tonight.liveSales.toLocaleString()}`} tone="text-[var(--iz-green)]" />
+        </div>
+      </IzCard>
+
+      <Link to="/outlet/bookings" className="iz-btn iz-btn-soft mt-3 block text-center">
+        Manage bookings &amp; seal shift <ChevronRight className="inline h-4 w-4" />
+      </Link>
     </div>
   );
 }
 
-function Row({ label, children, last }: { label: string; children: React.ReactNode; last?: boolean }) {
+function MoneyField({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  disabled?: boolean;
+}) {
   return (
-    <div
-      className={`flex items-center justify-between py-2.5 ${last ? "" : "border-b border-[var(--iz-line)]"}`}
-    >
-      <span className="text-xs text-[var(--iz-muted)]">{label}</span>
-      {children}
+    <div>
+      <span className="iz-field-label">{label}</span>
+      <div className="relative">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 iz-tiny text-[var(--iz-muted2)]">
+          RM
+        </span>
+        <input
+          type="number"
+          min={0}
+          disabled={disabled}
+          className="iz-field-input !pl-10 disabled:opacity-50"
+          value={value}
+          onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
+        />
+      </div>
+    </div>
+  );
+}
+
+function UnitStepper({
+  label,
+  value,
+  onDelta,
+  disabled,
+  step = 1,
+}: {
+  label: string;
+  value: number;
+  onDelta: (d: number) => void;
+  disabled?: boolean;
+  step?: number;
+}) {
+  return (
+    <div>
+      <span className="iz-field-label">{label}</span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={disabled}
+          className="iz-chip flex h-9 w-9 items-center justify-center !p-0 disabled:opacity-40"
+          onClick={() => onDelta(-step)}
+        >
+          <Minus className="h-4 w-4" />
+        </button>
+        <span className="flex-1 text-center font-sora text-lg font-bold">{value}</span>
+        <button
+          type="button"
+          disabled={disabled}
+          className="iz-chip flex h-9 w-9 items-center justify-center !p-0 disabled:opacity-40"
+          onClick={() => onDelta(step)}
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -227,6 +221,15 @@ function Stat({ label, value, valueClass = "" }: { label: string; value: string;
     <div className="iz-stat-tile">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--iz-muted)]">{label}</div>
       <div className={`font-sora mt-1.5 text-xl font-extrabold ${valueClass || "text-[var(--iz-txt)]"}`}>{value}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="rounded-xl border border-[var(--iz-line)] bg-[rgba(0,0,0,.2)] p-2 text-center">
+      <div className="iz-tiny iz-muted2">{label}</div>
+      <div className={`font-sora mt-0.5 text-sm font-bold ${tone ?? ""}`}>{value}</div>
     </div>
   );
 }

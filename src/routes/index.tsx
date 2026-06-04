@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Building2, Users, Star, Shield, ArrowRight } from "lucide-react";
 import { useStore, type Role } from "@/lib/store";
+import { getOutletDefaultRoute, type OutletSubRole } from "@/lib/outlet-rbac";
 import type { PrSubRole } from "@/lib/pr-demo";
 import { PhoneFrame } from "@/components/Brand";
 import { IzSheet } from "@/components/iz/Sheet";
@@ -30,14 +31,42 @@ const ROLES: { side: Side; role: Role; icon: typeof Building2; title: string; de
 
 const SUB_ROLES: Record<
   Side,
-  { title: string; items: { label: string; desc: string; role: Role; path: string; prSubRole?: PrSubRole }[] }
+  {
+    title: string;
+    items: {
+      label: string;
+      desc: string;
+      role: Role;
+      path: string;
+      prSubRole?: PrSubRole;
+      outletSubRole?: OutletSubRole;
+    }[];
+  }
 > = {
   outlet: {
     title: "Outlet sub-role",
     items: [
-      { label: "Owner", desc: "Full venue access ? jobs, floor, billing", role: "vendor", path: "/outlet" },
-      { label: "Finance", desc: "Billing & spend reports only", role: "vendor", path: "/outlet" },
-      { label: "Operations Head", desc: "Shifts, floor & sealing", role: "vendor", path: "/outlet" },
+      {
+        label: "Owner",
+        desc: "Jobs, live floor, seal shift, billing & sales reports",
+        role: "vendor",
+        path: "/outlet",
+        outletSubRole: "outlet_owner",
+      },
+      {
+        label: "Finance",
+        desc: "Home overview, transaction history & billing",
+        role: "vendor",
+        path: "/outlet",
+        outletSubRole: "outlet_finance",
+      },
+      {
+        label: "Operations Head",
+        desc: "Post jobs, floor ops, log sales & seal shifts",
+        role: "vendor",
+        path: "/outlet",
+        outletSubRole: "outlet_ops",
+      },
     ],
   },
   agency: {
@@ -60,15 +89,24 @@ function Welcome() {
   const navigate = useNavigate();
   const setRole = useStore((s) => s.setRole);
   const setPrSubRole = useStore((s) => s.setPrSubRole);
+  const setOutletSubRole = useStore((s) => s.setOutletSubRole);
   const resetPrShift = useStore((s) => s.resetPrShift);
   const [sheetSide, setSheetSide] = useState<Side | null>(null);
 
-  const enter = (role: Role, path: string, prSubRole?: PrSubRole) => {
+  const enter = (
+    role: Role,
+    path: string,
+    prSubRole?: PrSubRole,
+    outletSubRole?: OutletSubRole,
+  ) => {
     setRole(role);
     setPrSubRole(prSubRole ?? null);
+    setOutletSubRole(outletSubRole ?? null);
     if (role === "host") resetPrShift();
     setSheetSide(null);
-    navigate({ to: path });
+    const to =
+      role === "vendor" && outletSubRole ? getOutletDefaultRoute(outletSubRole) : path;
+    navigate({ to });
   };
 
   const sheet = sheetSide ? SUB_ROLES[sheetSide] : null;
@@ -89,7 +127,7 @@ function Welcome() {
                   key={item.label}
                   type="button"
                   className="iz-card iz-between mb-2.5 w-full cursor-pointer text-left"
-                  onClick={() => enter(item.role, item.path, item.prSubRole)}
+                  onClick={() => enter(item.role, item.path, item.prSubRole, item.outletSubRole)}
                 >
                   <div>
                     <div className="font-sora text-[15px] font-bold text-[var(--iz-txt)]">{item.label}</div>

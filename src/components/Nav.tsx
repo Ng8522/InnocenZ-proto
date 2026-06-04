@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import { Shield } from "lucide-react";
 import { getPrProfile } from "@/lib/pr-demo";
+import { OUTLET_SUB_ROLE_LABELS } from "@/lib/outlet-rbac";
 import { useStore } from "@/lib/store";
 
 export interface NavItem {
@@ -58,6 +59,7 @@ export function AppTopbar({
   const { pathname } = useLocation();
 
   const prSubRole = useStore((s) => s.prSubRole);
+  const outletSubRole = useStore((s) => s.outletSubRole);
 
   let role: keyof typeof ROLE_LABELS = "host";
   if (pathname.startsWith("/outlet")) role = "vendor";
@@ -71,6 +73,10 @@ export function AppTopbar({
   const displayName = prProfile?.name ?? meta.name;
   const displayAv = prProfile?.av ?? meta.av;
   const displayGradient = prProfile?.avg ?? meta.gradient;
+  const displayLabel =
+    pathname.startsWith("/outlet") && outletSubRole
+      ? OUTLET_SUB_ROLE_LABELS[outletSubRole]
+      : meta.label;
 
   return (
     <div className="iz-topbar">
@@ -86,7 +92,7 @@ export function AppTopbar({
           </div>
           <div className="min-w-0 overflow-hidden">
             <div className="iz-topbar-name">{displayName}</div>
-            <div className="iz-topbar-role">{meta.label}</div>
+            <div className="iz-topbar-role">{displayLabel}</div>
           </div>
         </div>
       </div>

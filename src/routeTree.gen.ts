@@ -17,9 +17,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutletIndexRouteImport } from './routes/outlet.index'
 import { Route as HostIndexRouteImport } from './routes/host.index'
 import { Route as AgencyIndexRouteImport } from './routes/agency.index'
-import { Route as OutletSalesRouteImport } from './routes/outlet.sales'
 import { Route as OutletRatingsRouteImport } from './routes/outlet.ratings'
 import { Route as OutletProfileRouteImport } from './routes/outlet.profile'
+import { Route as OutletHistoryRouteImport } from './routes/outlet.history'
 import { Route as OutletBookingsRouteImport } from './routes/outlet.bookings'
 import { Route as OutletBillingRouteImport } from './routes/outlet.billing'
 import { Route as HostWalletRouteImport } from './routes/host.wallet'
@@ -72,11 +72,6 @@ const AgencyIndexRoute = AgencyIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AgencyRoute,
 } as any)
-const OutletSalesRoute = OutletSalesRouteImport.update({
-  id: '/sales',
-  path: '/sales',
-  getParentRoute: () => OutletRoute,
-} as any)
 const OutletRatingsRoute = OutletRatingsRouteImport.update({
   id: '/ratings',
   path: '/ratings',
@@ -85,6 +80,11 @@ const OutletRatingsRoute = OutletRatingsRouteImport.update({
 const OutletProfileRoute = OutletProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => OutletRoute,
+} as any)
+const OutletHistoryRoute = OutletHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
   getParentRoute: () => OutletRoute,
 } as any)
 const OutletBookingsRoute = OutletBookingsRouteImport.update({
@@ -160,9 +160,9 @@ export interface FileRoutesByFullPath {
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
   '/outlet/bookings': typeof OutletBookingsRoute
+  '/outlet/history': typeof OutletHistoryRoute
   '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
-  '/outlet/sales': typeof OutletSalesRoute
   '/agency/': typeof AgencyIndexRoute
   '/host/': typeof HostIndexRoute
   '/outlet/': typeof OutletIndexRoute
@@ -181,9 +181,9 @@ export interface FileRoutesByTo {
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
   '/outlet/bookings': typeof OutletBookingsRoute
+  '/outlet/history': typeof OutletHistoryRoute
   '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
-  '/outlet/sales': typeof OutletSalesRoute
   '/agency': typeof AgencyIndexRoute
   '/host': typeof HostIndexRoute
   '/outlet': typeof OutletIndexRoute
@@ -206,9 +206,9 @@ export interface FileRoutesById {
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
   '/outlet/bookings': typeof OutletBookingsRoute
+  '/outlet/history': typeof OutletHistoryRoute
   '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
-  '/outlet/sales': typeof OutletSalesRoute
   '/agency/': typeof AgencyIndexRoute
   '/host/': typeof HostIndexRoute
   '/outlet/': typeof OutletIndexRoute
@@ -232,9 +232,9 @@ export interface FileRouteTypes {
     | '/host/wallet'
     | '/outlet/billing'
     | '/outlet/bookings'
+    | '/outlet/history'
     | '/outlet/profile'
     | '/outlet/ratings'
-    | '/outlet/sales'
     | '/agency/'
     | '/host/'
     | '/outlet/'
@@ -253,9 +253,9 @@ export interface FileRouteTypes {
     | '/host/wallet'
     | '/outlet/billing'
     | '/outlet/bookings'
+    | '/outlet/history'
     | '/outlet/profile'
     | '/outlet/ratings'
-    | '/outlet/sales'
     | '/agency'
     | '/host'
     | '/outlet'
@@ -277,9 +277,9 @@ export interface FileRouteTypes {
     | '/host/wallet'
     | '/outlet/billing'
     | '/outlet/bookings'
+    | '/outlet/history'
     | '/outlet/profile'
     | '/outlet/ratings'
-    | '/outlet/sales'
     | '/agency/'
     | '/host/'
     | '/outlet/'
@@ -351,13 +351,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgencyIndexRouteImport
       parentRoute: typeof AgencyRoute
     }
-    '/outlet/sales': {
-      id: '/outlet/sales'
-      path: '/sales'
-      fullPath: '/outlet/sales'
-      preLoaderRoute: typeof OutletSalesRouteImport
-      parentRoute: typeof OutletRoute
-    }
     '/outlet/ratings': {
       id: '/outlet/ratings'
       path: '/ratings'
@@ -370,6 +363,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/outlet/profile'
       preLoaderRoute: typeof OutletProfileRouteImport
+      parentRoute: typeof OutletRoute
+    }
+    '/outlet/history': {
+      id: '/outlet/history'
+      path: '/history'
+      fullPath: '/outlet/history'
+      preLoaderRoute: typeof OutletHistoryRouteImport
       parentRoute: typeof OutletRoute
     }
     '/outlet/bookings': {
@@ -494,18 +494,18 @@ const HostRouteWithChildren = HostRoute._addFileChildren(HostRouteChildren)
 interface OutletRouteChildren {
   OutletBillingRoute: typeof OutletBillingRoute
   OutletBookingsRoute: typeof OutletBookingsRoute
+  OutletHistoryRoute: typeof OutletHistoryRoute
   OutletProfileRoute: typeof OutletProfileRoute
   OutletRatingsRoute: typeof OutletRatingsRoute
-  OutletSalesRoute: typeof OutletSalesRoute
   OutletIndexRoute: typeof OutletIndexRoute
 }
 
 const OutletRouteChildren: OutletRouteChildren = {
   OutletBillingRoute: OutletBillingRoute,
   OutletBookingsRoute: OutletBookingsRoute,
+  OutletHistoryRoute: OutletHistoryRoute,
   OutletProfileRoute: OutletProfileRoute,
   OutletRatingsRoute: OutletRatingsRoute,
-  OutletSalesRoute: OutletSalesRoute,
   OutletIndexRoute: OutletIndexRoute,
 }
 

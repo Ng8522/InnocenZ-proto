@@ -5,6 +5,7 @@ import {
   type PrPaymentVoucher,
   SEED_PR_PVS,
 } from "@/lib/pr-demo";
+import type { OutletSubRole } from "@/lib/outlet-rbac";
 
 export type Role = "vendor" | "host" | "agency";
 
@@ -15,6 +16,8 @@ export interface PR {
   languages: string[];
   status: "available" | "booked" | "pending";
   avatar: string;
+  /** Portrait for floor / roster UI */
+  photoUrl?: string;
 }
 
 export interface ShiftRequest {
@@ -27,6 +30,7 @@ export interface ShiftRequest {
   languages: string;
   event: string;
   preferredRating: number;
+  preferredStarTiers?: number[];
   estimatedCost: number;
   liveSales: number;
   status: "draft" | "open" | "confirmed" | "sealed";
@@ -69,12 +73,17 @@ export interface PendingPR {
 
 interface Toast { id: number; message: string; tone?: "success" | "info" | "warn" }
 
+export const DEFAULT_SALE_UNIT_COSTS = { drink: 120, table: 95 } as const;
+export type SaleUnitCosts = { drink: number; table: number };
+
 interface StoreState {
   role: Role | null;
   prSubRole: PrSubRole | null;
+  outletSubRole: OutletSubRole | null;
   user: { name: string; email: string } | null;
   setRole: (r: Role | null) => void;
   setPrSubRole: (r: PrSubRole | null) => void;
+  setOutletSubRole: (r: OutletSubRole | null) => void;
   signIn: (name: string, email: string) => void;
   signOut: () => void;
 
@@ -101,6 +110,9 @@ interface StoreState {
 
   prs: PR[];
   shifts: ShiftRequest[];
+  /** RM added or removed per +Drink / +Table tap on Home */
+  saleUnitCosts: SaleUnitCosts;
+  setSaleUnitCost: (kind: keyof SaleUnitCosts, amount: number) => void;
   bookings: Booking[];
   pvs: PV[];
   walletBalance: number;
@@ -111,9 +123,15 @@ interface StoreState {
   rejectPendingPR: (id: string) => void;
 
   createShift: (s: Omit<ShiftRequest, "id" | "status" | "filled" | "prs">) => string;
+  createShifts: (
+    items: (Omit<ShiftRequest, "id" | "status" | "filled" | "prs"> & { prs?: string[] })[],
+  ) => string[];
   togglePrOnShift: (shiftId: string, prId: string) => void;
   confirmShift: (shiftId: string) => void;
   sealShift: (shiftId: string) => void;
+  deleteShift: (shiftId: string) => void;
+  logOutletSale: (shiftId: string, kind: "drink" | "table", direction?: "add" | "subtract") => void;
+  setShiftLiveSales: (shiftId: string, amount: number) => void;
 
   acceptBooking: (id: string) => void;
   checkIn: (id: string) => void;
@@ -130,12 +148,60 @@ interface StoreState {
 }
 
 const seedPRs: PR[] = [
-  { id: "p1", name: "Luna", rating: 4.9, languages: ["EN", "中文"], status: "available", avatar: "🌙" },
-  { id: "p2", name: "Mia", rating: 4.8, languages: ["EN", "中文"], status: "available", avatar: "✨" },
-  { id: "p3", name: "Vivi", rating: 4.7, languages: ["EN", "BM"], status: "available", avatar: "🥂" },
-  { id: "p4", name: "Cici", rating: 4.6, languages: ["EN", "中文"], status: "available", avatar: "💎" },
-  { id: "p5", name: "Nina", rating: 4.5, languages: ["EN", "BM"], status: "available", avatar: "🌹" },
-  { id: "p6", name: "Yuki", rating: 4.8, languages: ["EN", "中文", "日本語"], status: "available", avatar: "🎐" },
+  {
+    id: "p1",
+    name: "Luna",
+    rating: 4.9,
+    languages: ["EN", "中文"],
+    status: "booked",
+    avatar: "🌙",
+    photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=520&fit=crop&q=80",
+  },
+  {
+    id: "p2",
+    name: "Mia",
+    rating: 4.8,
+    languages: ["EN", "中文"],
+    status: "booked",
+    avatar: "✨",
+    photoUrl: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=520&fit=crop&q=80",
+  },
+  {
+    id: "p3",
+    name: "Vivi",
+    rating: 4.7,
+    languages: ["EN"],
+    status: "booked",
+    avatar: "🥂",
+    photoUrl: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=400&h=520&fit=crop&q=80",
+  },
+  {
+    id: "p4",
+    name: "Cici",
+    rating: 4.6,
+    languages: ["EN", "中文"],
+    status: "booked",
+    avatar: "💎",
+    photoUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=520&fit=crop&q=80",
+  },
+  {
+    id: "p5",
+    name: "Nina",
+    rating: 4.5,
+    languages: ["EN"],
+    status: "available",
+    avatar: "🌹",
+    photoUrl: "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400&h=520&fit=crop&q=80",
+  },
+  {
+    id: "p6",
+    name: "Yuki",
+    rating: 4.8,
+    languages: ["EN", "中文", "日本語"],
+    status: "available",
+    avatar: "🎐",
+    photoUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=520&fit=crop&q=80",
+  },
 ];
 
 const seedShifts: ShiftRequest[] = [
@@ -149,7 +215,7 @@ const seedShifts: ShiftRequest[] = [
 
 const seedBookings: Booking[] = [
   { id: "b1", outletName: "Velvet 23", date: "Tonight", shift: "22:00 — 04:00", pay: 360, status: "offered", event: "Hennessy Launch", languages: "EN / 中文" },
-  { id: "b2", outletName: "Noir Lounge", date: "Tomorrow", shift: "21:00 — 03:00", pay: 320, status: "offered", event: "Ladies Night", languages: "EN / BM" },
+  { id: "b2", outletName: "Noir Lounge", date: "Tomorrow", shift: "21:00 — 03:00", pay: 320, status: "offered", event: "Ladies Night", languages: "EN" },
   {
     id: "b0",
     outletName: "Onyx KL",
@@ -169,7 +235,7 @@ const seedPVs: PV[] = [
 ];
 
 const seedPendingPRs: PendingPR[] = [
-  { id: "pr1", name: "Siti Rahman", languages: "EN · Malay", status: "pending" },
+  { id: "pr1", name: "Siti Rahman", languages: "EN", status: "pending" },
   { id: "pr2", name: "Chen Wei", languages: "EN · 中文", status: "pending" },
 ];
 
@@ -180,15 +246,18 @@ export const useStore = create<StoreState>()(
     (set, get) => ({
       role: null,
       prSubRole: null,
+      outletSubRole: null,
       user: null,
       setRole: (r) => set({ role: r }),
       setPrSubRole: (r) => set({ prSubRole: r }),
+      setOutletSubRole: (r) => set({ outletSubRole: r }),
       signIn: (name, email) => set({ user: { name, email } }),
       signOut: () =>
         set({
           user: null,
           role: null,
           prSubRole: null,
+          outletSubRole: null,
           shiftAccepted: false,
           pendingApproval: false,
           acceptedShiftIndex: null,
@@ -282,6 +351,7 @@ export const useStore = create<StoreState>()(
 
       prs: seedPRs,
       shifts: seedShifts,
+      saleUnitCosts: { ...DEFAULT_SALE_UNIT_COSTS },
       bookings: seedBookings,
       pvs: seedPVs,
       walletBalance: 1240,
@@ -309,6 +379,27 @@ export const useStore = create<StoreState>()(
         get().toast("Shift request created", "success");
         return id;
       },
+      createShifts: (items) => {
+        const newShifts = items.map((s) => {
+          const prs = s.prs ?? [];
+          const { prs: _prs, ...rest } = s;
+          return {
+            ...rest,
+            id: "s" + Math.random().toString(36).slice(2, 7),
+            status: "draft" as const,
+            filled: prs.length,
+            prs: [...prs],
+          };
+        });
+        set((st) => ({ shifts: [...newShifts, ...st.shifts] }));
+        get().toast(
+          newShifts.length === 1
+            ? "Shift request created"
+            : `${newShifts.length} shift requests posted`,
+          "success",
+        );
+        return newShifts.map((s) => s.id);
+      },
       togglePrOnShift: (shiftId, prId) =>
         set((st) => ({
           shifts: st.shifts.map((sh) => {
@@ -329,6 +420,50 @@ export const useStore = create<StoreState>()(
           shifts: st.shifts.map((sh) => sh.id === shiftId ? { ...sh, status: "sealed" } : sh),
         }));
         get().toast("Shift sealed · PVs generated", "success");
+      },
+      deleteShift: (shiftId) => {
+        const target = get().shifts.find((sh) => sh.id === shiftId);
+        if (!target) return;
+        if (target.status === "sealed") {
+          get().toast("Sealed shifts cannot be deleted", "warn");
+          return;
+        }
+        set((st) => ({
+          shifts: st.shifts.filter((sh) => sh.id !== shiftId),
+        }));
+        get().toast("Shift removed", "info");
+      },
+      setSaleUnitCost: (kind, amount) => {
+        const safe = Math.max(0, Math.round(amount));
+        set((st) => ({
+          saleUnitCosts: { ...st.saleUnitCosts, [kind]: safe },
+        }));
+        get().toast(`${kind === "drink" ? "Drink" : "Table"} unit set to RM ${safe}`, "success");
+      },
+      logOutletSale: (shiftId, kind, direction = "add") => {
+        const bump = get().saleUnitCosts[kind];
+        const delta = direction === "add" ? bump : -bump;
+        const label = kind === "drink" ? "Drink" : "Table";
+        set((st) => ({
+          shifts: st.shifts.map((sh) =>
+            sh.id === shiftId
+              ? { ...sh, liveSales: Math.max(0, sh.liveSales + delta) }
+              : sh,
+          ),
+        }));
+        get().toast(
+          direction === "add"
+            ? `+${label} (RM ${bump}) added to live sales`
+            : `−${label} (RM ${bump}) removed from live sales`,
+          direction === "add" ? "success" : "info",
+        );
+      },
+      setShiftLiveSales: (shiftId, amount) => {
+        const safe = Math.max(0, Math.round(amount));
+        set((st) => ({
+          shifts: st.shifts.map((sh) => (sh.id === shiftId ? { ...sh, liveSales: safe } : sh)),
+        }));
+        get().toast(`Shift sales set to RM ${safe.toLocaleString()}`, "success");
       },
 
       acceptBooking: (id) => {
@@ -395,8 +530,10 @@ export const useStore = create<StoreState>()(
       partialize: (s) => ({
         role: s.role,
         prSubRole: s.prSubRole,
+        outletSubRole: s.outletSubRole,
         user: s.user,
         shifts: s.shifts,
+        saleUnitCosts: s.saleUnitCosts,
         bookings: s.bookings,
         pvs: s.pvs,
         walletBalance: s.walletBalance,
@@ -432,6 +569,7 @@ export const useStore = create<StoreState>()(
         return {
           ...current,
           ...p,
+          saleUnitCosts: { ...DEFAULT_SALE_UNIT_COSTS, ...p?.saleUnitCosts },
           prPaymentVouchers: mergedPvs,
         };
       },

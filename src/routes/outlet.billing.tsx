@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppHeader } from "@/components/Nav";
+import { OutletSalesDashboard } from "@/components/outlet/OutletSalesDashboard";
 import { useStore } from "@/lib/store";
+import { outletCan } from "@/lib/outlet-rbac";
 import { Download, Receipt } from "lucide-react";
 import { IzCard, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
 
@@ -22,7 +24,11 @@ const INVOICES = [
 ];
 
 function BillingPage() {
+  const outletSubRole = useStore((s) => s.outletSubRole);
   const { shifts, toast } = useStore();
+  const showSales = outletCan(outletSubRole, "viewSalesDashboard");
+  const showBilling = outletCan(outletSubRole, "viewBilling");
+  const canConfirmDaily = outletCan(outletSubRole, "confirmDaily");
   const subtotal = shifts.reduce((a, s) => a + s.estimatedCost, 0);
   const platformFee = Math.round(subtotal * 0.05);
   const subscription = 499;
@@ -30,9 +36,16 @@ function BillingPage() {
 
   return (
     <div className="iz-screen">
-      <AppHeader subtitle="InnocenZ · Outlet" title="Billing" />
+      <AppHeader subtitle="InnocenZ · Outlet" title="Reports" />
 
-      <IzSectionLabel>Breakdown</IzSectionLabel>
+      {showSales && <OutletSalesDashboard />}
+
+      {showBilling && (
+        <>
+      <div className={showSales ? "mt-4" : ""}>
+        <IzSectionLabel>Billing</IzSectionLabel>
+      </div>
+      <p className="iz-tiny iz-muted2 -mt-1 mb-2">Breakdown</p>
       <p className="iz-tiny iz-muted2 -mt-1 mb-2">
         All line items through{" "}
         <span className="font-sora font-bold text-[var(--iz-gold-l)]">{CALCULATED_THROUGH}</span>
@@ -83,6 +96,18 @@ function BillingPage() {
           </IzCard>
         ))}
       </div>
+
+      {canConfirmDaily && (
+        <button
+          type="button"
+          onClick={() => toast("Daily totals confirmed · locked for finance", "success")}
+          className="iz-btn iz-btn-primary mt-4"
+        >
+          Confirm daily
+        </button>
+      )}
+        </>
+      )}
     </div>
   );
 }

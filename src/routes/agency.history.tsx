@@ -8,5 +8,12 @@ export const Route = createFileRoute("/agency/history")({
 
 function AgencyHistory() {
   const shiftHistory = useStore((s) => s.shiftHistory);
-  return <ShiftHistoryLog portal="agency" rows={shiftHistory} />;
+  const toast = useStore((s) => s.toast);
+  return (
+    <ShiftHistoryLog
+      portal="agency"
+      rows={shiftHistory}
+      onExport={() => toast("agency-history.xlsx downloaded", "success")}
+    />
+  );
 }

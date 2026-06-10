@@ -1,7 +1,9 @@
 /** Shared shift transaction log — agency & outlet read the same records */
 
+import { DEFAULT_OUTLET_CANONICAL } from "@/lib/portal-sync";
+
 /** Demo outlet venue — outlet history shows rows for this venue only */
-export const OUTLET_VENUE_NAME = "Velvet Room KL";
+export const OUTLET_VENUE_NAME = DEFAULT_OUTLET_CANONICAL;
 
 export interface ShiftHistoryRow {
   id: string;
@@ -22,7 +24,7 @@ export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = [
     id: "h1",
     prName: "Luna",
     prId: "p1",
-    outlet: "Velvet Room KL",
+    outlet: "Velvet 23",
     agencyName: "Atlas Agency",
     dateDisplay: "10 Jun 2026",
     dateIso: "2026-06-10",
@@ -35,7 +37,7 @@ export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = [
     id: "h2",
     prName: "Mia",
     prId: "p2",
-    outlet: "Velvet Room KL",
+    outlet: "Velvet 23",
     agencyName: "Atlas Agency",
     dateDisplay: "10 Jun 2026",
     dateIso: "2026-06-10",
@@ -48,7 +50,7 @@ export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = [
     id: "h3",
     prName: "Vivi",
     prId: "p3",
-    outlet: "Velvet Room KL",
+    outlet: "Velvet 23",
     agencyName: "Atlas Agency",
     dateDisplay: "9 Jun 2026",
     dateIso: "2026-06-09",
@@ -61,7 +63,7 @@ export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = [
     id: "h4",
     prName: "Yuki",
     prId: "p6",
-    outlet: "Velvet Room KL",
+    outlet: "Velvet 23",
     agencyName: "Atlas Agency",
     dateDisplay: "8 Jun 2026",
     dateIso: "2026-06-08",
@@ -94,6 +96,46 @@ export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = [
     totalPayout: 445,
     totalDrinks: 78,
     totalTips: 41,
+    durationHours: 6,
+  },
+  // Luna (p1) — earlier cycle, same log PR History reads
+  {
+    id: "h7",
+    prName: "Luna",
+    prId: "p1",
+    outlet: "Mermate",
+    agencyName: "Atlas Agency",
+    dateDisplay: "04 May 2026",
+    dateIso: "2026-05-04",
+    totalPayout: 510,
+    totalDrinks: 24,
+    totalTips: 40,
+    durationHours: 6,
+  },
+  {
+    id: "h8",
+    prName: "Luna",
+    prId: "p1",
+    outlet: "Mermate",
+    agencyName: "Atlas Agency",
+    dateDisplay: "05 May 2026",
+    dateIso: "2026-05-05",
+    totalPayout: 520,
+    totalDrinks: 22,
+    totalTips: 50,
+    durationHours: 6,
+  },
+  {
+    id: "h9",
+    prName: "Luna",
+    prId: "p1",
+    outlet: "Bear Lounge",
+    agencyName: "Atlas Agency",
+    dateDisplay: "06 May 2026",
+    dateIso: "2026-05-06",
+    totalPayout: 420,
+    totalDrinks: 17,
+    totalTips: 50,
     durationHours: 6,
   },
 ];

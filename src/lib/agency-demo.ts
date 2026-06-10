@@ -1,5 +1,8 @@
 /** Agency portal demo data — roster, commission rules, history, PR roster */
 
+import type { PendingFreelancerPayroll, PendingPR } from "@/lib/store";
+import { DEFAULT_TIED_AGENCY_ID, FREELANCER_DEMO_PR_ID } from "@/lib/pr-demo";
+
 export interface OutletCommissionRule {
   outlet: string;
   wagePerHour: number;
@@ -79,6 +82,10 @@ export interface AgencyRosterSlot {
   status: RosterSlotStatus;
   checkedInAt?: string;
   checkedOutAt?: string;
+  /** Live floor metrics — synced with outlet log sales & agency live view */
+  floorDrinks?: number;
+  floorTips?: number;
+  estPayout?: number;
   /** Agency assigned PR to this outlet — PR must approve before shift locks */
   agencyAssignment?: AgencyAssignmentMeta;
   /** Agency requests moving PR to another outlet — PR approves or declines */
@@ -110,6 +117,9 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     shiftEnd: "04:00",
     status: "on-duty",
     checkedInAt: "21:58",
+    floorDrinks: 12,
+    floorTips: 45,
+    estPayout: 420,
     outletSwap: {
       targetOutlet: "Bear Lounge",
       status: "pending_pr",
@@ -130,6 +140,9 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     shiftStart: "22:00",
     shiftEnd: "04:00",
     status: "en-route",
+    floorDrinks: 0,
+    floorTips: 0,
+    estPayout: 380,
   },
   {
     id: "rs3",
@@ -365,6 +378,142 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
   },
 ];
 
+function parsePendingLanguages(raw: string): string[] {
+  return raw
+    .split(/[·,|/]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const u = s.toUpperCase();
+      if (u === "EN") return "English";
+      if (u === "中文") return "Mandarin";
+      if (u === "MALAY") return "Malay";
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    });
+}
+
+/** New sign-ups awaiting owner approval — not yet on agency roster */
+export const SEED_PENDING_PRS: PendingPR[] = [
+  {
+    id: "signup-siti",
+    targetPrId: "p8",
+    name: "Siti Rahman",
+    languages: "EN · Malay",
+    ic: "960101-14-7788",
+    mobile: "+60 12-881 9901",
+    email: "siti.r@inz.my",
+    age: 24,
+    height: 165,
+    weight: 52,
+    race: "Malay",
+    hasIcPhotos: true,
+    hasSelfie: true,
+    hasComcard3d: true,
+    portfolioCount: 4,
+    submittedAt: "9 Jun 2026 · 09:14",
+    source: "self-signup",
+    status: "pending",
+  },
+  {
+    id: "signup-amira",
+    targetPrId: "p9",
+    name: "Amira Hassan",
+    languages: "EN · Malay · Arabic",
+    ic: "980712-08-4410",
+    mobile: "+60 13-220 7788",
+    email: "amira.h@inz.my",
+    age: 23,
+    height: 163,
+    weight: 50,
+    race: "Malay",
+    hasIcPhotos: true,
+    hasSelfie: true,
+    hasComcard3d: true,
+    portfolioCount: 5,
+    submittedAt: "8 Jun 2026 · 22:41",
+    source: "self-signup",
+    status: "pending",
+  },
+  {
+    id: "signup-raj",
+    targetPrId: "p10",
+    name: "Raj Kumar",
+    languages: "EN · Tamil · Hindi",
+    ic: "950330-10-9922",
+    mobile: "+60 16-550 3310",
+    email: "raj.k@inz.my",
+    age: 26,
+    height: 172,
+    weight: 68,
+    race: "Indian",
+    hasIcPhotos: true,
+    hasSelfie: true,
+    hasComcard3d: false,
+    portfolioCount: 3,
+    submittedAt: "7 Jun 2026 · 16:08",
+    source: "self-signup",
+    status: "pending",
+  },
+  {
+    id: "signup-kevin-invite",
+    targetPrId: "p11",
+    name: "Kevin Lim",
+    languages: "Pending profile",
+    ic: "991205-14-2201",
+    mobile: "+60 11-882 4400",
+    email: "kevin.lim@inz.my",
+    hasIcPhotos: false,
+    hasSelfie: false,
+    hasComcard3d: false,
+    portfolioCount: 0,
+    submittedAt: "9 Jun 2026 · 08:02",
+    source: "owner-invite",
+    status: "pending",
+  },
+];
+
+export const SEED_PENDING_FREELANCER_PAYROLLS: PendingFreelancerPayroll[] = [
+  {
+    id: "fp-seed-jaya",
+    prId: FREELANCER_DEMO_PR_ID,
+    prName: "Jaya Nair",
+    languages: "English · Cantonese",
+    ic: "880214-10-5566",
+    mobile: "+60 17-662 3391",
+    email: "jaya.nair@inz.my",
+    agencyId: DEFAULT_TIED_AGENCY_ID,
+    agencyName: "Atlas Agency",
+    status: "pending",
+    requestedAt: "4 Jun 2026 · 10:42",
+  },
+];
+
+export function pendingPRToManagedPR(p: PendingPR): AgencyManagedPR {
+  const langs =
+    p.languages === "Pending profile" ? ["English"] : parsePendingLanguages(p.languages);
+  return {
+    id: p.targetPrId ?? `p-new-${p.id}`,
+    name: p.name,
+    ic: p.ic ?? "—",
+    mobile: p.mobile ?? "—",
+    email: p.email ?? "—",
+    age: p.age ?? 22,
+    height: p.height ?? 165,
+    race: p.race ?? "—",
+    languages: langs,
+    place: "KL",
+    yearsExp: p.source === "owner-invite" ? 0 : 1,
+    rating: 4.2,
+    trainingLevel: p.hasComcard3d ? "Tier II" : "Tier I",
+    totalPaid: 0,
+    attendancePct: 0,
+    checkIns: 0,
+    checkOuts: 0,
+    noShows: 0,
+    kpiScore: 72,
+  };
+}
+
 export interface LiveWorkforceEntry {
   id: string;
   prName: string;
@@ -377,11 +526,8 @@ export interface LiveWorkforceEntry {
   tips: number;
 }
 
-export const SEED_LIVE_WORKFORCE: LiveWorkforceEntry[] = [
-  { id: "lw1", prName: "Luna", outlet: "Velvet 23", status: "on-duty", checkIn: "21:58", estPayout: 420, drinks: 12, tips: 45 },
-  { id: "lw2", prName: "Mia", outlet: "Velvet 23", status: "en-route", estPayout: 380, drinks: 0, tips: 0 },
-  { id: "lw3", prName: "Chen Wei", outlet: "Onyx KL", status: "on-duty", checkIn: "20:55", estPayout: 510, drinks: 15, tips: 62 },
-];
+/** @deprecated Use deriveLiveWorkforce(agencyRoster) from portal-sync — kept for tip fallback only */
+export const SEED_LIVE_WORKFORCE: LiveWorkforceEntry[] = [];
 
 export interface OutletPnlRow {
   outlet: string;
@@ -417,6 +563,62 @@ export const DEFAULT_AGENCY_OWNER: AgencyOwnerSettings = {
   orgName: "Atlas Agency",
   otpChannel: "email",
   accountActivated: true,
+};
+
+export interface AgencyFinanceHead {
+  name: string;
+  ic: string;
+  email: string;
+  eSignatureStored: boolean;
+}
+
+export const DEFAULT_FINANCE_HEAD: AgencyFinanceHead = {
+  name: "Sarah Tan",
+  ic: "850622-08-4410",
+  email: "finance@atlas-agency.my",
+  eSignatureStored: true,
+};
+
+export type CollectionAging = "current" | "7d" | "14d" | "30d" | "60d+";
+export type CollectionStatus = "SETTLED" | "PENDING";
+
+export interface AgencyCollectionInvoice {
+  id: string;
+  outlet: string;
+  amount: number;
+  dueDate: string;
+  status: CollectionStatus;
+  aging: CollectionAging;
+  linkedPvIds: string[];
+  reminderSent?: boolean;
+}
+
+export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
+  { id: "COL-2026-0610", outlet: "Velvet 23", amount: 4280, dueDate: "10 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0610-A"] },
+  { id: "COL-2026-0608", outlet: "Mermate", amount: 3120, dueDate: "8 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0608-B"] },
+  { id: "COL-2026-0605", outlet: "Bear Lounge", amount: 2640, dueDate: "5 Jun 2026", status: "PENDING", aging: "7d", linkedPvIds: ["PV-2026-0605-C"], reminderSent: true },
+  { id: "COL-2026-0528", outlet: "Onyx KL", amount: 3890, dueDate: "28 May 2026", status: "PENDING", aging: "14d", linkedPvIds: ["PV-2026-0528-D"] },
+  { id: "COL-2026-0515", outlet: "Urban Soul", amount: 1950, dueDate: "15 May 2026", status: "PENDING", aging: "30d", linkedPvIds: ["PV-2026-0515-E"], reminderSent: true },
+];
+
+export interface AgencyReconciliationDay {
+  dateIso: string;
+  dateLabel: string;
+  outletSalesTotal: number;
+  pvTotal: number;
+  variance: number;
+  agencyConfirmed: boolean;
+  outletConfirmed: boolean;
+}
+
+export const SEED_RECONCILIATION: AgencyReconciliationDay = {
+  dateIso: "2026-06-04",
+  dateLabel: "Wed · 04 Jun 2026",
+  outletSalesTotal: 14820,
+  pvTotal: 14760,
+  variance: 60,
+  agencyConfirmed: false,
+  outletConfirmed: true,
 };
 
 export const OUTLET_NAMES = [...new Set(OUTLET_COMMISSION_RULES.map((r) => r.outlet))];

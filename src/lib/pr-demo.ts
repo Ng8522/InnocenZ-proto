@@ -78,8 +78,8 @@ export const PR_SHIFT_OFFERS: PrShiftOffer[] = [
   {
     outlet: "Velvet 23",
     event: "VIP Night",
-    date: [2026, 6, 3],
-    time: "9:00 PM – 2:00 AM",
+    date: [2026, 6, 4],
+    time: "22:00 — 04:00",
     endNext: true,
     distance: "1.2 km",
     addr: "Jalan Changkat, KL",
@@ -102,10 +102,10 @@ export const PR_SHIFT_OFFERS: PrShiftOffer[] = [
     rating: "4.6",
   },
   {
-    outlet: "Pearl Lounge",
+    outlet: "Urban Soul",
     event: "Launch Party",
     date: [2026, 6, 5],
-    time: "8:00 PM – 1:00 AM",
+    time: "20:00 — 01:00",
     endNext: true,
     distance: "5.1 km",
     addr: "Bukit Bintang, KL",
@@ -116,7 +116,7 @@ export const PR_SHIFT_OFFERS: PrShiftOffer[] = [
   },
 ];
 
-export const SHIFT_TODAY: [number, number, number] = [2026, 6, 3];
+export const SHIFT_TODAY: [number, number, number] = [2026, 6, 4];
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -835,6 +835,7 @@ export function receiptPvCalcNote(scan: PrReceiptScan) {
   return `${calc} · assign at check-in`;
 }
 
+/** @deprecated Use store.shiftHistory via shiftHistoryToHistRows — kept for type/export */
 export const HIST_ROWS: HistRow[] = [
   { d: [2026, 5, 4], venue: "Mermate", wages: 350, sales: 510, table: 60, drinks: 24, tips: 40, st: "PAID", pill: "green" },
   { d: [2026, 5, 5], venue: "Mermate", wages: 350, sales: 520, table: 60, drinks: 22, tips: 50, st: "PAID", pill: "green" },
@@ -889,7 +890,7 @@ export const PR_AGENCIES: PrAgency[] = [
     gradient: "linear-gradient(135deg,#C99B4E,#8a5e22)",
     activePrs: 128,
     rating: 4.9,
-    financeHead: "Sarah Lim",
+    financeHead: "Sarah Tan",
     tagline: "Full roster, PV & collections",
   },
   {

@@ -220,7 +220,10 @@ function AttendancePage() {
 
   return (
     <div className="iz-screen">
-      <AppTopbar />
+      <AppTopbar
+        onBack={cancelOpen ? () => setCancelOpen(false) : undefined}
+        backLabel={cancelOpen ? "Attendance" : undefined}
+      />
       <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">Attendance</h2>
       <div className="pt-2">{body}</div>
 

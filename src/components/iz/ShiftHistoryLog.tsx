@@ -5,21 +5,25 @@ import {
   shiftHistorySubline,
 } from "@/lib/shift-history";
 import { IzCard, formatRM } from "@/components/iz/ui";
+import { IzSheet } from "@/components/iz/Sheet";
 import type { ReactNode } from "react";
-import { Calendar, ChevronDown } from "lucide-react";
+import { Calendar, ChevronDown, Download, X } from "lucide-react";
 
 type Portal = "agency" | "outlet";
 
 export function ShiftHistoryLog({
   portal,
   rows,
+  onExport,
 }: {
   portal: Portal;
   rows: ShiftHistoryRow[];
+  onExport?: () => void;
 }) {
   const [nameFilter, setNameFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [thirdFilter, setThirdFilter] = useState("");
+  const [detailRow, setDetailRow] = useState<ShiftHistoryRow | null>(null);
 
   const prNames = useMemo(() => [...new Set(rows.map((r) => r.prName))].sort(), [rows]);
   const dates = useMemo(() => [...new Set(rows.map((r) => r.dateIso))].sort().reverse(), [rows]);
@@ -49,7 +53,10 @@ export function ShiftHistoryLog({
 
   return (
     <div className="iz-screen">
-      <AppTopbar showDateTime={portal === "agency"} />
+      <AppTopbar
+        backTo={portal === "agency" ? "/agency" : "/outlet"}
+        backLabel={portal === "agency" ? "Agency home" : "Outlet home"}
+      />
       <p className="iz-tiny iz-muted2 uppercase tracking-widest">InnocenZ · {portal === "agency" ? "Agency" : "Outlet"}</p>
       <h2 className="font-sora mx-0.5 mt-0.5 text-[22px] font-extrabold text-[var(--iz-txt)]">History</h2>
       <p className="iz-tiny iz-muted mt-0.5">{subtitle}</p>
@@ -97,6 +104,12 @@ export function ShiftHistoryLog({
         <span className="iz-tiny iz-muted2">{filtered.length} records</span>
       </div>
 
+      {portal === "agency" && onExport && (
+        <button type="button" className="iz-btn iz-btn-soft mt-2 w-full !py-2 !text-xs" onClick={onExport}>
+          <Download className="h-3.5 w-3.5" /> Download Excel of filtered set
+        </button>
+      )}
+
       <div className="mt-2.5 space-y-2.5">
         {filtered.length === 0 ? (
           <IzCard className="text-center">
@@ -104,17 +117,46 @@ export function ShiftHistoryLog({
           </IzCard>
         ) : (
           filtered.map((row) => (
-            <TxnCard key={row.id} row={row} portal={portal} />
+            <TxnCard key={row.id} row={row} portal={portal} onTap={() => setDetailRow(row)} />
           ))
         )}
       </div>
+
+      {detailRow && (
+        <IzSheet open onClose={() => setDetailRow(null)}>
+          <div className="iz-sheet-head">
+            <div>
+              <button
+                type="button"
+                className="iz-chip mb-2 !px-2 !py-1 !text-[10px]"
+                onClick={() => setDetailRow(null)}
+              >
+                ← Back to log
+              </button>
+              <p className="iz-tiny iz-muted2 uppercase">Itemised PV lines</p>
+              <h3>{detailRow.prName}</h3>
+            </div>
+            <button type="button" className="iz-sheet-close" onClick={() => setDetailRow(null)} aria-label="Close">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <IzCard>
+            <p className="iz-tiny iz-muted">{detailRow.dateDisplay} · {shiftHistorySubline(detailRow, portal)}</p>
+            <div className="iz-v-sum mt-2"><span className="iz-muted">Duration</span><b>{detailRow.durationHours}h</b></div>
+            <div className="iz-v-sum"><span className="iz-muted">Total drinks</span><b>{detailRow.totalDrinks}</b></div>
+            <div className="iz-v-sum"><span className="iz-muted">Total tips</span><b>{formatRM(detailRow.totalTips)}</b></div>
+            <div className="iz-v-sum tot"><span>Total payout</span><b className="text-[var(--iz-gold)]">{formatRM(detailRow.totalPayout)}</b></div>
+          </IzCard>
+          <p className="iz-tiny iz-muted2 mt-2 text-center">Read-only · mirrored to outlet portal</p>
+        </IzSheet>
+      )}
     </div>
   );
 }
 
-function TxnCard({ row, portal }: { row: ShiftHistoryRow; portal: Portal }) {
+function TxnCard({ row, portal, onTap }: { row: ShiftHistoryRow; portal: Portal; onTap?: () => void }) {
   return (
-    <IzCard>
+    <IzCard className={onTap ? "cursor-pointer" : undefined} onClick={onTap} role={onTap ? "button" : undefined}>
       <div className="iz-between items-start gap-2">
         <div className="font-sora text-[16px] font-bold">{row.prName}</div>
         <div className="shrink-0 font-sora text-sm font-bold text-[var(--iz-gold-l)]">{row.dateDisplay}</div>

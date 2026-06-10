@@ -5,7 +5,6 @@ import { Calendar as CalendarUi } from "@/components/ui/calendar";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import {
-  HIST_ROWS,
   PAYROLL_CYCLE,
   flattenPvLines,
   fmtHistDate,
@@ -20,7 +19,9 @@ import {
   type PvLineRecord,
   type ReceiptItemCategory,
   type ReceiptScanStatus,
+  getPrRosterId,
 } from "@/lib/pr-demo";
+import { shiftHistoryToHistRows } from "@/lib/portal-sync";
 import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { Calendar, ChevronDown, Download, Filter, Receipt, Search, Table2, X } from "lucide-react";
 import { FreelancerPayrollNotice } from "@/components/iz/FreelancerPayrollNotice";
@@ -71,13 +72,6 @@ function dateFromKey(key: string): Date | undefined {
 function keyFromDate(date: Date) {
   return dateKey([date.getFullYear(), date.getMonth() + 1, date.getDate()]);
 }
-
-const HIST_DATE_OPTIONS = [...new Map(HIST_ROWS.map((r) => [dateKey(r.d), r.d])).entries()]
-  .sort(([a], [b]) => a.localeCompare(b))
-  .map(([key, d]) => ({ key, label: fmtHistDate(d[0], d[1], d[2]) }));
-
-const HIST_VENUES = [...new Set(HIST_ROWS.map((r) => r.venue))].sort();
-const HIST_DEFAULT_MONTH = dateFromKey(HIST_DATE_OPTIONS[HIST_DATE_OPTIONS.length - 1]?.key ?? "") ?? new Date(2026, 4, 1);
 
 function parseFilterNum(raw: string): number | null {
   const t = raw.trim().replace(/,/g, "").replace(/^rm\s*/i, "");
@@ -265,8 +259,25 @@ function HistoryPage() {
   const isFreelancer = prSubRole === "pr_free";
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
+  const shiftHistory = useStore((s) => s.shiftHistory);
   const toast = useStore((s) => s.toast);
   const profile = getPrProfile(prSubRole);
+  const prId = getPrRosterId(prSubRole);
+
+  const histRows = useMemo(
+    () => shiftHistoryToHistRows(shiftHistory, prId),
+    [shiftHistory, prId],
+  );
+  const histDateOptions = useMemo(
+    () =>
+      [...new Map(histRows.map((r) => [dateKey(r.d), r.d])).entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, d]) => ({ key, label: fmtHistDate(d[0], d[1], d[2]) })),
+    [histRows],
+  );
+  const histVenues = useMemo(() => [...new Set(histRows.map((r) => r.venue))].sort(), [histRows]);
+  const histDefaultMonth =
+    dateFromKey(histDateOptions[histDateOptions.length - 1]?.key ?? "") ?? new Date(2026, 5, 1);
   const [filters, setFilters] = useState<HistFilters>(EMPTY_FILTERS);
   const [draft, setDraft] = useState<HistFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -311,8 +322,8 @@ function HistoryPage() {
     .reduce((sum, p) => sum + p.net, 0);
 
   const filteredRows = useMemo(
-    () => HIST_ROWS.filter((row) => matchesFilters(row, filters)).slice().reverse(),
-    [filters],
+    () => histRows.filter((row) => matchesFilters(row, filters)).slice().reverse(),
+    [histRows, filters],
   );
 
   const filteredReceipts = useMemo(
@@ -344,9 +355,16 @@ function HistoryPage() {
     setDraft(EMPTY_FILTERS);
   };
 
+  const anyFilterOpen = filterOpen || receiptFilterOpen || pvFilterOpen;
+  const closeFilters = () => {
+    setFilterOpen(false);
+    setReceiptFilterOpen(false);
+    setPvFilterOpen(false);
+  };
+
   return (
     <div className="iz-screen">
-      <AppTopbar />
+      <AppTopbar onBack={anyFilterOpen ? closeFilters : undefined} backLabel={anyFilterOpen ? "History" : undefined} />
       <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">History</h2>
       <p className="iz-tiny iz-muted mt-0.5">
         {isFreelancer
@@ -440,14 +458,26 @@ function HistoryPage() {
       </div>
 
       <div className="iz-grid2 mb-2.5">
-        <DatePickerField value={filters.date} onChange={(date) => setFilters((prev) => ({ ...prev, date }))} compact />
-        <VenueSelectField value={filters.venue} onChange={(venue) => setFilters((prev) => ({ ...prev, venue }))} compact />
+        <DatePickerField
+          value={filters.date}
+          onChange={(date) => setFilters((prev) => ({ ...prev, date }))}
+          compact
+          dateOptions={histDateOptions}
+          defaultMonth={histDefaultMonth}
+        />
+        <VenueSelectField
+          value={filters.venue}
+          onChange={(venue) => setFilters((prev) => ({ ...prev, venue }))}
+          compact
+          venues={histVenues}
+        />
       </div>
 
       {filterCount > 0 && (
         <div className="mb-2.5 flex flex-wrap items-center gap-2">
           <FilterChips
             filters={filters}
+            dateOptions={histDateOptions}
             onRemove={(key) => setFilters((prev) => ({ ...prev, [key]: "" }))}
           />
           <button type="button" className="iz-tiny font-semibold text-[var(--iz-gold-l)]" onClick={clearFilters}>
@@ -476,8 +506,17 @@ function HistoryPage() {
         <p className="iz-tiny iz-muted mb-3">Narrow by date, venue, or numeric fields. All filters combine (AND).</p>
 
         <div className="space-y-3">
-          <DatePickerField value={draft.date} onChange={(date) => setDraft((prev) => ({ ...prev, date }))} />
-          <VenueSelectField value={draft.venue} onChange={(venue) => setDraft((prev) => ({ ...prev, venue }))} />
+          <DatePickerField
+            value={draft.date}
+            onChange={(date) => setDraft((prev) => ({ ...prev, date }))}
+            dateOptions={histDateOptions}
+            defaultMonth={histDefaultMonth}
+          />
+          <VenueSelectField
+            value={draft.venue}
+            onChange={(venue) => setDraft((prev) => ({ ...prev, venue }))}
+            venues={histVenues}
+          />
           <div className="iz-grid2">
             <FilterNumberInput
               label="Daily wages"
@@ -582,8 +621,8 @@ function DatePickerField({
   value,
   onChange,
   compact,
-  dateOptions = HIST_DATE_OPTIONS,
-  defaultMonth = HIST_DEFAULT_MONTH,
+  dateOptions = [],
+  defaultMonth = new Date(),
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -660,10 +699,12 @@ function VenueSelectField({
   value,
   onChange,
   compact,
+  venues = [],
 }: {
   value: string;
   onChange: (v: string) => void;
   compact?: boolean;
+  venues?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -677,7 +718,7 @@ function VenueSelectField({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  const options = [{ value: "", label: compact ? "Any venue" : "Any venue" }, ...HIST_VENUES.map((v) => ({ value: v, label: v }))];
+  const options = [{ value: "", label: compact ? "Any venue" : "Any venue" }, ...venues.map((v) => ({ value: v, label: v }))];
   const current = options.find((o) => o.value === value)?.label ?? "Any venue";
 
   return (
@@ -746,14 +787,16 @@ function FilterNumberInput({
 
 function FilterChips({
   filters,
+  dateOptions,
   onRemove,
 }: {
   filters: HistFilters;
+  dateOptions: { key: string; label: string }[];
   onRemove: (key: keyof HistFilters) => void;
 }) {
   const chips: { key: keyof HistFilters; label: string }[] = [];
   if (filters.date) {
-    const opt = HIST_DATE_OPTIONS.find((o) => o.key === filters.date);
+    const opt = dateOptions.find((o) => o.key === filters.date);
     chips.push({ key: "date", label: `Date: ${opt?.label ?? filters.date}` });
   }
   if (filters.venue) chips.push({ key: "venue", label: `Venue: ${filters.venue}` });

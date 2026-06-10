@@ -178,6 +178,8 @@ interface StoreState {
   setAgencySubRole: (r: AgencySubRole | null) => void;
   signIn: (name: string, email: string) => void;
   signOut: () => void;
+  /** Restore all demo data — call when returning to welcome / sign-in */
+  resetDemo: () => void;
 
   /** PR Talent shift lifecycle (prototype flow) */
   shiftAccepted: boolean;
@@ -425,6 +427,88 @@ function mergePendingFreelancerPayrolls(
 
 let toastId = 0;
 
+function isWelcomePath() {
+  if (typeof window === "undefined") return false;
+  const p = window.location.pathname.replace(/\/$/, "") || "/";
+  return p === "/" || p === "/signin";
+}
+
+function cloneSeedPaymentVouchers(): PrPaymentVoucher[] {
+  return SEED_PR_PVS.map((pv) => ({
+    ...pv,
+    receiptIds: pv.receiptIds ? [...pv.receiptIds] : undefined,
+    rows: pv.rows.map((r) => ({
+      ...r,
+      receiptIds: r.receiptIds ? [...r.receiptIds] : undefined,
+    })),
+  }));
+}
+
+function cloneSeedShifts(): ShiftRequest[] {
+  return seedShifts.map((s) =>
+    withShiftFinancialDefaults({
+      ...s,
+      prs: [...s.prs],
+    }),
+  );
+}
+
+function buildDemoResetPatch(): Partial<StoreState> {
+  const roster = mergeAgencyRoster(undefined, SEED_AGENCY_ROSTER);
+  const shifts = cloneSeedShifts();
+  const prPaymentVouchers = cloneSeedPaymentVouchers();
+  return {
+    role: null,
+    prSubRole: null,
+    outletSubRole: null,
+    agencySubRole: null,
+    user: null,
+    shiftAccepted: false,
+    pendingApproval: false,
+    acceptedShiftIndex: null,
+    checkedIn: false,
+    checkedOut: false,
+    drinks: 0,
+    tables: 0,
+    outletRatingStars: 0,
+    prActiveShift: null,
+    prComcard: { ...COMCARD },
+    prPortfolio: Array.from({ length: PORTFOLIO_SLOT_COUNT }, () => null),
+    prLanguages: ["English", "Mandarin", "Cantonese"],
+    prDisplayName: null,
+    prAvatarPhoto: null,
+    prPayrollAgencyId: null,
+    prPaymentVouchers,
+    prReceiptScans: [...SEED_RECEIPT_SCANS],
+    agencyOwner: { ...DEFAULT_AGENCY_OWNER },
+    agencyFinanceHead: { ...DEFAULT_FINANCE_HEAD },
+    agencyCollections: SEED_AGENCY_COLLECTIONS.map((c) => ({ ...c })),
+    agencyReconciliation: recomputeReconciliation({
+      outletGross: outletGrossFromPnl(recomputeAllOutletPnl(shifts, undefined, roster), "Velvet 23"),
+      pvTotal: sumPvNetForCycle(prPaymentVouchers),
+      dateIso: SEED_RECONCILIATION.dateIso,
+      dateLabel: SEED_RECONCILIATION.dateLabel,
+      agencyConfirmed: SEED_RECONCILIATION.agencyConfirmed,
+      outletConfirmed: SEED_RECONCILIATION.outletConfirmed,
+    }),
+    agencyRoster: roster,
+    agencyPRs: SEED_AGENCY_PRS.map((p) => ({ ...p, languages: [...p.languages] })),
+    shiftHistory: [...SEED_SHIFT_HISTORY],
+    prs: marketplacePrsFromAgency(SEED_AGENCY_PRS),
+    shifts,
+    outletPnl: recomputeAllOutletPnl(shifts, undefined, roster),
+    outletPnlSyncAt: 0,
+    outletMoneyEditCount: 0,
+    bookings: seedBookings.map((b) => ({ ...b })),
+    pvs: seedPVs.map((p) => ({ ...p })),
+    walletBalance: 1240,
+    ratings: [],
+    pendingPRs: SEED_PENDING_PRS.map((p) => ({ ...p })),
+    pendingFreelancerPayrolls: SEED_PENDING_FREELANCER_PAYROLLS.map((p) => ({ ...p })),
+    toasts: [],
+  };
+}
+
 export const useStore = create<StoreState>()(
   persist(
     (set, get) => ({
@@ -454,6 +538,10 @@ export const useStore = create<StoreState>()(
           tables: 0,
           prActiveShift: null,
         }),
+      resetDemo: () => {
+        toastId = 0;
+        set(buildDemoResetPatch());
+      },
 
       shiftAccepted: false,
       pendingApproval: false,
@@ -1359,6 +1447,11 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: "innocenz-store",
+      onRehydrateStorage: () => () => {
+        if (isWelcomePath()) {
+          queueMicrotask(() => useStore.getState().resetDemo());
+        }
+      },
       partialize: (s) => ({
         role: s.role,
         prSubRole: s.prSubRole,

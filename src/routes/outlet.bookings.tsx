@@ -87,7 +87,10 @@ function PostJobPage() {
 
   return (
     <div className="iz-screen">
-      <AppTopbar />
+      <AppTopbar
+        onBack={editingShiftId ? () => setEditingShiftId(null) : undefined}
+        backLabel={editingShiftId ? "Shift list" : undefined}
+      />
       <h2 className="font-sora text-xl font-extrabold text-[var(--iz-txt)]">
         Post shift · <span className="text-[var(--iz-gold-l)]">New job</span>
       </h2>

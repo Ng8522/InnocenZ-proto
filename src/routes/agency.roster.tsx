@@ -2,17 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/Nav";
 import { useStore } from "@/lib/store";
-import {
-  nowAgencyDateTime,
-  OUTLET_NAMES,
-  SEED_LIVE_WORKFORCE,
-  type LiveWorkforceEntry,
-} from "@/lib/agency-demo";
+import { nowAgencyDateTime, OUTLET_NAMES, type LiveWorkforceEntry } from "@/lib/agency-demo";
+import { deriveLiveWorkforce } from "@/lib/portal-sync";
 import type { AgencyRosterSlot, RosterSlotStatus } from "@/lib/agency-demo";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzCard, IzPill, IzSectionLabel, IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { PrAvailabilityPanel } from "@/components/iz/PrAvailabilityPanel";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { agencyCan } from "@/lib/agency-rbac";
 import { ArrowLeftRight, Calendar, Filter, MapPin, Pencil, Users, X } from "lucide-react";
 
 export const Route = createFileRoute("/agency/roster")({
@@ -30,12 +27,16 @@ const STATUS_LABEL: Record<RosterSlotStatus, { label: string; variant: "green" |
 
 const EDITABLE_STATUSES: RosterSlotStatus[] = ["scheduled", "on-duty", "en-route", "unavailable"];
 
+type ViewMode = "live" | "planning";
+
 function AgencyRoster() {
-  const { agencyRoster, editRosterSlot, requestOutletSwap, cancelOutletSwap } = useStore();
+  const { agencyRoster, editRosterSlot, requestOutletSwap, cancelOutletSwap, agencySubRole } = useStore();
   const { date, time } = nowAgencyDateTime();
   const [outletFilter, setOutletFilter] = useState("");
   const [dateFilter, setDateFilter] = useState(DEFAULT_ROSTER_DATE_ISO);
   const [editId, setEditId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("live");
+  const canAssign = agencyCan(agencySubRole, "assignShifts");
 
   const dates = useMemo(() => [...new Set(agencyRoster.map((s) => s.dateIso))], [agencyRoster]);
 
@@ -54,6 +55,8 @@ function AgencyRoster() {
       <AppHeader
         subtitle={`${date} · ${time}`}
         title="Roster"
+        onBack={editId ? () => setEditId(null) : undefined}
+        backLabel={editId ? "Roster" : undefined}
         right={
           swapCount > 0 || assignCount > 0 ? (
             <div className="flex flex-wrap gap-1 justify-end">
@@ -72,9 +75,35 @@ function AgencyRoster() {
         }
       />
 
-      <LiveWorkforceSection />
+      <div className="mb-2 flex gap-2">
+        <button
+          type="button"
+          className={`flex-1 rounded-full border py-2 text-xs font-semibold ${viewMode === "live" ? "border-[var(--iz-green)] bg-[rgba(57,217,138,.12)] text-[var(--iz-green)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
+          onClick={() => setViewMode("live")}
+        >
+          Live · today
+        </button>
+        <button
+          type="button"
+          className={`flex-1 rounded-full border py-2 text-xs font-semibold ${viewMode === "planning" ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
+          onClick={() => setViewMode("planning")}
+        >
+          Planning · forecast
+        </button>
+      </div>
 
-      <PrAvailabilityPanel dateIso={dateFilter || DEFAULT_ROSTER_DATE_ISO} sortByOutlet={outletFilter} />
+      {viewMode === "live" ? (
+        <LiveWorkforceSection dateIso={dateFilter || DEFAULT_ROSTER_DATE_ISO} />
+      ) : (
+        <PlanningWorkforceSection dateIso={dateFilter || DEFAULT_ROSTER_DATE_ISO} />
+      )}
+
+      {canAssign && (
+        <PrAvailabilityPanel
+          dateIso={dateFilter || DEFAULT_ROSTER_DATE_ISO}
+          sortByOutlet={outletFilter}
+        />
+      )}
 
       <IzCard flat className="mt-1">
         <div className="flex items-center gap-2 iz-tiny iz-muted">
@@ -101,15 +130,17 @@ function AgencyRoster() {
         </div>
       </IzCard>
 
-      <Link to="/agency/prs" className="block mt-2">
-        <IzCard className="flex items-center justify-between !mb-0">
-          <div>
-            <div className="font-sora text-sm font-bold">Manage PR roster</div>
-            <div className="iz-tiny iz-muted mt-0.5">Filter age · language · race · height · rating · 培养</div>
-          </div>
-          <span className="iz-tiny text-[var(--iz-gold-l)]">Open →</span>
-        </IzCard>
-      </Link>
+      {canAssign && (
+        <Link to="/agency/prs" className="block mt-2">
+          <IzCard className="flex items-center justify-between !mb-0">
+            <div>
+              <div className="font-sora text-sm font-bold">Manage PR roster</div>
+              <div className="iz-tiny iz-muted mt-0.5">Filter age · language · race · height · rating · tier</div>
+            </div>
+            <span className="iz-tiny text-[var(--iz-gold-l)]">Open →</span>
+          </IzCard>
+        </Link>
+      )}
 
       <IzSectionLabel>Shifts · date &amp; time</IzSectionLabel>
       <div className="space-y-2.5">
@@ -184,15 +215,17 @@ function AgencyRoster() {
                   )}
                 </div>
               )}
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  className="iz-btn iz-btn-soft flex-1 !py-1.5 !text-xs"
-                  onClick={() => setEditId(slot.id)}
-                >
-                  <Pencil className="h-3 w-3" /> Edit
-                </button>
-              </div>
+              {canAssign && (
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    className="iz-btn iz-btn-soft flex-1 !py-1.5 !text-xs"
+                    onClick={() => setEditId(slot.id)}
+                  >
+                    <Pencil className="h-3 w-3" /> Edit
+                  </button>
+                </div>
+              )}
             </IzCard>
           );
         })}
@@ -216,8 +249,42 @@ function AgencyRoster() {
   );
 }
 
-function LiveWorkforceSection() {
-  const workforce = SEED_LIVE_WORKFORCE;
+function PlanningWorkforceSection({ dateIso }: { dateIso: string }) {
+  const agencyRoster = useStore((s) => s.agencyRoster);
+  const scheduled = useMemo(
+    () => agencyRoster.filter((s) => s.dateIso === dateIso && s.status !== "unavailable"),
+    [agencyRoster, dateIso],
+  );
+  const estTotal = useMemo(
+    () => scheduled.reduce((s, slot) => s + (slot.estPayout ?? 350), 0) * 1.08,
+    [scheduled],
+  );
+
+  return (
+    <section className="mt-1">
+      <div className="iz-grid2">
+        <div className="iz-stat-tile">
+          <div className="n">{scheduled.length}</div>
+          <div className="l">PRs scheduled</div>
+        </div>
+        <div className="iz-stat-tile">
+          <div className="n text-[var(--iz-gold)]">{formatRM(estTotal)}</div>
+          <div className="l">Est. labour cost</div>
+        </div>
+      </div>
+      <IzCard flat className="mt-2 border-[rgba(232,194,122,.3)]">
+        <p className="iz-tiny iz-muted">
+          Planning = projected wages + commission for tonight. AI flags PRs with &gt;2 cancellations / 30 days.
+        </p>
+        <p className="iz-tiny text-[var(--iz-amber)] mt-2">Late at shift_start + 15 min · No-show at + 30 min</p>
+      </IzCard>
+    </section>
+  );
+}
+
+function LiveWorkforceSection({ dateIso }: { dateIso: string }) {
+  const agencyRoster = useStore((s) => s.agencyRoster);
+  const workforce = useMemo(() => deriveLiveWorkforce(agencyRoster, dateIso), [agencyRoster, dateIso]);
   const estTotal = useMemo(() => workforce.reduce((s, w) => s + w.estPayout, 0), [workforce]);
   const activeCount = workforce.filter((w) => w.status === "on-duty" || w.status === "en-route").length;
 
@@ -328,6 +395,9 @@ function EditRosterModal({
     <IzSheet open onClose={onClose}>
       <div className="iz-sheet-head">
         <div>
+          <button type="button" className="iz-chip mb-2 !px-2 !py-1 !text-[10px]" onClick={onClose}>
+            ← Back to roster
+          </button>
           <p className="iz-tiny iz-muted2 uppercase tracking-widest">Edit shift</p>
           <h3>{slot.prName}</h3>
         </div>

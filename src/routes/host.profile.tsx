@@ -173,7 +173,10 @@ function ProfilePage() {
 
   return (
     <div className="iz-screen">
-      <AppTopbar />
+      <AppTopbar
+        onBack={editing ? cancelEdit : undefined}
+        backLabel={editing ? "Cancel edit" : undefined}
+      />
       <div className="iz-between mx-0.5 mt-1">
         <h2 className="font-sora text-[22px] font-extrabold text-[var(--iz-txt)]">Profile & Ratings</h2>
         {editing && (

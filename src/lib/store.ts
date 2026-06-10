@@ -22,17 +22,29 @@ import {
   FREELANCER_DEMO_PR_ID,
   DEFAULT_TIED_AGENCY_ID,
   getPrAgencyById,
+  getPrRosterId,
 } from "@/lib/pr-demo";
 import {
   type AgencyOwnerSettings,
   type AgencyRosterSlot,
   type AgencyManagedPR,
+  type AgencyCollectionInvoice,
+  type AgencyFinanceHead,
+  type AgencyReconciliationDay,
   type OutletSwapRequest,
   DEFAULT_AGENCY_OWNER,
+  DEFAULT_FINANCE_HEAD,
+  SEED_AGENCY_COLLECTIONS,
   SEED_AGENCY_ROSTER,
+  SEED_RECONCILIATION,
   mergeAgencyRoster,
   SEED_AGENCY_PRS,
+  SEED_PENDING_PRS,
+  SEED_PENDING_FREELANCER_PAYROLLS,
+  pendingPRToManagedPR,
 } from "@/lib/agency-demo";
+import type { AgencySubRole } from "@/lib/agency-rbac";
+import type { OutletSubRole } from "@/lib/outlet-rbac";
 import {
   computeShiftLiveSales,
   recomputeAllOutletPnl,
@@ -40,6 +52,18 @@ import {
   type OutletPnlSynced,
 } from "@/lib/outlet-financial-sync";
 import { type ShiftHistoryRow, SEED_SHIFT_HISTORY } from "@/lib/shift-history";
+import {
+  buildShiftHistoryRow,
+  marketplacePrsFromAgency,
+  recomputeReconciliation,
+  rosterCheckIn,
+  rosterCheckOut,
+  sumPvNetForCycle,
+  outletGrossFromPnl,
+  canonicalOutlet,
+  outletMatches,
+} from "@/lib/portal-sync";
+import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 
 export type Role = "vendor" | "host" | "agency";
 
@@ -109,7 +133,20 @@ export interface PendingPR {
   ic?: string;
   mobile?: string;
   email?: string;
+  age?: number;
+  height?: number;
+  weight?: number;
+  race?: string;
+  hasIcPhotos?: boolean;
+  hasSelfie?: boolean;
+  hasComcard3d?: boolean;
+  portfolioCount?: number;
+  submittedAt?: string;
+  /** Agency roster id assigned when approved */
+  targetPrId?: string;
+  source?: "self-signup" | "owner-invite";
   status: "pending" | "approved" | "rejected";
+  rejectReason?: string;
 }
 
 /** Freelancer chose this agency for payroll — agency must approve before PVs */
@@ -132,9 +169,13 @@ interface Toast { id: number; message: string; tone?: "success" | "info" | "warn
 interface StoreState {
   role: Role | null;
   prSubRole: PrSubRole | null;
+  outletSubRole: OutletSubRole | null;
+  agencySubRole: AgencySubRole | null;
   user: { name: string; email: string } | null;
   setRole: (r: Role | null) => void;
   setPrSubRole: (r: PrSubRole | null) => void;
+  setOutletSubRole: (r: OutletSubRole | null) => void;
+  setAgencySubRole: (r: AgencySubRole | null) => void;
   signIn: (name: string, email: string) => void;
   signOut: () => void;
 
@@ -189,9 +230,19 @@ interface StoreState {
   resolveAgencyPvDispute: (id: string) => void;
 
   agencyOwner: AgencyOwnerSettings;
+  agencyFinanceHead: AgencyFinanceHead;
   saveAgencyOwner: (patch: Partial<AgencyOwnerSettings>) => void;
+  saveAgencyFinanceHead: (patch: Partial<AgencyFinanceHead>) => void;
   sendAgencyOtp: () => void;
   verifyAgencyOtp: (code: string) => boolean;
+
+  agencyCollections: AgencyCollectionInvoice[];
+  markCollectionSettled: (id: string) => void;
+  sendCollectionReminder: (id: string) => void;
+  agencyReconciliation: AgencyReconciliationDay;
+  confirmAgencyReconciliation: () => void;
+  confirmOutletReconciliation: () => void;
+  syncReconciliationFromLedger: () => void;
 
   agencyRoster: AgencyRosterSlot[];
   editRosterSlot: (id: string, patch: Partial<AgencyRosterSlot>) => void;
@@ -233,7 +284,8 @@ interface StoreState {
   pendingFreelancerPayrolls: PendingFreelancerPayroll[];
 
   approvePendingPR: (id: string) => void;
-  rejectPendingPR: (id: string) => void;
+  rejectPendingPR: (id: string, reason?: string) => void;
+  invitePendingPR: (input: { name: string; ic: string; mobile: string; email: string }) => void;
   approveFreelancerPayroll: (id: string) => void;
   rejectFreelancerPayroll: (id: string) => void;
 
@@ -256,14 +308,7 @@ interface StoreState {
   dismissToast: (id: number) => void;
 }
 
-const seedPRs: PR[] = [
-  { id: "p1", name: "Luna", rating: 4.9, languages: ["EN", "中文"], status: "available", avatar: "🌙" },
-  { id: "p2", name: "Mia", rating: 4.8, languages: ["EN", "中文"], status: "available", avatar: "✨" },
-  { id: "p3", name: "Vivi", rating: 4.7, languages: ["EN", "BM"], status: "available", avatar: "🥂" },
-  { id: "p4", name: "Cici", rating: 4.6, languages: ["EN", "中文"], status: "available", avatar: "💎" },
-  { id: "p5", name: "Nina", rating: 4.5, languages: ["EN", "BM"], status: "available", avatar: "🌹" },
-  { id: "p6", name: "Yuki", rating: 4.8, languages: ["EN", "中文", "日本語"], status: "available", avatar: "🎐" },
-];
+const seedPRs: PR[] = marketplacePrsFromAgency(SEED_AGENCY_PRS);
 
 const seedShifts: ShiftRequest[] = [
   withShiftFinancialDefaults({
@@ -288,13 +333,51 @@ function applyOutletFinancialSync(
   shifts: ShiftRequest[],
   editCount: number,
   syncAt: number,
-): Pick<StoreState, "shifts" | "outletPnl" | "outletPnlSyncAt" | "outletMoneyEditCount"> {
+  roster: AgencyRosterSlot[] = [],
+  reconciliation?: AgencyReconciliationDay,
+): Pick<StoreState, "shifts" | "outletPnl" | "outletPnlSyncAt" | "outletMoneyEditCount" | "agencyReconciliation"> {
   const normalized = shifts.map(withShiftFinancialDefaults);
+  const outletPnl = recomputeAllOutletPnl(normalized, undefined, roster);
+  const nextRecon =
+    reconciliation ??
+    recomputeReconciliation({
+      outletGross: outletGrossFromPnl(outletPnl, "Velvet 23"),
+      pvTotal: 0,
+      dateIso: DEFAULT_ROSTER_DATE_ISO,
+      dateLabel: "Wed · 04 Jun 2026",
+      agencyConfirmed: false,
+      outletConfirmed: false,
+    });
   return {
     shifts: normalized,
-    outletPnl: recomputeAllOutletPnl(normalized),
+    outletPnl,
     outletPnlSyncAt: syncAt,
     outletMoneyEditCount: editCount,
+    agencyReconciliation: nextRecon,
+  };
+}
+
+function syncLedgerState(
+  st: StoreState,
+  patch: Partial<Pick<StoreState, "shifts" | "agencyRoster" | "shiftHistory" | "prPaymentVouchers">>,
+): Partial<StoreState> {
+  const shifts = patch.shifts ?? st.shifts;
+  const roster = patch.agencyRoster ?? st.agencyRoster;
+  const pvs = patch.prPaymentVouchers ?? st.prPaymentVouchers;
+  const outletPnl = recomputeAllOutletPnl(shifts, undefined, roster);
+  const reconciliation = recomputeReconciliation({
+    outletGross: outletGrossFromPnl(outletPnl, "Velvet 23"),
+    pvTotal: sumPvNetForCycle(pvs),
+    dateIso: st.agencyReconciliation.dateIso,
+    dateLabel: st.agencyReconciliation.dateLabel,
+    agencyConfirmed: st.agencyReconciliation.agencyConfirmed,
+    outletConfirmed: st.agencyReconciliation.outletConfirmed,
+  });
+  return {
+    ...patch,
+    outletPnl,
+    outletPnlSyncAt: Date.now(),
+    agencyReconciliation: reconciliation,
   };
 }
 
@@ -319,26 +402,14 @@ const seedPVs: PV[] = [
   { id: "pv1", prName: "You", outlet: "Velvet 23", date: "Last Sat", wages: 360, drinkCommission: 84, tipCommission: 45, tableCommission: 30, status: "sent", version: 1 },
 ];
 
-const seedPendingPRs: PendingPR[] = [
-  { id: "pr1", name: "Siti Rahman", languages: "EN · Malay", ic: "960101-14-7788", mobile: "+60 12-881 9901", email: "siti.r@inz.my", status: "pending" },
-  { id: "pr2", name: "Chen Wei", languages: "EN · 中文", ic: "970515-10-6622", mobile: "+60 16-772 4410", email: "chen.wei@inz.my", status: "pending" },
-];
-
-const seedPendingFreelancerPayrolls: PendingFreelancerPayroll[] = [
-  {
-    id: "fp-seed-jaya",
-    prId: FREELANCER_DEMO_PR_ID,
-    prName: "Jaya Nair",
-    languages: "English · Cantonese",
-    ic: "880214-10-5566",
-    mobile: "+60 17-662 3391",
-    email: "jaya.nair@inz.my",
-    agencyId: DEFAULT_TIED_AGENCY_ID,
-    agencyName: "Atlas Agency",
-    status: "pending",
-    requestedAt: "4 Jun 2026 · 10:42",
-  },
-];
+function mergePendingPRs(persisted: PendingPR[] | undefined, current: PendingPR[]): PendingPR[] {
+  const base = persisted && persisted.length > 0 ? persisted : current;
+  const byId = new Map(base.map((p) => [p.id, p]));
+  for (const seed of SEED_PENDING_PRS) {
+    if (!byId.has(seed.id)) byId.set(seed.id, seed);
+  }
+  return Array.from(byId.values());
+}
 
 function mergePendingFreelancerPayrolls(
   persisted: PendingFreelancerPayroll[] | undefined,
@@ -346,7 +417,7 @@ function mergePendingFreelancerPayrolls(
 ): PendingFreelancerPayroll[] {
   const base = persisted && persisted.length > 0 ? persisted : current;
   const byId = new Map(base.map((p) => [p.id, p]));
-  for (const seed of seedPendingFreelancerPayrolls) {
+  for (const seed of SEED_PENDING_FREELANCER_PAYROLLS) {
     if (!byId.has(seed.id)) byId.set(seed.id, seed);
   }
   return Array.from(byId.values());
@@ -359,15 +430,21 @@ export const useStore = create<StoreState>()(
     (set, get) => ({
       role: null,
       prSubRole: null,
+      outletSubRole: null,
+      agencySubRole: null,
       user: null,
       setRole: (r) => set({ role: r }),
       setPrSubRole: (r) => set({ prSubRole: r }),
+      setOutletSubRole: (r) => set({ outletSubRole: r }),
+      setAgencySubRole: (r) => set({ agencySubRole: r }),
       signIn: (name, email) => set({ user: { name, email } }),
       signOut: () =>
         set({
           user: null,
           role: null,
           prSubRole: null,
+          outletSubRole: null,
+          agencySubRole: null,
           shiftAccepted: false,
           pendingApproval: false,
           acceptedShiftIndex: null,
@@ -448,11 +525,21 @@ export const useStore = create<StoreState>()(
           timeIn: stamp,
           receiptIds: [],
         };
-        set({ checkedIn: true, prActiveShift: session });
+        const prId = getPrRosterId(get().prSubRole);
+        const checkInTime = new Date().toLocaleTimeString("en-MY", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        set((st) => ({
+          checkedIn: true,
+          prActiveShift: session,
+          agencyRoster: rosterCheckIn(st.agencyRoster, prId, offer.outlet, checkInTime),
+        }));
         get().toast(`Checked in ✓ Time-In locked · PV ${session.pvId} opened for this shift`, "success");
       },
       prCheckOut: () => {
         const shift = get().prActiveShift;
+        const prId = getPrRosterId(get().prSubRole);
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -472,19 +559,40 @@ export const useStore = create<StoreState>()(
         const profile = getPrProfile(get().prSubRole);
         const pv = buildPaymentVoucherFromShift(closed, scans, profile);
         const scanIds = new Set(scans.map((s) => s.id));
-        set((st) => ({
-          checkedOut: true,
-          prActiveShift: null,
-          prReceiptScans: (st.prReceiptScans ?? SEED_RECEIPT_SCANS).map((r) =>
-            scanIds.has(r.id)
-              ? { ...r, pvId: shift.pvId, shiftSessionId: shift.id, status: "in_pv" as const, pvStatus: "PENDING_REVIEW" as const }
-              : r,
-          ),
-          prPaymentVouchers: [
-            pv,
-            ...(st.prPaymentVouchers ?? SEED_PR_PVS).filter((p) => p.id !== pv.id),
-          ],
-        }));
+        const [y, m, d] = shift.date;
+        const managedPr = get().agencyPRs.find((p) => p.id === prId);
+        const historyRow = buildShiftHistoryRow({
+          prId,
+          prName: managedPr?.name ?? profile.name,
+          outlet: shift.outlet,
+          dateIso: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+          dateDisplay: stamp.split("·")[0]?.trim() ?? stamp,
+          totalPayout: pv.net,
+          totalDrinks: get().drinks,
+          totalTips: scans.reduce((s, r) => s + (r.items?.reduce((a, i) => a + (i.category === "tip" ? i.amount : 0), 0) ?? 0), 0),
+          durationHours: 6,
+        });
+        const checkOutTime = new Date().toLocaleTimeString("en-MY", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        set((st) =>
+          syncLedgerState(st, {
+            checkedOut: true,
+            prActiveShift: null,
+            agencyRoster: rosterCheckOut(st.agencyRoster, prId, shift.outlet, checkOutTime),
+            shiftHistory: [historyRow, ...st.shiftHistory],
+            prReceiptScans: (st.prReceiptScans ?? SEED_RECEIPT_SCANS).map((r) =>
+              scanIds.has(r.id)
+                ? { ...r, pvId: shift.pvId, shiftSessionId: shift.id, status: "in_pv" as const, pvStatus: "PENDING_REVIEW" as const }
+                : r,
+            ),
+            prPaymentVouchers: [
+              pv,
+              ...(st.prPaymentVouchers ?? SEED_PR_PVS).filter((p) => p.id !== pv.id),
+            ],
+          }),
+        );
         get().toast(
           `Checked out ✓ PV ${shift.pvId} generated from ${scans.length} receipt(s) + shift wages`,
           "success",
@@ -764,6 +872,54 @@ export const useStore = create<StoreState>()(
         return false;
       },
 
+      agencyFinanceHead: { ...DEFAULT_FINANCE_HEAD },
+      saveAgencyFinanceHead: (patch) => {
+        set((st) => ({ agencyFinanceHead: { ...st.agencyFinanceHead, ...patch } }));
+        get().toast("Finance Head profile saved — e-signature ready for PV dual-sign", "success");
+      },
+
+      agencyCollections: SEED_AGENCY_COLLECTIONS,
+      markCollectionSettled: (id) => {
+        set((st) => ({
+          agencyCollections: st.agencyCollections.map((c) =>
+            c.id === id ? { ...c, status: "SETTLED" as const, aging: "current" as const } : c,
+          ),
+        }));
+        get().toast("Invoice marked received · status SETTLED", "success");
+      },
+      sendCollectionReminder: (id) => {
+        set((st) => ({
+          agencyCollections: st.agencyCollections.map((c) =>
+            c.id === id ? { ...c, reminderSent: true } : c,
+          ),
+        }));
+        get().toast("Auto-reminder sent to outlet", "info");
+      },
+
+      agencyReconciliation: recomputeReconciliation({
+        outletGross: outletGrossFromPnl(recomputeAllOutletPnl(seedShifts, undefined, SEED_AGENCY_ROSTER), "Velvet 23"),
+        pvTotal: sumPvNetForCycle(SEED_PR_PVS),
+        dateIso: SEED_RECONCILIATION.dateIso,
+        dateLabel: SEED_RECONCILIATION.dateLabel,
+        agencyConfirmed: SEED_RECONCILIATION.agencyConfirmed,
+        outletConfirmed: SEED_RECONCILIATION.outletConfirmed,
+      }),
+      confirmAgencyReconciliation: () => {
+        set((st) => ({
+          agencyReconciliation: { ...st.agencyReconciliation, agencyConfirmed: true },
+        }));
+        get().toast("Today's reconciliation confirmed · agency side locked", "success");
+      },
+      confirmOutletReconciliation: () => {
+        set((st) => ({
+          agencyReconciliation: { ...st.agencyReconciliation, outletConfirmed: true },
+        }));
+        get().toast("Outlet daily reconciliation confirmed · synced to agency", "success");
+      },
+      syncReconciliationFromLedger: () => {
+        set((st) => syncLedgerState(st, {}));
+      },
+
       agencyRoster: SEED_AGENCY_ROSTER,
       editRosterSlot: (id, patch) => {
         set((st) => ({
@@ -941,7 +1097,7 @@ export const useStore = create<StoreState>()(
 
       prs: seedPRs,
       shifts: seedShifts,
-      outletPnl: recomputeAllOutletPnl(seedShifts),
+      outletPnl: recomputeAllOutletPnl(seedShifts, undefined, SEED_AGENCY_ROSTER),
       outletPnlSyncAt: 0,
       outletMoneyEditCount: 0,
       updateOutletShiftMoney: (shiftId, patch) => {
@@ -951,12 +1107,19 @@ export const useStore = create<StoreState>()(
           const merged = withShiftFinancialDefaults({ ...sh, ...patch });
           return { ...merged, liveSales: computeShiftLiveSales(merged) };
         });
-        const sync = applyOutletFinancialSync(nextShifts, st.outletMoneyEditCount + 1, Date.now());
+        const sync = applyOutletFinancialSync(
+          nextShifts,
+          st.outletMoneyEditCount + 1,
+          Date.now(),
+          st.agencyRoster,
+          st.agencyReconciliation,
+        );
         set(sync);
         get().toast("Synced to Atlas Agency · PNL & PR commission updated", "success");
       },
       adjustOutletShiftUnits: (shiftId, kind, delta) => {
         const st = get();
+        const shift = st.shifts.find((sh) => sh.id === shiftId);
         const nextShifts = st.shifts.map((sh) => {
           if (sh.id !== shiftId) return sh;
           const drinkUnits =
@@ -970,28 +1133,83 @@ export const useStore = create<StoreState>()(
           const merged = withShiftFinancialDefaults({ ...sh, drinkUnits, tableUnits });
           return { ...merged, liveSales: computeShiftLiveSales(merged) };
         });
-        const sync = applyOutletFinancialSync(nextShifts, st.outletMoneyEditCount + 1, Date.now());
-        set(sync);
+        const nextRoster =
+          shift && delta > 0
+            ? st.agencyRoster.map((slot) => {
+                if (slot.status !== "on-duty" || !outletMatches(slot.outlet, shift.outletName)) {
+                  return slot;
+                }
+                if (kind === "drink") {
+                  return { ...slot, floorDrinks: (slot.floorDrinks ?? 0) + delta };
+                }
+                return { ...slot, floorTips: (slot.floorTips ?? 0) + delta * 10 };
+              })
+            : st.agencyRoster;
+        const sync = applyOutletFinancialSync(
+          nextShifts,
+          st.outletMoneyEditCount + 1,
+          Date.now(),
+          nextRoster,
+          st.agencyReconciliation,
+        );
+        set({ ...sync, agencyRoster: nextRoster });
         get().toast("Live sales updated · agency payroll view synced", "info");
       },
       bookings: seedBookings,
       pvs: seedPVs,
       walletBalance: 1240,
       ratings: [],
-      pendingPRs: seedPendingPRs,
-      pendingFreelancerPayrolls: seedPendingFreelancerPayrolls,
+      pendingPRs: SEED_PENDING_PRS,
+      pendingFreelancerPayrolls: SEED_PENDING_FREELANCER_PAYROLLS,
 
       approvePendingPR: (id) => {
-        set((st) => ({
-          pendingPRs: st.pendingPRs.map((p) => (p.id === id ? { ...p, status: "approved" } : p)),
-        }));
-        get().toast("PR approved — shift board unlocked", "success");
+        const pending = get().pendingPRs.find((p) => p.id === id);
+        if (!pending || pending.status !== "pending") return;
+        const managed = pendingPRToManagedPR(pending);
+        set((st) => {
+          const alreadyOnRoster = st.agencyPRs.some((p) => p.id === managed.id);
+          const nextAgencyPRs = alreadyOnRoster ? st.agencyPRs : [...st.agencyPRs, managed];
+          return {
+            pendingPRs: st.pendingPRs.map((p) => (p.id === id ? { ...p, status: "approved" as const } : p)),
+            agencyPRs: nextAgencyPRs,
+            prs: marketplacePrsFromAgency(nextAgencyPRs),
+          };
+        });
+        get().toast(`${pending.name} approved — added to roster & marketplace`, "success");
       },
-      rejectPendingPR: (id) => {
+      rejectPendingPR: (id, reason) => {
         set((st) => ({
-          pendingPRs: st.pendingPRs.map((p) => (p.id === id ? { ...p, status: "rejected" } : p)),
+          pendingPRs: st.pendingPRs.map((p) =>
+            p.id === id ? { ...p, status: "rejected", rejectReason: reason ?? "Did not meet agency criteria" } : p,
+          ),
         }));
         get().toast("PR rejected — notification sent", "warn");
+      },
+      invitePendingPR: ({ name, ic, mobile, email }) => {
+        const id = "pr-inv-" + Date.now();
+        const now = new Date();
+        const submittedAt = `${now.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })} · ${now.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}`;
+        set((st) => ({
+          pendingPRs: [
+            {
+              id,
+              name,
+              ic,
+              mobile,
+              email,
+              languages: "Pending profile",
+              status: "pending",
+              source: "owner-invite",
+              hasIcPhotos: false,
+              hasSelfie: false,
+              hasComcard3d: false,
+              portfolioCount: 0,
+              submittedAt,
+            },
+            ...st.pendingPRs,
+          ],
+        }));
+        get().toast(`Invite sent to ${name} — awaiting profile completion`, "success");
       },
       approveFreelancerPayroll: (id) => {
         const req = get().pendingFreelancerPayrolls.find((p) => p.id === id);
@@ -1046,10 +1264,38 @@ export const useStore = create<StoreState>()(
         get().toast("Booking confirmed · PRs notified", "success");
       },
       sealShift: (shiftId) => {
-        set((st) => ({
-          shifts: st.shifts.map((sh) => sh.id === shiftId ? { ...sh, status: "sealed" } : sh),
-        }));
-        get().toast("Shift sealed · PVs generated", "success");
+        const st = get();
+        const shift = st.shifts.find((sh) => sh.id === shiftId);
+        if (!shift) return;
+        const today = new Date();
+        const dateIso = DEFAULT_ROSTER_DATE_ISO;
+        const dateDisplay = today.toLocaleDateString("en-MY", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+        const newRows: ShiftHistoryRow[] = shift.prs.map((prId) => {
+          const pr = st.agencyPRs.find((p) => p.id === prId);
+          const payout = Math.round((shift.estimatedCost / Math.max(shift.prs.length, 1)) * 100) / 100;
+          return buildShiftHistoryRow({
+            prId,
+            prName: pr?.name ?? prId,
+            outlet: shift.outletName,
+            dateIso,
+            dateDisplay,
+            totalPayout: payout,
+            totalDrinks: Math.round((shift.drinkUnits ?? 0) / Math.max(shift.prs.length, 1)),
+            totalTips: Math.round(((shift.tableUnits ?? 0) * 20) / Math.max(shift.prs.length, 1)),
+            durationHours: 6,
+          });
+        });
+        set(
+          syncLedgerState(st, {
+            shifts: st.shifts.map((sh) => (sh.id === shiftId ? { ...sh, status: "sealed" } : sh)),
+            shiftHistory: [...newRows, ...st.shiftHistory],
+          }),
+        );
+        get().toast("Shift sealed · history + PV pipeline synced to agency", "success");
       },
 
       acceptBooking: (id) => {
@@ -1116,6 +1362,8 @@ export const useStore = create<StoreState>()(
       partialize: (s) => ({
         role: s.role,
         prSubRole: s.prSubRole,
+        outletSubRole: s.outletSubRole,
+        agencySubRole: s.agencySubRole,
         user: s.user,
         shifts: s.shifts,
         outletPnl: s.outletPnl,
@@ -1144,6 +1392,9 @@ export const useStore = create<StoreState>()(
         prReceiptScans: s.prReceiptScans,
         prActiveShift: s.prActiveShift,
         agencyOwner: s.agencyOwner,
+        agencyFinanceHead: s.agencyFinanceHead,
+        agencyCollections: s.agencyCollections,
+        agencyReconciliation: s.agencyReconciliation,
         agencyRoster: s.agencyRoster,
         agencyPRs: s.agencyPRs,
         shiftHistory: s.shiftHistory,
@@ -1212,14 +1463,19 @@ export const useStore = create<StoreState>()(
             p?.shiftHistory && p.shiftHistory.length > 0
               ? p.shiftHistory
               : current.shiftHistory,
+          pendingPRs: mergePendingPRs(p?.pendingPRs, current.pendingPRs),
           pendingFreelancerPayrolls: mergePendingFreelancerPayrolls(
             p?.pendingFreelancerPayrolls,
             current.pendingFreelancerPayrolls,
           ),
+          agencyPRs: p?.agencyPRs?.length ? p.agencyPRs : current.agencyPRs,
+          prs: marketplacePrsFromAgency(p?.agencyPRs?.length ? p.agencyPRs : current.agencyPRs),
           agencyRoster: mergeAgencyRoster(p?.agencyRoster, current.agencyRoster),
           shifts: (p?.shifts ?? current.shifts).map(withShiftFinancialDefaults),
           outletPnl: recomputeAllOutletPnl(
             (p?.shifts ?? current.shifts).map(withShiftFinancialDefaults),
+            undefined,
+            mergeAgencyRoster(p?.agencyRoster, current.agencyRoster),
           ),
           outletPnlSyncAt: p?.outletPnlSyncAt ?? current.outletPnlSyncAt,
           outletMoneyEditCount: p?.outletMoneyEditCount ?? current.outletMoneyEditCount,

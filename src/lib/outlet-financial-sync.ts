@@ -1,10 +1,11 @@
 import {
   calcShiftPayout,
   getOutletRule,
-  SEED_LIVE_WORKFORCE,
   SEED_OUTLET_PNL,
+  type AgencyRosterSlot,
   type OutletPnlRow,
 } from "@/lib/agency-demo";
+import { floorTipsForOutletFromRoster } from "@/lib/portal-sync";
 import type { ShiftRequest } from "@/lib/store";
 
 export const DEFAULT_PER_DRINK_RM = 120;
@@ -27,8 +28,8 @@ export function computeShiftLiveSales(shift: {
   return Math.round(raw * 100) / 100;
 }
 
-export function floorTipsForOutlet(outletName: string): number {
-  return SEED_LIVE_WORKFORCE.filter((w) => w.outlet === outletName).reduce((s, w) => s + w.tips, 0);
+export function floorTipsForOutlet(outletName: string, roster: AgencyRosterSlot[] = []): number {
+  return floorTipsForOutletFromRoster(roster, outletName);
 }
 
 export interface OutletPnlSynced extends OutletPnlRow {
@@ -62,6 +63,7 @@ export function withShiftFinancialDefaults(shift: ShiftRequest): ShiftRequest {
 export function buildSyncedOutletPnlRow(
   seedRow: OutletPnlRow,
   shift: ShiftRequest,
+  roster: AgencyRosterSlot[] = [],
 ): OutletPnlSynced {
   const rule = getOutletRule(seedRow.outlet);
   const s = withShiftFinancialDefaults(shift);
@@ -76,7 +78,7 @@ export function buildSyncedOutletPnlRow(
 
   const drinkSales = drinkUnits * perDrinkRm;
   const tableSales = tableUnits * perTableRm;
-  const tips = floorTipsForOutlet(s.outletName);
+  const tips = floorTipsForOutlet(s.outletName, roster);
   const payout = calcShiftPayout({
     outlet: seedRow.outlet,
     hoursWorked: 6,
@@ -89,7 +91,7 @@ export function buildSyncedOutletPnlRow(
     (payout.drinkCommission + payout.tipCommission + payout.tableCommission) * 100,
   ) / 100;
   const prWages = s.estimatedCost;
-  const anchorCommission = calcAnchorCommission(seedRow.outlet, anchorLive, s);
+  const anchorCommission = calcAnchorCommission(seedRow.outlet, anchorLive, s, roster);
   const prPayout = Math.round((prWages + prCommission) * 100) / 100;
   const anchorPrPayout = Math.round((prWages + anchorCommission) * 100) / 100;
   const prPayoutDelta = prPayout - anchorPrPayout;
@@ -113,7 +115,12 @@ export function buildSyncedOutletPnlRow(
   };
 }
 
-function calcAnchorCommission(outlet: string, anchorLive: number, shift: ShiftRequest) {
+function calcAnchorCommission(
+  outlet: string,
+  anchorLive: number,
+  shift: ShiftRequest,
+  roster: AgencyRosterSlot[] = [],
+) {
   const perDrink = shift.perDrinkRm ?? DEFAULT_PER_DRINK_RM;
   const perTable = shift.perTableRm ?? DEFAULT_PER_TABLE_RM;
   const totalUnit = perDrink + perTable || 1;
@@ -125,7 +132,7 @@ function calcAnchorCommission(outlet: string, anchorLive: number, shift: ShiftRe
     hoursWorked: 6,
     drinks: drinkUnits,
     drinkSales: drinkUnits * perDrink,
-    tips: floorTipsForOutlet(shift.outletName),
+    tips: floorTipsForOutlet(shift.outletName, roster),
     tableSales: tableUnits * perTable,
   });
   return payout.drinkCommission + payout.tipCommission + payout.tableCommission;
@@ -134,6 +141,7 @@ function calcAnchorCommission(outlet: string, anchorLive: number, shift: ShiftRe
 export function recomputeAllOutletPnl(
   shifts: ShiftRequest[],
   seedRows: OutletPnlRow[] = SEED_OUTLET_PNL,
+  roster: AgencyRosterSlot[] = [],
 ): OutletPnlSynced[] {
   return seedRows.map((row) => {
     const active = shifts.find(
@@ -150,7 +158,7 @@ export function recomputeAllOutletPnl(
         syncedFromOutlet: false,
       };
     }
-    return buildSyncedOutletPnlRow(row, active);
+    return buildSyncedOutletPnlRow(row, active, roster);
   });
 }
 

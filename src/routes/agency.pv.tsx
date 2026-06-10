@@ -20,7 +20,9 @@ import {
 } from "@/lib/pr-demo";
 import { downloadAgencyPvPdf } from "@/lib/pv-pdf";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
-import { Calendar, FileText, Filter, Pencil, Plus } from "lucide-react";
+import type { AgencyCollectionInvoice } from "@/lib/agency-demo";
+import { agencyCan } from "@/lib/agency-rbac";
+import { AlertTriangle, Bell, Calendar, FileText, Filter, Pencil, Plus, Receipt } from "lucide-react";
 import { IzCard, IzPill, IzSectionLabel, IzSelect, formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/agency/pv")({
@@ -32,6 +34,15 @@ function statusPill(status: PrPvStatus) {
 }
 
 type PvStatusFilter = "all" | PrPvStatus;
+type PayrollTab = "pv" | "collections" | "reconciliation";
+
+const AGING_LABELS: Record<AgencyCollectionInvoice["aging"], string> = {
+  current: "Current",
+  "7d": "7d",
+  "14d": "14d",
+  "30d": "30d",
+  "60d+": "60d+",
+};
 
 const PV_STATUS_FILTERS: { value: PvStatusFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -51,12 +62,21 @@ const PV_DATE_FILTERS: { value: PvDateRecencyFilter; label: string }[] = [
 function AgencyPV() {
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const agencyOwner = useStore((s) => s.agencyOwner);
+  const agencyCollections = useStore((s) => s.agencyCollections);
+  const markCollectionSettled = useStore((s) => s.markCollectionSettled);
+  const sendCollectionReminder = useStore((s) => s.sendCollectionReminder);
+  const reconciliation = useStore((s) => s.agencyReconciliation);
+  const confirmAgencyReconciliation = useStore((s) => s.confirmAgencyReconciliation);
+  const agencySubRole = useStore((s) => s.agencySubRole);
   const toast = useStore((s) => s.toast);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [payrollTab, setPayrollTab] = useState<PayrollTab>("pv");
   const [statusFilter, setStatusFilter] = useState<PvStatusFilter>("all");
   const [dateFilter, setDateFilter] = useState<PvDateRecencyFilter>("all");
   const [salesSort, setSalesSort] = useState<PvSalesSort>("default");
+  const [collectionDetail, setCollectionDetail] = useState<string | null>(null);
   const { date, time } = nowAgencyDateTime();
+  const canRaisePv = agencyCan(agencySubRole, "raisePv");
 
   const latestIssuedMs = useMemo(
     () => getLatestPvIssuedMs(prPaymentVouchers),
@@ -110,15 +130,42 @@ function AgencyPV() {
   if (detail) {
     return (
       <div className="iz-screen">
-        <AppTopbar showDateTime />
+        <AppTopbar onBack={() => setDetailId(null)} backLabel="PV list" />
         <PvDetail pv={detail} agencyIc={agencyOwner.ic} onClose={() => setDetailId(null)} />
+      </div>
+    );
+  }
+
+  const collectionRow = agencyCollections.find((c) => c.id === collectionDetail);
+  const pendingCollections = agencyCollections.filter((c) => c.status === "PENDING");
+
+  if (collectionRow) {
+    return (
+      <div className="iz-screen">
+        <AppTopbar onBack={() => setCollectionDetail(null)} backLabel="Collections" />
+        <IzCard>
+          <div className="iz-v-sum"><span className="iz-muted">Invoice</span><b>{collectionRow.id}</b></div>
+          <div className="iz-v-sum"><span className="iz-muted">Outlet</span><b>{collectionRow.outlet}</b></div>
+          <div className="iz-v-sum"><span className="iz-muted">Amount</span><b>{formatRM(collectionRow.amount)}</b></div>
+          <div className="iz-v-sum"><span className="iz-muted">Due</span><b>{collectionRow.dueDate}</b></div>
+          <div className="iz-v-sum"><span className="iz-muted">Status</span><IzPill variant={collectionRow.status === "SETTLED" ? "green" : "amber"}>{collectionRow.status}</IzPill></div>
+        </IzCard>
+        <IzSectionLabel>Linked PVs</IzSectionLabel>
+        {collectionRow.linkedPvIds.map((id) => (
+          <IzCard key={id} flat><p className="iz-sm font-bold">{id}</p></IzCard>
+        ))}
+        {collectionRow.status === "PENDING" && (
+          <button type="button" className="iz-btn iz-btn-primary mt-3 w-full" onClick={() => { markCollectionSettled(collectionRow.id); setCollectionDetail(null); }}>
+            Mark received · Paid
+          </button>
+        )}
       </div>
     );
   }
 
   return (
     <div className="iz-screen">
-      <AppTopbar showDateTime />
+      <AppTopbar />
       <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">
         Payroll &amp; PV
       </h2>
@@ -126,6 +173,40 @@ function AgencyPV() {
         {date} · {time} · Cycle{" "}
         <span className="text-[var(--iz-gold-l)]">{PAYROLL_CYCLE.range}</span> · per-item calc
       </p>
+
+      <div className="mt-3 flex gap-1.5">
+        {(["pv", "collections", "reconciliation"] as PayrollTab[]).map((t) => (
+          <button
+            key={t}
+            type="button"
+            className={`flex-1 rounded-full border py-2 text-[11px] font-semibold capitalize ${payrollTab === t ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
+            onClick={() => setPayrollTab(t)}
+          >
+            {t === "pv" ? "PV" : t}
+            {t === "collections" && pendingCollections.length > 0 && ` (${pendingCollections.length})`}
+          </button>
+        ))}
+      </div>
+
+      {payrollTab === "collections" && (
+        <CollectionsSection
+          invoices={agencyCollections}
+          onOpen={setCollectionDetail}
+          onSettle={markCollectionSettled}
+          onRemind={sendCollectionReminder}
+        />
+      )}
+
+      {payrollTab === "reconciliation" && (
+        <ReconciliationSection
+          reconciliation={reconciliation}
+          onConfirm={confirmAgencyReconciliation}
+          canConfirm={agencyCan(agencySubRole, "confirmReconciliation")}
+        />
+      )}
+
+      {payrollTab !== "pv" ? null : (
+        <>
 
       <div className="iz-grid2 mt-3">
         <div className="iz-stat-tile">
@@ -277,13 +358,117 @@ function AgencyPV() {
         )}
       </div>
 
-      <button
-        type="button"
-        className="iz-btn iz-btn-primary mt-2"
-        onClick={() => toast("New PV raised from sealed shift logs · Finance Head pre-signed", "success")}
-      >
-        <Plus className="h-4 w-4" /> Raise new PV
-      </button>
+      {canRaisePv && (
+        <button
+          type="button"
+          className="iz-btn iz-btn-primary mt-2"
+          onClick={() => toast("New PV raised from sealed shift logs · Finance Head pre-signed", "success")}
+        >
+          <Plus className="h-4 w-4" /> Raise new PV
+        </button>
+      )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function CollectionsSection({
+  invoices,
+  onOpen,
+  onSettle,
+  onRemind,
+}: {
+  invoices: AgencyCollectionInvoice[];
+  onOpen: (id: string) => void;
+  onSettle: (id: string) => void;
+  onRemind: (id: string) => void;
+}) {
+  const buckets = ["current", "7d", "14d", "30d", "60d+"] as const;
+
+  return (
+    <div className="mt-3">
+      <IzCard flat className="border-[rgba(124,107,255,.25)]">
+        <p className="iz-tiny iz-muted">Platform ledger · outlet → agency invoices · SETTLED vs PENDING</p>
+      </IzCard>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {buckets.map((b) => {
+          const count = invoices.filter((i) => i.aging === b).length;
+          if (!count) return null;
+          return (
+            <IzPill key={b} variant={b === "current" ? "green" : "amber"}>
+              {AGING_LABELS[b]} · {count}
+            </IzPill>
+          );
+        })}
+      </div>
+      <div className="mt-3 space-y-2.5">
+        {invoices.map((inv) => (
+          <IzCard key={inv.id}>
+            <button type="button" className="w-full text-left" onClick={() => onOpen(inv.id)}>
+              <div className="iz-between">
+                <div>
+                  <div className="font-sora text-sm font-bold">{inv.outlet}</div>
+                  <p className="iz-tiny iz-muted mt-0.5">{inv.id} · due {inv.dueDate}</p>
+                </div>
+                <div className="text-right">
+                  <IzPill variant={inv.status === "SETTLED" ? "green" : "amber"}>{inv.status}</IzPill>
+                  <p className="iz-ledger mt-1 text-sm font-bold">{formatRM(inv.amount)}</p>
+                </div>
+              </div>
+            </button>
+            {inv.status === "PENDING" && (
+              <div className="mt-2 flex gap-2">
+                <button type="button" className="iz-btn iz-btn-soft flex-1 !py-1.5 !text-xs" onClick={() => onRemind(inv.id)}>
+                  <Bell className="h-3 w-3" /> Remind outlet
+                </button>
+                <button type="button" className="iz-btn iz-btn-primary flex-1 !py-1.5 !text-xs" onClick={() => onSettle(inv.id)}>
+                  <Receipt className="h-3 w-3" /> Mark paid
+                </button>
+              </div>
+            )}
+          </IzCard>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReconciliationSection({
+  reconciliation,
+  onConfirm,
+  canConfirm,
+}: {
+  reconciliation: import("@/lib/agency-demo").AgencyReconciliationDay;
+  onConfirm: () => void;
+  canConfirm: boolean;
+}) {
+  return (
+    <div className="mt-3">
+      <IzCard flat className="border-[rgba(232,194,122,.35)]">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--iz-amber)]" />
+          <div>
+            <p className="iz-sm font-bold">Daily reconciliation · {reconciliation.dateLabel}</p>
+            <p className="iz-tiny iz-muted mt-1">Both Agency + Outlet must confirm before month-end close</p>
+          </div>
+        </div>
+      </IzCard>
+      <IzCard className="mt-2">
+        <div className="iz-v-sum"><span className="iz-muted">Outlet-reported sales</span><b>{formatRM(reconciliation.outletSalesTotal)}</b></div>
+        <div className="iz-v-sum"><span className="iz-muted">PV totals</span><b>{formatRM(reconciliation.pvTotal)}</b></div>
+        <div className="iz-v-sum tot">
+          <span className={reconciliation.variance !== 0 ? "text-[var(--iz-amber)]" : ""}>Variance</span>
+          <b className={reconciliation.variance !== 0 ? "text-[var(--iz-amber)]" : ""}>{formatRM(reconciliation.variance)}</b>
+        </div>
+        <div className="iz-v-sum"><span className="iz-muted">Outlet confirmed</span><b>{reconciliation.outletConfirmed ? "Yes ✓" : "Pending"}</b></div>
+        <div className="iz-v-sum"><span className="iz-muted">Agency confirmed</span><b>{reconciliation.agencyConfirmed ? "Yes ✓ · locked" : "Awaiting"}</b></div>
+      </IzCard>
+      {canConfirm && !reconciliation.agencyConfirmed && (
+        <button type="button" className="iz-btn iz-btn-primary mt-3 w-full" onClick={onConfirm}>
+          Confirm reconciliation · agency side
+        </button>
+      )}
     </div>
   );
 }

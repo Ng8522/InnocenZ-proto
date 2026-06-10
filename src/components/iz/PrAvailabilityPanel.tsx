@@ -22,9 +22,11 @@ function formatDateLabel(iso: string) {
 export function PrAvailabilityPanel({
   dateIso,
   sortByOutlet,
+  readOnly = false,
 }: {
   dateIso: string;
   sortByOutlet: string;
+  readOnly?: boolean;
 }) {
   const agencyPRs = useStore((s) => s.agencyPRs);
   const agencyRoster = useStore((s) => s.agencyRoster);
@@ -102,13 +104,15 @@ export function PrAvailabilityPanel({
                   </span>
                 ))}
               </div>
-              <button
-                type="button"
-                className="iz-btn iz-btn-primary mt-2.5 w-full !py-2 !text-xs"
-                onClick={() => setAssignPr({ pr, distances })}
-              >
-                <UserCheck className="h-3.5 w-3.5" /> Assign to outlet
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="iz-btn iz-btn-primary mt-2.5 w-full !py-2 !text-xs"
+                  onClick={() => setAssignPr({ pr, distances })}
+                >
+                  <UserCheck className="h-3.5 w-3.5" /> Assign to outlet
+                </button>
+              )}
             </IzCard>
           ))}
         </div>

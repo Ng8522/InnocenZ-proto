@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Building2, Users, Star, Shield, ArrowRight } from "lucide-react";
 import { useStore, type Role } from "@/lib/store";
+import { getAgencyDefaultRoute, type AgencySubRole } from "@/lib/agency-rbac";
 import { getOutletDefaultRoute, type OutletSubRole } from "@/lib/outlet-rbac";
 import type { PrSubRole } from "@/lib/pr-demo";
 import { PhoneFrame } from "@/components/Brand";
@@ -39,6 +40,7 @@ const SUB_ROLES: Record<
       path: string;
       prSubRole?: PrSubRole;
       outletSubRole?: OutletSubRole;
+      agencySubRole?: AgencySubRole;
     }[];
   }
 > = {
@@ -71,8 +73,20 @@ const SUB_ROLES: Record<
   agency: {
     title: "Agency sub-role",
     items: [
-      { label: "Owner", desc: "Full dashboard, roster & approvals", role: "agency", path: "/agency" },
-      { label: "Finance", desc: "Payroll, PV & collections only", role: "agency", path: "/agency" },
+      {
+        label: "Owner",
+        desc: "Full dashboard, roster & approvals",
+        role: "agency",
+        path: "/agency",
+        agencySubRole: "agency_owner",
+      },
+      {
+        label: "Finance",
+        desc: "Payroll, PV & collections only",
+        role: "agency",
+        path: "/agency",
+        agencySubRole: "agency_finance",
+      },
     ],
   },
   pr: {
@@ -89,6 +103,7 @@ function Welcome() {
   const setRole = useStore((s) => s.setRole);
   const setPrSubRole = useStore((s) => s.setPrSubRole);
   const setOutletSubRole = useStore((s) => s.setOutletSubRole);
+  const setAgencySubRole = useStore((s) => s.setAgencySubRole);
   const resetPrShift = useStore((s) => s.resetPrShift);
   const [sheetSide, setSheetSide] = useState<Side | null>(null);
 
@@ -97,14 +112,20 @@ function Welcome() {
     path: string,
     prSubRole?: PrSubRole,
     outletSubRole?: OutletSubRole,
+    agencySubRole?: AgencySubRole,
   ) => {
     setRole(role);
     setPrSubRole(prSubRole ?? null);
     setOutletSubRole(outletSubRole ?? null);
+    setAgencySubRole(agencySubRole ?? null);
     if (role === "host") resetPrShift();
     setSheetSide(null);
     const to =
-      role === "vendor" && outletSubRole ? getOutletDefaultRoute(outletSubRole) : path;
+      role === "vendor" && outletSubRole
+        ? getOutletDefaultRoute(outletSubRole)
+        : role === "agency" && agencySubRole
+          ? getAgencyDefaultRoute(agencySubRole)
+          : path;
     navigate({ to });
   };
 
@@ -117,6 +138,9 @@ function Welcome() {
         <IzSheet open={!!sheet} onClose={() => setSheetSide(null)}>
           {sheet && (
             <>
+              <button type="button" className="iz-chip mb-3 w-fit" onClick={() => setSheetSide(null)}>
+                ← Back
+              </button>
               <div className="iz-cardttl">{sheet.title}</div>
               <p className="iz-tiny iz-muted mb-3.5">
                 Permissions differ per sub-role ? pick how you sign in.
@@ -125,7 +149,9 @@ function Welcome() {
                 const to =
                   item.role === "vendor" && item.outletSubRole
                     ? getOutletDefaultRoute(item.outletSubRole)
-                    : item.path;
+                    : item.role === "agency" && item.agencySubRole
+                      ? getAgencyDefaultRoute(item.agencySubRole)
+                      : item.path;
                 return (
                   <Link
                     key={item.label}
@@ -135,6 +161,7 @@ function Welcome() {
                       setRole(item.role);
                       setPrSubRole(item.prSubRole ?? null);
                       setOutletSubRole(item.outletSubRole ?? null);
+                      setAgencySubRole(item.agencySubRole ?? null);
                       if (item.role === "host") resetPrShift();
                       setSheetSide(null);
                     }}

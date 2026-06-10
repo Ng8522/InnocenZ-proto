@@ -1,28 +1,35 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { createFileRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { BottomNav } from "@/components/Nav";
 import { PhoneFrame } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
-import { Home, Calendar, FileText, History, BarChart3 } from "lucide-react";
+import { useStore } from "@/lib/store";
+import {
+  canAccessAgencyPath,
+  getAgencyDefaultRoute,
+  getAgencyNavItems,
+} from "@/lib/agency-rbac";
 
 export const Route = createFileRoute("/agency")({
   component: AgencyLayout,
 });
 
 function AgencyLayout() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const agencySubRole = useStore((s) => s.agencySubRole);
+  const navItems = getAgencyNavItems(agencySubRole);
+
+  useEffect(() => {
+    if (!canAccessAgencyPath(agencySubRole, pathname)) {
+      navigate({ to: getAgencyDefaultRoute(agencySubRole), replace: true });
+    }
+  }, [pathname, agencySubRole, navigate]);
+
   return (
     <PhoneFrame
       overlay={<Toasts />}
-      footer={
-        <BottomNav
-          items={[
-            { to: "/agency", label: "Home", icon: Home },
-            { to: "/agency/roster", label: "Roster", icon: Calendar },
-            { to: "/agency/pv", label: "Payroll", icon: FileText },
-            { to: "/agency/history", label: "History", icon: History },
-            { to: "/agency/reports", label: "Analytics", icon: BarChart3 },
-          ]}
-        />
-      }
+      footer={navItems.length > 0 ? <BottomNav items={navItems} /> : undefined}
     >
       <Outlet />
     </PhoneFrame>

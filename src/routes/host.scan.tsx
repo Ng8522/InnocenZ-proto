@@ -59,9 +59,17 @@ function ReceiptScanPage() {
   const loggedScan = loggedId ? prReceiptScans.find((s) => s.id === loggedId) : null;
   const [y, m, d] = SHIFT_TODAY;
 
+  const resetScan = () => {
+    setPhase("idle");
+    setLoggedId(null);
+  };
+
   return (
     <div className="iz-screen">
-      <AppTopbar />
+      <AppTopbar
+        onBack={phase !== "idle" ? resetScan : undefined}
+        backLabel={phase === "logged" ? "Scan" : phase === "review" ? "Rescan" : undefined}
+      />
       <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">Receipt Scan</h2>
       <p className="iz-tiny iz-muted mt-0.5">
         Receipts scanned between Time-In and Time-Out attach to one PV for that shift only.

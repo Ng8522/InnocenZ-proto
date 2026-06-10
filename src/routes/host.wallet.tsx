@@ -44,7 +44,7 @@ function VouchersPage() {
   if (pv) {
     return (
       <div className="iz-screen">
-        <AppTopbar />
+        <AppTopbar onBack={() => setDetailId(null)} backLabel="Vouchers" />
         <PvDetail
           pv={pv}
           profile={profile}

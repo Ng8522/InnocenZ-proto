@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { ShiftHistoryLog } from "@/components/iz/ShiftHistoryLog";
-import { OUTLET_VENUE_NAME } from "@/lib/shift-history";
+import { shiftHistoryForOutlet, tonightShiftOutletName } from "@/lib/portal-sync";
 import { useStore } from "@/lib/store";
 
 export const Route = createFileRoute("/outlet/history")({
@@ -10,9 +10,11 @@ export const Route = createFileRoute("/outlet/history")({
 
 function OutletHistory() {
   const shiftHistory = useStore((s) => s.shiftHistory);
+  const shifts = useStore((s) => s.shifts);
+  const outletName = tonightShiftOutletName(shifts);
   const rows = useMemo(
-    () => shiftHistory.filter((r) => r.outlet === OUTLET_VENUE_NAME),
-    [shiftHistory],
+    () => shiftHistoryForOutlet(shiftHistory, outletName),
+    [shiftHistory, outletName],
   );
   return <ShiftHistoryLog portal="outlet" rows={rows} />;
 }

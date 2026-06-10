@@ -21,7 +21,10 @@ type Permission =
   | "viewSalesDashboard"
   | "ratePrs"
   | "viewHistory"
-  | "manageShiftStaffing";
+  | "manageShiftStaffing"
+  | "viewWorkspace"
+  | "manageWorkspace"
+  | "viewSettings";
 
 const ROLE_PERMISSIONS: Record<OutletSubRole, Permission[]> = {
   outlet_owner: [
@@ -36,8 +39,19 @@ const ROLE_PERMISSIONS: Record<OutletSubRole, Permission[]> = {
     "ratePrs",
     "manageShiftStaffing",
     "viewHistory",
+    "viewWorkspace",
+    "manageWorkspace",
+    "viewSettings",
   ],
-  outlet_finance: ["viewLiveDashboard", "viewHistory", "confirmDaily", "viewBilling"],
+  outlet_finance: [
+    "viewLiveDashboard",
+    "viewHistory",
+    "confirmDaily",
+    "viewBilling",
+    "viewSalesDashboard",
+    "viewWorkspace",
+    "viewSettings",
+  ],
   outlet_ops: [
     "postJob",
     "viewLiveDashboard",
@@ -46,6 +60,9 @@ const ROLE_PERMISSIONS: Record<OutletSubRole, Permission[]> = {
     "confirmShift",
     "ratePrs",
     "manageShiftStaffing",
+    "viewWorkspace",
+    "manageWorkspace",
+    "viewSettings",
   ],
 };
 
@@ -86,6 +103,8 @@ export function canAccessOutletPath(role: OutletSubRole | null | undefined, path
   if (pathname.startsWith("/outlet/billing")) {
     return outletCan(r, "viewBilling") || outletCan(r, "viewSalesDashboard");
   }
+  if (pathname.startsWith("/outlet/workspace")) return outletCan(r, "viewWorkspace");
+  if (pathname.startsWith("/outlet/settings")) return outletCan(r, "viewSettings");
   if (pathname.startsWith("/outlet/profile")) return true;
-  return true;
+  return false;
 }

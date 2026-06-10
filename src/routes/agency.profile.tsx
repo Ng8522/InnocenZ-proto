@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { AppHeader } from "@/components/Nav";
+import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
-import { OUTLET_COMMISSION_RULES } from "@/lib/agency-demo";
+import { SCALING_TIER_MULTIPLIERS } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { Building2, CreditCard, Mail, Phone, Shield, User, Users } from "lucide-react";
@@ -12,17 +12,20 @@ export const Route = createFileRoute("/agency/profile")({
 });
 
 function AgencyProfile() {
-  const {
-    agencyOwner,
-    agencyFinanceHead,
-    saveAgencyOwner,
-    saveAgencyFinanceHead,
-    sendAgencyOtp,
-    verifyAgencyOtp,
-    signOut,
-    agencySubRole,
-    toast,
-  } = useStore();
+  const agencyOwner = useStore((s) => s.agencyOwner);
+  const agencyFinanceHead = useStore((s) => s.agencyFinanceHead);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const scalingTierMultipliers = useStore((s) => s.scalingTierMultipliers);
+  const saveAgencyOwner = useStore((s) => s.saveAgencyOwner);
+  const saveAgencyFinanceHead = useStore((s) => s.saveAgencyFinanceHead);
+  const saveOutletCommissionRule = useStore((s) => s.saveOutletCommissionRule);
+  const saveScalingMultipliers = useStore((s) => s.saveScalingMultipliers);
+  const inviteFinanceHead = useStore((s) => s.inviteFinanceHead);
+  const sendAgencyOtp = useStore((s) => s.sendAgencyOtp);
+  const verifyAgencyOtp = useStore((s) => s.verifyAgencyOtp);
+  const signOut = useStore((s) => s.signOut);
+  const agencySubRole = useStore((s) => s.agencySubRole);
+  const toast = useStore((s) => s.toast);
   const [otp, setOtp] = useState("");
   const [draft, setDraft] = useState(agencyOwner);
   const [financeDraft, setFinanceDraft] = useState(agencyFinanceHead);
@@ -35,17 +38,31 @@ function AgencyProfile() {
   if (!agencyCan(agencySubRole, "viewSettings")) {
     return (
       <div className="iz-screen">
-        <AppHeader subtitle="InnocenZ · PR Agency" title="Access restricted" />
+        <AppTopbar backTo="/agency" backLabel="Home" />
+        <header>
+          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
+        </header>
         <IzCard className="text-center">
-          <p className="iz-sm iz-muted">Finance role cannot access agency settings.</p>
+          <p className="iz-sm iz-muted">You do not have access to agency settings.</p>
         </IzCard>
       </div>
     );
   }
 
+  const isFinanceReadOnly = agencySubRole === "agency_finance";
+
   return (
     <div className="iz-screen">
-      <AppHeader subtitle="InnocenZ · PR Agency" title="Agency settings" />
+      <AppTopbar backTo="/agency" backLabel="Home" />
+      <header>
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Settings</h2>
+        <p className="iz-tiny iz-muted mt-0.5">{agencyOwner.orgName}</p>
+        {isFinanceReadOnly && (
+          <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
+            Finance view — read-only · cannot edit owner or subscription
+          </p>
+        )}
+      </header>
 
       <div className="flex flex-col items-center py-4">
         <div className="iz-avatar h-16 w-16 text-xl" style={{ background: "var(--iz-grad)" }}>
@@ -124,24 +141,56 @@ function AgencyProfile() {
 
       <IzSectionLabel>Commission rules · per outlet</IzSectionLabel>
       <p className="iz-tiny iz-muted2 -mt-1 mb-2">Drink types · tables · tips · OT — synced with outlet workspace</p>
-      {OUTLET_COMMISSION_RULES.map((rule) => (
+      {outletCommissionRules.map((rule) => (
         <IzCard key={rule.outlet} flat className="!mb-2">
           <div className="font-sora text-xs font-bold">{rule.outlet}</div>
-          <p className="iz-tiny iz-muted2 mt-1">
-            Wage RM{rule.wagePerHour}/hr · Drinks {rule.drinkPct}% · Tips {rule.tipPct}% · Table {rule.tablePct}% · OT after {rule.otAfterHours}h
-          </p>
+          {canEdit ? (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <label className="iz-tiny iz-muted">Drink %
+                <input type="number" className="iz-field-input mt-1 !text-xs" defaultValue={rule.drinkPct} onBlur={(e) => saveOutletCommissionRule(rule.outlet, { drinkPct: Number(e.target.value) })} />
+              </label>
+              <label className="iz-tiny iz-muted">Tip %
+                <input type="number" className="iz-field-input mt-1 !text-xs" defaultValue={rule.tipPct} onBlur={(e) => saveOutletCommissionRule(rule.outlet, { tipPct: Number(e.target.value) })} />
+              </label>
+            </div>
+          ) : (
+            <p className="iz-tiny iz-muted2 mt-1">
+              Wage RM{rule.wagePerHour}/hr · Drinks {rule.drinkPct}% · Tips {rule.tipPct}% · Table {rule.tablePct}% · OT after {rule.otAfterHours}h
+            </p>
+          )}
         </IzCard>
       ))}
 
       <IzSectionLabel>Scaling rules · tier multipliers</IzSectionLabel>
       <IzCard flat>
-        <p className="iz-tiny iz-muted">Volume bands · Tier III 1.0× · Tier IV 1.1× · Tier V 1.2× · Tier VI 1.35×</p>
+        {Object.entries(scalingTierMultipliers).map(([tier, mult]) => (
+          <p key={tier} className="iz-tiny iz-muted py-1">{tier} · {mult}×</p>
+        ))}
         {canEdit && (
-          <button type="button" className="iz-chip mt-2" onClick={() => toast("Scaling rules saved", "success")}>
-            Edit multipliers
+          <button
+            type="button"
+            className="iz-chip mt-2"
+            onClick={() => saveScalingMultipliers({ ...SCALING_TIER_MULTIPLIERS, "Tier V": 1.25 })}
+          >
+            Reset demo multipliers
           </button>
         )}
       </IzCard>
+
+      {canEdit && (
+        <>
+          <IzSectionLabel>Invite Finance Head</IzSectionLabel>
+          <IzCard>
+            <p className="iz-tiny iz-muted mb-2">Sub-role invite · requires IC + e-signature for dual-sign PV</p>
+            <input
+              className="iz-field-input !text-sm"
+              placeholder="finance@agency.my"
+              defaultValue={financeDraft.email}
+              onBlur={(e) => inviteFinanceHead(e.target.value)}
+            />
+          </IzCard>
+        </>
+      )}
 
       <IzSectionLabel>Subscription</IzSectionLabel>
       <IzCard>

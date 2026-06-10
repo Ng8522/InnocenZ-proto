@@ -208,6 +208,11 @@ export interface PrPaymentVoucher {
   disputeUpdatedAt?: string;
   /** Agency internal note after reviewing PR dispute */
   disputeNote?: string;
+  prDisputePhotoDataUrl?: string;
+  /** Set when agency does not resolve within 7 days */
+  disputeEscalatedAt?: string;
+  /** Finance override of signed/paid PV — audit logged */
+  overrideAudit?: { at: string; reason: string; by: string; previousStatus: string };
   /** One PV per shift — time-in to time-out */
   shiftSessionId?: string;
   timeIn?: string;
@@ -228,6 +233,8 @@ export interface PrActiveShiftSession {
   timeIn: string;
   timeOut?: string;
   receiptIds: string[];
+  /** Minutes past shift end — drives OT line on PV */
+  overtimeMinutes?: number;
 }
 
 export function makeShiftSessionId(date: [number, number, number], outlet: string) {
@@ -321,6 +328,20 @@ export function buildPaymentVoucherFromShift(
       amt: tableAmt,
       ref: "Receipt scans",
       receiptIds: tableIds,
+    });
+  }
+  const otMin = session.overtimeMinutes ?? 0;
+  if (otMin > 0) {
+    const otAmt = Math.round((otMin / 60) * 90 * 100) / 100;
+    rows.push({
+      i: idx++,
+      date: dateLabel,
+      day,
+      outlet: session.outlet,
+      desc: "Overtime (OT)",
+      qty: otMin,
+      amt: otAmt,
+      ref: "MAX(0, check-out − shift end)",
     });
   }
   const subtotal = rows.reduce((s, r) => s + r.amt, 0);

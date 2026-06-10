@@ -9,13 +9,13 @@ import { getPrProfile } from "@/lib/pr-demo";
 
 import { AGENCY_SUB_ROLE_LABELS } from "@/lib/agency-rbac";
 
-import { getAutoBackLabel, getAutoBackTo } from "@/lib/nav-back";
+import { goToWelcome } from "@/lib/go-welcome";
+import { PrNotificationBell } from "@/components/pr/PrNotificationBell";
+import { getAutoBackLabel, getAutoBackTo, WELCOME_PATH } from "@/lib/nav-back";
 
 import { OUTLET_SUB_ROLE_LABELS } from "@/lib/outlet-rbac";
 
 import { useStore } from "@/lib/store";
-
-
 
 export interface NavItem {
 
@@ -147,8 +147,6 @@ export function AppTopbar({
 
   const prAvatarPhoto = useStore((s) => s.prAvatarPhoto);
 
-
-
   let role: keyof typeof ROLE_LABELS = "host";
 
   if (pathname.startsWith("/outlet")) role = "vendor";
@@ -193,23 +191,21 @@ export function AppTopbar({
 
   const showBack = !hideBack && (onBack != null || resolvedBackTo != null);
 
-
-
-  const handleBack = () => {
-
-    if (onBack) {
-
-      onBack();
-
-      return;
-
-    }
-
-    if (resolvedBackTo) navigate({ to: resolvedBackTo });
-
+  const goWelcome = () => {
+    goToWelcome();
   };
 
-
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+      return;
+    }
+    if (resolvedBackTo === WELCOME_PATH) {
+      goWelcome();
+      return;
+    }
+    if (resolvedBackTo) void navigate({ to: resolvedBackTo });
+  };
 
   return (
     <header className="iz-topbar">
@@ -242,12 +238,19 @@ export function AppTopbar({
       </div>
 
       <div className="iz-topbar-actions">
+        {pathname.startsWith("/host") && <PrNotificationBell />}
         <span className="iz-topbar-action iz-topbar-action--muted" title="Verified portal" aria-hidden>
           <Shield className="h-3.5 w-3.5" />
         </span>
-        <Link to="/" className="iz-topbar-action" title="Switch portal" aria-label="Switch portal">
+        <button
+          type="button"
+          className="iz-topbar-action"
+          title="Switch role"
+          aria-label="Switch role"
+          onClick={goWelcome}
+        >
           <ArrowLeftRight className="h-3.5 w-3.5" />
-        </Link>
+        </button>
       </div>
     </header>
   );

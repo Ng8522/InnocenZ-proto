@@ -82,6 +82,8 @@ export interface AgencyRosterSlot {
   status: RosterSlotStatus;
   checkedInAt?: string;
   checkedOutAt?: string;
+  lateFlag?: boolean;
+  noShowFlag?: boolean;
   /** Live floor metrics — synced with outlet log sales & agency live view */
   floorDrinks?: number;
   floorTips?: number;
@@ -226,6 +228,11 @@ export interface AgencyManagedPR {
   checkOuts: number;
   noShows: number;
   kpiScore: number;
+  kpiTier?: string;
+  suspended?: boolean;
+  detached?: boolean;
+  tiedSince?: string;
+  weight?: number;
 }
 
 export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
@@ -249,6 +256,8 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     checkOuts: 41,
     noShows: 0,
     kpiScore: 92,
+    kpiTier: "A",
+    tiedSince: "2022-03-01",
   },
   {
     id: "p2",
@@ -270,6 +279,8 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     checkOuts: 37,
     noShows: 1,
     kpiScore: 88,
+    kpiTier: "B",
+    tiedSince: "2025-08-01",
   },
   {
     id: "p3",
@@ -582,6 +593,8 @@ export const DEFAULT_FINANCE_HEAD: AgencyFinanceHead = {
 export type CollectionAging = "current" | "7d" | "14d" | "30d" | "60d+";
 export type CollectionStatus = "SETTLED" | "PENDING";
 
+export type CollectionInvoiceKind = "outlet" | "agency";
+
 export interface AgencyCollectionInvoice {
   id: string;
   outlet: string;
@@ -591,14 +604,25 @@ export interface AgencyCollectionInvoice {
   aging: CollectionAging;
   linkedPvIds: string[];
   reminderSent?: boolean;
+  kind?: CollectionInvoiceKind;
+  counterparty?: string;
 }
 
+export const SCALING_TIER_MULTIPLIERS: Record<string, number> = {
+  "Tier III": 1.0,
+  "Tier IV": 1.1,
+  "Tier V": 1.2,
+  "Tier VI": 1.35,
+};
+
 export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
-  { id: "COL-2026-0610", outlet: "Velvet 23", amount: 4280, dueDate: "10 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0610-A"] },
-  { id: "COL-2026-0608", outlet: "Mermate", amount: 3120, dueDate: "8 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0608-B"] },
-  { id: "COL-2026-0605", outlet: "Bear Lounge", amount: 2640, dueDate: "5 Jun 2026", status: "PENDING", aging: "7d", linkedPvIds: ["PV-2026-0605-C"], reminderSent: true },
-  { id: "COL-2026-0528", outlet: "Onyx KL", amount: 3890, dueDate: "28 May 2026", status: "PENDING", aging: "14d", linkedPvIds: ["PV-2026-0528-D"] },
-  { id: "COL-2026-0515", outlet: "Urban Soul", amount: 1950, dueDate: "15 May 2026", status: "PENDING", aging: "30d", linkedPvIds: ["PV-2026-0515-E"], reminderSent: true },
+  { id: "COL-2026-0610", outlet: "Velvet 23", amount: 4280, dueDate: "10 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0610-A"], kind: "outlet" },
+  { id: "COL-2026-0608", outlet: "Mermate", amount: 3120, dueDate: "8 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0608-B"], kind: "outlet" },
+  { id: "COL-2026-0605", outlet: "Bear Lounge", amount: 2640, dueDate: "5 Jun 2026", status: "PENDING", aging: "7d", linkedPvIds: ["PV-2026-0605-C"], reminderSent: true, kind: "outlet" },
+  { id: "COL-2026-0528", outlet: "Onyx KL", amount: 3890, dueDate: "28 May 2026", status: "PENDING", aging: "14d", linkedPvIds: ["PV-2026-0528-D"], kind: "outlet" },
+  { id: "COL-2026-0515", outlet: "Urban Soul", amount: 1950, dueDate: "15 May 2026", status: "PENDING", aging: "30d", linkedPvIds: ["PV-2026-0515-E"], reminderSent: true, kind: "outlet" },
+  { id: "AINV-2026-0601", outlet: "Platform fee", amount: 499, dueDate: "1 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: [], kind: "agency", counterparty: "InnocenZ Platform" },
+  { id: "AINV-2026-0604", outlet: "InnocenZ escrow", amount: 1200, dueDate: "4 Jun 2026", status: "PENDING", aging: "current", linkedPvIds: ["PV-2026-0604-A"], kind: "agency", counterparty: "InnocenZ Admin" },
 ];
 
 export interface AgencyReconciliationDay {
@@ -607,6 +631,10 @@ export interface AgencyReconciliationDay {
   outletSalesTotal: number;
   pvTotal: number;
   variance: number;
+  varianceReason?: string;
+  agencyAdjustDrinks?: number;
+  agencyAdjustTips?: number;
+  agencyAdjustReason?: string;
   agencyConfirmed: boolean;
   outletConfirmed: boolean;
 }

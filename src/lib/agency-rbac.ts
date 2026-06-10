@@ -23,7 +23,8 @@ type Permission =
   | "viewHistory"
   | "viewAnalytics"
   | "exportReports"
-  | "viewWorkforce";
+  | "viewWorkforce"
+  | "overrideSignedPv";
 
 const ROLE_PERMISSIONS: Record<AgencySubRole, Permission[]> = {
   agency_owner: [
@@ -44,8 +45,10 @@ const ROLE_PERMISSIONS: Record<AgencySubRole, Permission[]> = {
   ],
   agency_finance: [
     "viewHome",
+    "viewSettings",
     "viewPv",
     "raisePv",
+    "overrideSignedPv",
     "viewCollections",
     "confirmReconciliation",
     "viewHistory",

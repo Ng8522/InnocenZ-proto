@@ -8,8 +8,11 @@ import {
   getPrProfile,
   type PrComcard,
 } from "@/lib/pr-demo";
-import { Camera, Pencil, Shield, Star, X } from "lucide-react";
+import { Camera, Eye, Pencil, Shield, Star, X } from "lucide-react";
+import { IzSheet } from "@/components/iz/Sheet";
 import { FreelancerAgencyPicker } from "@/components/iz/FreelancerAgencyPicker";
+import { PrPageHeader } from "@/components/pr/PrPageHeader";
+import { PrSection } from "@/components/pr/PrSection";
 import { IzCard, IzPill, IzSectionLabel } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/host/profile")({
@@ -43,8 +46,11 @@ function buildProfileDraft(
 
 function ProfilePage() {
   const prSubRole = useStore((s) => s.prSubRole);
-  const outletRatingStars = useStore((s) => s.outletRatingStars);
-  const setOutletRatingStars = useStore((s) => s.setOutletRatingStars);
+  const prPendingRatings = useStore((s) => s.prPendingRatings);
+  const prRatingHistory = useStore((s) => s.prRatingHistory);
+  const prFreelancerLowRatingStrikes = useStore((s) => s.prFreelancerLowRatingStrikes);
+  const submitPrOutletRating = useStore((s) => s.submitPrOutletRating);
+  const demoFreelancerLowRatingStrike = useStore((s) => s.demoFreelancerLowRatingStrike);
   const prComcard = useStore((s) => s.prComcard);
   const prPortfolio = useStore((s) => s.prPortfolio);
   const prLanguages = useStore((s) => s.prLanguages);
@@ -57,6 +63,8 @@ function ProfilePage() {
   const tied = prSubRole !== "pr_free";
 
   const [editing, setEditing] = useState(false);
+  const [prCardOpen, setPrCardOpen] = useState(false);
+  const [ratingStars, setRatingStars] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState<ProfileDraft>(() =>
     buildProfileDraft(u, prDisplayName, prAvatarPhoto, prComcard, prPortfolio, prLanguages),
   );
@@ -151,7 +159,7 @@ function ProfilePage() {
     if (!file) return;
     readImageFile(file, (dataUrl) => {
       setDraft((prev) => ({ ...prev, avatarPhoto: dataUrl }));
-      toast("Profile photo updated � tap Save profile", "success");
+      toast("Profile photo updated — tap Save profile", "success");
     });
   };
 
@@ -177,12 +185,14 @@ function ProfilePage() {
         onBack={editing ? cancelEdit : undefined}
         backLabel={editing ? "Cancel edit" : undefined}
       />
-      <div className="iz-between mx-0.5 mt-1">
-        <h2 className="font-sora text-[22px] font-extrabold text-[var(--iz-txt)]">Profile & Ratings</h2>
-        {editing && (
-          <span className="iz-pill iz-pill-amber !text-[10px]">Editing</span>
-        )}
-      </div>
+      <PrPageHeader
+        label="Account"
+        title={displayName}
+        meta={tied ? "Agency-Tied · Atlas Agency" : "Freelancer"}
+      />
+      {editing && (
+        <span className="iz-pill iz-pill-amber mt-2 !text-[10px]">Editing</span>
+      )}
 
       <IzCard className={`mt-3${editing ? " border-[rgba(217,185,122,.25)]" : ""}`}>
         <input ref={avatarFileRef} type="file" accept="image/*" className="sr-only" onChange={onAvatarFilePick} />
@@ -238,28 +248,33 @@ function ProfilePage() {
               </span>
             </div>
             <p className="iz-tiny iz-muted mt-0.5">
-              {tied ? "Agency-Tied � Atlas Agency" : "Freelancer"} � IC {u.ic}
+              {tied ? "Agency-Tied · Atlas Agency" : "Freelancer"} � IC {u.ic}
             </p>
             {editing && (
               <p className="iz-tiny iz-muted2 mt-1">Tap the camera on your photo to upload a new profile picture.</p>
             )}
           </div>
         </div>
-        <div className="iz-grid3 mt-3">
-          <div className="iz-stat-tile">
-            <div className="n text-[var(--iz-gold)]">{u.rep}?</div>
-            <div className="l">Reputation</div>
-          </div>
-          <div className="iz-stat-tile">
-            <div className="n">{u.shifts}</div>
-            <div className="l">Shifts</div>
-          </div>
-          <div className="iz-stat-tile">
-            <div className="n">{u.noshow}</div>
-            <div className="l">No-shows</div>
-          </div>
-        </div>
       </IzCard>
+
+      <div className="iz-outlet-stat-strip mt-3">
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Rep</div>
+          <div className="n text-[var(--iz-gold)]">{u.rep}%</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Shifts</div>
+          <div className="n">{u.shifts}</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">No-shows</div>
+          <div className="n">{u.noshow}</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Tier</div>
+          <div className="n text-[var(--iz-gold-l)]">{u.tier}</div>
+        </div>
+      </div>
 
       <div className="mt-2.5">
         <FreelancerAgencyPicker tied={tied} />
@@ -390,44 +405,118 @@ function ProfilePage() {
         )}
       </IzCard>
 
-      <IzSectionLabel>Rate an outlet you worked</IzSectionLabel>
+      <IzSectionLabel>PR Card (outlet view)</IzSectionLabel>
       <IzCard>
-        <div className="iz-between flex-wrap gap-2">
-          <span className="iz-sm">Velvet 23 � 4 May</span>
-          <div className="flex gap-1">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setOutletRatingStars(n)}
-                className={n <= outletRatingStars ? "text-[var(--iz-gold)]" : "text-[var(--iz-muted2)]"}
-              >
-                <Star className="h-[22px] w-[22px]" fill={n <= outletRatingStars ? "currentColor" : "none"} />
-              </button>
-            ))}
-          </div>
-        </div>
-        <p className="iz-tiny iz-muted2 mt-2">
-          {outletRatingStars ? `${outletRatingStars} / 5 stars selected` : "Tap the stars to rate"}
-        </p>
-        {outletRatingStars > 0 && (
-          <button
-            type="button"
-            className="iz-btn iz-btn-primary iz-btn-sm mt-2.5 w-auto"
-            onClick={() => {
-              toast(`Rated Velvet 23 ${outletRatingStars}? � permanent & public`, "success");
-              setOutletRatingStars(0);
-            }}
-          >
-            Submit {outletRatingStars}? rating
-          </button>
-        )}
+        <p className="iz-tiny iz-muted">What outlets see when browsing PRs.</p>
+        <button type="button" className="iz-btn iz-btn-soft iz-btn-sm mt-2.5 w-auto" onClick={() => setPrCardOpen(true)}>
+          <Eye className="h-3.5 w-3.5" /> Preview PR Card
+        </button>
       </IzCard>
+
+      <IzSectionLabel>Mutual ratings (24h window)</IzSectionLabel>
+      {prPendingRatings.length === 0 ? (
+        <IzCard flat className="iz-tiny iz-muted py-4 text-center">
+          No pending ratings — outlets can rate you within 24h after a shift.
+        </IzCard>
+      ) : (
+        <div className="space-y-2.5">
+          {prPendingRatings.map((pending) => {
+            const stars = ratingStars[pending.id] ?? 0;
+            const hoursLeft = Math.max(0, Math.ceil((pending.expiresAt - Date.now()) / (60 * 60 * 1000)));
+            return (
+              <IzCard key={pending.id}>
+                <div className="iz-between flex-wrap gap-2">
+                  <div>
+                    <p className="iz-sm font-bold">{pending.outlet}</p>
+                    <p className="iz-tiny iz-muted">{pending.shiftDate} · {hoursLeft}h left</p>
+                  </div>
+                  <div className="flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setRatingStars((s) => ({ ...s, [pending.id]: n }))}
+                        className={n <= stars ? "text-[var(--iz-gold)]" : "text-[var(--iz-muted2)]"}
+                      >
+                        <Star className="h-5 w-5" fill={n <= stars ? "currentColor" : "none"} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {stars > 0 && (
+                  <button
+                    type="button"
+                    className="iz-btn iz-btn-primary iz-btn-sm mt-2.5 w-auto"
+                    onClick={() => {
+                      submitPrOutletRating(pending.id, stars);
+                      setRatingStars((s) => {
+                        const next = { ...s };
+                        delete next[pending.id];
+                        return next;
+                      });
+                    }}
+                  >
+                    Submit {stars}/5
+                  </button>
+                )}
+              </IzCard>
+            );
+          })}
+        </div>
+      )}
+
 
       <IzCard flat className="iz-tiny iz-muted mt-2.5">
         <Shield className="mr-1 inline h-3 w-3" />
-        IC + address collected under PDPA disclaimer. Ratings are mutual & permanent.
+        Mutual outlet ratings within 24h of shift end. IC under PDPA disclaimer.
       </IzCard>
+
+      {prRatingHistory.length > 0 && (
+        <>
+          <IzSectionLabel>Rating history</IzSectionLabel>
+          <IzCard flat>
+            {prRatingHistory.slice(0, 5).map((r) => (
+              <p key={r.id} className="iz-tiny iz-muted border-t border-[rgba(255,255,255,.06)] py-2 first:border-0 first:pt-0">
+                {r.direction === "pr_rates_outlet" ? "You rated" : "Rated you"} {r.outlet} · {r.stars} stars · {r.date}
+              </p>
+            ))}
+          </IzCard>
+        </>
+      )}
+
+      {!tied && (
+        <IzCard flat className="mt-2 border-[rgba(244,183,64,.35)]">
+          {prFreelancerLowRatingStrikes > 0 ? (
+            <p className="iz-tiny text-[var(--iz-amber)]">
+              {prFreelancerLowRatingStrikes >= 3
+                ? "Suspended: 3 ratings below 3.0★ — marketplace blocked"
+                : `Warning: ${prFreelancerLowRatingStrikes}/3 low rating strikes`}
+            </p>
+          ) : (
+            <p className="iz-tiny iz-muted">Below 3.5★ warns · 3× below 3.0★ suspends marketplace access.</p>
+          )}
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-auto"
+            onClick={demoFreelancerLowRatingStrike}
+          >
+            Demo: log low-rating strike
+          </button>
+        </IzCard>
+      )}
+
+      <IzSheet open={prCardOpen} onClose={() => setPrCardOpen(false)}>
+        <div className="iz-cardttl">PR Card preview</div>
+        <IzCard glow>
+          <div className="flex gap-3">
+            <div className="iz-avatar !h-14 !w-14 text-xl" style={{ background: u.avg }}>{avatarLetter}</div>
+            <div>
+              <p className="font-sora font-bold">{displayName}</p>
+              <p className="iz-tiny iz-muted">{u.tier} · {u.rep} rep · {languages.join(", ")}</p>
+            </div>
+          </div>
+        </IzCard>
+      </IzSheet>
 
       <div className="iz-profile-actions mt-4">
         {editing ? (

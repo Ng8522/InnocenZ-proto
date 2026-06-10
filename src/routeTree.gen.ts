@@ -17,6 +17,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutletIndexRouteImport } from './routes/outlet.index'
 import { Route as HostIndexRouteImport } from './routes/host.index'
 import { Route as AgencyIndexRouteImport } from './routes/agency.index'
+import { Route as OutletWorkspaceRouteImport } from './routes/outlet.workspace'
+import { Route as OutletSettingsRouteImport } from './routes/outlet.settings'
 import { Route as OutletSalesRouteImport } from './routes/outlet.sales'
 import { Route as OutletRatingsRouteImport } from './routes/outlet.ratings'
 import { Route as OutletProfileRouteImport } from './routes/outlet.profile'
@@ -76,6 +78,16 @@ const AgencyIndexRoute = AgencyIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AgencyRoute,
+} as any)
+const OutletWorkspaceRoute = OutletWorkspaceRouteImport.update({
+  id: '/workspace',
+  path: '/workspace',
+  getParentRoute: () => OutletRoute,
+} as any)
+const OutletSettingsRoute = OutletSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => OutletRoute,
 } as any)
 const OutletSalesRoute = OutletSalesRouteImport.update({
   id: '/sales',
@@ -198,6 +210,8 @@ export interface FileRoutesByFullPath {
   '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
   '/outlet/sales': typeof OutletSalesRoute
+  '/outlet/settings': typeof OutletSettingsRoute
+  '/outlet/workspace': typeof OutletWorkspaceRoute
   '/agency/': typeof AgencyIndexRoute
   '/host/': typeof HostIndexRoute
   '/outlet/': typeof OutletIndexRoute
@@ -224,6 +238,8 @@ export interface FileRoutesByTo {
   '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
   '/outlet/sales': typeof OutletSalesRoute
+  '/outlet/settings': typeof OutletSettingsRoute
+  '/outlet/workspace': typeof OutletWorkspaceRoute
   '/agency': typeof AgencyIndexRoute
   '/host': typeof HostIndexRoute
   '/outlet': typeof OutletIndexRoute
@@ -254,6 +270,8 @@ export interface FileRoutesById {
   '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
   '/outlet/sales': typeof OutletSalesRoute
+  '/outlet/settings': typeof OutletSettingsRoute
+  '/outlet/workspace': typeof OutletWorkspaceRoute
   '/agency/': typeof AgencyIndexRoute
   '/host/': typeof HostIndexRoute
   '/outlet/': typeof OutletIndexRoute
@@ -285,6 +303,8 @@ export interface FileRouteTypes {
     | '/outlet/profile'
     | '/outlet/ratings'
     | '/outlet/sales'
+    | '/outlet/settings'
+    | '/outlet/workspace'
     | '/agency/'
     | '/host/'
     | '/outlet/'
@@ -311,6 +331,8 @@ export interface FileRouteTypes {
     | '/outlet/profile'
     | '/outlet/ratings'
     | '/outlet/sales'
+    | '/outlet/settings'
+    | '/outlet/workspace'
     | '/agency'
     | '/host'
     | '/outlet'
@@ -340,6 +362,8 @@ export interface FileRouteTypes {
     | '/outlet/profile'
     | '/outlet/ratings'
     | '/outlet/sales'
+    | '/outlet/settings'
+    | '/outlet/workspace'
     | '/agency/'
     | '/host/'
     | '/outlet/'
@@ -410,6 +434,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/agency/'
       preLoaderRoute: typeof AgencyIndexRouteImport
       parentRoute: typeof AgencyRoute
+    }
+    '/outlet/workspace': {
+      id: '/outlet/workspace'
+      path: '/workspace'
+      fullPath: '/outlet/workspace'
+      preLoaderRoute: typeof OutletWorkspaceRouteImport
+      parentRoute: typeof OutletRoute
+    }
+    '/outlet/settings': {
+      id: '/outlet/settings'
+      path: '/settings'
+      fullPath: '/outlet/settings'
+      preLoaderRoute: typeof OutletSettingsRouteImport
+      parentRoute: typeof OutletRoute
     }
     '/outlet/sales': {
       id: '/outlet/sales'
@@ -601,6 +639,8 @@ interface OutletRouteChildren {
   OutletProfileRoute: typeof OutletProfileRoute
   OutletRatingsRoute: typeof OutletRatingsRoute
   OutletSalesRoute: typeof OutletSalesRoute
+  OutletSettingsRoute: typeof OutletSettingsRoute
+  OutletWorkspaceRoute: typeof OutletWorkspaceRoute
   OutletIndexRoute: typeof OutletIndexRoute
 }
 
@@ -611,6 +651,8 @@ const OutletRouteChildren: OutletRouteChildren = {
   OutletProfileRoute: OutletProfileRoute,
   OutletRatingsRoute: OutletRatingsRoute,
   OutletSalesRoute: OutletSalesRoute,
+  OutletSettingsRoute: OutletSettingsRoute,
+  OutletWorkspaceRoute: OutletWorkspaceRoute,
   OutletIndexRoute: OutletIndexRoute,
 }
 

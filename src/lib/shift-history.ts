@@ -1,77 +1,22 @@
 /** Shared shift transaction log — agency & outlet read the same records */
 
-import { DEFAULT_OUTLET_CANONICAL } from "@/lib/portal-sync";
+import { buildAllVelvetSeedShiftHistory } from "@/lib/velvet-week-demo";
+import {
+  mergeShiftHistory,
+  type ShiftHistoryRow,
+} from "@/lib/shift-history-utils";
+
+export type { ShiftHistoryRow } from "@/lib/shift-history-utils";
+export {
+  compareShiftHistoryDesc,
+  mergeShiftHistory,
+  sortShiftHistoryDesc,
+} from "@/lib/shift-history-utils";
 
 /** Demo outlet venue — outlet history shows rows for this venue only */
-export const OUTLET_VENUE_NAME = DEFAULT_OUTLET_CANONICAL;
+export const OUTLET_VENUE_NAME = "Velvet 23";
 
-export interface ShiftHistoryRow {
-  id: string;
-  prName: string;
-  prId: string;
-  outlet: string;
-  agencyName: string;
-  dateDisplay: string;
-  dateIso: string;
-  totalPayout: number;
-  totalDrinks: number;
-  totalTips: number;
-  durationHours: number;
-}
-
-export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = [
-  {
-    id: "h1",
-    prName: "Luna",
-    prId: "p1",
-    outlet: "Velvet 23",
-    agencyName: "Atlas Agency",
-    dateDisplay: "10 Jun 2026",
-    dateIso: "2026-06-10",
-    totalPayout: 420,
-    totalDrinks: 86,
-    totalTips: 42,
-    durationHours: 6,
-  },
-  {
-    id: "h2",
-    prName: "Mia",
-    prId: "p2",
-    outlet: "Velvet 23",
-    agencyName: "Atlas Agency",
-    dateDisplay: "10 Jun 2026",
-    dateIso: "2026-06-10",
-    totalPayout: 395,
-    totalDrinks: 74,
-    totalTips: 38,
-    durationHours: 5.5,
-  },
-  {
-    id: "h3",
-    prName: "Vivi",
-    prId: "p3",
-    outlet: "Velvet 23",
-    agencyName: "Atlas Agency",
-    dateDisplay: "9 Jun 2026",
-    dateIso: "2026-06-09",
-    totalPayout: 510,
-    totalDrinks: 92,
-    totalTips: 55,
-    durationHours: 6,
-  },
-  {
-    id: "h4",
-    prName: "Yuki",
-    prId: "p6",
-    outlet: "Velvet 23",
-    agencyName: "Atlas Agency",
-    dateDisplay: "8 Jun 2026",
-    dateIso: "2026-06-08",
-    totalPayout: 480,
-    totalDrinks: 68,
-    totalTips: 48,
-    durationHours: 6.5,
-  },
+const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
   {
     id: "h5",
     prName: "Nina",
@@ -98,7 +43,6 @@ export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = [
     totalTips: 41,
     durationHours: 6,
   },
-  // Luna (p1) — earlier cycle, same log PR History reads
   {
     id: "h7",
     prName: "Luna",
@@ -139,6 +83,11 @@ export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = [
     durationHours: 6,
   },
 ];
+
+export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = mergeShiftHistory(
+  buildAllVelvetSeedShiftHistory(),
+  SEED_SHIFT_HISTORY_OTHER,
+);
 
 export function shiftHistorySubline(row: ShiftHistoryRow, portal: "agency" | "outlet") {
   if (portal === "agency") return row.outlet;

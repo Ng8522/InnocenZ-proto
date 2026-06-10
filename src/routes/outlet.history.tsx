@@ -16,5 +16,15 @@ function OutletHistory() {
     () => shiftHistoryForOutlet(shiftHistory, outletName),
     [shiftHistory, outletName],
   );
-  return <ShiftHistoryLog portal="outlet" rows={rows} />;
+  const subtitle = useMemo(() => {
+    if (rows.length === 0) return undefined;
+    const sorted = [...rows].sort((a, b) => a.dateIso.localeCompare(b.dateIso));
+    const oldest = sorted[0]?.dateDisplay;
+    const newest = sorted[sorted.length - 1]?.dateDisplay;
+    const totalPayout = rows.reduce((a, r) => a + r.totalPayout, 0);
+    const range = oldest && newest && oldest !== newest ? `${oldest} – ${newest}` : oldest ?? newest;
+    return `${rows.length} PR shifts · ${range} · RM ${totalPayout.toLocaleString()} paid out`;
+  }, [rows]);
+
+  return <ShiftHistoryLog portal="outlet" rows={rows} subtitle={subtitle} />;
 }

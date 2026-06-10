@@ -22,8 +22,11 @@ import { downloadAgencyPvPdf } from "@/lib/pv-pdf";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 import type { AgencyCollectionInvoice } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { AlertTriangle, Bell, Calendar, FileText, Filter, Pencil, Plus, Receipt } from "lucide-react";
-import { IzCard, IzPill, IzSectionLabel, IzSelect, formatRM } from "@/components/iz/ui";
+import { AlertTriangle, Bell, Calendar, FileText, Filter, Pencil, Plus, Receipt, Shield } from "lucide-react";
+import { OutletSection } from "@/components/outlet/OutletSection";
+import { IzCard, IzPill, IzSelect, formatRM } from "@/components/iz/ui";
+import { IzSheet } from "@/components/iz/Sheet";
+import { historyRowHasPv } from "@/lib/agency-actions";
 
 export const Route = createFileRoute("/agency/pv")({
   component: AgencyPV,
@@ -75,8 +78,15 @@ function AgencyPV() {
   const [dateFilter, setDateFilter] = useState<PvDateRecencyFilter>("all");
   const [salesSort, setSalesSort] = useState<PvSalesSort>("default");
   const [collectionDetail, setCollectionDetail] = useState<string | null>(null);
+  const [raisePvOpen, setRaisePvOpen] = useState(false);
+  const shiftHistory = useStore((s) => s.shiftHistory);
+  const raiseAgencyPvFromHistory = useStore((s) => s.raiseAgencyPvFromHistory);
   const { date, time } = nowAgencyDateTime();
   const canRaisePv = agencyCan(agencySubRole, "raisePv");
+
+  const raiseableShifts = useMemo(() => {
+    return shiftHistory.filter((h) => !historyRowHasPv(h, prPaymentVouchers));
+  }, [shiftHistory, prPaymentVouchers]);
 
   const latestIssuedMs = useMemo(
     () => getLatestPvIssuedMs(prPaymentVouchers),
@@ -150,29 +160,30 @@ function AgencyPV() {
           <div className="iz-v-sum"><span className="iz-muted">Due</span><b>{collectionRow.dueDate}</b></div>
           <div className="iz-v-sum"><span className="iz-muted">Status</span><IzPill variant={collectionRow.status === "SETTLED" ? "green" : "amber"}>{collectionRow.status}</IzPill></div>
         </IzCard>
-        <IzSectionLabel>Linked PVs</IzSectionLabel>
-        {collectionRow.linkedPvIds.map((id) => (
-          <IzCard key={id} flat><p className="iz-sm font-bold">{id}</p></IzCard>
-        ))}
-        {collectionRow.status === "PENDING" && (
-          <button type="button" className="iz-btn iz-btn-primary mt-3 w-full" onClick={() => { markCollectionSettled(collectionRow.id); setCollectionDetail(null); }}>
-            Mark received · Paid
-          </button>
-        )}
+        <OutletSection title="Linked PVs">
+          {collectionRow.linkedPvIds.map((id) => (
+            <IzCard key={id} flat><p className="iz-sm font-bold">{id}</p></IzCard>
+          ))}
+          {collectionRow.status === "PENDING" && (
+            <button type="button" className="iz-btn iz-btn-primary mt-3 w-full" onClick={() => { markCollectionSettled(collectionRow.id); setCollectionDetail(null); }}>
+              Mark received · Paid
+            </button>
+          )}
+        </OutletSection>
       </div>
     );
   }
 
   return (
     <div className="iz-screen">
-      <AppTopbar />
-      <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">
-        Payroll &amp; PV
-      </h2>
-      <p className="iz-tiny iz-muted mt-0.5">
-        {date} · {time} · Cycle{" "}
-        <span className="text-[var(--iz-gold-l)]">{PAYROLL_CYCLE.range}</span> · per-item calc
-      </p>
+      <AppTopbar backTo="/agency" backLabel="Home" />
+      <header>
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Payroll &amp; PV</h2>
+        <p className="iz-tiny iz-muted mt-0.5">
+          {date} · {time} · Cycle{" "}
+          <span className="text-[var(--iz-gold-l)]">{PAYROLL_CYCLE.range}</span>
+        </p>
+      </header>
 
       <div className="mt-3 flex gap-1.5">
         {(["pv", "collections", "reconciliation"] as PayrollTab[]).map((t) => (
@@ -241,7 +252,7 @@ function AgencyPV() {
         </p>
       </IzCard>
 
-      <IzSectionLabel>Vouchers · {PAYROLL_CYCLE.range}</IzSectionLabel>
+      <OutletSection title="Vouchers" hint={PAYROLL_CYCLE.range}>
 
       <IzCard flat className="!mb-2.5">
         <div className="flex items-center gap-2 iz-tiny iz-muted">
@@ -362,13 +373,44 @@ function AgencyPV() {
         <button
           type="button"
           className="iz-btn iz-btn-primary mt-2"
-          onClick={() => toast("New PV raised from sealed shift logs · Finance Head pre-signed", "success")}
+          onClick={() => setRaisePvOpen(true)}
         >
           <Plus className="h-4 w-4" /> Raise new PV
         </button>
       )}
+      </OutletSection>
         </>
       )}
+
+      <IzSheet open={raisePvOpen} onClose={() => setRaisePvOpen(false)}>
+        <div className="iz-cardttl">Raise PV</div>
+        <p className="iz-tiny iz-muted mb-3">Select PR + sealed shift · Finance Head e-sign auto-applied · OT included when applicable</p>
+        {raiseableShifts.length === 0 ? (
+          <IzCard flat className="text-center">
+            <p className="iz-sm iz-muted">No sealed shifts without a PV</p>
+          </IzCard>
+        ) : (
+          <div className="max-h-64 space-y-2 overflow-y-auto">
+            {raiseableShifts.slice(0, 12).map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                className="iz-card iz-between w-full text-left"
+                onClick={() => {
+                  raiseAgencyPvFromHistory(row.id);
+                  setRaisePvOpen(false);
+                }}
+              >
+                <div>
+                  <p className="font-sora text-sm font-bold">{row.prName}</p>
+                  <p className="iz-tiny iz-muted">{row.outlet} · {row.dateDisplay}</p>
+                </div>
+                <span className="iz-ledger text-sm font-bold text-[var(--iz-gold)]">{formatRM(row.totalPayout)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </IzSheet>
     </div>
   );
 }
@@ -385,15 +427,33 @@ function CollectionsSection({
   onRemind: (id: string) => void;
 }) {
   const buckets = ["current", "7d", "14d", "30d", "60d+"] as const;
+  const [kind, setKind] = useState<"outlet" | "agency">("outlet");
+  const filtered = invoices.filter((i) => (i.kind ?? "outlet") === kind);
 
   return (
     <div className="mt-3">
+      <div className="mb-2 flex gap-2">
+        <button
+          type="button"
+          className={`flex-1 rounded-full border py-2 text-[11px] font-semibold ${kind === "outlet" ? "border-[var(--iz-gold)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
+          onClick={() => setKind("outlet")}
+        >
+          Outlet invoices
+        </button>
+        <button
+          type="button"
+          className={`flex-1 rounded-full border py-2 text-[11px] font-semibold ${kind === "agency" ? "border-[var(--iz-violet)] text-[var(--iz-violet)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
+          onClick={() => setKind("agency")}
+        >
+          Agency invoices
+        </button>
+      </div>
       <IzCard flat className="border-[rgba(124,107,255,.25)]">
-        <p className="iz-tiny iz-muted">Platform ledger · outlet → agency invoices · SETTLED vs PENDING</p>
+        <p className="iz-tiny iz-muted">Platform ledger · SETTLED vs PENDING · auto-reminder on unpaid cycles</p>
       </IzCard>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {buckets.map((b) => {
-          const count = invoices.filter((i) => i.aging === b).length;
+          const count = filtered.filter((i) => i.aging === b).length;
           if (!count) return null;
           return (
             <IzPill key={b} variant={b === "current" ? "green" : "amber"}>
@@ -403,12 +463,12 @@ function CollectionsSection({
         })}
       </div>
       <div className="mt-3 space-y-2.5">
-        {invoices.map((inv) => (
+        {filtered.map((inv) => (
           <IzCard key={inv.id}>
             <button type="button" className="w-full text-left" onClick={() => onOpen(inv.id)}>
               <div className="iz-between">
                 <div>
-                  <div className="font-sora text-sm font-bold">{inv.outlet}</div>
+                  <div className="font-sora text-sm font-bold">{inv.counterparty ?? inv.outlet}</div>
                   <p className="iz-tiny iz-muted mt-0.5">{inv.id} · due {inv.dueDate}</p>
                 </div>
                 <div className="text-right">
@@ -443,6 +503,11 @@ function ReconciliationSection({
   onConfirm: () => void;
   canConfirm: boolean;
 }) {
+  const adjustAgencyReconciliation = useStore((s) => s.adjustAgencyReconciliation);
+  const [adjDrinks, setAdjDrinks] = useState("0");
+  const [adjTips, setAdjTips] = useState("0");
+  const [adjReason, setAdjReason] = useState(reconciliation.agencyAdjustReason ?? "");
+
   return (
     <div className="mt-3">
       <IzCard flat className="border-[rgba(232,194,122,.35)]">
@@ -463,11 +528,34 @@ function ReconciliationSection({
         </div>
         <div className="iz-v-sum"><span className="iz-muted">Outlet confirmed</span><b>{reconciliation.outletConfirmed ? "Yes ✓" : "Pending"}</b></div>
         <div className="iz-v-sum"><span className="iz-muted">Agency confirmed</span><b>{reconciliation.agencyConfirmed ? "Yes ✓ · locked" : "Awaiting"}</b></div>
+        {(reconciliation.agencyAdjustDrinks ?? 0) !== 0 && (
+          <div className="iz-v-sum"><span className="iz-muted">Agency drink adj.</span><b>{reconciliation.agencyAdjustDrinks}</b></div>
+        )}
       </IzCard>
+      {reconciliation.variance !== 0 && canConfirm && !reconciliation.agencyConfirmed && (
+        <IzCard flat className="mt-2">
+          <p className="iz-tiny iz-muted mb-2">Adjust drinks/tips with reason if variance exists</p>
+          <div className="grid grid-cols-2 gap-2">
+            <input type="number" className="iz-field-input !text-xs" placeholder="Drinks ±" value={adjDrinks} onChange={(e) => setAdjDrinks(e.target.value)} />
+            <input type="number" className="iz-field-input !text-xs" placeholder="Tips RM ±" value={adjTips} onChange={(e) => setAdjTips(e.target.value)} />
+          </div>
+          <textarea className="iz-field-input mt-2 min-h-[60px] !text-xs" placeholder="Reason (required)" value={adjReason} onChange={(e) => setAdjReason(e.target.value)} />
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft mt-2 w-full !text-xs"
+            onClick={() => adjustAgencyReconciliation({ drinks: Number(adjDrinks) || 0, tips: Number(adjTips) || 0, reason: adjReason })}
+          >
+            Apply adjustment
+          </button>
+        </IzCard>
+      )}
       {canConfirm && !reconciliation.agencyConfirmed && (
         <button type="button" className="iz-btn iz-btn-primary mt-3 w-full" onClick={onConfirm}>
           Confirm reconciliation · agency side
         </button>
+      )}
+      {reconciliation.agencyConfirmed && reconciliation.outletConfirmed && (
+        <p className="iz-tiny iz-muted2 mt-2 text-center">Both sides confirmed · month-end close eligible</p>
       )}
     </div>
   );
@@ -485,8 +573,13 @@ function PvDetail({
   const editAgencyPv = useStore((s) => s.editAgencyPv);
   const resendAgencyPv = useStore((s) => s.resendAgencyPv);
   const resolveAgencyPvDispute = useStore((s) => s.resolveAgencyPvDispute);
+  const overrideSignedAgencyPv = useStore((s) => s.overrideSignedAgencyPv);
+  const agencySubRole = useStore((s) => s.agencySubRole);
   const toast = useStore((s) => s.toast);
   const [editing, setEditing] = useState(false);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
+  const canOverride = agencyCan(agencySubRole, "overrideSignedPv");
   const [rows, setRows] = useState<PrPvRow[]>(pv.rows);
   const [deduct, setDeduct] = useState(pv.deduct);
 
@@ -562,14 +655,17 @@ function PvDetail({
 
       {rows.length > 0 && (
         <>
-          <div className="iz-between mt-3">
-            <IzSectionLabel>Line items · per item</IzSectionLabel>
-            {pv.status === "DISPUTED" && (
-              <button type="button" className="iz-chip" onClick={() => setEditing(!editing)}>
-                <Pencil className="mr-1 inline h-3 w-3" /> {editing ? "Cancel" : "Edit"}
-              </button>
-            )}
-          </div>
+          <OutletSection
+            title="Line items"
+            hint="Per item"
+            trailing={
+              pv.status === "DISPUTED" ? (
+                <button type="button" className="iz-chip" onClick={() => setEditing(!editing)}>
+                  <Pencil className="mr-1 inline h-3 w-3" /> {editing ? "Cancel" : "Edit"}
+                </button>
+              ) : undefined
+            }
+          >
           <IzCard>
             {rows.map((r, idx) => (
               <div key={r.i} className="iz-v-sum border-b border-[var(--iz-line)] py-2 last:border-0">
@@ -622,6 +718,7 @@ function PvDetail({
               </div>
             )}
           </IzCard>
+          </OutletSection>
         </>
       )}
 
@@ -655,6 +752,39 @@ function PvDetail({
           Resolve dispute &amp; reassign
         </button>
       )}
+
+      {pv.overrideAudit && (
+        <IzCard flat className="mt-2 border-[var(--iz-amber)]">
+          <p className="iz-tiny flex items-center gap-1 text-[var(--iz-amber)]">
+            <Shield className="h-3 w-3" /> Overridden by {pv.overrideAudit.by} · {pv.overrideAudit.at}
+          </p>
+          <p className="iz-tiny iz-muted mt-1">{pv.overrideAudit.reason}</p>
+        </IzCard>
+      )}
+
+      {canOverride && (pv.status === "SIGNED" || pv.status === "PAID") && (
+        <button type="button" className="iz-btn iz-btn-ghost mt-2 w-full" onClick={() => setOverrideOpen(true)}>
+          Override signed PV (audit logged)
+        </button>
+      )}
+
+      <IzSheet open={overrideOpen} onClose={() => setOverrideOpen(false)}>
+        <div className="iz-cardttl">Override signed PV</div>
+        <p className="iz-tiny iz-muted mb-3">Finance may override with a mandatory audit reason — PV re-opens for PR review</p>
+        <textarea className="iz-field-input min-h-[80px]" value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} placeholder="Reason for override…" />
+        <button
+          type="button"
+          className="iz-btn iz-btn-primary mt-3 w-full"
+          disabled={!overrideReason.trim()}
+          onClick={() => {
+            overrideSignedAgencyPv(pv.id, overrideReason);
+            setOverrideOpen(false);
+            setOverrideReason("");
+          }}
+        >
+          Confirm override
+        </button>
+      </IzSheet>
 
       <button type="button" className="iz-btn iz-btn-soft mt-2" onClick={onClose}>
         Back to payroll

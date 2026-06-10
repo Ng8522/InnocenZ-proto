@@ -3,10 +3,15 @@ import { format, startOfToday } from "date-fns";
 import { CalendarIcon, Check, ChevronDown, Minus, Pencil, Plus, Star, X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { IzCard } from "@/components/iz/ui";
+import { IzCard, IzSelect } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import {
+  DRESS_CODE_OPTIONS,
+  SHIFT_DESTINATION_LABELS,
+  type ShiftDestination,
+} from "@/lib/outlet-demo";
 
 export const LANG_OPTIONS = ["English", "Mandarin", "Cantonese", "Others"] as const;
 
@@ -40,6 +45,9 @@ export type DraftShift = {
   shiftTime: string;
   quantity: number;
   prIds: string[];
+  payPerHour: number;
+  dressCode: string;
+  destination: ShiftDestination;
 };
 
 export function newDraftShift(partial?: Partial<Omit<DraftShift, "id">>): DraftShift {
@@ -53,6 +61,9 @@ export function newDraftShift(partial?: Partial<Omit<DraftShift, "id">>): DraftS
     shiftTime: partial?.shiftTime ?? "22:00 - 04:00",
     quantity: partial?.quantity ?? 6,
     prIds: partial?.prIds ? [...partial.prIds] : [],
+    payPerHour: partial?.payPerHour ?? 60,
+    dressCode: partial?.dressCode ?? DRESS_CODE_OPTIONS[0],
+    destination: partial?.destination ?? "both",
   };
 }
 
@@ -343,23 +354,36 @@ export function JobStarPicker({
 export function QuantityStepper({
   value,
   onChange,
+  min = 1,
+  max,
+  step = 1,
+  suffix,
 }: {
   value: number;
   onChange: (n: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  suffix?: string;
 }) {
+  const dec = () => onChange(Math.max(min, value - step));
+  const inc = () => onChange(max !== undefined ? Math.min(max, value + step) : value + step);
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       <button
         type="button"
-        onClick={() => onChange(Math.max(1, value - 1))}
+        onClick={dec}
         className="iz-chip flex h-7 w-7 items-center justify-center !p-0"
       >
         <Minus className="h-3.5 w-3.5" />
       </button>
-      <span className="w-6 text-center font-semibold">{value}</span>
+      <span className="min-w-[2.5rem] text-center font-semibold">
+        {value}
+        {suffix && <span className="ml-0.5 text-[10px] font-normal text-[var(--iz-muted)]">{suffix}</span>}
+      </span>
       <button
         type="button"
-        onClick={() => onChange(value + 1)}
+        onClick={inc}
         className="iz-chip flex h-7 w-7 items-center justify-center !p-0"
       >
         <Plus className="h-3.5 w-3.5" />
@@ -693,6 +717,9 @@ export function DraftShiftSummary({
       />
       <SummaryLine label="Languages" value={buildLanguagesLabel(shift.langs, shift.otherLang) || "—"} />
       <SummaryLine label="Preferred profile" value={formatStarTiers(shift.starTiers)} />
+      <SummaryLine label="Base rate" value={`RM ${shift.payPerHour}/hr`} />
+      <SummaryLine label="Dress code" value={shift.dressCode} />
+      <SummaryLine label="Post to" value={SHIFT_DESTINATION_LABELS[shift.destination]} />
     </IzCard>
   );
 }
@@ -771,6 +798,43 @@ export function DraftShiftEditor({
             onChange({ starTiers, prIds });
           }}
         />
+      </FormRow>
+      <FormRow label="Base rate">
+        <QuantityStepper
+          value={shift.payPerHour}
+          min={40}
+          max={120}
+          step={5}
+          suffix="RM/hr"
+          onChange={(payPerHour) => onChange({ payPerHour })}
+        />
+      </FormRow>
+      <FormRow label="Dress code">
+        <IzSelect
+          value={shift.dressCode}
+          onChange={(e) => onChange({ dressCode: e.target.value })}
+          className="max-w-[168px] text-right text-sm"
+        >
+          {DRESS_CODE_OPTIONS.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </IzSelect>
+      </FormRow>
+      <FormRow label="Post to">
+        <div className="flex flex-wrap justify-end gap-1">
+          {(Object.keys(SHIFT_DESTINATION_LABELS) as ShiftDestination[]).map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onChange({ destination: key })}
+              className={`iz-pill !text-[10px] ${shift.destination === key ? "iz-pill-violet" : "iz-pill-ink"}`}
+            >
+              {SHIFT_DESTINATION_LABELS[key]}
+            </button>
+          ))}
+        </div>
       </FormRow>
       <FormRow label="Select PRs" stacked last>
         <DraftPrPicker

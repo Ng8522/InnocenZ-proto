@@ -1,13 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { AppHeader } from "@/components/Nav";
+import { AppTopbar } from "@/components/Nav";
+import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
 import { nowAgencyDateTime, OUTLET_NAMES, type LiveWorkforceEntry } from "@/lib/agency-demo";
 import { deriveLiveWorkforce } from "@/lib/portal-sync";
 import type { AgencyRosterSlot, RosterSlotStatus } from "@/lib/agency-demo";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzCard, IzPill, IzSectionLabel, IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
+import { IzCard, IzPill, IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { PrAvailabilityPanel } from "@/components/iz/PrAvailabilityPanel";
+import { AgencyGpsPanel } from "@/components/agency/AgencyGpsPanel";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { agencyCan } from "@/lib/agency-rbac";
 import { ArrowLeftRight, Calendar, Filter, MapPin, Pencil, Users, X } from "lucide-react";
@@ -30,7 +32,16 @@ const EDITABLE_STATUSES: RosterSlotStatus[] = ["scheduled", "on-duty", "en-route
 type ViewMode = "live" | "planning";
 
 function AgencyRoster() {
-  const { agencyRoster, editRosterSlot, requestOutletSwap, cancelOutletSwap, agencySubRole } = useStore();
+  const agencyRoster = useStore((s) => s.agencyRoster);
+  const editRosterSlot = useStore((s) => s.editRosterSlot);
+  const requestOutletSwap = useStore((s) => s.requestOutletSwap);
+  const cancelOutletSwap = useStore((s) => s.cancelOutletSwap);
+  const agencySubRole = useStore((s) => s.agencySubRole);
+  const prSwapRequests = useStore((s) => s.prSwapRequests);
+  const approvePrSwapRequest = useStore((s) => s.approvePrSwapRequest);
+  const declinePrSwapRequest = useStore((s) => s.declinePrSwapRequest);
+  const demoAutoAssignPr = useStore((s) => s.demoAutoAssignPr);
+  const flagRosterAttendance = useStore((s) => s.flagRosterAttendance);
   const { date, time } = nowAgencyDateTime();
   const [outletFilter, setOutletFilter] = useState("");
   const [dateFilter, setDateFilter] = useState(DEFAULT_ROSTER_DATE_ISO);
@@ -48,34 +59,30 @@ function AgencyRoster() {
 
   const swapCount = agencyRoster.filter((s) => s.outletSwap?.status === "pending_pr").length;
   const assignCount = agencyRoster.filter((s) => s.status === "assignment-pending").length;
+  const pendingPrSwaps = prSwapRequests.filter((s) => s.status === "pending_agency");
   const editSlot = agencyRoster.find((s) => s.id === editId);
 
   return (
     <div className="iz-screen">
-      <AppHeader
-        subtitle={`${date} · ${time}`}
-        title="Roster"
-        onBack={editId ? () => setEditId(null) : undefined}
-        backLabel={editId ? "Roster" : undefined}
-        right={
-          swapCount > 0 || assignCount > 0 ? (
-            <div className="flex flex-wrap gap-1 justify-end">
-              {assignCount > 0 && (
-                <IzPill variant="amber">
-                  {assignCount} assign
-                </IzPill>
-              )}
-              {swapCount > 0 && (
-                <IzPill variant="violet">
-                  {swapCount} swap{swapCount > 1 ? "s" : ""}
-                </IzPill>
-              )}
-            </div>
-          ) : undefined
-        }
-      />
+      <AppTopbar backTo="/agency" backLabel="Home" />
+      <header>
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Roster</h2>
+        <p className="iz-tiny iz-muted mt-0.5">
+          {date} · {time}
+        </p>
+        {(swapCount > 0 || assignCount > 0) && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {assignCount > 0 && <IzPill variant="amber">{assignCount} assign</IzPill>}
+            {swapCount > 0 && (
+              <IzPill variant="violet">
+                {swapCount} swap{swapCount > 1 ? "s" : ""}
+              </IzPill>
+            )}
+          </div>
+        )}
+      </header>
 
-      <div className="mb-2 flex gap-2">
+      <div className="mt-3 flex gap-2">
         <button
           type="button"
           className={`flex-1 rounded-full border py-2 text-xs font-semibold ${viewMode === "live" ? "border-[var(--iz-green)] bg-[rgba(57,217,138,.12)] text-[var(--iz-green)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
@@ -95,7 +102,25 @@ function AgencyRoster() {
       {viewMode === "live" ? (
         <LiveWorkforceSection dateIso={dateFilter || DEFAULT_ROSTER_DATE_ISO} />
       ) : (
-        <PlanningWorkforceSection dateIso={dateFilter || DEFAULT_ROSTER_DATE_ISO} />
+        <PlanningWorkforceSection dateIso={dateFilter || DEFAULT_ROSTER_DATE_ISO} onAutoAssign={() => demoAutoAssignPr(dateFilter || DEFAULT_ROSTER_DATE_ISO)} canAutoAssign={canAssign} />
+      )}
+
+      {canAssign && pendingPrSwaps.length > 0 && (
+        <OutletSection title="PR swap requests" hint={`${pendingPrSwaps.length} pending`} className="!mt-4">
+          <div className="space-y-2">
+            {pendingPrSwaps.map((swap) => (
+              <IzCard key={swap.id}>
+                <p className="font-sora text-sm font-bold">{swap.outlet}</p>
+                <p className="iz-tiny iz-muted mt-0.5">Replacement: {swap.replacementPrName}</p>
+                {swap.reason && <p className="iz-tiny iz-muted2 mt-1">{swap.reason}</p>}
+                <div className="mt-2 flex gap-2">
+                  <button type="button" className="iz-btn iz-btn-soft flex-1 !py-1.5 !text-xs" onClick={() => declinePrSwapRequest(swap.id)}>Decline</button>
+                  <button type="button" className="iz-btn iz-btn-primary flex-1 !py-1.5 !text-xs" onClick={() => approvePrSwapRequest(swap.id)}>Approve</button>
+                </div>
+              </IzCard>
+            ))}
+          </div>
+        </OutletSection>
       )}
 
       {canAssign && (
@@ -142,8 +167,8 @@ function AgencyRoster() {
         </Link>
       )}
 
-      <IzSectionLabel>Shifts · date &amp; time</IzSectionLabel>
-      <div className="space-y-2.5">
+      <OutletSection title="Shifts" hint="Date, time & attendance">
+        <div className="space-y-2.5">
         {filtered.map((slot) => {
           const st = STATUS_LABEL[slot.status];
           return (
@@ -153,7 +178,11 @@ function AgencyRoster() {
                   <div className="font-sora text-[15px] font-bold">{slot.prName}</div>
                   <p className="iz-tiny iz-muted mt-0.5">{slot.outlet}</p>
                 </div>
-                <IzPill variant={st.variant}>{st.label}</IzPill>
+                <div className="flex flex-wrap gap-1 justify-end">
+                  {slot.lateFlag && <IzPill variant="amber">Late</IzPill>}
+                  {slot.noShowFlag && <IzPill variant="red">No-show</IzPill>}
+                  <IzPill variant={st.variant}>{st.label}</IzPill>
+                </div>
               </div>
               <p className="iz-sm mt-2 text-[var(--iz-gold-l)]">{slot.date}</p>
               <p className="iz-tiny iz-muted mt-0.5">
@@ -216,20 +245,23 @@ function AgencyRoster() {
                 </div>
               )}
               {canAssign && (
-                <div className="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    className="iz-btn iz-btn-soft flex-1 !py-1.5 !text-xs"
-                    onClick={() => setEditId(slot.id)}
-                  >
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" className="iz-btn iz-btn-soft flex-1 !py-1.5 !text-xs" onClick={() => setEditId(slot.id)}>
                     <Pencil className="h-3 w-3" /> Edit
                   </button>
+                  {!slot.checkedInAt && slot.status !== "unavailable" && (
+                    <>
+                      <button type="button" className="iz-btn iz-btn-ghost !py-1.5 !text-xs" onClick={() => flagRosterAttendance(slot.id, "late")}>+Late</button>
+                      <button type="button" className="iz-btn iz-btn-ghost !py-1.5 !text-xs" onClick={() => flagRosterAttendance(slot.id, "no-show")}>+No-show</button>
+                    </>
+                  )}
                 </div>
               )}
             </IzCard>
           );
         })}
-      </div>
+        </div>
+      </OutletSection>
 
       {editSlot && (
         <EditRosterModal
@@ -249,7 +281,7 @@ function AgencyRoster() {
   );
 }
 
-function PlanningWorkforceSection({ dateIso }: { dateIso: string }) {
+function PlanningWorkforceSection({ dateIso, onAutoAssign, canAutoAssign }: { dateIso: string; onAutoAssign?: () => void; canAutoAssign?: boolean }) {
   const agencyRoster = useStore((s) => s.agencyRoster);
   const scheduled = useMemo(
     () => agencyRoster.filter((s) => s.dateIso === dateIso && s.status !== "unavailable"),
@@ -277,6 +309,11 @@ function PlanningWorkforceSection({ dateIso }: { dateIso: string }) {
           Planning = projected wages + commission for tonight. AI flags PRs with &gt;2 cancellations / 30 days.
         </p>
         <p className="iz-tiny text-[var(--iz-amber)] mt-2">Late at shift_start + 15 min · No-show at + 30 min</p>
+        {canAutoAssign && onAutoAssign && (
+          <button type="button" className="iz-btn iz-btn-soft mt-2 w-full !text-xs" onClick={onAutoAssign}>
+            AI auto-assign next free PR
+          </button>
+        )}
       </IzCard>
     </section>
   );
@@ -284,6 +321,9 @@ function PlanningWorkforceSection({ dateIso }: { dateIso: string }) {
 
 function LiveWorkforceSection({ dateIso }: { dateIso: string }) {
   const agencyRoster = useStore((s) => s.agencyRoster);
+  const agencyPRs = useStore((s) => s.agencyPRs);
+  const prCheckInMeta = useStore((s) => s.prCheckInMeta);
+  const prSubRole = useStore((s) => s.prSubRole);
   const workforce = useMemo(() => deriveLiveWorkforce(agencyRoster, dateIso), [agencyRoster, dateIso]);
   const estTotal = useMemo(() => workforce.reduce((s, w) => s + w.estPayout, 0), [workforce]);
   const activeCount = workforce.filter((w) => w.status === "on-duty" || w.status === "en-route").length;
@@ -308,65 +348,72 @@ function LiveWorkforceSection({ dateIso }: { dateIso: string }) {
         </div>
       </div>
 
-      <IzSectionLabel>
-        <Users className="mr-1 inline h-3.5 w-3.5" /> On floor now
-      </IzSectionLabel>
-      <div className="space-y-2.5">
-        {workforce.map((w) => (
-          <LiveWorkforceCard key={w.id} entry={w} />
-        ))}
-      </div>
+      <AgencyGpsPanel
+        roster={agencyRoster}
+        agencyPRs={agencyPRs}
+        dateIso={dateIso}
+        prCheckInMeta={prCheckInMeta}
+        prSubRole={prSubRole}
+      />
 
-      <IzSectionLabel>Planning · estimated today</IzSectionLabel>
-      <IzCard flat className="mb-3 border-[rgba(232,194,122,.3)]">
-        <div className="iz-v-sum">
-          <span className="iz-muted">Wages + commission (proj.)</span>
-          <b className="iz-ledger text-[var(--iz-gold)]">{formatRM(estTotal)}</b>
+      <OutletSection title="On floor now" hint={`${workforce.length} PRs`}>
+        <div className="space-y-2">
+          {workforce.map((w) => (
+            <LiveWorkforceCard key={w.id} entry={w} />
+          ))}
         </div>
-        <div className="iz-v-sum">
-          <span className="iz-muted">Outlets covered</span>
-          <b>{new Set(workforce.map((w) => w.outlet)).size}</b>
-        </div>
-        <div className="iz-v-sum">
-          <span className="iz-muted">OT from check-out time</span>
-          <b>Auto-calc on seal</b>
-        </div>
-        <p className="iz-tiny iz-muted2 mt-2">
-          Same view as outlet portal — agency &amp; outlet see matching live workforce.
-        </p>
-      </IzCard>
+      </OutletSection>
+
+      <OutletSection title="Planning" hint="Estimated today">
+        <IzCard flat className="mb-3 border-[rgba(232,194,122,.3)]">
+          <div className="iz-v-sum">
+            <span className="iz-muted">Wages + commission (proj.)</span>
+            <b className="iz-ledger text-[var(--iz-gold)]">{formatRM(estTotal)}</b>
+          </div>
+          <div className="iz-v-sum">
+            <span className="iz-muted">Outlets covered</span>
+            <b>{new Set(workforce.map((w) => w.outlet)).size}</b>
+          </div>
+          <div className="iz-v-sum">
+            <span className="iz-muted">OT from check-out time</span>
+            <b>Auto-calc on seal</b>
+          </div>
+          <p className="iz-tiny iz-muted2 mt-2">
+            Same view as outlet portal — agency &amp; outlet see matching live workforce.
+          </p>
+        </IzCard>
+      </OutletSection>
     </section>
   );
 }
 
 function LiveWorkforceCard({ entry: w }: { entry: LiveWorkforceEntry }) {
   return (
-    <IzCard>
-      <div className="iz-between">
-        <div>
-          <div className="font-sora text-[15px] font-bold">{w.prName}</div>
-          <p className="iz-tiny iz-muted mt-0.5">{w.outlet}</p>
-        </div>
-        <IzPill variant={w.status === "on-duty" ? "green" : w.status === "en-route" ? "amber" : "ink"}>
-          {w.status === "on-duty" ? "On duty" : w.status === "en-route" ? "En route" : "Out"}
-        </IzPill>
+    <div className="iz-outlet-floor-row">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--iz-violet-ink)] font-sora text-lg font-bold">
+        {w.prName.trim()[0]}
       </div>
-      {w.checkIn && <p className="iz-tiny iz-muted2 mt-1.5">Check-in {w.checkIn}</p>}
-      <div className="iz-grid2 mt-2">
-        <div className="rounded-xl bg-[var(--iz-bg2)] p-2 text-center">
-          <div className="iz-tiny iz-muted">Drinks</div>
-          <div className="font-sora text-sm font-bold">{w.drinks}</div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate font-sora text-sm font-bold">{w.prName}</span>
+          <IzPill
+            variant={w.status === "on-duty" ? "green" : w.status === "en-route" ? "amber" : "ink"}
+            className="!py-0.5 !text-[9px]"
+          >
+            {w.status === "on-duty" ? "On duty" : w.status === "en-route" ? "En route" : "Out"}
+          </IzPill>
         </div>
-        <div className="rounded-xl bg-[var(--iz-bg2)] p-2 text-center">
-          <div className="iz-tiny iz-muted">Tips</div>
-          <div className="font-sora text-sm font-bold">{formatRM(w.tips)}</div>
-        </div>
+        <p className="iz-tiny iz-muted truncate">
+          {w.outlet}
+          {w.checkIn ? ` · in ${w.checkIn}` : ""}
+          {w.drinks > 0 ? ` · ${w.drinks} drinks` : ""}
+        </p>
+        <p className="iz-tiny text-[var(--iz-gold-l)]">
+          Est. {formatRM(w.estPayout)}
+          {w.tips > 0 ? ` · tips ${formatRM(w.tips)}` : ""}
+        </p>
       </div>
-      <div className="iz-v-sum mt-2 tot">
-        <span className="iz-muted">Est. payout</span>
-        <span className="iz-ledger text-[var(--iz-gold)]">{formatRM(w.estPayout)}</span>
-      </div>
-    </IzCard>
+    </div>
   );
 }
 

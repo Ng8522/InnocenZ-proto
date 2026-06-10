@@ -9,6 +9,7 @@ import {
   buildLanguagesLabel,
   formatJobDate,
   newDraftShift,
+  parseShiftTime,
   starTierToMinRating,
   type DraftShift,
 } from "@/components/outlet/post-job-fields";
@@ -18,17 +19,24 @@ export const Route = createFileRoute("/outlet/bookings")({
   component: PostJobPage,
 });
 
-const PAY_PER_HOUR = 60;
-const HOURS_PER_SHIFT = 6;
+function shiftHours(shiftTime: string) {
+  const p = parseShiftTime(shiftTime);
+  const start = p.startH * 60 + p.startM;
+  let end = p.endH * 60 + p.endM;
+  if (end <= start) end += 24 * 60;
+  return Math.max(1, Math.round((end - start) / 60));
+}
 
-function shiftCost(quantity: number) {
-  return quantity * PAY_PER_HOUR * HOURS_PER_SHIFT;
+function shiftCost(quantity: number, payPerHour: number, hours: number) {
+  return Math.round(quantity * payPerHour * hours);
 }
 
 function PostJobPage() {
-  const { createShifts } = useStore();
+  const { createShifts, outletWorkspace } = useStore();
 
-  const [composer, setComposer] = useState<DraftShift>(() => newDraftShift());
+  const [composer, setComposer] = useState<DraftShift>(() =>
+    newDraftShift({ payPerHour: outletWorkspace.basePayPerHour }),
+  );
   const [draftShifts, setDraftShifts] = useState<DraftShift[]>([]);
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
 
@@ -42,6 +50,9 @@ function PostJobPage() {
       shiftTime: composer.shiftTime,
       quantity: composer.quantity,
       prIds: [...composer.prIds],
+      payPerHour: composer.payPerHour,
+      dressCode: composer.dressCode,
+      destination: composer.destination,
     });
     setDraftShifts((cur) => [...cur, snapshot]);
     setEditingShiftId(null);
@@ -60,27 +71,35 @@ function PostJobPage() {
     draftShifts.length > 0 ? formatJobDate(draftShifts[0].jobDate) : formatJobDate(composer.jobDate);
 
   const totalHeadcount = draftShifts.reduce((sum, s) => sum + s.quantity, 0);
-  const totalCost = draftShifts.reduce((sum, s) => sum + shiftCost(s.quantity), 0);
+  const totalCost = draftShifts.reduce(
+    (sum, s) => sum + shiftCost(s.quantity, s.payPerHour, shiftHours(s.shiftTime)),
+    0,
+  );
 
   const submitNew = () => {
     if (draftShifts.length === 0) return;
     createShifts(
-      draftShifts.map((s) => ({
-        outletName: "Velvet 23",
-        date: formatJobDate(s.jobDate),
-        shift: s.shiftTime,
-        quantity: s.quantity,
-        languages: buildLanguagesLabel(s.langs, s.otherLang),
-        event: s.event,
-        preferredRating: Math.min(...s.starTiers.map(starTierToMinRating)),
-        preferredStarTiers: s.starTiers,
-        estimatedCost: shiftCost(s.quantity),
-        liveSales: 0,
-        payPerHour: PAY_PER_HOUR,
-        prs: s.prIds,
-      })),
+      draftShifts.map((s) => {
+        const hours = shiftHours(s.shiftTime);
+        return {
+          outletName: "Velvet 23",
+          date: formatJobDate(s.jobDate),
+          shift: s.shiftTime,
+          quantity: s.quantity,
+          languages: buildLanguagesLabel(s.langs, s.otherLang),
+          event: s.event,
+          preferredRating: Math.min(...s.starTiers.map(starTierToMinRating)),
+          preferredStarTiers: s.starTiers,
+          estimatedCost: shiftCost(s.quantity, s.payPerHour, hours),
+          liveSales: 0,
+          payPerHour: s.payPerHour,
+          dressCode: s.dressCode,
+          destination: s.destination,
+          prs: s.prIds,
+        };
+      }),
     );
-    setComposer(newDraftShift());
+    setComposer(newDraftShift({ payPerHour: outletWorkspace.basePayPerHour }));
     setDraftShifts([]);
     setEditingShiftId(null);
   };
@@ -91,14 +110,12 @@ function PostJobPage() {
         onBack={editingShiftId ? () => setEditingShiftId(null) : undefined}
         backLabel={editingShiftId ? "Shift list" : undefined}
       />
-      <h2 className="font-sora text-xl font-extrabold text-[var(--iz-txt)]">
-        Post shift · <span className="text-[var(--iz-gold-l)]">New job</span>
-      </h2>
+      <header className="pt-1">
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Post shift</h2>
+        <p className="iz-tiny iz-muted mt-0.5">Add shifts to your list, then post when ready.</p>
+      </header>
 
-      <section className="pt-2">
-        <p className="mt-2 text-[11px] text-[var(--iz-muted)]">
-          Fill in shift details and select PRs for each slot, then add to your list. Edit any shift before posting.
-        </p>
+      <section className="pt-3">
 
         <DraftShiftEditor
           shift={composer}

@@ -25,15 +25,17 @@ import { shiftHistoryToHistRows } from "@/lib/portal-sync";
 import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { Calendar, ChevronDown, Download, Filter, Receipt, Search, Table2, X } from "lucide-react";
 import { FreelancerPayrollNotice } from "@/components/iz/FreelancerPayrollNotice";
+import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 
 type HistTab = "shifts" | "receipts" | "pv";
 
 export const Route = createFileRoute("/host/history")({
-  validateSearch: (search: Record<string, unknown>): { tab: HistTab } => {
+  validateSearch: (search: Record<string, unknown>): { tab: HistTab; pvId?: string } => {
     const tab = search.tab;
-    if (tab === "receipts" || tab === "pv") return { tab };
-    return { tab: "shifts" };
+    const pvId = typeof search.pvId === "string" ? search.pvId : undefined;
+    if (tab === "receipts" || tab === "pv") return { tab, pvId };
+    return { tab: "shifts", pvId };
   },
   component: HistoryPage,
 });
@@ -253,7 +255,7 @@ function receiptStatusPill(status: ReceiptScanStatus) {
 }
 
 function HistoryPage() {
-  const { tab } = Route.useSearch();
+  const { tab, pvId: searchPvId } = Route.useSearch();
   const navigate = useNavigate();
   const prSubRole = useStore((s) => s.prSubRole);
   const isFreelancer = prSubRole === "pr_free";
@@ -311,6 +313,12 @@ function HistoryPage() {
 
   const setTab = (next: HistTab) => navigate({ to: "/host/history", search: { tab: next } });
 
+  useEffect(() => {
+    if (searchPvId && tab !== "pv") {
+      navigate({ to: "/host/history", search: { tab: "pv", pvId: searchPvId } });
+    }
+  }, [searchPvId, tab, navigate]);
+
   const lifetimeEarnings = prPaymentVouchers
     .filter((p) => p.status === "PAID" || p.status === "SIGNED")
     .reduce((sum, p) => sum + p.net, 0);
@@ -365,43 +373,33 @@ function HistoryPage() {
   return (
     <div className="iz-screen">
       <AppTopbar onBack={anyFilterOpen ? closeFilters : undefined} backLabel={anyFilterOpen ? "History" : undefined} />
-      <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">History</h2>
-      <p className="iz-tiny iz-muted mt-0.5">
-        {isFreelancer
-          ? "Track sealed shifts here. Tell any PR agency on InnocenZ to run payroll ? then sign PVs under Vouchers."
-          : "Earnings from sealed shifts auto-route to your agency. Sign PVs under Vouchers to get paid."}
-      </p>
 
-      {isFreelancer && (
-        <div className="mt-2.5">
-          <FreelancerPayrollNotice compact />
+      <PrPageHeader
+        label="Earnings"
+        title="History"
+        meta={isFreelancer ? "Shifts, receipts & PV breakdown" : "Agency payroll · dual-sign PVs"}
+      />
+
+      {isFreelancer && <div className="mt-3"><FreelancerPayrollNotice compact /></div>}
+
+      <div className="iz-outlet-stat-strip mt-3">
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Lifetime</div>
+          <div className="n text-[var(--iz-gold-l)]">{formatRM(lifetimeEarnings)}</div>
         </div>
-      )}
-
-      <IzCard glow className="mt-3">
-        <div className="iz-grid3">
-          <div>
-            <div className="iz-tiny iz-muted2 tracking-widest">LIFETIME EARNINGS</div>
-            <div className="font-sora iz-ledger mt-1 text-lg font-extrabold text-[var(--iz-gold-l)]">
-              {formatRM(lifetimeEarnings)}
-            </div>
-          </div>
-          <div>
-            <div className="iz-tiny iz-muted2 tracking-widest">PAID THIS CYCLE</div>
-            <div className="font-sora iz-ledger mt-1 text-lg font-extrabold">{formatRM(paidThisCycle)}</div>
-          </div>
-          <div>
-            <div className="iz-tiny iz-muted2 tracking-widest">PENDING PV</div>
-            <div className="font-sora iz-ledger mt-1 text-lg font-extrabold text-[var(--iz-amber)]">
-              {formatRM(pendingPv)}
-            </div>
-          </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Paid</div>
+          <div className="n">{formatRM(paidThisCycle)}</div>
         </div>
-      </IzCard>
-
-      <IzCard flat className="iz-tiny iz-muted mt-0">
-        Funds move Outlet → Agency → your bank once PV is dual-signed. Status updates appear here and under Vouchers.
-      </IzCard>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Pending</div>
+          <div className="n text-[var(--iz-amber)]">{formatRM(pendingPv)}</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Shifts</div>
+          <div className="n">{histRows.length}</div>
+        </div>
+      </div>
 
       <div className="iz-hist-tabs mt-4">
         <button type="button" className={tab === "shifts" ? "active" : ""} onClick={() => setTab("shifts")}>
@@ -607,6 +605,8 @@ function HistoryPage() {
             setPvFilters(EMPTY_PV_FILTERS);
             setPvDraft(EMPTY_PV_FILTERS);
           }}
+          isFreelancer={isFreelancer}
+          highlightPvId={searchPvId}
         />
       )}
 
@@ -1170,11 +1170,15 @@ function PvBreakdownSection({
   pvOutlets,
   pvRefs,
   onClear,
+  isFreelancer,
+  highlightPvId,
 }: {
   lines: PvLineRecord[];
   scans: PrReceiptScan[];
   vouchers: PrPaymentVoucher[];
   onDownloadPdf: (pv: PrPaymentVoucher) => void;
+  isFreelancer: boolean;
+  highlightPvId?: string;
   filters: PvFilters;
   setFilters: Dispatch<SetStateAction<PvFilters>>;
   filterCount: number;
@@ -1298,7 +1302,7 @@ function PvBreakdownSection({
             </thead>
             <tbody>
               {lines.map((line) => (
-                <tr key={line.key}>
+                <tr key={line.key} className={highlightPvId === line.pvId ? "bg-[rgba(232,194,122,.08)]" : undefined}>
                   <td>
                     <div className="font-semibold">{line.pvId}</div>
                     <div className="iz-tiny iz-muted2">{line.cycle}</div>
@@ -1357,7 +1361,7 @@ function PvBreakdownSection({
       )}
 
       <Link to="/host/wallet" className="iz-btn iz-btn-soft mt-3">
-        Open Payment Vouchers
+        {isFreelancer ? "Open Payment Vouchers" : "Sign or dispute PV"}
       </Link>
 
       <IzSheet open={pvFilterOpen} onClose={() => setPvFilterOpen(false)}>

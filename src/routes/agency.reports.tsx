@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { AppHeader } from "@/components/Nav";
+import { AppTopbar } from "@/components/Nav";
+import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
 import {
   OUTLET_COMMISSION_RULES,
@@ -9,8 +10,9 @@ import {
 } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { formatSyncTime } from "@/lib/outlet-financial-sync";
-import { IzCard, IzPill, IzSectionLabel, IzSelect, formatRM } from "@/components/iz/ui";
-import { Download, Filter, RefreshCw, Users } from "lucide-react";
+import { computeAgencyNoShowRate, pnlForDateRange } from "@/lib/agency-actions";
+import { IzCard, IzPill, IzSelect, formatRM } from "@/components/iz/ui";
+import { Download, Filter, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/agency/reports")({
   component: AgencyReports,
@@ -26,6 +28,7 @@ function AgencyReports() {
   const outletMoneyEditCount = useStore((s) => s.outletMoneyEditCount);
   const shifts = useStore((s) => s.shifts);
   const agencyPRs = useStore((s) => s.agencyPRs);
+  const shiftHistory = useStore((s) => s.shiftHistory);
   const agencySubRole = useStore((s) => s.agencySubRole);
   const toast = useStore((s) => s.toast);
   const [outletFilter, setOutletFilter] = useState("");
@@ -35,9 +38,11 @@ function AgencyReports() {
   const [quickTab, setQuickTab] = useState<QuickTab>("outlet");
 
   const pnlRows = useMemo(() => {
-    if (!outletFilter) return outletPnl;
-    return outletPnl.filter((r) => r.outlet === outletFilter);
-  }, [outletPnl, outletFilter]);
+    const ranged = pnlForDateRange(outletPnl, shiftHistory, dateFrom, dateTo);
+    const base = ranged.length > 0 ? ranged : outletPnl;
+    if (!outletFilter) return base;
+    return base.filter((r) => r.outlet === outletFilter);
+  }, [outletPnl, outletFilter, shiftHistory, dateFrom, dateTo]);
 
   const totals = pnlRows.reduce(
     (acc, r) => ({
@@ -50,13 +55,19 @@ function AgencyReports() {
   );
 
   const liveShift = shifts.find((s) => s.date === "Tonight");
-  const noShowRate = 4.2;
+  const noShowRate = computeAgencyNoShowRate(agencyPRs);
   const canExport = agencyCan(agencySubRole, "exportReports");
   const agencyNetDisplay = viewMode === "planning" ? totals.agencyNet * 1.12 : totals.agencyNet;
 
   return (
     <div className="iz-screen">
-      <AppHeader subtitle={`Module 6 · ${date} · ${time}`} title="Agency analytics" />
+      <AppTopbar backTo="/agency" backLabel="Home" />
+      <header>
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Analytics</h2>
+        <p className="iz-tiny iz-muted mt-0.5">
+          {date} · {time}
+        </p>
+      </header>
 
       <IzCard flat>
         <div className="flex items-center gap-2 iz-tiny iz-muted">
@@ -114,7 +125,7 @@ function AgencyReports() {
         </button>
         <button
           type="button"
-          className={`flex-1 rounded-full border py-1.5 text-[11px] font-semibold ${quickTab === "workforce" ? "border-[var(--iz-violet)] text-[var(--iz-violet)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
+          className={`flex-1 rounded-full border py-1.5 text-[11px] font-semibold ${quickTab === "workforce" ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
           onClick={() => setQuickTab("workforce")}
         >
           Workforce
@@ -154,8 +165,8 @@ function AgencyReports() {
 
       {quickTab === "outlet" ? (
         <>
-          <IzSectionLabel>PNL · outlet ↔ agency ↔ PR</IzSectionLabel>
-          <div className="space-y-2">
+          <OutletSection title="PNL" hint="Outlet ↔ agency ↔ PR">
+            <div className="space-y-2">
             {pnlRows.map((r) => (
               <IzCard key={r.outlet}>
                 <div className="iz-between">
@@ -181,15 +192,13 @@ function AgencyReports() {
                 </div>
               </IzCard>
             ))}
-          </div>
+            </div>
+          </OutletSection>
         </>
       ) : (
         <>
-          <IzSectionLabel>
-            <Users className="mr-1 inline h-3.5 w-3.5" />
-            Per-PR performance
-          </IzSectionLabel>
-          <div className="space-y-2">
+          <OutletSection title="Per-PR performance" hint={`${Math.min(agencyPRs.length, 6)} listed`}>
+            <div className="space-y-2">
             {agencyPRs.slice(0, 6).map((pr) => (
               <IzCard key={pr.id} flat>
                 <div className="iz-between">
@@ -201,7 +210,8 @@ function AgencyReports() {
                 </p>
               </IzCard>
             ))}
-          </div>
+            </div>
+          </OutletSection>
         </>
       )}
 

@@ -1,154 +1,82 @@
 import { createFileRoute } from "@tanstack/react-router";
-
 import { useStore } from "@/lib/store";
-
-import { outletCan } from "@/lib/outlet-rbac";
-
 import { AppTopbar } from "@/components/Nav";
-
 import { OutletBookings } from "@/components/outlet/OutletBookings";
-
-import { OutletSaleUnitCosts } from "@/components/outlet/OutletLogSales";
-
-import { Bell } from "lucide-react";
-
-
+import { OutletHomeTiles } from "@/components/outlet/OutletHomeTiles";
+import { OutletReconciliationBanner } from "@/components/outlet/OutletReconciliationBanner";
+import { OutletSection } from "@/components/outlet/OutletSection";
 
 export const Route = createFileRoute("/outlet/")({
-
   component: OutletHome,
-
 });
 
-
-
 function OutletHome() {
-
   const outletSubRole = useStore((s) => s.outletSubRole);
-
   const { shifts } = useStore();
-
   const tonight = shifts.find((s) => s.date === "Tonight") ?? shifts[0];
-
-  const canLogSales = outletCan(outletSubRole, "logSales");
-
-
-
-  const qty = tonight?.quantity ?? 6;
-
-  const confirmed = tonight?.prs.length ?? 0;
-
-  const estimatedCost = tonight?.estimatedCost ?? qty * 60 * 6;
-
-  const onTimeRisk = confirmed >= qty ? "Low" : confirmed >= qty / 2 ? "Medium" : "High";
-
-  const riskTone =
-
-    onTimeRisk === "Low"
-
-      ? "text-[var(--iz-green)]"
-
-      : onTimeRisk === "Medium"
-
-        ? "text-[var(--iz-amber)]"
-
-        : "text-[var(--iz-red)]";
-
-
-
   const isFinance = outletSubRole === "outlet_finance";
 
-
+  const qty = tonight?.quantity ?? 6;
+  const confirmed = tonight?.prs.length ?? 0;
+  const estimatedCost = tonight?.estimatedCost ?? qty * 60 * 6;
+  const onTimeRisk = confirmed >= qty ? "Low" : confirmed >= qty / 2 ? "Med" : "High";
+  const riskTone =
+    onTimeRisk === "Low"
+      ? "text-[var(--iz-green)]"
+      : onTimeRisk === "Med"
+        ? "text-[var(--iz-amber)]"
+        : "text-[var(--iz-red)]";
 
   return (
-
     <div className="iz-screen">
-
       <AppTopbar />
 
-      {isFinance && (
-
-        <p className="iz-tiny iz-muted -mt-1 mb-1">
-
-          Read-only venue overview — use History for payouts and Reports for billing.
-
-        </p>
-
-      )}
-
-      <div className="flex items-center justify-between">
-
-        <h2 className="font-sora text-xl font-extrabold text-[var(--iz-txt)]">
-
-          Tonight · <span className="text-[var(--iz-gold-l)]">{tonight?.event ?? "Shift"}</span>
-
+      <header className="pt-1">
+        <p className="iz-tiny iz-muted2 uppercase tracking-widest">Tonight</p>
+        <h2 className="font-sora mt-0.5 text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
+          {tonight?.event ?? "No shift"}
         </h2>
+        {tonight && (
+          <p className="iz-tiny iz-muted mt-0.5">
+            {tonight.date} · {tonight.shift}
+          </p>
+        )}
+        {isFinance && (
+          <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
+            Read-only overview
+          </p>
+        )}
+      </header>
 
-        <button type="button" className="iz-chip relative">
-
-          <Bell className="h-3.5 w-3.5" />
-
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[var(--iz-gold)]" />
-
-        </button>
-
+      <div className="iz-outlet-stat-strip mt-3">
+        <div className="iz-outlet-stat-cell">
+          <div className="l">PRs</div>
+          <div className="n">
+            {confirmed}/{qty}
+          </div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Risk</div>
+          <div className={`n ${riskTone}`}>{onTimeRisk}</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Cost</div>
+          <div className="n text-[var(--iz-gold)]">{(estimatedCost / 1000).toFixed(1)}k</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Sales</div>
+          <div className="n text-[var(--iz-green)]">
+            {((tonight?.liveSales ?? 0) / 1000).toFixed(1)}k
+          </div>
+        </div>
       </div>
 
+      <OutletSection title="Bookings" hint="Tap a shift to expand" className="!mt-4">
+        <OutletBookings />
+      </OutletSection>
 
-
-      <section className="pt-2">
-
-        <div className="mt-3 grid grid-cols-2 gap-2.5">
-
-          <Stat label="Confirmed PRs" value={`${confirmed}/${qty}`} />
-
-          <Stat label="On-time risk" value={onTimeRisk} valueClass={riskTone} />
-
-          <Stat label="Estimated cost" value={`RM ${estimatedCost.toLocaleString()}`} valueClass="text-[var(--iz-gold)]" />
-
-          <Stat
-
-            label="Live sales"
-
-            value={`RM ${(tonight?.liveSales ?? 0).toLocaleString()}`}
-
-            valueClass="text-[var(--iz-green)]"
-
-          />
-
-        </div>
-
-      </section>
-
-
-
-      {canLogSales && <OutletSaleUnitCosts />}
-
-
-
-      <OutletBookings />
-
+      <OutletHomeTiles />
+      <OutletReconciliationBanner />
     </div>
-
   );
-
 }
-
-
-
-function Stat({ label, value, valueClass = "" }: { label: string; value: string; valueClass?: string }) {
-
-  return (
-
-    <div className="iz-stat-tile">
-
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--iz-muted)]">{label}</div>
-
-      <div className={`font-sora mt-1.5 text-xl font-extrabold ${valueClass || "text-[var(--iz-txt)]"}`}>{value}</div>
-
-    </div>
-
-  );
-
-}
-

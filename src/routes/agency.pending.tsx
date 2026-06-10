@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { AppHeader } from "@/components/Nav";
+import { AppTopbar } from "@/components/Nav";
+import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
 import type { PendingFreelancerPayroll } from "@/lib/store";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { DEFAULT_TIED_AGENCY_ID } from "@/lib/pr-demo";
-import { IzCard, IzPill, IzSectionLabel } from "@/components/iz/ui";
+import { IzCard, IzPill } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import { Building2, Camera, Check, Clock, Image, UserPlus, Users, X } from "lucide-react";
 
@@ -55,6 +56,18 @@ function SignupApprovalCard({
 }) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [preview, setPreview] = useState<"ic" | "selfie" | "comcard" | "portfolio" | null>(null);
+
+  const previewTitle =
+    preview === "ic"
+      ? "IC photos"
+      : preview === "selfie"
+        ? "Selfie verification"
+        : preview === "comcard"
+          ? "Comcard (3D)"
+          : preview === "portfolio"
+            ? "Portfolio"
+            : "";
 
   return (
     <>
@@ -81,8 +94,11 @@ function SignupApprovalCard({
         {email && <p className="iz-tiny iz-muted2">Email {email}</p>}
 
         <div className="mt-3 grid grid-cols-3 gap-2">
-          <div
-            className={`rounded-xl border p-2 text-center ${hasIcPhotos ? "border-[rgba(57,217,138,.35)] bg-[var(--iz-green-bg)]" : "border-dashed border-[var(--iz-line2)] bg-[var(--iz-bg2)]"}`}
+          <button
+            type="button"
+            disabled={!hasIcPhotos}
+            onClick={() => hasIcPhotos && setPreview("ic")}
+            className={`rounded-xl border p-2 text-center transition-opacity ${hasIcPhotos ? "cursor-pointer hover:opacity-90" : "cursor-default opacity-70"} ${hasIcPhotos ? "border-[rgba(57,217,138,.35)] bg-[var(--iz-green-bg)]" : "border-dashed border-[var(--iz-line2)] bg-[var(--iz-bg2)]"}`}
           >
             {hasIcPhotos ? (
               <Check className="mx-auto h-4 w-4 text-[var(--iz-green)]" />
@@ -90,9 +106,12 @@ function SignupApprovalCard({
               <Camera className="mx-auto h-4 w-4 text-[var(--iz-muted)]" />
             )}
             <p className="iz-tiny iz-muted2 mt-1">IC photos</p>
-          </div>
-          <div
-            className={`rounded-xl border p-2 text-center ${hasSelfie ? "border-[rgba(57,217,138,.35)] bg-[var(--iz-green-bg)]" : "border-dashed border-[var(--iz-line2)] bg-[var(--iz-bg2)]"}`}
+          </button>
+          <button
+            type="button"
+            disabled={!hasSelfie}
+            onClick={() => hasSelfie && setPreview("selfie")}
+            className={`rounded-xl border p-2 text-center transition-opacity ${hasSelfie ? "cursor-pointer hover:opacity-90" : "cursor-default opacity-70"} ${hasSelfie ? "border-[rgba(57,217,138,.35)] bg-[var(--iz-green-bg)]" : "border-dashed border-[var(--iz-line2)] bg-[var(--iz-bg2)]"}`}
           >
             {hasSelfie ? (
               <Check className="mx-auto h-4 w-4 text-[var(--iz-green)]" />
@@ -100,19 +119,28 @@ function SignupApprovalCard({
               <Camera className="mx-auto h-4 w-4 text-[var(--iz-muted)]" />
             )}
             <p className="iz-tiny iz-muted2 mt-1">Selfie</p>
-          </div>
-          <div className="rounded-xl border border-dashed border-[var(--iz-line2)] bg-[var(--iz-bg2)] p-2 text-center">
+          </button>
+          <button
+            type="button"
+            disabled={!hasComcard3d}
+            onClick={() => hasComcard3d && setPreview("comcard")}
+            className={`rounded-xl border p-2 text-center transition-opacity ${hasComcard3d ? "cursor-pointer border-[rgba(167,139,250,.35)] bg-[var(--iz-violet-bg)] hover:opacity-90" : "cursor-default border-dashed border-[var(--iz-line2)] bg-[var(--iz-bg2)] opacity-70"}`}
+          >
             {hasComcard3d ? (
               <IzPill variant="violet" className="!text-[9px]">3D 三维</IzPill>
             ) : (
               <p className="iz-tiny iz-muted2">Comcard</p>
             )}
-          </div>
+          </button>
         </div>
         {(portfolioCount ?? 0) > 0 && (
-          <p className="iz-tiny iz-muted mt-2 flex items-center gap-1">
-            <Image className="h-3 w-3" /> Portfolio · {portfolioCount} photos
-          </p>
+          <button
+            type="button"
+            onClick={() => setPreview("portfolio")}
+            className="iz-tiny iz-muted mt-2 flex w-full items-center gap-1 text-left hover:text-[var(--iz-ink)]"
+          >
+            <Image className="h-3 w-3" /> Portfolio · {portfolioCount} photos — tap to preview
+          </button>
         )}
 
         <div className="mt-3 flex gap-2">
@@ -124,6 +152,55 @@ function SignupApprovalCard({
           </button>
         </div>
       </IzCard>
+
+      {preview !== null && (
+        <IzSheet open onClose={() => setPreview(null)}>
+          <div className="iz-sheet-head">
+            <div>
+              <button
+                type="button"
+                className="iz-chip mb-2 !px-2 !py-1 !text-[10px]"
+                onClick={() => setPreview(null)}
+              >
+                ← Back
+              </button>
+              <h3>{previewTitle}</h3>
+            </div>
+            <button type="button" className="iz-sheet-close" onClick={() => setPreview(null)} aria-label="Close">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {preview === "ic" && (
+            <div className="grid grid-cols-2 gap-3 px-4 pb-4">
+              {["Front", "Back"].map((side) => (
+                <div key={side} className="space-y-1">
+                  <p className="iz-tiny iz-muted2">{side}</p>
+                  <div className="aspect-[3/2] rounded-xl bg-gradient-to-br from-[var(--iz-bg3)] to-[var(--iz-line)]" />
+                </div>
+              ))}
+            </div>
+          )}
+          {preview === "selfie" && (
+            <div className="px-4 pb-4">
+              <div className="aspect-[3/4] max-w-[220px] mx-auto rounded-xl bg-gradient-to-br from-[var(--iz-violet-bg)] to-[var(--iz-bg3)]" />
+            </div>
+          )}
+          {preview === "comcard" && (
+            <div className="px-4 pb-4">
+              <div className="aspect-square max-w-[240px] mx-auto rounded-xl bg-gradient-to-br from-[var(--iz-violet-bg)] via-[var(--iz-bg2)] to-[var(--iz-gold-bg)] flex items-center justify-center">
+                <IzPill variant="violet">3D Comcard preview</IzPill>
+              </div>
+            </div>
+          )}
+          {preview === "portfolio" && (
+            <div className="grid grid-cols-3 gap-2 px-4 pb-4">
+              {Array.from({ length: Math.min(portfolioCount ?? 0, 6) }).map((_, i) => (
+                <div key={i} className="aspect-square rounded-lg bg-gradient-to-br from-[var(--iz-bg3)] to-[var(--iz-line)]" />
+              ))}
+            </div>
+          )}
+        </IzSheet>
+      )}
 
       {rejectOpen && (
         <IzSheet open onClose={() => setRejectOpen(false)}>
@@ -233,7 +310,10 @@ function AgencyPending() {
   if (!agencyCan(agencySubRole, "approvePrSignups")) {
     return (
       <div className="iz-screen">
-        <AppHeader subtitle="Module 1" title="Access restricted" />
+        <AppTopbar backTo="/agency" backLabel="Home" />
+        <header>
+          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
+        </header>
         <IzCard className="text-center">
           <p className="iz-sm iz-muted">Finance role cannot approve PR sign-ups.</p>
         </IzCard>
@@ -243,19 +323,18 @@ function AgencyPending() {
 
   return (
     <div className="iz-screen">
-      <AppHeader
-        subtitle={`Module 1 · ${date} · ${time}`}
-        title="Approve PR sign-ups"
-        onBack={addOpen ? () => setAddOpen(false) : undefined}
-        backLabel={addOpen ? "Pending" : undefined}
-        right={
-          <button type="button" className="iz-chip" onClick={() => setAddOpen(true)}>
-            <UserPlus className="h-3 w-3" /> Add PR
-          </button>
-        }
-      />
+      <AppTopbar backTo="/agency" backLabel="Home" />
+      <header>
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Approve sign-ups</h2>
+        <p className="iz-tiny iz-muted mt-0.5">
+          {date} · {time}
+        </p>
+        <button type="button" className="iz-chip mt-2" onClick={() => setAddOpen(true)}>
+          <UserPlus className="h-3 w-3" /> Add PR
+        </button>
+      </header>
 
-      <div className="mb-3 flex gap-2">
+      <div className="mt-3 flex gap-2">
         <button
           type="button"
           className={`flex-1 rounded-full border py-2 text-xs font-semibold ${tab === "signups" ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
@@ -265,7 +344,7 @@ function AgencyPending() {
         </button>
         <button
           type="button"
-          className={`flex-1 rounded-full border py-2 text-xs font-semibold ${tab === "freelancer" ? "border-[var(--iz-violet)] bg-[rgba(124,107,255,.12)] text-[var(--iz-violet)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
+          className={`flex-1 rounded-full border py-2 text-xs font-semibold ${tab === "freelancer" ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
           onClick={() => setTab("freelancer")}
         >
           Freelancer payroll ({freelancers.length})
@@ -274,11 +353,11 @@ function AgencyPending() {
 
       {tab === "signups" ? (
         <>
-          <IzSectionLabel>
-            <UserPlus className="mr-1 inline h-3.5 w-3.5" />
-            New PR sign-ups
-          </IzSectionLabel>
-          <p className="iz-tiny iz-muted -mt-1 mb-2">IC · selfie · 3D comcard · portfolio · unlock marketplace on approve</p>
+          <OutletSection
+            title="New PR sign-ups"
+            hint="IC · selfie · comcard · portfolio"
+            className="!mt-4"
+          >
           <div className="space-y-3">
             {signups.length === 0 ? (
               <IzCard className="text-center">
@@ -309,14 +388,15 @@ function AgencyPending() {
               ))
             )}
           </div>
+          </OutletSection>
         </>
       ) : (
         <>
-          <IzSectionLabel>
-            <Users className="mr-1 inline h-3.5 w-3.5" />
-            Freelancer payroll requests
-          </IzSectionLabel>
-          <p className="iz-tiny iz-muted -mt-1 mb-2">Freelancers who chose Atlas Agency for payroll</p>
+          <OutletSection
+            title="Freelancer payroll"
+            hint="Freelancers who chose your agency"
+            className="!mt-4"
+          >
           <div className="space-y-3">
             {freelancers.length === 0 ? (
               <IzCard flat className="text-center border-dashed border-[var(--iz-line2)]">
@@ -333,6 +413,7 @@ function AgencyPending() {
               ))
             )}
           </div>
+          </OutletSection>
         </>
       )}
 

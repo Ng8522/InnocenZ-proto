@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Building2, Users, Star, Shield, ArrowRight } from "lucide-react";
 import { useStore, type Role } from "@/lib/store";
 import { getAgencyDefaultRoute, type AgencySubRole } from "@/lib/agency-rbac";
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/")({
   },
   head: () => ({
     meta: [
-      { title: "InnocenZ ? Nightlife, Powered by Trust" },
+      { title: "InnocenZ — Nightlife, Powered by Trust" },
       {
         name: "description",
         content: "InnocenZ connects outlets, agencies, PR and guests in one platform.",
@@ -107,8 +107,13 @@ function Welcome() {
   const setPrSubRole = useStore((s) => s.setPrSubRole);
   const setOutletSubRole = useStore((s) => s.setOutletSubRole);
   const setAgencySubRole = useStore((s) => s.setAgencySubRole);
-  const resetPrShift = useStore((s) => s.resetPrShift);
+  const resetPrDemo = useStore((s) => s.resetPrDemo);
+  const resetDemo = useStore((s) => s.resetDemo);
   const [sheetSide, setSheetSide] = useState<Side | null>(null);
+
+  useEffect(() => {
+    resetDemo();
+  }, [resetDemo]);
 
   const enter = (
     role: Role,
@@ -121,7 +126,7 @@ function Welcome() {
     setPrSubRole(prSubRole ?? null);
     setOutletSubRole(outletSubRole ?? null);
     setAgencySubRole(agencySubRole ?? null);
-    if (role === "host") resetPrShift();
+    if (role === "host") resetPrDemo();
     setSheetSide(null);
     const to =
       role === "vendor" && outletSubRole
@@ -146,7 +151,7 @@ function Welcome() {
               </button>
               <div className="iz-cardttl">{sheet.title}</div>
               <p className="iz-tiny iz-muted mb-3.5">
-                Permissions differ per sub-role ? pick how you sign in.
+                Permissions differ per sub-role — pick how you sign in.
               </p>
               {sheet.items.map((item) => {
                 const to =
@@ -165,7 +170,7 @@ function Welcome() {
                       setPrSubRole(item.prSubRole ?? null);
                       setOutletSubRole(item.outletSubRole ?? null);
                       setAgencySubRole(item.agencySubRole ?? null);
-                      if (item.role === "host") resetPrShift();
+                      if (item.role === "host") resetPrDemo();
                       setSheetSide(null);
                     }}
                   >
@@ -206,9 +211,10 @@ function Welcome() {
             Welcome to Innocen<span className="iz-wordmark-z">Z</span>
           </h1>
           <p className="iz-sm iz-muted mx-auto mt-1.5 max-w-[290px]">
-            One platform for the entertainment hospitality workforce. Choose your role ? each unlocks only its
+            One platform for the entertainment hospitality workforce. Choose your role — each unlocks only its
             permitted tools.
           </p>
+          <p className="iz-tiny iz-muted2 mt-2">Demo data resets each time you return here.</p>
         </div>
 
         <div className="iz-role-grid">
@@ -225,7 +231,7 @@ function Welcome() {
 
         <p className="iz-tiny iz-muted2 mt-3 text-center">
           <Shield className="mr-1 inline h-3 w-3" />
-          Your data is secure with us ? RBAC + PDPA enforced
+          Your data is secure with us — RBAC + PDPA enforced
         </p>
       </div>
     </PhoneFrame>

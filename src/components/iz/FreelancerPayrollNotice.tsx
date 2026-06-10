@@ -3,6 +3,15 @@ import { FREELANCER_PAYROLL_GUIDANCE, FREELANCER_PAYROLL_STEPS } from "@/lib/pr-
 import { IzCard } from "@/components/iz/ui";
 
 export function FreelancerPayrollNotice({ compact }: { compact?: boolean }) {
+  if (compact) {
+    return (
+      <p className="iz-tiny iz-muted rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
+        <Building2 className="mr-1 inline h-3 w-3 text-[var(--iz-blue)]" />
+        {FREELANCER_PAYROLL_GUIDANCE}
+      </p>
+    );
+  }
+
   return (
     <IzCard
       flat
@@ -13,13 +22,11 @@ export function FreelancerPayrollNotice({ compact }: { compact?: boolean }) {
         Freelancer payroll
       </p>
       <p className="iz-tiny iz-muted mt-1.5">{FREELANCER_PAYROLL_GUIDANCE}</p>
-      {!compact && (
-        <ol className="iz-tiny iz-muted2 mt-2.5 list-decimal space-y-1.5 pl-4">
-          {FREELANCER_PAYROLL_STEPS.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
-      )}
+      <ol className="iz-tiny iz-muted2 mt-2.5 list-decimal space-y-1.5 pl-4">
+        {FREELANCER_PAYROLL_STEPS.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
     </IzCard>
   );
 }

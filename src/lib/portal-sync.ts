@@ -5,7 +5,7 @@
 import type { AgencyCollectionInvoice, AgencyReconciliationDay, AgencyRosterSlot, LiveWorkforceEntry } from "@/lib/agency-demo";
 import { DEFAULT_AGENCY_OWNER, OUTLET_COMMISSION_RULES } from "@/lib/agency-demo";
 import type { HistRow } from "@/lib/pr-demo";
-import type { ShiftHistoryRow } from "@/lib/shift-history";
+import { sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
 import type { PrPaymentVoucher, ShiftRequest } from "@/lib/store";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 
@@ -144,7 +144,7 @@ export function shiftHistoryToHistRows(rows: ShiftHistoryRow[], prId?: string): 
 }
 
 export function shiftHistoryForOutlet(rows: ShiftHistoryRow[], outletName: string): ShiftHistoryRow[] {
-  return rows.filter((r) => outletMatches(r.outlet, outletName));
+  return sortShiftHistoryDesc(rows.filter((r) => outletMatches(r.outlet, outletName)));
 }
 
 /** Build a history row when a PR checks out or outlet seals a shift */

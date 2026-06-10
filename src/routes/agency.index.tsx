@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppTopbar } from "@/components/Nav";
+import { AgencyHomeTiles } from "@/components/agency/AgencyHomeTiles";
+import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
@@ -11,13 +13,11 @@ import {
   ChevronRight,
   Receipt,
   Settings,
-  Store,
   UserCheck,
   Users,
   Wallet,
 } from "lucide-react";
-import { IzCard, IzPill, IzSectionLabel } from "@/components/iz/ui";
-import { formatRM } from "@/components/iz/ui";
+import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/agency/")({
   component: AgencyHub,
@@ -25,6 +25,7 @@ export const Route = createFileRoute("/agency/")({
 
 function AgencyHub() {
   const agencySubRole = useStore((s) => s.agencySubRole);
+  const agencyOwner = useStore((s) => s.agencyOwner);
   const agencyPRs = useStore((s) => s.agencyPRs);
   const pendingSignups = useStore((s) => s.pendingPRs.filter((p) => p.status === "pending").length);
   const pendingFreelancers = useStore(
@@ -35,7 +36,9 @@ function AgencyHub() {
   );
   const pendingTotal = pendingSignups + pendingFreelancers;
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
-  const swapCount = useStore((s) => s.agencyRoster.filter((r) => r.outletSwap?.status === "pending_pr").length);
+  const outletSwapCount = useStore((s) => s.agencyRoster.filter((r) => r.outletSwap?.status === "pending_pr").length);
+  const prSwapCount = useStore((s) => s.prSwapRequests.filter((r) => r.status === "pending_agency").length);
+  const swapCount = outletSwapCount + prSwapCount;
   const onDuty = useStore((s) => s.agencyRoster.filter((r) => r.status === "on-duty").length);
   const disputed = prPaymentVouchers.filter((p) => p.status === "DISPUTED").length;
   const reconciliation = useStore((s) => s.agencyReconciliation);
@@ -44,39 +47,20 @@ function AgencyHub() {
   const { date, time } = nowAgencyDateTime();
   const isFinance = agencySubRole === "agency_finance";
 
-  const quickActions = [
-    {
-      to: "/agency/history",
-      icon: Store,
-      title: "History",
-      desc: "Outlet shifts · payouts · drinks & tips",
-      permission: "viewHistory" as const,
-    },
-    {
-      to: "/agency/roster",
-      icon: Users,
-      title: "Workforce",
-      desc: "Live floor today · planning & est. cost",
-      permission: "viewWorkforce" as const,
-    },
-  ].filter((a) => agencyCan(agencySubRole, a.permission));
-
   const cards: {
     to: string;
     title: string;
     desc: string;
     badge?: string;
     icon: typeof UserCheck;
-    iconTone?: "gold" | "violet" | "green";
     permission: Parameters<typeof agencyCan>[1];
   }[] = [
     {
       to: "/agency/pending",
       title: "Approve PR sign-ups",
-      desc: "Review IC, comcard & portfolio before shifts unlock",
+      desc: "IC, comcard & portfolio before shifts unlock",
       badge: pendingTotal ? `${pendingTotal} pending` : undefined,
       icon: UserCheck,
-      iconTone: "gold",
       permission: "approvePrSignups",
     },
     {
@@ -85,7 +69,6 @@ function AgencyHub() {
       desc: "Raise PVs · dual-sign · PDF export",
       badge: disputed ? `${disputed} dispute` : prPaymentVouchers.some((p) => pvNeedsPrReview(p.status)) ? "Action" : undefined,
       icon: Receipt,
-      iconTone: "violet",
       permission: "viewPv",
     },
     {
@@ -113,7 +96,7 @@ function AgencyHub() {
     {
       to: "/agency/profile",
       title: "Agency settings",
-      desc: "Owner profile · finance head · commission rules",
+      desc: isFinance ? "Read-only · commission & finance head" : "Owner profile · finance head · commission",
       icon: Settings,
       permission: "viewSettings",
     },
@@ -123,7 +106,6 @@ function AgencyHub() {
       desc: "Outlet invoices · aging · payment reminders",
       badge: pendingCollections ? `${pendingCollections} due` : undefined,
       icon: Wallet,
-      iconTone: "green",
       permission: "viewCollections",
     },
   ].filter((c) => agencyCan(agencySubRole, c.permission));
@@ -132,34 +114,41 @@ function AgencyHub() {
     <div className="iz-screen">
       <AppTopbar />
 
-      <div className="iz-hub-hero">
-        <h2>Agency home</h2>
-        <p className="iz-hub-hero-sub">
+      <header className="pt-1">
+        <p className="iz-tiny iz-muted2 uppercase tracking-widest">Today</p>
+        <h2 className="font-sora mt-0.5 text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
+          {agencyOwner.orgName}
+        </h2>
+        <p className="iz-tiny iz-muted mt-0.5">
           {date} · {time}
-          <br />
-          Owner / Finance sub-roles · approve onboarding before shifts unlock
         </p>
-        <div className="iz-hub-stats">
-          <div className="iz-hub-stat">
-            <div className={`n${pendingTotal ? " accent" : ""}`}>{pendingTotal}</div>
-            <div className="l">Pending</div>
-          </div>
-          <div className="iz-hub-stat">
-            <div className="n">{onDuty}</div>
-            <div className="l">On duty</div>
-          </div>
-          <div className="iz-hub-stat">
-            <div className={`n${disputed ? " warn" : ""}`}>{disputed || pendingCollections}</div>
-            <div className="l">{disputed ? "Disputes" : "Collections"}</div>
+        {isFinance && (
+          <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
+            Read-only overview — payroll, PV &amp; collections only
+          </p>
+        )}
+      </header>
+
+      <div className="iz-outlet-stat-strip mt-3">
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Pending</div>
+          <div className={`n${pendingTotal ? " text-[var(--iz-amber)]" : ""}`}>{pendingTotal}</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">On duty</div>
+          <div className="n text-[var(--iz-green)]">{onDuty}</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">{disputed ? "Disputes" : "Due"}</div>
+          <div className={`n${disputed ? " text-[var(--iz-red)]" : ""}`}>
+            {disputed || pendingCollections}
           </div>
         </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">PRs</div>
+          <div className="n">{agencyPRs.filter((p) => !p.detached).length}</div>
+        </div>
       </div>
-
-      {isFinance && (
-        <p className="iz-tiny iz-muted mt-3 px-0.5">
-          Finance view — payroll, PV, collections &amp; analytics only. No assign or PR management.
-        </p>
-      )}
 
       {!reconciliation.agencyConfirmed && agencyCan(agencySubRole, "confirmReconciliation") && (
         <IzCard flat className="mt-3 border-[rgba(232,194,122,.4)] bg-[rgba(232,194,122,.06)]">
@@ -193,41 +182,35 @@ function AgencyHub() {
         </IzCard>
       )}
 
-      {quickActions.length > 0 && (
-        <>
-          <IzSectionLabel className="!mt-5">Quick actions</IzSectionLabel>
-          <div className="iz-hub-quick">
-            {quickActions.map((a) => (
-              <Link key={a.to} to={a.to} className="iz-hub-quick-card">
-                <span className="icon">
-                  <a.icon className="h-4 w-4" strokeWidth={2} />
-                </span>
-                <div className="title">{a.title}</div>
-                <div className="desc">{a.desc}</div>
-              </Link>
-            ))}
-          </div>
-        </>
-      )}
+      <OutletSection title="Modules" hint={`${cards.length} available`} className="!mt-4">
+        <div className="space-y-2">
+          {cards.map((c) => (
+            <Link
+              key={c.to + c.title}
+              to={c.to}
+              className="flex items-center gap-3 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] px-3.5 py-3 transition-opacity hover:opacity-90"
+            >
+              <span className="iz-iconbox !h-9 !w-9">
+                <c.icon className="h-4 w-4" strokeWidth={2} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <div className="font-sora text-sm font-bold">{c.title}</div>
+                <div className="iz-tiny iz-muted2 mt-0.5 line-clamp-2">{c.desc}</div>
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                {c.badge && (
+                  <IzPill variant="amber" className="shrink-0 !py-0.5 !text-[9px]">
+                    {c.badge}
+                  </IzPill>
+                )}
+                <ChevronRight className="h-4 w-4 text-[var(--iz-muted)]" />
+              </span>
+            </Link>
+          ))}
+        </div>
+      </OutletSection>
 
-      <IzSectionLabel>Modules</IzSectionLabel>
-      {cards.map((c) => (
-        <Link key={c.to + c.title} to={c.to} className="iz-hub-nav-card">
-          <span className="left">
-            <span className={`icon${c.iconTone ? ` ${c.iconTone}` : ""}`}>
-              <c.icon className="h-4 w-4" strokeWidth={2} />
-            </span>
-            <span className="min-w-0">
-              <div className="title">{c.title}</div>
-              <div className="desc">{c.desc}</div>
-            </span>
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            {c.badge && <IzPill variant="violet">{c.badge}</IzPill>}
-            <ChevronRight className="chev h-4 w-4" />
-          </span>
-        </Link>
-      ))}
+      <AgencyHomeTiles />
     </div>
   );
 }

@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
-import {
-  type ShiftHistoryRow,
-  shiftHistorySubline,
-} from "@/lib/shift-history";
+import { shiftHistorySubline } from "@/lib/shift-history";
+import { sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
+import { Calendar as CalendarUi } from "@/components/ui/calendar";
 import { IzCard, formatRM } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import type { ReactNode } from "react";
-import { Calendar, ChevronDown, Download, X } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronDown, Download, X } from "lucide-react";
 
 type Portal = "agency" | "outlet";
 
@@ -15,10 +14,12 @@ export function ShiftHistoryLog({
   portal,
   rows,
   onExport,
+  subtitle: subtitleOverride,
 }: {
   portal: Portal;
   rows: ShiftHistoryRow[];
   onExport?: () => void;
+  subtitle?: string;
 }) {
   const [nameFilter, setNameFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
@@ -27,6 +28,14 @@ export function ShiftHistoryLog({
 
   const prNames = useMemo(() => [...new Set(rows.map((r) => r.prName))].sort(), [rows]);
   const dates = useMemo(() => [...new Set(rows.map((r) => r.dateIso))].sort().reverse(), [rows]);
+  const dateOptions = useMemo(
+    () =>
+      dates.map((d) => {
+        const row = rows.find((r) => r.dateIso === d);
+        return { key: d, label: row?.dateDisplay ?? d };
+      }),
+    [dates, rows],
+  );
   const thirdOptions = useMemo(() => {
     if (portal === "agency") {
       return [...new Set(rows.map((r) => r.outlet))].sort();
@@ -34,20 +43,22 @@ export function ShiftHistoryLog({
     return [...new Set(rows.map((r) => r.agencyName))].sort();
   }, [rows, portal]);
 
-  const filtered = rows.filter((r) => {
-    if (nameFilter && r.prId !== nameFilter) return false;
-    if (dateFilter && r.dateIso !== dateFilter) return false;
-    if (thirdFilter) {
-      if (portal === "agency" && r.outlet !== thirdFilter) return false;
-      if (portal === "outlet" && r.agencyName !== thirdFilter) return false;
-    }
-    return true;
-  });
+  const filtered = useMemo(() => {
+    const matched = rows.filter((r) => {
+      if (nameFilter && r.prId !== nameFilter) return false;
+      if (dateFilter && r.dateIso !== dateFilter) return false;
+      if (thirdFilter) {
+        if (portal === "agency" && r.outlet !== thirdFilter) return false;
+        if (portal === "outlet" && r.agencyName !== thirdFilter) return false;
+      }
+      return true;
+    });
+    return sortShiftHistoryDesc(matched);
+  }, [rows, nameFilter, dateFilter, thirdFilter, portal]);
 
   const subtitle =
-    portal === "agency"
-      ? "Transaction log for completed shifts — payout, drinks, and tips per PR"
-      : "Transaction log for completed shifts — payout, drinks, and tips per PR";
+    subtitleOverride ??
+    "Transaction log for completed shifts — payout, drinks, and tips per PR";
 
   const thirdLabel = portal === "agency" ? "OUTLET" : "PR AGENCY";
 
@@ -75,18 +86,11 @@ export function ShiftHistoryLog({
             }),
           ]}
         />
-        <HistSelectField
+        <HistDatePickerField
           label="DATE"
           value={dateFilter}
           onChange={setDateFilter}
-          icon={<Calendar className="h-3.5 w-3.5 text-[var(--iz-gold-l)]" />}
-          options={[
-            { value: "", label: "All dates" },
-            ...dates.map((d) => {
-              const row = rows.find((r) => r.dateIso === d);
-              return { value: d, label: row?.dateDisplay ?? d };
-            }),
-          ]}
+          dateOptions={dateOptions}
         />
         <HistSelectField
           label={thirdLabel}
@@ -177,6 +181,106 @@ function TxnCard({ row, portal, onTap }: { row: ShiftHistoryRow; portal: Portal;
         </div>
       </div>
     </IzCard>
+  );
+}
+
+function dateFromKey(key: string): Date | undefined {
+  if (!key) return undefined;
+  const [y, m, d] = key.split("-").map(Number);
+  if (!y || !m || !d) return undefined;
+  return new Date(y, m - 1, d);
+}
+
+function keyFromDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function HistDatePickerField({
+  label,
+  value,
+  onChange,
+  dateOptions,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  dateOptions: { key: string; label: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selectedLabel = dateOptions.find((o) => o.key === value)?.label;
+  const selected = dateFromKey(value);
+  const allowedKeys = new Set(dateOptions.map((o) => o.key));
+  const defaultMonth = dateFromKey(dateOptions[0]?.key ?? "") ?? new Date();
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="iz-hist-custom-select compact">
+      <label>{label}</label>
+      <button
+        type="button"
+        className={`iz-hist-select-trigger sm${open ? " open" : ""}`}
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label="Choose date"
+      >
+        <span className={`flex min-w-0 items-center gap-1.5 truncate${value ? "" : " iz-muted2"}`}>
+          <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />
+          <span className="truncate">{value ? selectedLabel ?? value : "All dates"}</span>
+        </span>
+        {value ? (
+          <span
+            role="button"
+            tabIndex={0}
+            className="iz-hist-clear"
+            aria-label="Clear date"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange("");
+              setOpen(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                onChange("");
+                setOpen(false);
+              }
+            }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </span>
+        ) : (
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-[var(--iz-muted2)] transition-transform${open ? " rotate-180" : ""}`}
+          />
+        )}
+      </button>
+      {open && (
+        <div className="iz-hist-cal iz-hist-cal--popover">
+          <CalendarUi
+            mode="single"
+            selected={selected}
+            defaultMonth={selected ?? defaultMonth}
+            onSelect={(d) => {
+              if (d) onChange(keyFromDate(d));
+              setOpen(false);
+            }}
+            disabled={(date) => !allowedKeys.has(keyFromDate(date))}
+            className="rounded-[14px] border-0 bg-transparent p-0 text-[var(--iz-txt)]"
+          />
+          <p className="iz-tiny iz-muted2 mt-1 px-1">Only dates with records are selectable.</p>
+        </div>
+      )}
+    </div>
   );
 }
 

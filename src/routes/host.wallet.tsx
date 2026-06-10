@@ -14,11 +14,14 @@ import {
 import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { FileText, Check, Download, Shield, Star } from "lucide-react";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
 import { FreelancerPayrollNotice } from "@/components/iz/FreelancerPayrollNotice";
 import { IzSheet } from "@/components/iz/Sheet";
+import { PrOfferRow } from "@/components/pr/PrOfferRow";
+import { PrPageHeader } from "@/components/pr/PrPageHeader";
+import { PrStatusPill } from "@/components/pr/PrOfferRow";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/host/wallet")({
@@ -33,6 +36,7 @@ function VouchersPage() {
   const signPrPv = useStore((s) => s.signPrPv);
   const disputePrPv = useStore((s) => s.disputePrPv);
   const updatePrPvDisputeReason = useStore((s) => s.updatePrPvDisputeReason);
+  const escalatePrPvDispute = useStore((s) => s.escalatePrPvDispute);
   const toast = useStore((s) => s.toast);
   const [detailId, setDetailId] = useState<string | null>(null);
 
@@ -52,8 +56,9 @@ function VouchersPage() {
           receiptScans={prReceiptScans}
           onBack={() => setDetailId(null)}
           onSign={() => signPrPv(pv.id)}
-          onDispute={(reason) => disputePrPv(pv.id, reason)}
+          onDispute={(reason, photo) => disputePrPv(pv.id, reason, photo)}
           onUpdateDispute={(reason) => updatePrPvDisputeReason(pv.id, reason)}
+          onEscalateDispute={() => escalatePrPvDispute(pv.id)}
           onDownload={() => {
             downloadPvReceipt(pv, profile);
             toast("Payment receipt downloaded", "success");
@@ -67,70 +72,66 @@ function VouchersPage() {
     );
   }
 
+  const pendingCount = prPaymentVouchers.filter((p) => pvNeedsPrReview(p.status)).length;
+  const signedCount = prPaymentVouchers.filter((p) => p.status === "SIGNED" || p.status === "PAID").length;
+  const totalNet = prPaymentVouchers.reduce((sum, p) => sum + p.net, 0);
+
   return (
     <div className="iz-screen">
       <AppTopbar />
-      <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">Payment Vouchers</h2>
-      <p className="iz-tiny iz-muted mt-0.5">
-        {isFreelancer
-          ? "PVs are issued by a PR agency you appoint. Review and sign — funds go straight to your bank."
-          : "Agency Finance Head has pre-signed each PV. Review, then sign — funds go straight to your bank."}
-      </p>
+
+      <PrPageHeader
+        label="Payroll"
+        title="Vouchers"
+        meta={isFreelancer ? "Review & sign PVs from your agency" : "Agency pre-signed · you confirm"}
+      />
 
       {isFreelancer ? (
-        <div className="mt-2.5">
-          {payrollAgency ? (
-            <IzCard flat className="border-[rgba(217,185,122,.25)]">
-              <p className="iz-sm font-bold text-[var(--iz-gold-l)]">Payroll via {payrollAgency.name}</p>
-              <p className="iz-tiny iz-muted mt-1">
-                {payrollAgency.financeHead} (Finance) raises PVs for your sealed shifts. Change agency on{" "}
-                <Link to="/host/profile" className="text-[var(--iz-blue)] underline-offset-2 hover:underline">
-                  Profile
-                </Link>
-                .
-              </p>
-            </IzCard>
-          ) : (
-            <FreelancerPayrollNotice compact />
-          )}
-        </div>
+        payrollAgency ? (
+          <p className="iz-tiny iz-muted mt-3 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
+            Payroll via <b className="text-[var(--iz-gold-l)]">{payrollAgency.name}</b> · change on{" "}
+            <Link to="/host/profile" className="text-[var(--iz-blue)]">Profile</Link>
+          </p>
+        ) : (
+          <div className="mt-3"><FreelancerPayrollNotice compact /></div>
+        )
       ) : (
-        <IzCard flat className="iz-tiny iz-muted mt-2.5">
+        <p className="iz-tiny iz-muted mt-3 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
           <Shield className="mr-1 inline h-3 w-3" />
-          Payment route: Outlet → Agency → your registered bank account.
-        </IzCard>
+          Outlet → Agency → your bank
+        </p>
       )}
 
-      <div className="mt-3 space-y-2.5">
-        {prPaymentVouchers.map((p) => {
-          const pill = pvStatusPillVariant(p.status);
-          return (
-            <button
-              key={p.id}
-              type="button"
-              className="iz-card iz-between w-full cursor-pointer text-left"
-              onClick={() => setDetailId(p.id)}
-            >
-              <div className="min-w-0">
-                <div className="font-sora text-[15px] font-bold">{p.id}</div>
-                <p className="iz-tiny iz-muted mt-0.5">
-                  {p.outlet} · {p.cycle}
-                </p>
-                <p className="iz-tiny mt-1 text-[var(--iz-green)]">
-                  <Check className="mr-0.5 inline h-3 w-3" />
-                  Agency signed · {p.financeHeadSignedAt}
-                </p>
-                {p.status === "PENDING_REVIEW" && (
-                  <p className="iz-tiny mt-1 text-[var(--iz-amber)]">Review line items before you sign or dispute</p>
-                )}
-              </div>
-              <div className="shrink-0 text-right">
-                <IzPill variant={pill}>{pvStatusLabel(p.status)}</IzPill>
-                <div className="iz-ledger font-sora mt-1.5 text-base font-bold">{formatRM(p.net)}</div>
-              </div>
-            </button>
-          );
-        })}
+      <div className="iz-outlet-stat-strip mt-3">
+        <div className="iz-outlet-stat-cell">
+          <div className="l">PVs</div>
+          <div className="n">{prPaymentVouchers.length}</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Review</div>
+          <div className="n text-[var(--iz-amber)]">{pendingCount}</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Signed</div>
+          <div className="n text-[var(--iz-green)]">{signedCount}</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Total</div>
+          <div className="n text-[var(--iz-gold)]">{(totalNet / 1000).toFixed(1)}k</div>
+        </div>
+      </div>
+
+      <div className="iz-pr-list mt-4">
+        {prPaymentVouchers.map((p) => (
+          <PrOfferRow
+            key={p.id}
+            title={p.id}
+            subtitle={`${p.outlet} · ${p.cycle}`}
+            amount={formatRM(p.net)}
+            badge={<PrStatusPill variant={pvStatusPillVariant(p.status)}>{pvStatusLabel(p.status)}</PrStatusPill>}
+            onClick={() => setDetailId(p.id)}
+          />
+        ))}
       </div>
     </div>
   );
@@ -145,6 +146,7 @@ function PvDetail({
   onSign,
   onDispute,
   onUpdateDispute,
+  onEscalateDispute,
   onDownload,
   onDownloadBreakdown,
 }: {
@@ -154,14 +156,17 @@ function PvDetail({
   receiptScans: PrReceiptScan[];
   onBack: () => void;
   onSign: () => void;
-  onDispute: (reason: string) => void;
+  onDispute: (reason: string, photoDataUrl?: string) => void;
   onUpdateDispute: (reason: string) => void;
+  onEscalateDispute: () => void;
   onDownload: () => void;
   onDownloadBreakdown: () => void;
 }) {
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
+  const [disputePhoto, setDisputePhoto] = useState<string | null>(null);
   const [editDisputeReason, setEditDisputeReason] = useState(pv.prDisputeReason ?? "");
+  const disputePhotoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setEditDisputeReason(pv.prDisputeReason ?? "");
@@ -180,9 +185,10 @@ function PvDetail({
   );
 
   const submitDispute = () => {
-    onDispute(disputeReason);
+    onDispute(disputeReason, disputePhoto ?? undefined);
     setDisputeOpen(false);
     setDisputeReason("");
+    setDisputePhoto(null);
   };
 
   const saveDisputeEdits = () => {
@@ -405,6 +411,24 @@ function PvDetail({
           aria-label="Dispute reason"
         />
         <p className="iz-tiny iz-muted2 mt-2">{disputeReason.trim().length} characters · min 10 recommended</p>
+        <input
+          ref={disputePhotoRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (!f) return;
+            const r = new FileReader();
+            r.onload = () => setDisputePhoto(r.result as string);
+            r.readAsDataURL(f);
+          }}
+        />
+        <button type="button" className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-auto" onClick={() => disputePhotoRef.current?.click()}>
+          Attach photo evidence
+        </button>
+        {disputePhoto && <img src={disputePhoto} alt="" className="mt-2 max-h-24 rounded-lg object-cover" />}
         <button
           type="button"
           className="iz-btn iz-btn-primary mt-4"
@@ -428,6 +452,10 @@ function PvDetail({
       {pv.status === "DISPUTED" && (
         <IzCard className="mt-2.5 border-[rgba(255,107,107,.3)] bg-[var(--iz-red-bg)]">
           <p className="iz-sm font-bold text-[var(--iz-red)]">Dispute open — payment held</p>
+          <p className="iz-tiny iz-muted mt-1">Agency has 7 days to resolve or escalates to InnocenZ Admin.</p>
+          {pv.prDisputePhotoDataUrl && (
+            <img src={pv.prDisputePhotoDataUrl} alt="" className="mt-2 max-h-28 rounded-lg object-cover" />
+          )}
           {pv.disputedAt && (
             <p className="iz-tiny iz-muted mt-1">
               Submitted {pv.disputedAt}
@@ -481,6 +509,15 @@ function PvDetail({
             </button>
           </div>
           <p className="iz-tiny iz-muted2 mt-2">Agency will re-issue a corrected PV after verification with the outlet.</p>
+          {pv.disputeEscalatedAt ? (
+            <p className="iz-tiny mt-3 text-[var(--iz-amber)]">
+              Escalated to InnocenZ Admin · {pv.disputeEscalatedAt}
+            </p>
+          ) : (
+            <button type="button" className="iz-btn iz-btn-soft iz-btn-sm mt-3 w-auto" onClick={onEscalateDispute}>
+              Simulate 7-day escalation
+            </button>
+          )}
         </IzCard>
       )}
 

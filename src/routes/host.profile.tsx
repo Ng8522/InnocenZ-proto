@@ -2,12 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
-import {
-  PORTFOLIO_SLOT_COUNT,
-  PR_LANGUAGE_OPTIONS,
-  getPrProfile,
-  type PrComcard,
-} from "@/lib/pr-demo";
+import { PORTFOLIO_SLOT_COUNT, getPrProfile, type PrComcard } from "@/lib/pr-demo";
+import { ProfileLanguagePicker } from "@/components/iz/ProfileLanguagePicker";
 import { Camera, Eye, Pencil, Shield, Star, X } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
 import { FreelancerAgencyPicker } from "@/components/iz/FreelancerAgencyPicker";
@@ -168,14 +164,6 @@ function ProfilePage() {
       const next = [...prev.portfolio];
       next[slot] = null;
       return { ...prev, portfolio: next };
-    });
-  };
-
-  const toggleLanguage = (lang: string) => {
-    setDraft((prev) => {
-      const has = prev.languages.includes(lang);
-      const languages = has ? prev.languages.filter((l) => l !== lang) : [...prev.languages, lang];
-      return { ...prev, languages };
     });
   };
 
@@ -372,24 +360,11 @@ function ProfilePage() {
       <IzSectionLabel>Languages</IzSectionLabel>
       <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
         {editing ? (
-          <>
-            <p className="iz-tiny iz-muted2 mb-2">Tap to select all languages you speak (shown to outlets).</p>
-            <div className="flex flex-wrap gap-1.5">
-              {PR_LANGUAGE_OPTIONS.map((lang) => {
-                const on = languages.includes(lang);
-                return (
-                  <button
-                    key={lang}
-                    type="button"
-                    className={`iz-lang-pick${on ? " on" : ""}`}
-                    onClick={() => toggleLanguage(lang)}
-                  >
-                    {lang}
-                  </button>
-                );
-              })}
-            </div>
-          </>
+          <ProfileLanguagePicker
+            value={languages}
+            onChange={(next) => setDraft((p) => ({ ...p, languages: next }))}
+            hint="Tap to select all languages you speak (shown to outlets)."
+          />
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {languages.length > 0 ? (

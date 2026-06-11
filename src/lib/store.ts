@@ -215,7 +215,7 @@ interface StoreState {
   setAgencySubRole: (r: AgencySubRole | null) => void;
   signIn: (name: string, email: string) => void;
   signOut: () => void;
-  /** Restore all demo data — call when returning to welcome / sign-in */
+  /** Restore full demo snapshot — called when returning to welcome screen */
   resetDemo: () => void;
 
   /** PR Talent shift lifecycle (prototype flow) */
@@ -303,6 +303,7 @@ interface StoreState {
   }) => string;
   editAgencyPv: (id: string, patch: { rows?: PrPvRow[]; deduct?: number; disputeNote?: string }) => void;
   resendAgencyPv: (id: string) => void;
+  sendAgencyPvToPr: (id: string) => void;
   resolveAgencyPvDispute: (id: string) => void;
   raiseAgencyPvFromHistory: (shiftHistoryId: string) => void;
   overrideSignedAgencyPv: (id: string, reason: string) => void;
@@ -311,6 +312,12 @@ interface StoreState {
   agencyFinanceHead: AgencyFinanceHead;
   saveAgencyOwner: (patch: Partial<AgencyOwnerSettings>) => void;
   saveAgencyFinanceHead: (patch: Partial<AgencyFinanceHead>) => void;
+  saveAgencyProfileSettings: (data: {
+    owner: AgencyOwnerSettings;
+    financeHead: AgencyFinanceHead;
+    scalingTierMultipliers: Record<string, number>;
+    outletCommissionRules: OutletCommissionRule[];
+  }) => void;
   sendAgencyOtp: () => void;
   verifyAgencyOtp: (code: string) => boolean;
 
@@ -347,8 +354,33 @@ interface StoreState {
   agencyPRs: AgencyManagedPR[];
   suspendAgencyPr: (prId: string) => void;
   detachAgencyPr: (prId: string) => void;
+  requestAgencyPrDetach: (prId: string) => void;
+  broadcastAgencyPr: (
+    prIds: string[],
+    payload: { kind: "shift" | "message"; title: string; body: string },
+  ) => void;
   setAgencyPrKpiTier: (prId: string, tier: string) => void;
   setAgencyPrTrainingTier: (prId: string, tier: string) => void;
+  updateAgencyPrProfile: (
+    prId: string,
+    patch: Partial<
+      Pick<
+        AgencyManagedPR,
+        | "name"
+        | "mobile"
+        | "email"
+        | "age"
+        | "height"
+        | "weight"
+        | "race"
+        | "languages"
+        | "place"
+        | "yearsExp"
+        | "kpiTier"
+        | "trainingLevel"
+      >
+    >,
+  ) => void;
   outletCommissionRules: OutletCommissionRule[];
   scalingTierMultipliers: Record<string, number>;
   saveOutletCommissionRule: (outlet: string, patch: Partial<OutletCommissionRule>) => void;
@@ -494,88 +526,6 @@ function mergePendingFreelancerPayrolls(
 
 let toastId = 0;
 
-function isWelcomePath() {
-  if (typeof window === "undefined") return false;
-  const p = window.location.pathname.replace(/\/$/, "") || "/";
-  return p === "/" || p === "/signin";
-}
-
-function cloneSeedPaymentVouchers(): PrPaymentVoucher[] {
-  return SEED_PR_PVS.map((pv) => ({
-    ...pv,
-    receiptIds: pv.receiptIds ? [...pv.receiptIds] : undefined,
-    rows: pv.rows.map((r) => ({
-      ...r,
-      receiptIds: r.receiptIds ? [...r.receiptIds] : undefined,
-    })),
-  }));
-}
-
-function cloneSeedShifts(): ShiftRequest[] {
-  return seedShifts.map((s) =>
-    withShiftFinancialDefaults({
-      ...s,
-      prs: [...s.prs],
-    }),
-  );
-}
-
-function buildDemoResetPatch(): Partial<StoreState> {
-  const roster = mergeAgencyRoster(undefined, SEED_AGENCY_ROSTER);
-  const shifts = cloneSeedShifts();
-  const prPaymentVouchers = cloneSeedPaymentVouchers();
-  return {
-    role: null,
-    prSubRole: null,
-    outletSubRole: null,
-    agencySubRole: null,
-    user: null,
-    shiftAccepted: false,
-    pendingApproval: false,
-    acceptedShiftIndex: null,
-    checkedIn: false,
-    checkedOut: false,
-    drinks: 0,
-    tables: 0,
-    outletRatingStars: 0,
-    prActiveShift: null,
-    prComcard: { ...COMCARD },
-    prPortfolio: Array.from({ length: PORTFOLIO_SLOT_COUNT }, () => null),
-    prLanguages: ["English", "Mandarin", "Cantonese"],
-    prDisplayName: null,
-    prAvatarPhoto: null,
-    prPayrollAgencyId: null,
-    prPaymentVouchers,
-    prReceiptScans: [...SEED_RECEIPT_SCANS],
-    agencyOwner: { ...DEFAULT_AGENCY_OWNER },
-    agencyFinanceHead: { ...DEFAULT_FINANCE_HEAD },
-    agencyCollections: SEED_AGENCY_COLLECTIONS.map((c) => ({ ...c })),
-    agencyReconciliation: recomputeReconciliation({
-      outletGross: outletGrossFromPnl(recomputeAllOutletPnl(shifts, undefined, roster), "Velvet 23"),
-      pvTotal: sumPvNetForCycle(prPaymentVouchers),
-      dateIso: SEED_RECONCILIATION.dateIso,
-      dateLabel: SEED_RECONCILIATION.dateLabel,
-      agencyConfirmed: SEED_RECONCILIATION.agencyConfirmed,
-      outletConfirmed: SEED_RECONCILIATION.outletConfirmed,
-    }),
-    agencyRoster: roster,
-    agencyPRs: SEED_AGENCY_PRS.map((p) => ({ ...p, languages: [...p.languages] })),
-    shiftHistory: [...SEED_SHIFT_HISTORY],
-    prs: marketplacePrsFromAgency(SEED_AGENCY_PRS),
-    shifts,
-    outletPnl: recomputeAllOutletPnl(shifts, undefined, roster),
-    outletPnlSyncAt: 0,
-    outletMoneyEditCount: 0,
-    bookings: seedBookings.map((b) => ({ ...b })),
-    pvs: seedPVs.map((p) => ({ ...p })),
-    walletBalance: 1240,
-    ratings: [],
-    pendingPRs: SEED_PENDING_PRS.map((p) => ({ ...p })),
-    pendingFreelancerPayrolls: SEED_PENDING_FREELANCER_PAYROLLS.map((p) => ({ ...p })),
-    toasts: [],
-  };
-}
-
 export const useStore = create<StoreState>()(
   persist(
     (set, get) => ({
@@ -600,18 +550,35 @@ export const useStore = create<StoreState>()(
           prSubRole: null,
           outletSubRole: null,
           agencySubRole: null,
-          shiftAccepted: false,
-          pendingApproval: false,
-          acceptedShiftIndex: null,
-          checkedIn: false,
-          checkedOut: false,
-          drinks: 0,
-          tables: 0,
-          prActiveShift: null,
-        }),
-      resetDemo: () => {
-        toastId = 0;
-        set(buildDemoResetPatch());
+          user: null,
+          toasts: [],
+        });
+      },
+      resetPrDemo: () => {
+        set(buildPrDemoReset());
+      },
+      demoPrShiftIn: () => {
+        const st = get();
+        if (st.checkedIn && !st.checkedOut) {
+          get().toast("Already checked in", "info");
+          return;
+        }
+        if (st.checkedOut) {
+          get().toast("Shift complete — return to welcome to reset demo", "warn");
+          return;
+        }
+        if (!st.shiftAccepted) {
+          set({
+            shiftAccepted: true,
+            pendingApproval: false,
+            acceptedShiftIndex: st.acceptedShiftIndex ?? 0,
+            prMarketplaceApplication:
+              st.prMarketplaceApplication?.status === "pending"
+                ? { ...st.prMarketplaceApplication, status: "accepted" }
+                : st.prMarketplaceApplication,
+          });
+        }
+        get().prCheckIn();
       },
 
       shiftAccepted: false,
@@ -815,30 +782,30 @@ export const useStore = create<StoreState>()(
           dateDisplay: stamp.split("·")[0]?.trim() ?? stamp,
           totalPayout: pv.net,
           totalDrinks: get().drinks,
-          totalTips: scans.reduce((s, r) => s + (r.items?.reduce((a, i) => a + (i.category === "tip" ? i.amount : 0), 0) ?? 0), 0),
+          totalTips: scans.reduce((s, r) => s + (r.items?.reduce((a, i) => a + (i.category === "tips" ? i.amount : 0), 0) ?? 0), 0),
           durationHours: 6,
         });
         const checkOutTime = new Date().toLocaleTimeString("en-MY", {
           hour: "2-digit",
           minute: "2-digit",
         });
-        set((st) =>
-          syncLedgerState(st, {
-            checkedOut: true,
-            prActiveShift: null,
+        set((st) => ({
+          ...syncLedgerState(st, {
             agencyRoster: rosterCheckOut(st.agencyRoster, prId, shift.outlet, checkOutTime),
             shiftHistory: mergeShiftHistory(st.shiftHistory, [historyRow]),
-            prReceiptScans: (st.prReceiptScans ?? SEED_RECEIPT_SCANS).map((r) =>
-              scanIds.has(r.id)
-                ? { ...r, pvId: shift.pvId, shiftSessionId: shift.id, status: "in_pv" as const, pvStatus: "PENDING_REVIEW" as const }
-                : r,
-            ),
             prPaymentVouchers: [
               pv,
               ...(st.prPaymentVouchers ?? SEED_PR_PVS).filter((p) => p.id !== pv.id),
             ],
           }),
-        );
+          checkedOut: true,
+          prActiveShift: null,
+          prReceiptScans: (st.prReceiptScans ?? SEED_RECEIPT_SCANS).map((r) =>
+            scanIds.has(r.id)
+              ? { ...r, pvId: shift.pvId, shiftSessionId: shift.id, status: "in_pv" as const, pvStatus: "PENDING_REVIEW" as const }
+              : r,
+          ),
+        }));
         get().toast(
           `Checked out ✓ PV ${shift.pvId} generated from ${scans.length} receipt(s) + shift wages`,
           "success",
@@ -1330,6 +1297,32 @@ export const useStore = create<StoreState>()(
         }));
         get().toast(`PV ${id} re-sent to ${pv.prName} for e-signature`, "info");
       },
+      sendAgencyPvToPr: (id) => {
+        const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
+        if (!pv) return;
+        if (pv.status !== "PENDING_REVIEW") {
+          get().toast("Only draft / pending-review PVs can be sent to PR", "warn");
+          return;
+        }
+        const pvs = get().prPaymentVouchers ?? SEED_PR_PVS;
+        const dup = pvs.some(
+          (p) =>
+            p.id !== id &&
+            p.status === "PAID" &&
+            p.prName === pv.prName &&
+            pv.rows.some((r) => p.paidRefs?.includes(`${r.date}-${r.outlet}-${r.ref}`)),
+        );
+        if (dup) {
+          get().toast("Blocked — duplicate payment (Golden Audit Σ≠0)", "warn");
+          return;
+        }
+        set((st) => ({
+          prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
+            p.id === id ? { ...p, status: "SENT" as const } : p,
+          ),
+        }));
+        get().toast(`PV sent to ${pv.prName} · awaiting PR e-signature`, "success");
+      },
       resolveAgencyPvDispute: (id) => {
         set((st) => ({
           prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
@@ -1419,6 +1412,15 @@ export const useStore = create<StoreState>()(
       saveAgencyFinanceHead: (patch) => {
         set((st) => ({ agencyFinanceHead: { ...st.agencyFinanceHead, ...patch } }));
         get().toast("Finance Head profile saved — e-signature ready for PV dual-sign", "success");
+      },
+      saveAgencyProfileSettings: (data) => {
+        set({
+          agencyOwner: data.owner,
+          agencyFinanceHead: data.financeHead,
+          scalingTierMultipliers: data.scalingTierMultipliers,
+          outletCommissionRules: data.outletCommissionRules,
+        });
+        get().toast("Agency settings saved", "success");
       },
 
       agencyCollections: demoSnapshot.agencyCollections,
@@ -1725,13 +1727,30 @@ export const useStore = create<StoreState>()(
         if (!pr) return;
         const tiedSince = pr.tiedSince ? new Date(pr.tiedSince).getTime() : Date.now() - 400 * 86400000;
         if (Date.now() - tiedSince < 365 * 86400000) {
-          get().toast("Tied < 1 year — detach requires admin process", "warn");
+          get().toast("Tied < 1 year — use Request admin detach", "warn");
           return;
         }
         set((st) => ({
           agencyPRs: st.agencyPRs.map((p) => (p.id === prId ? { ...p, detached: true, suspended: true } : p)),
         }));
         get().toast(`${pr.name} detached from agency roster`, "info");
+      },
+      requestAgencyPrDetach: (prId) => {
+        const pr = get().agencyPRs.find((p) => p.id === prId);
+        if (!pr) return;
+        get().toast(`Detach request sent for ${pr.name} — InnocenZ admin will review`, "info");
+      },
+      broadcastAgencyPr: (prIds, payload) => {
+        if (prIds.length === 0) return;
+        const names = get()
+          .agencyPRs.filter((p) => prIds.includes(p.id))
+          .map((p) => p.name)
+          .join(", ");
+        const verb = payload.kind === "shift" ? "Shift offer" : "Message";
+        get().toast(
+          `${verb} broadcast to ${prIds.length} PR${prIds.length !== 1 ? "s" : ""}: ${names}`,
+          "success",
+        );
       },
       setAgencyPrKpiTier: (prId, tier) => {
         set((st) => ({
@@ -1744,6 +1763,20 @@ export const useStore = create<StoreState>()(
           agencyPRs: st.agencyPRs.map((p) => (p.id === prId ? { ...p, trainingLevel: tier } : p)),
         }));
         get().toast(`Training tier set to ${tier}`, "success");
+      },
+      updateAgencyPrProfile: (prId, patch) => {
+        const pr = get().agencyPRs.find((p) => p.id === prId);
+        if (!pr) return;
+        set((st) => ({
+          agencyPRs: st.agencyPRs.map((p) => (p.id === prId ? { ...p, ...patch } : p)),
+          agencyRoster:
+            patch.name && patch.name !== pr.name
+              ? st.agencyRoster.map((slot) =>
+                  slot.prId === prId ? { ...slot, prName: patch.name! } : slot,
+                )
+              : st.agencyRoster,
+        }));
+        get().toast(`${patch.name ?? pr.name} profile updated`, "success");
       },
       saveOutletCommissionRule: (outlet, patch) => {
         set((st) => ({
@@ -2183,11 +2216,6 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: "innocenz-store",
-      onRehydrateStorage: () => () => {
-        if (isWelcomePath()) {
-          queueMicrotask(() => useStore.getState().resetDemo());
-        }
-      },
       partialize: (s) => ({
         role: s.role,
         prSubRole: s.prSubRole,

@@ -97,6 +97,8 @@ const DEMO_COLLECTIONS: AgencyCollectionInvoice[] = [
     id: "COL-2026-0615",
     outlet: "Velvet 23",
     amount: 2160,
+    issueDate: "8 Jun 2026",
+    issueTime: "10:00",
     dueDate: "15 Jun 2026",
     status: "PENDING",
     aging: "current",

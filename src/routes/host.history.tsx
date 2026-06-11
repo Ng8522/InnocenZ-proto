@@ -23,6 +23,7 @@ import {
 } from "@/lib/pr-demo";
 import { shiftHistoryToHistRows } from "@/lib/portal-sync";
 import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
+import { payeeFromProfile } from "@/lib/pv-template";
 import { Calendar, ChevronDown, Download, Filter, Receipt, Search, Table2, X } from "lucide-react";
 import { FreelancerPayrollNotice } from "@/components/iz/FreelancerPayrollNotice";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
@@ -588,7 +589,7 @@ function HistoryPage() {
           scans={prReceiptScans}
           vouchers={prPaymentVouchers}
           onDownloadPdf={(pv) => {
-            downloadPvBreakdownPdf(pv, profile, prReceiptScans);
+            downloadPvBreakdownPdf(pv, payeeFromProfile(profile), prReceiptScans);
             toast("PV breakdown opened — use Print → Save as PDF", "success");
           }}
           filters={pvFilters}

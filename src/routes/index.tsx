@@ -9,6 +9,9 @@ import { PhoneFrame } from "@/components/Brand";
 import { IzSheet } from "@/components/iz/Sheet";
 
 export const Route = createFileRoute("/")({
+  beforeLoad: () => {
+    if (typeof window !== "undefined") useStore.getState().resetDemo();
+  },
   head: () => ({
     meta: [
       { title: "InnocenZ — Nightlife, Powered by Trust" },

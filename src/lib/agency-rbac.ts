@@ -42,6 +42,7 @@ const ROLE_PERMISSIONS: Record<AgencySubRole, Permission[]> = {
     "viewAnalytics",
     "exportReports",
     "viewWorkforce",
+    "overrideSignedPv",
   ],
   agency_finance: [
     "viewHome",

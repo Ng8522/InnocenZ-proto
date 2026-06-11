@@ -232,6 +232,8 @@ export interface AgencyManagedPR {
   suspended?: boolean;
   detached?: boolean;
   tiedSince?: string;
+  /** Consecutive shift outlet ratings below 3.0★ (most recent streak) */
+  consecutiveLowRatings?: number;
   weight?: number;
 }
 
@@ -315,7 +317,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     languages: ["English", "Malay"],
     place: "Shah Alam",
     yearsExp: 2,
-    rating: 4.5,
+    rating: 3.4,
     trainingLevel: "Tier III",
     totalPaid: 8640,
     attendancePct: 91,
@@ -323,6 +325,8 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     checkOuts: 18,
     noShows: 1,
     kpiScore: 78,
+    consecutiveLowRatings: 1,
+    tiedSince: "2024-06-01",
   },
   {
     id: "p6",
@@ -357,7 +361,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     languages: ["English", "Mandarin"],
     place: "PJ",
     yearsExp: 2,
-    rating: 4.6,
+    rating: 2.9,
     trainingLevel: "Tier III",
     totalPaid: 9200,
     attendancePct: 93,
@@ -365,6 +369,8 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     checkOuts: 21,
     noShows: 0,
     kpiScore: 82,
+    consecutiveLowRatings: 3,
+    tiedSince: "2023-01-15",
   },
   {
     id: "p7",
@@ -564,6 +570,7 @@ export interface AgencyOwnerSettings {
   orgName: string;
   otpChannel: "email" | "phone";
   accountActivated: boolean;
+  avatarPhoto?: string | null;
 }
 
 export const DEFAULT_AGENCY_OWNER: AgencyOwnerSettings = {
@@ -574,6 +581,7 @@ export const DEFAULT_AGENCY_OWNER: AgencyOwnerSettings = {
   orgName: "Atlas Agency",
   otpChannel: "email",
   accountActivated: true,
+  avatarPhoto: null,
 };
 
 export interface AgencyFinanceHead {
@@ -599,6 +607,10 @@ export interface AgencyCollectionInvoice {
   id: string;
   outlet: string;
   amount: number;
+  /** Invoice issue date (display) */
+  issueDate: string;
+  /** Optional issue time for filtering */
+  issueTime?: string;
   dueDate: string;
   status: CollectionStatus;
   aging: CollectionAging;
@@ -616,13 +628,13 @@ export const SCALING_TIER_MULTIPLIERS: Record<string, number> = {
 };
 
 export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
-  { id: "COL-2026-0610", outlet: "Velvet 23", amount: 4280, dueDate: "10 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0610-A"], kind: "outlet" },
-  { id: "COL-2026-0608", outlet: "Mermate", amount: 3120, dueDate: "8 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0608-B"], kind: "outlet" },
-  { id: "COL-2026-0605", outlet: "Bear Lounge", amount: 2640, dueDate: "5 Jun 2026", status: "PENDING", aging: "7d", linkedPvIds: ["PV-2026-0605-C"], reminderSent: true, kind: "outlet" },
-  { id: "COL-2026-0528", outlet: "Onyx KL", amount: 3890, dueDate: "28 May 2026", status: "PENDING", aging: "14d", linkedPvIds: ["PV-2026-0528-D"], kind: "outlet" },
-  { id: "COL-2026-0515", outlet: "Urban Soul", amount: 1950, dueDate: "15 May 2026", status: "PENDING", aging: "30d", linkedPvIds: ["PV-2026-0515-E"], reminderSent: true, kind: "outlet" },
-  { id: "AINV-2026-0601", outlet: "Platform fee", amount: 499, dueDate: "1 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: [], kind: "agency", counterparty: "InnocenZ Platform" },
-  { id: "AINV-2026-0604", outlet: "InnocenZ escrow", amount: 1200, dueDate: "4 Jun 2026", status: "PENDING", aging: "current", linkedPvIds: ["PV-2026-0604-A"], kind: "agency", counterparty: "InnocenZ Admin" },
+  { id: "COL-2026-0610", outlet: "Velvet 23", amount: 4280, issueDate: "3 Jun 2026", issueTime: "09:30", dueDate: "10 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0610-A"], kind: "outlet" },
+  { id: "COL-2026-0608", outlet: "Mermate", amount: 3120, issueDate: "1 Jun 2026", issueTime: "11:00", dueDate: "8 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0608-B"], kind: "outlet" },
+  { id: "COL-2026-0605", outlet: "Bear Lounge", amount: 2640, issueDate: "28 May 2026", issueTime: "14:15", dueDate: "5 Jun 2026", status: "PENDING", aging: "7d", linkedPvIds: ["PV-2026-0605-C"], reminderSent: true, kind: "outlet" },
+  { id: "COL-2026-0528", outlet: "Onyx KL", amount: 3890, issueDate: "21 May 2026", issueTime: "10:45", dueDate: "28 May 2026", status: "PENDING", aging: "14d", linkedPvIds: ["PV-2026-0528-D"], kind: "outlet" },
+  { id: "COL-2026-0515", outlet: "Urban Soul", amount: 1950, issueDate: "8 May 2026", issueTime: "16:00", dueDate: "15 May 2026", status: "PENDING", aging: "30d", linkedPvIds: ["PV-2026-0515-E"], reminderSent: true, kind: "outlet" },
+  { id: "AINV-2026-0601", outlet: "Platform fee", amount: 499, issueDate: "1 Jun 2026", issueTime: "08:00", dueDate: "1 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: [], kind: "agency", counterparty: "InnocenZ Platform" },
+  { id: "AINV-2026-0604", outlet: "InnocenZ escrow", amount: 1200, issueDate: "4 Jun 2026", issueTime: "09:15", dueDate: "4 Jun 2026", status: "PENDING", aging: "current", linkedPvIds: ["PV-2026-0604-A"], kind: "agency", counterparty: "InnocenZ Admin" },
 ];
 
 export interface AgencyReconciliationDay {

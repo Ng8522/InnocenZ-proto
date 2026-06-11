@@ -8,25 +8,62 @@ import {
   getPvSalesTotal,
   parsePvIssuedMs,
   PAYROLL_CYCLE,
+  downloadPvReceipt,
   pvNeedsPrReview,
   pvStatusLabel,
   pvStatusPillVariant,
+  receiptStatusLabel,
   sortPvsBySales,
+  FINANCE_HEAD_LABEL,
   type PrPaymentVoucher,
   type PrPvRow,
   type PrPvStatus,
+  type PrReceiptScan,
   type PvDateRecencyFilter,
   type PvSalesSort,
 } from "@/lib/pr-demo";
-import { downloadAgencyPvPdf } from "@/lib/pv-pdf";
+import { getAgencyManagedReceiptScans, receiptsForPv } from "@/lib/agency-payroll";
+import {
+  matchesPayrollIssueDate,
+  matchesPayrollRange,
+  parseScannedAtMs,
+  payrollRangeActive,
+  type PayrollRangeFilter,
+} from "@/lib/payroll-filters";
+import { EMPTY_PAYROLL_RANGE, PayrollRangeFilterCard } from "@/components/agency/PayrollRangeFilter";
+import { PvSummaryView } from "@/components/iz/PvSummaryView";
+import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
+import { buildAgencyPayee } from "@/lib/pv-template";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 import type { AgencyCollectionInvoice } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { AlertTriangle, Bell, Calendar, FileText, Filter, Pencil, Plus, Receipt, Shield } from "lucide-react";
+import {
+  AlertTriangle,
+  Bell,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  FileText,
+  Filter,
+  Pencil,
+  Plus,
+  Receipt,
+  Send,
+  Shield,
+} from "lucide-react";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { IzCard, IzPill, IzSelect, formatRM } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import { historyRowHasPv } from "@/lib/agency-actions";
+import {
+  PV_WORKFLOW_STEPS,
+  disputeDaysRemaining,
+  pvWorkflowStepIndex,
+  summarizePv,
+  type PvEarningsBreakdown,
+} from "@/lib/pv-breakdown";
+import { AGENCY_SUB_ROLE_LABELS } from "@/lib/agency-rbac";
+import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/agency/pv")({
   component: AgencyPV,
@@ -37,7 +74,7 @@ function statusPill(status: PrPvStatus) {
 }
 
 type PvStatusFilter = "all" | PrPvStatus;
-type PayrollTab = "pv" | "collections" | "reconciliation";
+type PayrollTab = "pv" | "collections" | "reconciliation" | "receipts";
 
 const AGING_LABELS: Record<AgencyCollectionInvoice["aging"], string> = {
   current: "Current",
@@ -64,12 +101,14 @@ const PV_DATE_FILTERS: { value: PvDateRecencyFilter; label: string }[] = [
 
 function AgencyPV() {
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
-  const agencyOwner = useStore((s) => s.agencyOwner);
+  const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
+  const agencyPRs = useStore((s) => s.agencyPRs);
   const agencyCollections = useStore((s) => s.agencyCollections);
   const markCollectionSettled = useStore((s) => s.markCollectionSettled);
   const sendCollectionReminder = useStore((s) => s.sendCollectionReminder);
   const reconciliation = useStore((s) => s.agencyReconciliation);
   const confirmAgencyReconciliation = useStore((s) => s.confirmAgencyReconciliation);
+  const agencyFinanceHead = useStore((s) => s.agencyFinanceHead);
   const agencySubRole = useStore((s) => s.agencySubRole);
   const toast = useStore((s) => s.toast);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -79,6 +118,7 @@ function AgencyPV() {
   const [salesSort, setSalesSort] = useState<PvSalesSort>("default");
   const [collectionDetail, setCollectionDetail] = useState<string | null>(null);
   const [raisePvOpen, setRaisePvOpen] = useState(false);
+  const [payrollRange, setPayrollRange] = useState<PayrollRangeFilter>(EMPTY_PAYROLL_RANGE);
   const shiftHistory = useStore((s) => s.shiftHistory);
   const raiseAgencyPvFromHistory = useStore((s) => s.raiseAgencyPvFromHistory);
   const { date, time } = nowAgencyDateTime();
@@ -99,41 +139,59 @@ function AgencyPV() {
   const queuedTotal = queued.reduce((s, p) => s + p.net, 0);
   const paid = prPaymentVouchers.filter((p) => p.status === "PAID").length;
 
+  const agencyReceiptScans = useMemo(
+    () => getAgencyManagedReceiptScans(prReceiptScans, agencyPRs, prPaymentVouchers),
+    [prReceiptScans, agencyPRs, prPaymentVouchers],
+  );
+
+  const rangeFilteredPvs = useMemo(
+    () =>
+      prPaymentVouchers.filter((p) =>
+        matchesPayrollRange(parsePvIssuedMs(p.issued), payrollRange),
+      ),
+    [prPaymentVouchers, payrollRange],
+  );
+
   const filteredVouchers = useMemo(() => {
     let list =
       statusFilter === "all"
-        ? prPaymentVouchers
-        : prPaymentVouchers.filter((p) => p.status === statusFilter);
+        ? rangeFilteredPvs
+        : rangeFilteredPvs.filter((p) => p.status === statusFilter);
     list = filterPvsByIssuedRecency(list, dateFilter, latestIssuedMs);
     return sortPvsBySales(list, salesSort);
-  }, [prPaymentVouchers, statusFilter, dateFilter, salesSort, latestIssuedMs]);
+  }, [rangeFilteredPvs, statusFilter, dateFilter, salesSort, latestIssuedMs]);
 
   const dateCounts = useMemo(() => {
-    const latest = filterPvsByIssuedRecency(prPaymentVouchers, "latest", latestIssuedMs).length;
-    const previous = filterPvsByIssuedRecency(prPaymentVouchers, "previous", latestIssuedMs).length;
-    return { all: prPaymentVouchers.length, latest, previous };
-  }, [prPaymentVouchers, latestIssuedMs]);
+    const latest = filterPvsByIssuedRecency(rangeFilteredPvs, "latest", latestIssuedMs).length;
+    const previous = filterPvsByIssuedRecency(rangeFilteredPvs, "previous", latestIssuedMs).length;
+    return { all: rangeFilteredPvs.length, latest, previous };
+  }, [rangeFilteredPvs, latestIssuedMs]);
 
-  const hasActiveFilters = statusFilter !== "all" || dateFilter !== "all" || salesSort !== "default";
+  const hasActiveFilters =
+    statusFilter !== "all" ||
+    dateFilter !== "all" ||
+    salesSort !== "default" ||
+    payrollRangeActive(payrollRange);
 
   const clearFilters = () => {
     setStatusFilter("all");
     setDateFilter("all");
     setSalesSort("default");
+    setPayrollRange(EMPTY_PAYROLL_RANGE);
   };
 
   const statusCounts = useMemo(() => {
     const counts: Record<PvStatusFilter, number> = {
-      all: prPaymentVouchers.length,
+      all: rangeFilteredPvs.length,
       PENDING_REVIEW: 0,
       SENT: 0,
       SIGNED: 0,
       PAID: 0,
       DISPUTED: 0,
     };
-    for (const p of prPaymentVouchers) counts[p.status] += 1;
+    for (const p of rangeFilteredPvs) counts[p.status] += 1;
     return counts;
-  }, [prPaymentVouchers]);
+  }, [rangeFilteredPvs]);
 
   const detail = prPaymentVouchers.find((p) => p.id === detailId);
 
@@ -141,7 +199,11 @@ function AgencyPV() {
     return (
       <div className="iz-screen">
         <AppTopbar onBack={() => setDetailId(null)} backLabel="PV list" />
-        <PvDetail pv={detail} agencyIc={agencyOwner.ic} onClose={() => setDetailId(null)} />
+        <PvDetail
+          pv={detail}
+          receiptScans={receiptsForPv(agencyReceiptScans, detail)}
+          onClose={() => setDetailId(null)}
+        />
       </div>
     );
   }
@@ -155,19 +217,44 @@ function AgencyPV() {
         <AppTopbar onBack={() => setCollectionDetail(null)} backLabel="Collections" />
         <IzCard>
           <div className="iz-v-sum"><span className="iz-muted">Invoice</span><b>{collectionRow.id}</b></div>
-          <div className="iz-v-sum"><span className="iz-muted">Outlet</span><b>{collectionRow.outlet}</b></div>
-          <div className="iz-v-sum"><span className="iz-muted">Amount</span><b>{formatRM(collectionRow.amount)}</b></div>
+          <div className="iz-v-sum"><span className="iz-muted">Outlet</span><b>{collectionRow.counterparty ?? collectionRow.outlet}</b></div>
+          <div className="iz-v-sum"><span className="iz-muted">Issued</span><b>{collectionRow.issueDate}{collectionRow.issueTime ? ` · ${collectionRow.issueTime}` : ""}</b></div>
           <div className="iz-v-sum"><span className="iz-muted">Due</span><b>{collectionRow.dueDate}</b></div>
+          <div className="iz-v-sum"><span className="iz-muted">Amount</span><b>{formatRM(collectionRow.amount)}</b></div>
           <div className="iz-v-sum"><span className="iz-muted">Status</span><IzPill variant={collectionRow.status === "SETTLED" ? "green" : "amber"}>{collectionRow.status}</IzPill></div>
         </IzCard>
         <OutletSection title="Linked PVs">
-          {collectionRow.linkedPvIds.map((id) => (
-            <IzCard key={id} flat><p className="iz-sm font-bold">{id}</p></IzCard>
-          ))}
+          {collectionRow.linkedPvIds.map((id) => {
+            const pv = prPaymentVouchers.find((p) => p.id === id);
+            return (
+              <IzCard key={id} flat>
+                <p className="iz-sm font-bold">{id}</p>
+                {pv ? (
+                  <p className="iz-tiny iz-muted mt-0.5">
+                    {pv.prName} · issued {pv.issued} · {formatRM(pv.net)}
+                  </p>
+                ) : (
+                  <p className="iz-tiny iz-muted2 mt-0.5">PV queued · awaiting agency raise</p>
+                )}
+              </IzCard>
+            );
+          })}
           {collectionRow.status === "PENDING" && (
             <button type="button" className="iz-btn iz-btn-primary mt-3 w-full" onClick={() => { markCollectionSettled(collectionRow.id); setCollectionDetail(null); }}>
               Mark received · Paid
             </button>
+          )}
+        </OutletSection>
+        <OutletSection title="Receipt scans" hint="PR scans linked to this invoice">
+          {agencyReceiptScans
+            .filter((s) => s.pvId && collectionRow.linkedPvIds.includes(s.pvId))
+            .map((scan) => (
+              <ReceiptScanRow key={scan.id} scan={scan} />
+            ))}
+          {agencyReceiptScans.filter((s) => s.pvId && collectionRow.linkedPvIds.includes(s.pvId)).length === 0 && (
+            <IzCard flat className="text-center">
+              <p className="iz-tiny iz-muted">No scanned receipts linked yet</p>
+            </IzCard>
           )}
         </OutletSection>
       </div>
@@ -182,18 +269,29 @@ function AgencyPV() {
         <p className="iz-tiny iz-muted mt-0.5">
           {date} · {time} · Cycle{" "}
           <span className="text-[var(--iz-gold-l)]">{PAYROLL_CYCLE.range}</span>
+          <IzPill variant="violet" className="ml-1.5 !py-0 !text-[9px]">Per-item calc</IzPill>
+        </p>
+        <p className="iz-tiny iz-muted2 mt-1">
+          {AGENCY_SUB_ROLE_LABELS[agencySubRole ?? "agency_owner"]} · PR portal signs · Outlet confirms reconciliation
         </p>
       </header>
 
+      <PayrollReconciliationBanner
+        reconciliation={reconciliation}
+        canConfirm={agencyCan(agencySubRole, "confirmReconciliation")}
+        onConfirm={confirmAgencyReconciliation}
+        onOpenReconciliation={() => setPayrollTab("reconciliation")}
+      />
+
       <div className="mt-3 flex gap-1.5">
-        {(["pv", "collections", "reconciliation"] as PayrollTab[]).map((t) => (
+        {(["pv", "collections", "receipts", "reconciliation"] as PayrollTab[]).map((t) => (
           <button
             key={t}
             type="button"
-            className={`flex-1 rounded-full border py-2 text-[11px] font-semibold capitalize ${payrollTab === t ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
+            className={`flex-1 rounded-full border py-2 text-[10px] font-semibold capitalize ${payrollTab === t ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
             onClick={() => setPayrollTab(t)}
           >
-            {t === "pv" ? "PV" : t}
+            {t === "pv" ? "PV" : t === "receipts" ? `Scans (${agencyReceiptScans.length})` : t}
             {t === "collections" && pendingCollections.length > 0 && ` (${pendingCollections.length})`}
           </button>
         ))}
@@ -202,9 +300,21 @@ function AgencyPV() {
       {payrollTab === "collections" && (
         <CollectionsSection
           invoices={agencyCollections}
+          payrollRange={payrollRange}
+          onRangeChange={setPayrollRange}
+          onClearRange={() => setPayrollRange(EMPTY_PAYROLL_RANGE)}
           onOpen={setCollectionDetail}
           onSettle={markCollectionSettled}
           onRemind={sendCollectionReminder}
+        />
+      )}
+
+      {payrollTab === "receipts" && (
+        <ReceiptsSection
+          scans={agencyReceiptScans}
+          payrollRange={payrollRange}
+          onRangeChange={setPayrollRange}
+          onClearRange={() => setPayrollRange(EMPTY_PAYROLL_RANGE)}
         />
       )}
 
@@ -248,7 +358,7 @@ function AgencyPV() {
           <b className="font-sora text-base text-[var(--iz-gold)]">{formatRM(queuedTotal)}</b>
         </div>
         <p className="iz-tiny iz-muted2 mt-2">
-          Duplicate payment blocked · OT from check-out · PDF export only
+          Duplicate payment blocked · Golden Audit Σ=0 · OT from check-out receipt timestamp · PDF export only
         </p>
       </IzCard>
 
@@ -310,6 +420,12 @@ function AgencyPV() {
             );
           })}
         </div>
+
+        <PayrollRangeFilterCard
+          range={payrollRange}
+          onChange={setPayrollRange}
+          onClear={() => setPayrollRange(EMPTY_PAYROLL_RANGE)}
+        />
 
         <div className="mt-3 flex items-end gap-2">
           <div className="min-w-0 flex-1">
@@ -384,7 +500,10 @@ function AgencyPV() {
 
       <IzSheet open={raisePvOpen} onClose={() => setRaisePvOpen(false)}>
         <div className="iz-cardttl">Raise PV</div>
-        <p className="iz-tiny iz-muted mb-3">Select PR + sealed shift · Finance Head e-sign auto-applied · OT included when applicable</p>
+        <p className="iz-tiny iz-muted mb-2">
+          Select PR + sealed shift · 4-part breakdown (wages · drinks · tips · OT) auto-pulled ·{" "}
+          {agencyFinanceHead.name} e-sign stamped (1st of 2)
+        </p>
         {raiseableShifts.length === 0 ? (
           <IzCard flat className="text-center">
             <p className="iz-sm iz-muted">No sealed shifts without a PV</p>
@@ -404,6 +523,9 @@ function AgencyPV() {
                 <div>
                   <p className="font-sora text-sm font-bold">{row.prName}</p>
                   <p className="iz-tiny iz-muted">{row.outlet} · {row.dateDisplay}</p>
+                  <p className="iz-tiny iz-muted2">
+                    Drinks {formatRM(row.totalDrinks)} · Tips {formatRM(row.totalTips)} · OT at check-out
+                  </p>
                 </div>
                 <span className="iz-ledger text-sm font-bold text-[var(--iz-gold)]">{formatRM(row.totalPayout)}</span>
               </button>
@@ -417,18 +539,35 @@ function AgencyPV() {
 
 function CollectionsSection({
   invoices,
+  payrollRange,
+  onRangeChange,
+  onClearRange,
   onOpen,
   onSettle,
   onRemind,
 }: {
   invoices: AgencyCollectionInvoice[];
+  payrollRange: PayrollRangeFilter;
+  onRangeChange: (r: PayrollRangeFilter) => void;
+  onClearRange: () => void;
   onOpen: (id: string) => void;
   onSettle: (id: string) => void;
   onRemind: (id: string) => void;
 }) {
   const buckets = ["current", "7d", "14d", "30d", "60d+"] as const;
   const [kind, setKind] = useState<"outlet" | "agency">("outlet");
-  const filtered = invoices.filter((i) => (i.kind ?? "outlet") === kind);
+  const [agingFilter, setAgingFilter] = useState<AgencyCollectionInvoice["aging"] | "all">("all");
+  const baseFiltered = useMemo(
+    () =>
+      invoices
+        .filter((i) => (i.kind ?? "outlet") === kind)
+        .filter((i) => matchesPayrollIssueDate(i.issueDate, i.issueTime, payrollRange)),
+    [invoices, kind, payrollRange],
+  );
+  const filtered = useMemo(
+    () => (agingFilter === "all" ? baseFiltered : baseFiltered.filter((i) => i.aging === agingFilter)),
+    [baseFiltered, agingFilter],
+  );
 
   return (
     <div className="mt-3">
@@ -449,16 +588,32 @@ function CollectionsSection({
         </button>
       </div>
       <IzCard flat className="border-[rgba(124,107,255,.25)]">
-        <p className="iz-tiny iz-muted">Platform ledger · SETTLED vs PENDING · auto-reminder on unpaid cycles</p>
+        <p className="iz-tiny iz-muted">
+          Platform ledger · SETTLED vs PENDING · Owner + Finance · auto-reminder pings outlet on unpaid cycles
+        </p>
       </IzCard>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <PayrollRangeFilterCard range={payrollRange} onChange={onRangeChange} onClear={onClearRange} />
+      <p className="iz-tiny iz-muted2 mt-2 mb-1">Aging bucket</p>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${agingFilter === "all" ? "border-[var(--iz-gold)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
+          onClick={() => setAgingFilter("all")}
+        >
+          All · {baseFiltered.length}
+        </button>
         {buckets.map((b) => {
-          const count = filtered.filter((i) => i.aging === b).length;
+          const count = baseFiltered.filter((i) => i.aging === b).length;
           if (!count) return null;
           return (
-            <IzPill key={b} variant={b === "current" ? "green" : "amber"}>
+            <button
+              key={b}
+              type="button"
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${agingFilter === b ? "border-[var(--iz-gold)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
+              onClick={() => setAgingFilter(b)}
+            >
               {AGING_LABELS[b]} · {count}
-            </IzPill>
+            </button>
           );
         })}
       </div>
@@ -469,7 +624,13 @@ function CollectionsSection({
               <div className="iz-between">
                 <div>
                   <div className="font-sora text-sm font-bold">{inv.counterparty ?? inv.outlet}</div>
-                  <p className="iz-tiny iz-muted mt-0.5">{inv.id} · due {inv.dueDate}</p>
+                  <p className="iz-tiny iz-muted mt-0.5">
+                    {inv.id} · issued {inv.issueDate}
+                    {inv.issueTime ? ` · ${inv.issueTime}` : ""} · due {inv.dueDate}
+                  </p>
+                  {inv.reminderSent && inv.status === "PENDING" && (
+                    <p className="iz-tiny text-[var(--iz-amber)] mt-0.5">Auto-reminder sent to outlet</p>
+                  )}
                 </div>
                 <div className="text-right">
                   <IzPill variant={inv.status === "SETTLED" ? "green" : "amber"}>{inv.status}</IzPill>
@@ -489,6 +650,93 @@ function CollectionsSection({
             )}
           </IzCard>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function ReceiptScanRow({ scan }: { scan: PrReceiptScan }) {
+  const [y, m, d] = scan.date;
+  return (
+    <IzCard flat className="!mb-2">
+      <div className="iz-between items-start gap-2">
+        <div className="min-w-0">
+          <p className="font-sora text-sm font-bold">{scan.id}</p>
+          <p className="iz-tiny iz-muted mt-0.5">
+            {scan.prName} · {scan.outlet}
+          </p>
+          <p className="iz-tiny iz-muted2 mt-0.5">Scanned {scan.scannedAt}</p>
+          <p className="iz-tiny iz-muted2">
+            Shift date {d}/{m}/{y}
+            {scan.pvId ? ` · PV ${scan.pvId}` : ""}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <IzPill variant={scan.status === "paid" ? "green" : scan.status === "in_pv" ? "amber" : "ink"}>
+            {receiptStatusLabel(scan.status)}
+          </IzPill>
+          <p className="iz-ledger mt-1 text-sm font-bold">{formatRM(scan.totalLogged)}</p>
+          <p className="iz-tiny iz-muted2">Comm {formatRM(scan.totalCommission)}</p>
+        </div>
+      </div>
+      <div className="mt-2 border-t border-[var(--iz-line)] pt-2">
+        {scan.items.map((item) => (
+          <p key={`${scan.id}-${item.label}`} className="iz-tiny iz-muted py-0.5">
+            {item.qty}× {item.label} · {formatRM(item.amount)}
+          </p>
+        ))}
+      </div>
+    </IzCard>
+  );
+}
+
+function ReceiptsSection({
+  scans,
+  payrollRange,
+  onRangeChange,
+  onClearRange,
+}: {
+  scans: PrReceiptScan[];
+  payrollRange: PayrollRangeFilter;
+  onRangeChange: (r: PayrollRangeFilter) => void;
+  onClearRange: () => void;
+}) {
+  const [outlet, setOutlet] = useState("");
+  const outlets = useMemo(() => [...new Set(scans.map((s) => s.outlet))].sort(), [scans]);
+  const filtered = useMemo(
+    () =>
+      scans.filter((s) => {
+        if (outlet && s.outlet !== outlet) return false;
+        return matchesPayrollRange(parseScannedAtMs(s.scannedAt), payrollRange);
+      }),
+    [scans, outlet, payrollRange],
+  );
+
+  return (
+    <div className="mt-3">
+      <IzCard flat>
+        <p className="iz-tiny iz-muted">
+          Agency copy of PR receipt scans — synced when PR logs scans on shift (Time-In → scan → Time-Out).
+        </p>
+      </IzCard>
+      <PayrollRangeFilterCard range={payrollRange} onChange={onRangeChange} onClear={onClearRange} />
+      <div className="mt-2">
+        <IzSelect block className="!text-xs" value={outlet} onChange={(e) => setOutlet(e.target.value)}>
+          <option value="">All outlets</option>
+          {outlets.map((o) => (
+            <option key={o} value={o}>{o}</option>
+          ))}
+        </IzSelect>
+      </div>
+      <p className="iz-tiny iz-muted2 mt-2 mb-2">{filtered.length} scan{filtered.length !== 1 ? "s" : ""} for managed PRs</p>
+      <div className="space-y-2">
+        {filtered.length === 0 ? (
+          <IzCard className="text-center">
+            <p className="iz-sm iz-muted">No receipt scans in this range</p>
+          </IzCard>
+        ) : (
+          filtered.map((scan) => <ReceiptScanRow key={scan.id} scan={scan} />)
+        )}
       </div>
     </div>
   );
@@ -515,7 +763,12 @@ function ReconciliationSection({
           <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--iz-amber)]" />
           <div>
             <p className="iz-sm font-bold">Daily reconciliation · {reconciliation.dateLabel}</p>
-            <p className="iz-tiny iz-muted mt-1">Both Agency + Outlet must confirm before month-end close</p>
+            <p className="iz-tiny iz-muted mt-1">
+              Agency (Owner/Finance) + Outlet must both confirm · immutable once locked · month-end blocked until matched
+            </p>
+            <Link to="/outlet/billing" className="iz-tiny mt-1 inline-block text-[var(--iz-violet-l)]">
+              Outlet confirms in Billing →
+            </Link>
           </div>
         </div>
       </IzCard>
@@ -554,27 +807,134 @@ function ReconciliationSection({
           Confirm reconciliation · agency side
         </button>
       )}
+      {reconciliation.agencyConfirmed && (
+        <IzCard flat className="mt-2 border-[var(--iz-green)]">
+          <p className="iz-tiny flex items-center gap-1 text-[var(--iz-green)]">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Agency side locked · entry immutable
+          </p>
+        </IzCard>
+      )}
       {reconciliation.agencyConfirmed && reconciliation.outletConfirmed && (
         <p className="iz-tiny iz-muted2 mt-2 text-center">Both sides confirmed · month-end close eligible</p>
+      )}
+      {reconciliation.agencyConfirmed && !reconciliation.outletConfirmed && (
+        <p className="iz-tiny iz-muted2 mt-2 text-center">Awaiting outlet confirmation in Outlet portal</p>
       )}
     </div>
   );
 }
 
+function PayrollReconciliationBanner({
+  reconciliation,
+  canConfirm,
+  onConfirm,
+  onOpenReconciliation,
+}: {
+  reconciliation: import("@/lib/agency-demo").AgencyReconciliationDay;
+  canConfirm: boolean;
+  onConfirm: () => void;
+  onOpenReconciliation: () => void;
+}) {
+  if (reconciliation.agencyConfirmed && reconciliation.outletConfirmed) return null;
+  return (
+    <IzCard flat className="mt-3 border-[rgba(232,194,122,.4)] bg-[rgba(232,194,122,.06)]">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--iz-amber)]" />
+        <div className="min-w-0 flex-1">
+          <p className="iz-sm font-bold">Confirm today&apos;s reconciliation</p>
+          <p className="iz-tiny iz-muted mt-0.5">
+            Outlet sales {formatRM(reconciliation.outletSalesTotal)} vs PV {formatRM(reconciliation.pvTotal)}
+            {reconciliation.variance !== 0 && (
+              <span className="text-[var(--iz-amber)]"> · variance {formatRM(reconciliation.variance)}</span>
+            )}
+          </p>
+          <p className="iz-tiny iz-muted2 mt-1">
+            Outlet {reconciliation.outletConfirmed ? "confirmed ✓" : "pending"} · Agency{" "}
+            {reconciliation.agencyConfirmed ? "confirmed ✓" : "awaiting"}
+          </p>
+          <button type="button" className="iz-tiny mt-1 text-[var(--iz-gold-l)]" onClick={onOpenReconciliation}>
+            Open reconciliation tab →
+          </button>
+          {canConfirm && !reconciliation.agencyConfirmed && (
+            <button type="button" className="iz-btn iz-btn-primary mt-2 w-full !py-2 !text-xs" onClick={onConfirm}>
+              Confirm reconciliation
+            </button>
+          )}
+        </div>
+      </div>
+    </IzCard>
+  );
+}
+
+function PvWorkflowRail({ status }: { status: PrPvStatus }) {
+  const active = pvWorkflowStepIndex(status);
+  return (
+    <div className="mb-2.5 flex gap-1 overflow-x-auto pb-1">
+      {PV_WORKFLOW_STEPS.map((step, idx) => {
+        const done = idx <= active;
+        const current = idx === active;
+        return (
+          <div
+            key={step.key}
+            className={`shrink-0 rounded-lg border px-2 py-1.5 text-center ${
+              current
+                ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)]"
+                : done
+                  ? "border-[var(--iz-green)]/40 text-[var(--iz-green)]"
+                  : "border-[var(--iz-line)] text-[var(--iz-muted)]"
+            }`}
+          >
+            <p className="iz-tiny font-semibold">{step.label}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PvBreakdownCard({ breakdown }: { breakdown: PvEarningsBreakdown }) {
+  const rows = [
+    { label: "Daily wages", value: breakdown.wages },
+    { label: "Drink commissions", value: breakdown.drinks },
+    { label: "Tip commissions", value: breakdown.tips },
+    { label: "Overtime (check-out)", value: breakdown.overtime },
+  ].filter((r) => r.value > 0);
+  if (breakdown.other > 0) rows.push({ label: "Other", value: breakdown.other });
+  return (
+    <IzCard flat className="mb-2.5">
+      <p className="iz-tiny iz-muted2 mb-2 tracking-wide">4-PART EARNINGS BREAKDOWN</p>
+      {rows.map((r) => (
+        <div key={r.label} className="iz-v-sum">
+          <span className="iz-muted">{r.label}</span>
+          <b>{formatRM(r.value)}</b>
+        </div>
+      ))}
+      <div className="iz-v-sum tot">
+        <span>Subtotal</span>
+        <b className="text-[var(--iz-gold)]">{formatRM(breakdown.total)}</b>
+      </div>
+    </IzCard>
+  );
+}
+
 function PvDetail({
   pv,
-  agencyIc,
+  receiptScans,
   onClose,
 }: {
   pv: PrPaymentVoucher;
-  agencyIc: string;
+  receiptScans: PrReceiptScan[];
   onClose: () => void;
 }) {
   const editAgencyPv = useStore((s) => s.editAgencyPv);
+  const sendAgencyPvToPr = useStore((s) => s.sendAgencyPvToPr);
   const resendAgencyPv = useStore((s) => s.resendAgencyPv);
   const resolveAgencyPvDispute = useStore((s) => s.resolveAgencyPvDispute);
+  const agencyFinanceHead = useStore((s) => s.agencyFinanceHead);
   const overrideSignedAgencyPv = useStore((s) => s.overrideSignedAgencyPv);
   const agencySubRole = useStore((s) => s.agencySubRole);
+  const agencyPRs = useStore((s) => s.agencyPRs);
   const toast = useStore((s) => s.toast);
   const [editing, setEditing] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
@@ -583,6 +943,19 @@ function PvDetail({
   const [rows, setRows] = useState<PrPvRow[]>(pv.rows);
   const [deduct, setDeduct] = useState(pv.deduct);
 
+  const payee = buildAgencyPayee(pv, agencyPRs);
+  const breakdown = summarizePv(editing ? { ...pv, rows, deduct } : pv);
+  const disputeDays = disputeDaysRemaining(pv.disputedAt);
+  const displayPv: PrPaymentVoucher = editing
+    ? {
+        ...pv,
+        rows,
+        deduct,
+        subtotal: rows.reduce((s, r) => s + r.amt, 0),
+        net: rows.reduce((s, r) => s + r.amt, 0) - deduct,
+      }
+    : pv;
+
   const saveEdit = () => {
     editAgencyPv(pv.id, { rows, deduct });
     setEditing(false);
@@ -590,17 +963,41 @@ function PvDetail({
 
   return (
     <>
-      <div className="iz-between mb-2">
-        <h2 className="font-sora text-xl font-extrabold">Payment Voucher</h2>
+      <div className="iz-pv-detail-bar mb-2.5">
+        <div className="iz-pv-detail-bar-main">
+          <IzPill variant={statusPill(pv.status)}>{pvStatusLabel(pv.status)}</IzPill>
+          <span className="iz-pv-detail-id">{pv.id}</span>
+        </div>
         <button type="button" className="iz-chip" onClick={onClose}>
           Close
         </button>
       </div>
 
+      <PvWorkflowRail status={pv.status} />
+
+      <IzCard flat className="mb-2">
+        <p className="iz-tiny iz-muted2">Dual-sign PV</p>
+        <p className="iz-tiny mt-1">
+          1st · {FINANCE_HEAD_LABEL}: <b className="text-[var(--iz-txt)]">{agencyFinanceHead.name}</b>
+          {pv.financeHeadSignedAt ? ` · ${pv.financeHeadSignedAt}` : " · pending"}
+        </p>
+        <p className="iz-tiny iz-muted mt-0.5">
+          2nd · PR ({pv.prName}): {pv.prSignedAt ? pv.prSignedAt : pv.status === "SENT" || pv.status === "PENDING_REVIEW" ? "awaiting sign" : "—"}
+        </p>
+      </IzCard>
+
+      <PvBreakdownCard breakdown={breakdown} />
+
       {pv.status === "DISPUTED" && (
         <IzCard flat className="mb-2 border-[var(--iz-red)]">
-          <p className="iz-tiny font-bold text-[var(--iz-red)]">PR dispute — verify before re-issue</p>
+          <p className="iz-tiny font-bold text-[var(--iz-red)]">PR dispute — resolve within 7 days</p>
           {pv.disputedAt && <p className="iz-tiny iz-muted2 mt-0.5">Raised {pv.disputedAt}</p>}
+          {disputeDays !== null && (
+            <p className="iz-tiny flex items-center gap-1 text-[var(--iz-amber)] mt-1">
+              <Clock className="h-3 w-3" />
+              {disputeDays > 0 ? `${disputeDays} day(s) left to adjust + re-send` : "Deadline passed — escalate to Admin"}
+            </p>
+          )}
           {pv.disputeUpdatedAt && (
             <p className="iz-tiny text-[var(--iz-amber)]">PR updated {pv.disputeUpdatedAt}</p>
           )}
@@ -618,54 +1015,26 @@ function PvDetail({
         </IzCard>
       )}
 
-      <IzCard>
-        <div className="iz-v-sum">
-          <span className="iz-muted">PV #</span>
-          <b>{pv.id}</b>
-        </div>
-        <div className="iz-v-sum">
-          <span className="iz-muted">PR</span>
-          <b>{pv.prName}</b>
-        </div>
-        <div className="iz-v-sum">
-          <span className="iz-muted">PR IC</span>
-          <b>{pv.prIc ?? "—"}</b>
-        </div>
-        <div className="iz-v-sum">
-          <span className="iz-muted">Cycle</span>
-          <b className="text-[var(--iz-gold-l)]">{pv.cycle}</b>
-        </div>
-        <div className="iz-v-sum">
-          <span className="iz-muted">Issued</span>
-          <b>{pv.issued}</b>
-        </div>
-        <div className="iz-v-sum">
-          <span className="iz-muted">Due (PR sign-by)</span>
-          <b>{pv.due}</b>
-        </div>
-        <div className="iz-v-sum">
-          <span className="iz-muted">Outlet</span>
-          <b>{pv.outlet}</b>
-        </div>
-        <div className="iz-v-sum tot">
-          <span>Net payable</span>
-          <span className="iz-ledger text-[var(--iz-gold)]">{formatRM(pv.net)}</span>
-        </div>
-      </IzCard>
+      <PvSummaryView pv={displayPv} payee={payee} className="mb-2.5" />
 
-      {rows.length > 0 && (
-        <>
-          <OutletSection
-            title="Line items"
-            hint="Per item"
-            trailing={
-              pv.status === "DISPUTED" ? (
-                <button type="button" className="iz-chip" onClick={() => setEditing(!editing)}>
-                  <Pencil className="mr-1 inline h-3 w-3" /> {editing ? "Cancel" : "Edit"}
-                </button>
-              ) : undefined
-            }
-          >
+      {receiptScans.length > 0 && (
+        <OutletSection title="Receipt scans" hint={`${receiptScans.length} logged on this PV`}>
+          {receiptScans.map((scan) => (
+            <ReceiptScanRow key={scan.id} scan={scan} />
+          ))}
+        </OutletSection>
+      )}
+
+      {pv.status === "DISPUTED" && rows.length > 0 && (
+        <OutletSection
+          title="Edit line items"
+          hint="Dispute resolution"
+          trailing={
+            <button type="button" className="iz-chip" onClick={() => setEditing(!editing)}>
+              <Pencil className="mr-1 inline h-3 w-3" /> {editing ? "Cancel" : "Edit"}
+            </button>
+          }
+        >
           <IzCard>
             {rows.map((r, idx) => (
               <div key={r.i} className="iz-v-sum border-b border-[var(--iz-line)] py-2 last:border-0">
@@ -718,25 +1087,51 @@ function PvDetail({
               </div>
             )}
           </IzCard>
-          </OutletSection>
-        </>
+        </OutletSection>
       )}
 
       <button
         type="button"
-        className="iz-btn iz-btn-soft mt-2.5"
+        className="iz-btn iz-btn-soft mt-2.5 w-full"
         onClick={() => {
-          downloadAgencyPvPdf(pv, agencyIc);
-          toast("PV PDF downloaded", "success");
+          downloadPvBreakdownPdf(displayPv, payee);
+          toast("Official PV opened — use Print → Save as PDF", "success");
         }}
       >
-        <FileText className="h-4 w-4" /> Download PDF
+        <FileText className="h-4 w-4" /> Download official PV (PDF)
       </button>
+      <p className="iz-tiny iz-muted2 mt-1.5 text-center">
+        PDF export only · no editable Excel · duplicate payment blocked on send.
+      </p>
 
-      {(pvNeedsPrReview(pv.status) || pv.status === "DISPUTED") && (
+      {pv.status === "PAID" && (
         <button
           type="button"
-          className="iz-btn iz-btn-soft mt-2"
+          className="iz-btn iz-btn-primary mt-2 w-full"
+          onClick={() => {
+            downloadPvReceipt(displayPv, {
+              name: payee.name,
+              bank: payee.bank ?? "Maybank",
+              acc: payee.accountNo ?? "",
+              ic: payee.ic ?? pv.prIc ?? "",
+            });
+            toast("Payment receipt downloaded", "success");
+          }}
+        >
+          <Receipt className="h-4 w-4" /> Download payment receipt
+        </button>
+      )}
+
+      {pv.status === "PENDING_REVIEW" && agencyCan(agencySubRole, "raisePv") && (
+        <button type="button" className="iz-btn iz-btn-primary mt-2 w-full" onClick={() => sendAgencyPvToPr(pv.id)}>
+          <Send className="h-4 w-4" /> Send to PR for e-sign
+        </button>
+      )}
+
+      {(pv.status === "DISPUTED" || pv.status === "SENT") && (
+        <button
+          type="button"
+          className="iz-btn iz-btn-soft mt-2 w-full"
           onClick={() => resendAgencyPv(pv.id)}
         >
           Re-send to PR

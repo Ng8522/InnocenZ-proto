@@ -1,7 +1,6 @@
 import {
   FINANCE_HEAD_LABEL,
   PV_DISPUTE_PRESETS,
-  downloadPvReceipt,
   getPrAgencyById,
   getPrProfile,
   pvNeedsPrReview,
@@ -11,8 +10,10 @@ import {
   type PrPaymentVoucher,
   type PrReceiptScan,
 } from "@/lib/pr-demo";
+import { PvSummaryView } from "@/components/iz/PvSummaryView";
 import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
-import { FileText, Check, Download, Shield, Star } from "lucide-react";
+import { payeeFromProfile } from "@/lib/pv-template";
+import { FileText, Check, Shield, Star } from "lucide-react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
@@ -59,13 +60,9 @@ function VouchersPage() {
           onDispute={(reason, photo) => disputePrPv(pv.id, reason, photo)}
           onUpdateDispute={(reason) => updatePrPvDisputeReason(pv.id, reason)}
           onEscalateDispute={() => escalatePrPvDispute(pv.id)}
-          onDownload={() => {
-            downloadPvReceipt(pv, profile);
-            toast("Payment receipt downloaded", "success");
-          }}
-          onDownloadBreakdown={() => {
-            downloadPvBreakdownPdf(pv, profile, prReceiptScans);
-            toast("PV breakdown opened — use Print → Save as PDF", "success");
+          onDownloadPdf={() => {
+            downloadPvBreakdownPdf(pv, payeeFromProfile(profile), prReceiptScans);
+            toast("Official PV opened — use Print → Save as PDF", "success");
           }}
         />
       </div>
@@ -147,8 +144,7 @@ function PvDetail({
   onDispute,
   onUpdateDispute,
   onEscalateDispute,
-  onDownload,
-  onDownloadBreakdown,
+  onDownloadPdf,
 }: {
   pv: PrPaymentVoucher;
   profile: ReturnType<typeof getPrProfile>;
@@ -159,8 +155,7 @@ function PvDetail({
   onDispute: (reason: string, photoDataUrl?: string) => void;
   onUpdateDispute: (reason: string) => void;
   onEscalateDispute: () => void;
-  onDownload: () => void;
-  onDownloadBreakdown: () => void;
+  onDownloadPdf: () => void;
 }) {
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
@@ -173,7 +168,6 @@ function PvDetail({
   }, [pv.id, pv.prDisputeReason]);
 
   const prSigned = pv.status === "PAID" || pv.status === "SIGNED" || Boolean(pv.prSignedAt);
-  const canDownload = pv.status === "PAID";
   const needsReview = pvNeedsPrReview(pv.status);
   const disputeDirty =
     pv.status === "DISPUTED" && editDisputeReason.trim() !== (pv.prDisputeReason ?? "").trim();
@@ -200,14 +194,14 @@ function PvDetail({
 
   return (
     <>
-      <div className="iz-between mb-2.5">
-        <h2 className="font-sora text-xl font-extrabold">Payment Voucher</h2>
-        <div className="flex items-center gap-2">
+      <div className="iz-pv-detail-bar mb-2.5">
+        <div className="iz-pv-detail-bar-main">
           <IzPill variant={pvStatusPillVariant(pv.status)}>{pvStatusLabel(pv.status)}</IzPill>
-          <button type="button" className="iz-chip" onClick={onBack}>
-            Close
-          </button>
+          <span className="iz-pv-detail-id">{pv.id}</span>
         </div>
+        <button type="button" className="iz-chip" onClick={onBack}>
+          Close
+        </button>
       </div>
 
       {pv.status === "PENDING_REVIEW" && (
@@ -221,82 +215,7 @@ function PvDetail({
         </IzCard>
       )}
 
-      <IzCard>
-        <div className="iz-v-sum">
-          <span className="iz-muted">PV #</span>
-          <b>{pv.id}</b>
-        </div>
-        <div className="iz-v-sum">
-          <span className="iz-muted">Cycle</span>
-          <b>{pv.cycle}</b>
-        </div>
-        {pv.shiftTime && (
-          <div className="iz-v-sum">
-            <span className="iz-muted">Shift</span>
-            <b>{pv.shiftTime}</b>
-          </div>
-        )}
-        {pv.timeIn && (
-          <div className="iz-v-sum">
-            <span className="iz-muted">Time-In</span>
-            <b>{pv.timeIn}</b>
-          </div>
-        )}
-        {pv.timeOut && (
-          <div className="iz-v-sum">
-            <span className="iz-muted">Time-Out</span>
-            <b>{pv.timeOut}</b>
-          </div>
-        )}
-        {pv.receiptIds && pv.receiptIds.length > 0 && (
-          <div className="iz-v-sum">
-            <span className="iz-muted">Receipt scans</span>
-            <b>{pv.receiptIds.length} on this shift</b>
-          </div>
-        )}
-        <div className="iz-v-sum">
-          <span className="iz-muted">Outlet</span>
-          <b>{pv.outlet}</b>
-        </div>
-        {pv.deduct > 0 && (
-          <div className="iz-v-sum">
-            <span className="iz-muted">Deductions</span>
-            <b className="text-[var(--iz-red)]">-{formatRM(pv.deduct)}</b>
-          </div>
-        )}
-        <div className="iz-v-sum tot">
-          <span>Net payable</span>
-          <span className="iz-ledger text-[var(--iz-gold)]">{formatRM(pv.net)}</span>
-        </div>
-      </IzCard>
-
-      {pv.rows.length > 0 && (
-        <IzCard className="mt-2.5">
-          <div className="iz-tiny iz-muted2 mb-2 tracking-widest">PV LINE ITEMS</div>
-          <div className="iz-data-table-wrap">
-            <table className="iz-data-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th>Ref</th>
-                  <th className="text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pv.rows.map((r) => (
-                  <tr key={r.i}>
-                    <td>{r.date}</td>
-                    <td>{r.desc}</td>
-                    <td>{r.ref}</td>
-                    <td className="text-right">{formatRM(r.amt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </IzCard>
-      )}
+      <PvSummaryView pv={pv} payee={payeeFromProfile(profile)} className="mb-2.5" />
 
       {linkedReceipts.length > 0 && (
         <IzCard className="mt-2.5">
@@ -332,11 +251,11 @@ function PvDetail({
         </IzCard>
       )}
 
-      <button type="button" className="iz-btn iz-btn-soft mt-2.5 w-full" onClick={onDownloadBreakdown}>
-        <FileText className="h-4 w-4" /> Download PV breakdown (PDF)
+      <button type="button" className="iz-btn iz-btn-soft mt-2.5 w-full" onClick={onDownloadPdf}>
+        <FileText className="h-4 w-4" /> Download PDF
       </button>
       <p className="iz-tiny iz-muted2 mt-1.5 text-center">
-        Atmosphere-style voucher with line items, receipt scans, totals, and signatures.
+        Opens the official Atmosphere payment voucher — use Print → Save as PDF.
       </p>
 
       <IzCard className="mt-2.5">
@@ -355,15 +274,13 @@ function PvDetail({
         />
       </IzCard>
 
-      <IzCard flat className="iz-tiny iz-muted mt-2.5">
-        <div>Payee: {profile.name}</div>
-        <div>Bank: {profile.bank} {profile.acc}</div>
-        {isFreelancer && (
-          <p className="mt-2 text-[var(--iz-blue)]">
+      {isFreelancer && (
+        <IzCard flat className="iz-tiny iz-muted mt-2.5">
+          <p className="text-[var(--iz-blue)]">
             Payroll via your appointed PR agency — ask them to raise PVs for your sealed shifts.
           </p>
-        )}
-      </IzCard>
+        </IzCard>
+      )}
 
       {needsReview && (
         <>
@@ -532,16 +449,10 @@ function PvDetail({
               <p className="iz-tiny iz-muted2 mt-1 font-mono">Ref: {pv.bankRef}</p>
             )}
           </IzCard>
-          <button type="button" className="iz-btn iz-btn-primary mt-2.5" onClick={onDownload}>
-            <Download className="h-4 w-4" /> Download payment receipt
+          <button type="button" className="iz-btn iz-btn-primary mt-2.5 w-full" onClick={onDownloadPdf}>
+            <FileText className="h-4 w-4" /> Download PDF
           </button>
         </>
-      )}
-
-      {canDownload && (
-        <p className="iz-tiny iz-muted2 mt-2 text-center">
-          Receipt includes PV breakdown, both signatures, and bank transfer reference.
-        </p>
       )}
 
       <button type="button" className="iz-btn iz-btn-soft mt-2.5" onClick={onBack}>

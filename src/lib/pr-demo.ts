@@ -529,6 +529,25 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     shiftTime: "9:00 PM – 2:00 AM",
     receiptIds: ["rc-seed-4"],
   },
+  {
+    id: "PV-2026-0611-A",
+    prName: "Luna",
+    prIc: "950312-14-8821",
+    outlet: "Velvet 23",
+    cycle: "4 May \u2013 10 Jun 2026",
+    issued: "10 May 2026",
+    due: "17 May 2026",
+    rows: [
+      { i: 1, date: "4 Jun", day: "Thu", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 360, ref: "Sealed" },
+      { i: 2, date: "4 Jun", day: "Thu", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 90, ref: "Tap log", receiptIds: ["rc-luna-1"] },
+    ],
+    subtotal: 450,
+    deduct: 0,
+    net: 450,
+    status: "SENT",
+    financeHeadName: FINANCE_HEAD_SIGNER,
+    financeHeadSignedAt: "10 May 2026 · 09:14",
+  },
 ];
 
 export function formatRMPlain(n: number) {
@@ -626,6 +645,8 @@ export interface PrReceiptScan {
   outlet: string;
   prCode: string;
   prName: string;
+  /** Agency roster PR id when known */
+  prId?: string;
   items: PrReceiptItem[];
   totalLogged: number;
   drinkCommission: number;
@@ -792,6 +813,47 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     tableCommission: 0,
     totalCommission: 125,
     status: "attached",
+  },
+  {
+    id: "rc-luna-1",
+    scannedAt: "4 Jun 2026 · 22:15",
+    date: [2026, 6, 4],
+    outlet: "Velvet 23",
+    prCode: "PR-0001",
+    prName: "Luna",
+    prId: "p1",
+    shiftSessionId: "shift-2026-06-04-velvet",
+    pvId: "PV-2026-0610-A",
+    items: [
+      { label: "Champagne", qty: 2, unitPrice: 280, amount: 560, category: "drinks" },
+      { label: "VIP Table", qty: 1, unitPrice: 400, amount: 400, category: "tables" },
+    ],
+    totalLogged: 960,
+    drinkCommission: 30,
+    tipCommission: 0,
+    tableCommission: 60,
+    totalCommission: 90,
+    pvStatus: "SIGNED",
+    status: "in_pv",
+  },
+  {
+    id: "rc-mia-1",
+    scannedAt: "3 Jun 2026 · 23:40",
+    date: [2026, 6, 3],
+    outlet: "Mermate",
+    prCode: "PR-0002",
+    prName: "Mia",
+    prId: "p2",
+    shiftSessionId: "shift-2026-06-03-mermate",
+    pvId: "PV-2026-0608-B",
+    items: [{ label: "Cocktail", qty: 5, unitPrice: 45, amount: 225, category: "drinks" }],
+    totalLogged: 225,
+    drinkCommission: 75,
+    tipCommission: 0,
+    tableCommission: 0,
+    totalCommission: 75,
+    pvStatus: "PAID",
+    status: "paid",
   },
 ];
 

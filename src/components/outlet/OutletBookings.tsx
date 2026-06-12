@@ -6,7 +6,7 @@ import { IzCard, IzPill } from "@/components/iz/ui";
 import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
 import { OutletSealReview } from "@/components/outlet/OutletSealReview";
 import { SHIFT_DESTINATION_LABELS } from "@/lib/outlet-demo";
-import { CheckCircle2, ChevronDown, Clock, Lock, PlayCircle, Trash2, UserCheck, UserX } from "lucide-react";
+import { Check, CheckCircle2, ChevronDown, Clock, Lock, PlayCircle, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_META = {
@@ -97,22 +97,22 @@ export function OutletBookings() {
                         <span className="text-xs">
                           {a.prName} · {a.rating}★
                         </span>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1.5">
                           <button
                             type="button"
                             onClick={() => respondToApplicant(a.id, true)}
-                            className="iz-chip !h-7 !w-7 !p-0 text-[var(--iz-green)]"
+                            className="iz-topbar-action h-8 w-8 shrink-0 !text-[var(--iz-green)] hover:!text-[var(--iz-green)]"
                             aria-label={`Accept ${a.prName}`}
                           >
-                            <UserCheck className="h-3.5 w-3.5" />
+                            <Check className="h-4 w-4" strokeWidth={2.5} />
                           </button>
                           <button
                             type="button"
                             onClick={() => respondToApplicant(a.id, false)}
-                            className="iz-chip !h-7 !w-7 !p-0"
+                            className="iz-topbar-action h-8 w-8 shrink-0"
                             aria-label={`Decline ${a.prName}`}
                           >
-                            <UserX className="h-3.5 w-3.5" />
+                            <X className="h-4 w-4" strokeWidth={2.5} />
                           </button>
                         </div>
                       </div>

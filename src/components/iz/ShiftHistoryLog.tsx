@@ -64,10 +64,9 @@ export function ShiftHistoryLog({
 
   return (
     <div className="iz-screen">
-      <AppTopbar
-        backTo={portal === "agency" ? "/agency" : "/outlet"}
-        backLabel={portal === "agency" ? "Agency home" : "Outlet home"}
-      />
+      {portal === "agency" && (
+        <AppTopbar backTo="/agency" backLabel="Agency home" />
+      )}
       <p className="iz-tiny iz-muted2 uppercase tracking-widest">InnocenZ · {portal === "agency" ? "Agency" : "Outlet"}</p>
       <h2 className="font-sora mx-0.5 mt-0.5 text-[22px] font-extrabold text-[var(--iz-txt)]">History</h2>
       <p className="iz-tiny iz-muted mt-0.5">{subtitle}</p>

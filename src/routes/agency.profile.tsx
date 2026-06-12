@@ -1,12 +1,13 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
 import type { AgencyFinanceHead, AgencyOwnerSettings, OutletCommissionRule } from "@/lib/agency-demo";
 import { SCALING_TIER_MULTIPLIERS } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
+import { rulesMatchOutlet } from "@/lib/outlet-agency-sync";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
-import { Building2, Camera, CreditCard, Mail, Pencil, Phone, Shield, User, Users, X } from "lucide-react";
+import { Building2, Camera, CreditCard, Mail, Pencil, Phone, Shield, User, X } from "lucide-react";
 
 const SCALING_TIER_ORDER = ["Tier III", "Tier IV", "Tier V"] as const;
 
@@ -22,6 +23,7 @@ function AgencyProfile() {
   const agencyOwner = useStore((s) => s.agencyOwner);
   const agencyFinanceHead = useStore((s) => s.agencyFinanceHead);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const outletWorkspace = useStore((s) => s.outletWorkspace);
   const scalingTierMultipliers = useStore((s) => s.scalingTierMultipliers);
   const saveAgencyProfileSettings = useStore((s) => s.saveAgencyProfileSettings);
   const sendAgencyOtp = useStore((s) => s.sendAgencyOtp);
@@ -133,7 +135,6 @@ function AgencyProfile() {
   if (!agencyCan(agencySubRole, "viewSettings")) {
     return (
       <div className="iz-screen">
-        <AppTopbar backTo="/agency" backLabel="Home" />
         <header>
           <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
         </header>
@@ -149,11 +150,7 @@ function AgencyProfile() {
 
   return (
     <div className="iz-screen">
-      <AppTopbar
-        backTo={editing ? undefined : "/agency"}
-        onBack={editing ? cancelEdit : undefined}
-        backLabel={editing ? "Cancel edit" : "Home"}
-      />
+      {editing && <AppTopbar onBack={cancelEdit} backLabel="Cancel edit" />}
       <header>
         <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Settings</h2>
         <p className="iz-tiny iz-muted mt-0.5">{owner.orgName}</p>
@@ -318,6 +315,21 @@ function AgencyProfile() {
               Wage RM{rule.wagePerHour}/hr · Drinks {rule.drinkPct}% · Tips {rule.tipPct}% · Table {rule.tablePct}% · OT after {rule.otAfterHours}h
             </p>
           )}
+          {rulesMatchOutlet(rule, outletWorkspace.outletName) && outletWorkspace.drinkMenu.length > 0 && (
+            <div className="mt-2 border-t border-[var(--iz-line)] pt-2">
+              <p className="iz-tiny iz-muted2 mb-1.5">Drink menu · synced from outlet</p>
+              <div className="flex flex-wrap gap-1.5">
+                {outletWorkspace.drinkMenu.map((drink) => (
+                  <span
+                    key={drink.id}
+                    className="iz-tiny rounded-md bg-white/[0.04] px-2 py-0.5 font-semibold text-[var(--iz-gold-l)]"
+                  >
+                    {drink.name} RM{drink.priceRm}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </IzCard>
       ))}
 
@@ -407,12 +419,6 @@ function AgencyProfile() {
             </button>
           )}
         </div>
-      )}
-
-      {!editing && (
-        <Link to="/agency/reports" className="iz-btn iz-btn-soft mt-2 block text-center">
-          <Users className="mr-1 inline h-4 w-4" /> View analytics &amp; PNL
-        </Link>
       )}
 
       <button

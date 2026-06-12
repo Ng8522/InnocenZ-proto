@@ -5,9 +5,6 @@ import { PhoneFrame } from "@/components/Brand";
 import { ArrowLeft, Mail, User, Lock } from "lucide-react";
 
 export const Route = createFileRoute("/signin")({
-  beforeLoad: () => {
-    if (typeof window !== "undefined") useStore.getState().resetDemo();
-  },
   validateSearch: (s: Record<string, unknown>) => ({
     mode: (s.mode === "create" ? "create" : "signin") as "signin" | "create",
   }),

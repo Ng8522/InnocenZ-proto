@@ -1,12 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { AlertTriangle, Briefcase, MessageSquare } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzSelect } from "@/components/iz/ui";
-import { OUTLET_COMMISSION_RULES } from "@/lib/agency-demo";
 import { useStore } from "@/lib/store";
-
-const OUTLET_OPTIONS = OUTLET_COMMISSION_RULES.map((r) => r.outlet);
 
 type BroadcastKind = "shift" | "message";
 
@@ -66,6 +63,11 @@ export function AgencyBroadcastSheet({
   onSent: () => void;
 }) {
   const broadcastAgencyPr = useStore((s) => s.broadcastAgencyPr);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const outletOptions = useMemo(
+    () => (outletCommissionRules ?? []).map((r) => r.outlet),
+    [outletCommissionRules],
+  );
   const [kind, setKind] = useState<BroadcastKind>("shift");
   const [shift, setShift] = useState<ShiftForm>(EMPTY_SHIFT);
   const [message, setMessage] = useState<MessageForm>(EMPTY_MESSAGE);
@@ -195,7 +197,7 @@ export function AgencyBroadcastSheet({
               }}
             >
               <option value="">Select outlet</option>
-              {OUTLET_OPTIONS.map((o) => (
+              {outletOptions.map((o) => (
                 <option key={o} value={o}>{o}</option>
               ))}
             </IzSelect>

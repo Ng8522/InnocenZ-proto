@@ -7,16 +7,24 @@ import { useStore } from "@/lib/store";
 import { IzPill } from "@/components/iz/ui";
 import { ChevronRight } from "lucide-react";
 
-function statusVariant(status: LiveWorkforceEntry["status"]) {
+export function workforceStatusVariant(status: LiveWorkforceEntry["status"]) {
   if (status === "on-duty") return "green" as const;
   if (status === "en-route") return "violet" as const;
   return "ink" as const;
 }
 
-function statusLabel(status: LiveWorkforceEntry["status"]) {
+export function workforceStatusLabel(status: LiveWorkforceEntry["status"]) {
   if (status === "on-duty") return "ON-DUTY";
   if (status === "en-route") return "EN-ROUTE";
   return "OUT";
+}
+
+function statusVariant(status: LiveWorkforceEntry["status"]) {
+  return workforceStatusVariant(status);
+}
+
+function statusLabel(status: LiveWorkforceEntry["status"]) {
+  return workforceStatusLabel(status);
 }
 
 function WorkforceRow({
@@ -64,7 +72,12 @@ export function LiveWorkforceTable({
   outletFilter?: string;
 }) {
   const agencyRoster = useStore((s) => s.agencyRoster);
-  const workforce = useMemo(() => deriveLiveWorkforce(agencyRoster, dateIso), [agencyRoster, dateIso]);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
+  const workforce = useMemo(
+    () => deriveLiveWorkforce(agencyRoster, dateIso, outletCommissionRules, perDrinkRm),
+    [agencyRoster, dateIso, outletCommissionRules, perDrinkRm],
+  );
   const filtered = outletFilter
     ? workforce.filter((w) => w.outlet === outletFilter || w.outlet.includes(outletFilter))
     : workforce;
@@ -126,7 +139,12 @@ export function LiveWorkforceList({
   outletName: string;
 }) {
   const agencyRoster = useStore((s) => s.agencyRoster);
-  const workforce = useMemo(() => deriveLiveWorkforce(agencyRoster, dateIso), [agencyRoster, dateIso]);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
+  const workforce = useMemo(
+    () => deriveLiveWorkforce(agencyRoster, dateIso, outletCommissionRules, perDrinkRm),
+    [agencyRoster, dateIso, outletCommissionRules, perDrinkRm],
+  );
   const filtered = workforce.filter((w) => w.outlet === outletName || w.outlet.includes(outletName.split(" ")[0] ?? ""));
 
   return (

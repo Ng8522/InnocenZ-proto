@@ -71,13 +71,13 @@ export function ProfileLanguagePicker({
           </button>
         ))}
       </div>
-      <div className="mt-2.5 flex gap-2">
+      <div className="mt-2.5 flex flex-col gap-2">
         <input
           type="text"
           value={otherInput}
           maxLength={32}
           placeholder="Other language"
-          className="min-w-0 flex-1 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-bg2)] px-3 py-2 text-xs text-[var(--iz-txt)] outline-none placeholder:text-[var(--iz-muted)] focus:border-[var(--iz-gold-d)]"
+          className="w-full rounded-xl border border-[var(--iz-line)] bg-[var(--iz-bg2)] px-3 py-2.5 text-xs text-[var(--iz-txt)] outline-none placeholder:text-[var(--iz-muted)] focus:border-[var(--iz-gold-d)]"
           onChange={(e) => setOtherInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -88,7 +88,7 @@ export function ProfileLanguagePicker({
         />
         <button
           type="button"
-          className="iz-btn iz-btn-soft shrink-0 !px-3 !py-2 !text-xs"
+          className="iz-btn iz-btn-soft w-full !py-2.5 !text-xs"
           onClick={addOther}
         >
           <Plus className="h-3.5 w-3.5" /> Add

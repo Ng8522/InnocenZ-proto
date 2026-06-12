@@ -1,6 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AppTopbar } from "@/components/Nav";
-import { AgencyHomeTiles } from "@/components/agency/AgencyHomeTiles";
 import { useStore } from "@/lib/store";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
@@ -47,7 +45,6 @@ function AgencyHub() {
 
   return (
     <div className="iz-screen iz-portal-page">
-      <AppTopbar />
 
       <div className="iz-portal-kpi-grid iz-portal-desktop-only">
         <div className="iz-portal-kpi">
@@ -139,8 +136,6 @@ function AgencyHub() {
           </div>
         </IzCard>
       )}
-
-      <AgencyHomeTiles />
 
       {showWorkforce && (
         <div className="iz-portal-desktop-only mt-4">

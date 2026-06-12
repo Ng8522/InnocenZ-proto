@@ -203,10 +203,10 @@ function BillingPage() {
                     <button
                       type="button"
                       onClick={() => toast(`${invId}.pdf downloaded`, "success")}
-                      className="iz-chip !h-8 !w-8 !p-0"
-                      aria-label="Download"
+                      className="iz-topbar-action shrink-0"
+                      aria-label={`Download ${invId}`}
                     >
-                      <Download className="h-3.5 w-3.5" />
+                      <Download className="h-4 w-4" />
                     </button>
                   </div>
                 );

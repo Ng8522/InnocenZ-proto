@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { AgencyBroadcastSheet } from "@/components/agency/AgencyBroadcastSheet";
+import { Comcard3dPreviewThumb, Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import type { AgencyManagedPR } from "@/lib/agency-demo";
@@ -45,11 +46,45 @@ function AgencyManagePRs() {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [comcardPreviewId, setComcardPreviewId] = useState<string | null>(null);
 
-  if (!agencyCan(agencySubRole, "managePr")) {
+  const canManage = agencyCan(agencySubRole, "managePr");
+
+  const languages = useMemo(
+    () => [...new Set(agencyPRs.flatMap((p) => p.languages ?? []))].sort(),
+    [agencyPRs],
+  );
+  const races = useMemo(
+    () => [...new Set(agencyPRs.map((p) => p.race).filter(Boolean))],
+    [agencyPRs],
+  );
+  const places = useMemo(
+    () => [...new Set(agencyPRs.map((p) => p.place).filter(Boolean))],
+    [agencyPRs],
+  );
+
+  const filtered = useMemo(
+    () =>
+      agencyPRs.filter((p) => {
+        if (p.detached) return false;
+        if (ageMin && (p.age ?? 0) < Number(ageMin)) return false;
+        if (ratingMin && (p.rating ?? 0) < Number(ratingMin)) return false;
+        const langs = p.languages ?? [];
+        if (lang && !langs.some((l) => l.toLowerCase().includes(lang.toLowerCase()))) return false;
+        if (race && p.race !== race) return false;
+        if (place && p.place !== place) return false;
+        if (expMin && (p.yearsExp ?? 0) < Number(expMin)) return false;
+        return true;
+      }),
+    [agencyPRs, ageMin, ratingMin, lang, race, place, expMin],
+  );
+
+  const detail = agencyPRs.find((p) => p.id === detailId);
+  const comcardPreview = agencyPRs.find((p) => p.id === comcardPreviewId);
+
+  if (!canManage) {
     return (
       <div className="iz-screen">
-        <AppTopbar backTo="/agency" backLabel="Home" />
         <header>
           <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
         </header>
@@ -59,26 +94,6 @@ function AgencyManagePRs() {
       </div>
     );
   }
-
-  const languages = useMemo(
-    () => [...new Set(agencyPRs.flatMap((p) => p.languages))].sort(),
-    [agencyPRs],
-  );
-  const races = useMemo(() => [...new Set(agencyPRs.map((p) => p.race))], [agencyPRs]);
-  const places = useMemo(() => [...new Set(agencyPRs.map((p) => p.place))], [agencyPRs]);
-
-  const filtered = agencyPRs.filter((p) => {
-    if (p.detached) return false;
-    if (ageMin && p.age < Number(ageMin)) return false;
-    if (ratingMin && p.rating < Number(ratingMin)) return false;
-    if (lang && !p.languages.some((l) => l.toLowerCase().includes(lang.toLowerCase()))) return false;
-    if (race && p.race !== race) return false;
-    if (place && p.place !== place) return false;
-    if (expMin && p.yearsExp < Number(expMin)) return false;
-    return true;
-  });
-
-  const detail = agencyPRs.find((p) => p.id === detailId);
 
   if (detail) {
     return (
@@ -117,7 +132,6 @@ function AgencyManagePRs() {
 
   return (
     <div className="iz-screen">
-      <AppTopbar backTo="/agency" backLabel="Home" />
       <header>
         <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Manage PR</h2>
         <p className="iz-tiny iz-muted mt-0.5">Filter roster · bulk broadcast · auto-flags</p>
@@ -226,11 +240,18 @@ function AgencyManagePRs() {
           const flags = getAgencyPrFlags(p);
           const picked = selectMode && selected.has(p.id);
           return (
-            <button
+            <div
               key={p.id}
-              type="button"
-              className={`iz-outlet-floor-row w-full text-left${picked ? " ring-1 ring-[var(--iz-gold)]" : ""}${flags.suspendStreak && !p.suspended ? " border-[var(--iz-red)]/40" : ""}`}
+              role="button"
+              tabIndex={0}
+              className={`iz-outlet-floor-row w-full cursor-pointer text-left${picked ? " ring-1 ring-[var(--iz-gold)]" : ""}${flags.suspendStreak && !p.suspended ? " border-[var(--iz-red)]/40" : ""}`}
               onClick={() => {
+                if (selectMode) toggleSelect(p.id);
+                else setDetailId(p.id);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
                 if (selectMode) toggleSelect(p.id);
                 else setDetailId(p.id);
               }}
@@ -246,9 +267,25 @@ function AgencyManagePRs() {
                   {picked && <Check className="h-3 w-3" strokeWidth={3} />}
                 </div>
               )}
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--iz-violet-ink)] font-sora text-lg font-bold">
-                {p.name.trim()[0]}
-              </div>
+              <button
+                type="button"
+                className="iz-comcard-3d-preview-btn"
+                aria-label={`Preview 3D comcard for ${p.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setComcardPreviewId(p.id);
+                }}
+              >
+                <Comcard3dPreviewThumb
+                  pr={{
+                    id: p.id,
+                    name: p.name,
+                    height: p.height,
+                    weight: p.weight,
+                    age: p.age,
+                  }}
+                />
+              </button>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="truncate font-sora text-sm font-bold">{p.name}</span>
@@ -265,14 +302,14 @@ function AgencyManagePRs() {
                   <IzPill variant="gold" className="!py-0.5 !text-[9px]">{p.rating} ★</IzPill>
                 </div>
                 <p className="iz-tiny iz-muted truncate">
-                  {p.languages.join(" · ")} · {p.place}
+                  {(p.languages ?? []).join(" · ") || "—"} · {p.place ?? "—"}
                 </p>
                 <p className="iz-tiny iz-muted2">
-                  Paid {formatRM(p.totalPaid)} · Att. {p.attendancePct}% · KPI {p.kpiScore}
+                  Paid {formatRM(p.totalPaid ?? 0)} · Att. {p.attendancePct ?? 0}% · KPI {p.kpiScore ?? "—"}
                   {flags.suspendLabel ? ` · ${flags.suspendLabel}` : ""}
                 </p>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
@@ -284,6 +321,24 @@ function AgencyManagePRs() {
         prIds={[...selected]}
         onSent={finishBroadcast}
       />
+
+      <IzSheet open={!!comcardPreview} onClose={() => setComcardPreviewId(null)}>
+        {comcardPreview && (
+          <div className="px-1 pb-2">
+            <div className="iz-cardttl mb-3">{comcardPreview.name}</div>
+            <Comcard3dPreviewVisual
+              pr={{
+                id: comcardPreview.id,
+                name: comcardPreview.name,
+                height: comcardPreview.height,
+                weight: comcardPreview.weight,
+                age: comcardPreview.age,
+              }}
+              showName={false}
+            />
+          </div>
+        )}
+      </IzSheet>
     </div>
   );
 }
@@ -305,16 +360,16 @@ type AgencyPrDraft = {
 
 function buildAgencyPrDraft(pr: AgencyManagedPR): AgencyPrDraft {
   return {
-    name: pr.name,
-    mobile: pr.mobile,
-    email: pr.email,
-    age: pr.age,
-    height: pr.height,
+    name: pr.name ?? "",
+    mobile: pr.mobile ?? "",
+    email: pr.email ?? "",
+    age: pr.age ?? 22,
+    height: pr.height ?? 165,
     weight: pr.weight ?? 52,
-    race: pr.race,
-    place: pr.place,
-    yearsExp: pr.yearsExp,
-    languages: [...pr.languages],
+    race: pr.race ?? "",
+    place: pr.place ?? "",
+    yearsExp: pr.yearsExp ?? 0,
+    languages: [...(pr.languages ?? [])],
     kpiTier: pr.kpiTier ?? "B",
     trainingLevel: pr.trainingLevel,
   };
@@ -501,11 +556,15 @@ function AgencyPrDetail({
             <AgencyComcardInput label="Age" value={draft.age} onChange={(n) => setDraft((p) => ({ ...p, age: n }))} />
           </div>
         ) : (
-          <div className="flex justify-around text-center">
-            <AgencyComcardStat label="HEIGHT" value={`${display.height} cm`} />
-            <AgencyComcardStat label="WEIGHT" value={`${display.weight} kg`} />
-            <AgencyComcardStat label="AGE" value={String(display.age)} />
-          </div>
+          <Comcard3dPreviewVisual
+            pr={{
+              id: detail.id,
+              name: display.name,
+              height: display.height,
+              weight: display.weight,
+              age: display.age,
+            }}
+          />
         )}
       </IzCard>
 
@@ -708,15 +767,6 @@ function AgencyPrDetail({
           )}
         </div>
       </IzSheet>
-    </div>
-  );
-}
-
-function AgencyComcardStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="font-sora text-xl font-extrabold text-[var(--iz-gold-l)]">{value}</div>
-      <div className="iz-tiny iz-muted2 mt-0.5 tracking-wide">{label}</div>
     </div>
   );
 }

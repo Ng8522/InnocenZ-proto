@@ -21,21 +21,27 @@ export const OUTLET_COMMISSION_RULES: OutletCommissionRule[] = [
   { outlet: "Urban Soul", wagePerHour: 52, drinkPct: 11, tipPct: 10, tablePct: 8, otAfterHours: 6, platformPct: 5 },
 ];
 
-export function getOutletRule(outlet: string): OutletCommissionRule {
-  return OUTLET_COMMISSION_RULES.find((r) => r.outlet === outlet) ?? OUTLET_COMMISSION_RULES[0];
+export function getOutletRule(
+  outlet: string,
+  rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
+): OutletCommissionRule {
+  return rules.find((r) => r.outlet === outlet) ?? rules[0] ?? OUTLET_COMMISSION_RULES[0];
 }
 
 /** Per-item payout from sealed shift log */
-export function calcShiftPayout(input: {
-  outlet: string;
-  hoursWorked: number;
-  drinks: number;
-  drinkSales: number;
-  tips: number;
-  tableSales: number;
-  checkOutAfterOt?: boolean;
-}) {
-  const rule = getOutletRule(input.outlet);
+export function calcShiftPayout(
+  input: {
+    outlet: string;
+    hoursWorked: number;
+    drinks: number;
+    drinkSales: number;
+    tips: number;
+    tableSales: number;
+    checkOutAfterOt?: boolean;
+  },
+  rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
+) {
+  const rule = getOutletRule(input.outlet, rules);
   const baseHours = Math.min(input.hoursWorked, rule.otAfterHours);
   const otHours = Math.max(0, input.hoursWorked - rule.otAfterHours);
   const wages = baseHours * rule.wagePerHour + otHours * rule.wagePerHour * 1.5;
@@ -246,6 +252,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     email: "luna@inz.my",
     age: 26,
     height: 168,
+    weight: 50,
     race: "Chinese",
     languages: ["English", "Mandarin"],
     place: "KL",
@@ -269,6 +276,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     email: "mia@inz.my",
     age: 24,
     height: 165,
+    weight: 48,
     race: "Chinese",
     languages: ["English", "Mandarin", "Cantonese"],
     place: "PJ",
@@ -292,6 +300,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     email: "vivi@inz.my",
     age: 25,
     height: 170,
+    weight: 54,
     race: "Malay",
     languages: ["English", "Malay"],
     place: "KL",
@@ -313,6 +322,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     email: "nina@inz.my",
     age: 23,
     height: 162,
+    weight: 47,
     race: "Malay",
     languages: ["English", "Malay"],
     place: "Shah Alam",
@@ -336,6 +346,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     email: "yuki@inz.my",
     age: 27,
     height: 166,
+    weight: 51,
     race: "Japanese",
     languages: ["English", "Japanese", "Mandarin"],
     place: "Mont Kiara",
@@ -357,6 +368,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     email: "cici@inz.my",
     age: 24,
     height: 163,
+    weight: 49,
     race: "Chinese",
     languages: ["English", "Mandarin"],
     place: "PJ",
@@ -380,6 +392,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     email: "chen.wei@inz.my",
     age: 25,
     height: 167,
+    weight: 55,
     race: "Chinese",
     languages: ["English", "Mandarin"],
     place: "KL",
@@ -392,6 +405,28 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     checkOuts: 28,
     noShows: 0,
     kpiScore: 86,
+  },
+  {
+    id: "freelancer-jaya",
+    name: "Jaya Nair",
+    ic: "880214-10-5566",
+    mobile: "+60 17-662 3391",
+    email: "jaya.nair@inz.my",
+    age: 27,
+    height: 166,
+    weight: 52,
+    race: "Indian",
+    languages: ["English", "Cantonese"],
+    place: "KL",
+    yearsExp: 2,
+    rating: 4.6,
+    trainingLevel: "Tier III",
+    totalPaid: 6840,
+    attendancePct: 91,
+    checkIns: 19,
+    checkOuts: 18,
+    noShows: 1,
+    kpiScore: 78,
   },
 ];
 
@@ -516,6 +551,7 @@ export function pendingPRToManagedPR(p: PendingPR): AgencyManagedPR {
     email: p.email ?? "—",
     age: p.age ?? 22,
     height: p.height ?? 165,
+    weight: 52,
     race: p.race ?? "—",
     languages: langs,
     place: "KL",

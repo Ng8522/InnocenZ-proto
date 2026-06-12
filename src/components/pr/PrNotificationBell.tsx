@@ -4,10 +4,13 @@ import { Bell } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzCard, IzPill } from "@/components/iz/ui";
 import { useStore } from "@/lib/store";
-import type { PrNotification } from "@/lib/pr-features";
+import { getPrRosterId } from "@/lib/pr-demo";
+import { prNotificationsForRecipient, type PrNotification } from "@/lib/pr-features";
 
 export function PrNotificationBell() {
-  const notifications = useStore((s) => s.prNotifications);
+  const prSubRole = useStore((s) => s.prSubRole);
+  const allNotifications = useStore((s) => s.prNotifications);
+  const notifications = prNotificationsForRecipient(allNotifications, getPrRosterId(prSubRole));
   const markPrNotificationRead = useStore((s) => s.markPrNotificationRead);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();

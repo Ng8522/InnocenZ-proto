@@ -7,7 +7,9 @@ import { ChevronRight, Sparkles } from "lucide-react";
 export function AiSuggestionsPanel() {
   const agencyRoster = useStore((s) => s.agencyRoster);
   const agencyPRs = useStore((s) => s.agencyPRs);
-  const workforce = deriveLiveWorkforce(agencyRoster, DEFAULT_ROSTER_DATE_ISO);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
+  const workforce = deriveLiveWorkforce(agencyRoster, DEFAULT_ROSTER_DATE_ISO, outletCommissionRules, perDrinkRm);
   const avail = computeAvailabilityStats(agencyPRs, agencyRoster, DEFAULT_ROSTER_DATE_ISO);
 
   const onyxCount = workforce.filter((w) => w.outlet.includes("Onyx")).length;

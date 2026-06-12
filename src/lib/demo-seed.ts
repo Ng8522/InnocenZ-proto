@@ -1,5 +1,5 @@
 /**
- * Canonical demo snapshot — restored when user returns to the welcome screen.
+ * Canonical demo snapshot — restored only via manual “Reset all demo data” on welcome.
  */
 
 import {
@@ -20,6 +20,9 @@ import {
 import {
   DEFAULT_OUTLET_SETTINGS,
   DEFAULT_OUTLET_WORKSPACE,
+  DEFAULT_OUTLET_OWNER,
+  DEFAULT_OUTLET_FINANCE_HEAD,
+  DEFAULT_OUTLET_OPS_HEAD,
   type ShiftApplicant,
 } from "@/lib/outlet-demo";
 import {
@@ -252,7 +255,7 @@ function buildDemoReconciliation(shifts: ShiftRequest[], roster: AgencyRosterSlo
   });
 }
 
-/** PR portal demo snapshot — restored when entering PR from welcome (same pattern as outlet). */
+/** PR portal fields included in the full demo snapshot. */
 export function buildPrDemoReset() {
   return {
     shiftAccepted: false,
@@ -324,6 +327,9 @@ export function buildDemoStoreReset() {
     walletBalance: 1240,
     outletWorkspace: { ...DEFAULT_OUTLET_WORKSPACE },
     outletSettings: { ...DEFAULT_OUTLET_SETTINGS },
+    outletOwner: { ...DEFAULT_OUTLET_OWNER },
+    outletFinanceHead: { ...DEFAULT_OUTLET_FINANCE_HEAD },
+    outletOpsHead: { ...DEFAULT_OUTLET_OPS_HEAD },
     paymentCardLast4: "4242",
     postSealRatePrompt: null,
     pendingPRs: SEED_PENDING_PRS.map((p) => ({ ...p })),

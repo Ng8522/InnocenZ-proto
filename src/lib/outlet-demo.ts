@@ -28,6 +28,47 @@ export const PR_RATING_TAGS = [
   "Needs coaching",
 ] as const;
 
+export interface OutletDrinkPrice {
+  id: string;
+  name: string;
+  priceRm: number;
+}
+
+export const DEFAULT_OUTLET_DRINK_MENU: OutletDrinkPrice[] = [
+  { id: "beer", name: "Beer", priceRm: 45 },
+  { id: "wine", name: "Wine", priceRm: 85 },
+  { id: "whisky", name: "Whisky", priceRm: 120 },
+  { id: "champagne", name: "Champagne", priceRm: 350 },
+  { id: "hennessy", name: "Hennessy VSOP", priceRm: 280 },
+];
+
+export function averageDrinkPrice(menu: OutletDrinkPrice[]): number {
+  if (menu.length === 0) return DEFAULT_PER_DRINK_RM;
+  const total = menu.reduce((sum, d) => sum + d.priceRm, 0);
+  return Math.round(total / menu.length);
+}
+
+export function drinkMenuPriceRange(menu: OutletDrinkPrice[]): { min: number; max: number } {
+  if (menu.length === 0) return { min: DEFAULT_PER_DRINK_RM, max: DEFAULT_PER_DRINK_RM };
+  const prices = menu.map((d) => d.priceRm);
+  return { min: Math.min(...prices), max: Math.max(...prices) };
+}
+
+export function normalizeOutletWorkspace(
+  ws: Partial<OutletWorkspaceSettings> | undefined,
+): OutletWorkspaceSettings {
+  const drinkMenu =
+    ws?.drinkMenu && ws.drinkMenu.length > 0
+      ? ws.drinkMenu.map((d) => ({ ...d }))
+      : DEFAULT_OUTLET_DRINK_MENU.map((d) => ({ ...d }));
+  return {
+    ...DEFAULT_OUTLET_WORKSPACE,
+    ...ws,
+    drinkMenu,
+    perDrinkRm: ws?.perDrinkRm ?? averageDrinkPrice(drinkMenu),
+  };
+}
+
 export interface OutletWorkspaceSettings {
   outletName: string;
   basePayPerHour: number;
@@ -35,8 +76,10 @@ export interface OutletWorkspaceSettings {
   tipPct: number;
   tablePct: number;
   otAfterHours: number;
+  /** Legacy average — derived from drinkMenu on save */
   perDrinkRm: number;
   perTableRm: number;
+  drinkMenu: OutletDrinkPrice[];
   happyHourStart: string;
   happyHourEnd: string;
   /** Multiplier applied to drink commission during happy hour (e.g. 1.15 = +15%) */
@@ -49,6 +92,29 @@ export interface OutletSettings {
   notifyShiftUpdates: boolean;
   notifyReconciliation: boolean;
   notifyInvoiceDue: boolean;
+}
+
+export interface OutletOwnerSettings {
+  ownerName: string;
+  mobile: string;
+  email: string;
+  ic: string;
+  orgName: string;
+  otpChannel: "email" | "phone";
+  accountActivated: boolean;
+  avatarPhoto?: string | null;
+}
+
+export interface OutletFinanceHead {
+  name: string;
+  ic: string;
+  email: string;
+}
+
+export interface OutletOpsHead {
+  name: string;
+  ic: string;
+  email: string;
 }
 
 export interface ShiftApplicant {
@@ -71,6 +137,7 @@ export const DEFAULT_OUTLET_WORKSPACE: OutletWorkspaceSettings = {
   otAfterHours: velvetRule.otAfterHours,
   perDrinkRm: DEFAULT_PER_DRINK_RM,
   perTableRm: DEFAULT_PER_TABLE_RM,
+  drinkMenu: DEFAULT_OUTLET_DRINK_MENU.map((d) => ({ ...d })),
   happyHourStart: "20:00",
   happyHourEnd: "22:00",
   happyHourDrinkBoost: 1.15,
@@ -82,6 +149,29 @@ export const DEFAULT_OUTLET_SETTINGS: OutletSettings = {
   notifyShiftUpdates: true,
   notifyReconciliation: true,
   notifyInvoiceDue: true,
+};
+
+export const DEFAULT_OUTLET_OWNER: OutletOwnerSettings = {
+  ownerName: "Chen Wei Jie",
+  mobile: "+60 11-234 5678",
+  email: "owner@velvet23.my",
+  ic: "820315-10-8834",
+  orgName: "Velvet 23",
+  otpChannel: "email",
+  accountActivated: true,
+  avatarPhoto: null,
+};
+
+export const DEFAULT_OUTLET_FINANCE_HEAD: OutletFinanceHead = {
+  name: "Michelle Lim",
+  ic: "900412-14-2210",
+  email: "finance@velvet23.my",
+};
+
+export const DEFAULT_OUTLET_OPS_HEAD: OutletOpsHead = {
+  name: "Ahmad Razif",
+  ic: "880707-08-5511",
+  email: "ops@velvet23.my",
 };
 
 export {

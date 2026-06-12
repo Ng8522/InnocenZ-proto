@@ -263,7 +263,6 @@ function AgencyPV() {
 
   return (
     <div className="iz-screen">
-      <AppTopbar backTo="/agency" backLabel="Home" />
       <header>
         <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Payroll &amp; PV</h2>
         <p className="iz-tiny iz-muted mt-0.5">

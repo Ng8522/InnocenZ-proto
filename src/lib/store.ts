@@ -1677,14 +1677,26 @@ export const useStore = create<StoreState>()(
         get().toast(`AI auto-assign · ${pick.pr.name} → ${outlet}`, "success");
       },
       flagRosterAttendance: (slotId, flag) => {
+        const slot = get().agencyRoster.find((s) => s.id === slotId);
+        if (!slot) return;
+        const togglingOff =
+          (flag === "late" && slot.lateFlag) || (flag === "no-show" && slot.noShowFlag);
         set((st) => ({
           agencyRoster: st.agencyRoster.map((s) =>
             s.id === slotId
-              ? { ...s, lateFlag: flag === "late" ? true : s.lateFlag, noShowFlag: flag === "no-show" ? true : s.noShowFlag }
+              ? {
+                  ...s,
+                  lateFlag: flag === "late" ? !s.lateFlag : s.lateFlag,
+                  noShowFlag: flag === "no-show" ? !s.noShowFlag : s.noShowFlag,
+                }
               : s,
           ),
         }));
-        get().toast(flag === "late" ? "Late flag (+15 min)" : "No-show flag (+30 min)", "warn");
+        if (togglingOff) {
+          get().toast(flag === "late" ? "Late flag removed" : "No-show flag removed", "info");
+        } else {
+          get().toast(flag === "late" ? "Late flag (+15 min)" : "No-show flag (+30 min)", "warn");
+        }
       },
       adjustAgencyReconciliation: ({ drinks, tips, reason }) => {
         const trimmed = reason.trim();

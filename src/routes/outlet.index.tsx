@@ -4,7 +4,9 @@ import { AppTopbar } from "@/components/Nav";
 import { OutletBookings } from "@/components/outlet/OutletBookings";
 import { OutletHomeTiles } from "@/components/outlet/OutletHomeTiles";
 import { OutletReconciliationBanner } from "@/components/outlet/OutletReconciliationBanner";
+import { LiveWorkforceList } from "@/components/portal/LiveWorkforceTable";
 import { OutletSection } from "@/components/outlet/OutletSection";
+import { outletCan } from "@/lib/outlet-rbac";
 
 export const Route = createFileRoute("/outlet/")({
   component: OutletHome,
@@ -15,6 +17,8 @@ function OutletHome() {
   const { shifts } = useStore();
   const tonight = shifts.find((s) => s.date === "Tonight") ?? shifts[0];
   const isFinance = outletSubRole === "outlet_finance";
+  const outletName = tonight?.outletName ?? "Velvet 23";
+  const showFloor = outletCan(outletSubRole, "viewLiveDashboard");
 
   const qty = tonight?.quantity ?? 6;
   const confirmed = tonight?.prs.length ?? 0;
@@ -28,9 +32,11 @@ function OutletHome() {
         : "text-[var(--iz-red)]";
 
   return (
-    <div className="iz-screen">
+    <div className="iz-screen iz-portal-page">
       <AppTopbar />
 
+      <div className="iz-portal-home-grid">
+        <div className="iz-portal-home-main">
       <header className="pt-1">
         <p className="iz-tiny iz-muted2 uppercase tracking-widest">Tonight</p>
         <h2 className="font-sora mt-0.5 text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
@@ -77,6 +83,14 @@ function OutletHome() {
 
       <OutletHomeTiles />
       <OutletReconciliationBanner />
+        </div>
+
+        {showFloor && (
+          <aside className="iz-portal-home-aside">
+            <LiveWorkforceList outletName={outletName} />
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

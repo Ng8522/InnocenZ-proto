@@ -38,7 +38,7 @@ export const PR_PROFILES: Record<PrSubRole, PrProfile> = {
     noshow: "0",
     langs: ["English", "Mandarin", "Cantonese"],
     prog: 72,
-    next: "8 more 5★ shifts to unlock Tier VI perks & priority VIP requests.",
+    next: "8 more 5★ shifts to unlock Tier V perks & priority VIP requests.",
   },
   pr_free: {
     name: "Jaya Nair",

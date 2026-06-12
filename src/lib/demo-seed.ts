@@ -211,43 +211,32 @@ function buildDemoRoster(): AgencyRosterSlot[] {
         floorTips: 52,
       };
     }
+    if (slot.id === "rs3") {
+      return {
+        ...slot,
+        status: "on-duty" as const,
+        checkedInAt: "21:45",
+        floorDrinks: 9,
+        floorTips: 35,
+        estPayout: 410,
+      };
+    }
+    if (slot.id === "rs4") {
+      return {
+        ...slot,
+        date,
+        dateIso: DEFAULT_ROSTER_DATE_ISO,
+        status: "on-duty" as const,
+        checkedInAt: "20:55",
+        floorDrinks: 6,
+        floorTips: 22,
+        estPayout: 352,
+      };
+    }
     return slot;
   });
-  const extra: AgencyRosterSlot[] = [
-    {
-      id: "rs-demo-p3",
-      prId: "p3",
-      prName: "Vivi",
-      outlet: "Velvet 23",
-      date,
-      dateIso: DEFAULT_ROSTER_DATE_ISO,
-      shift,
-      shiftStart: "22:00",
-      shiftEnd: "04:00",
-      status: "on-duty",
-      checkedInAt: "22:14",
-      floorDrinks: 11,
-      floorTips: 41,
-      estPayout: 395,
-    },
-    {
-      id: "rs-demo-p4",
-      prId: "p4",
-      prName: "Cici",
-      outlet: "Velvet 23",
-      date,
-      dateIso: DEFAULT_ROSTER_DATE_ISO,
-      shift,
-      shiftStart: "22:00",
-      shiftEnd: "04:00",
-      status: "on-duty",
-      checkedInAt: "22:22",
-      floorDrinks: 7,
-      floorTips: 28,
-      estPayout: 368,
-    },
-  ];
-  return [...patched, ...extra];
+  // Vivi (p3), Cici (p4), Chen Wei (p7) stay free today — assign via Planning → Free PRs
+  return patched;
 }
 
 /** Fresh reconciliation — both sides pending so Owner/Finance can confirm */

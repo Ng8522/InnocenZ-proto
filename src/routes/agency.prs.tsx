@@ -20,7 +20,7 @@ import {
 import { AlertTriangle, Check, Filter, Megaphone, Pencil, Star, UserMinus } from "lucide-react";
 
 const KPI_TIER_OPTIONS = ["A", "B", "C"] as const;
-const TRAINING_TIER_OPTIONS = ["Tier I", "Tier II", "Tier III", "Tier IV", "Tier V", "Tier VI"] as const;
+const TRAINING_TIER_OPTIONS = ["Tier I", "Tier II", "Tier III", "Tier IV", "Tier V"] as const;
 
 export const Route = createFileRoute("/agency/prs")({
   component: AgencyManagePRs,

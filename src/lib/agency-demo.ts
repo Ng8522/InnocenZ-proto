@@ -341,7 +341,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     place: "Mont Kiara",
     yearsExp: 6,
     rating: 4.8,
-    trainingLevel: "Tier VI",
+    trainingLevel: "Tier V",
     totalPaid: 31200,
     attendancePct: 99,
     checkIns: 58,
@@ -623,8 +623,7 @@ export interface AgencyCollectionInvoice {
 export const SCALING_TIER_MULTIPLIERS: Record<string, number> = {
   "Tier III": 1.0,
   "Tier IV": 1.1,
-  "Tier V": 1.2,
-  "Tier VI": 1.35,
+  "Tier V": 1.35,
 };
 
 export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
@@ -671,6 +670,10 @@ export function nowAgencyDateTime() {
   };
 }
 
+const DEMO_LAYOUT_ROSTER_IDS = new Set(["rs3", "rs4"]);
+/** Removed from seed — drop on hydrate so PRs become free again */
+const RETIRED_DEMO_ROSTER_IDS = new Set(["rs-demo-p3", "rs-demo-p4", "rs-demo-p7"]);
+
 /** Keep demo agency inbox (assignments / swaps) visible after localStorage hydrate */
 export function mergeAgencyRoster(
   persisted: AgencyRosterSlot[] | undefined,
@@ -678,12 +681,27 @@ export function mergeAgencyRoster(
 ): AgencyRosterSlot[] {
   if (!persisted?.length) return seed;
   const seedIds = new Set(seed.map((s) => s.id));
-  const extras = persisted.filter((s) => !seedIds.has(s.id));
+  const extras = persisted.filter((s) => !seedIds.has(s.id) && !RETIRED_DEMO_ROSTER_IDS.has(s.id));
   return [
     ...extras,
     ...seed.map((seedSlot) => {
       const saved = persisted.find((s) => s.id === seedSlot.id);
       if (!saved) return seedSlot;
+      if (DEMO_LAYOUT_ROSTER_IDS.has(seedSlot.id)) {
+        return {
+          ...seedSlot,
+          ...saved,
+          status: seedSlot.status,
+          date: seedSlot.date,
+          dateIso: seedSlot.dateIso,
+          outlet: seedSlot.outlet,
+          checkedInAt: saved.checkedInAt ?? seedSlot.checkedInAt,
+          floorDrinks: saved.floorDrinks ?? seedSlot.floorDrinks,
+          floorTips: saved.floorTips ?? seedSlot.floorTips,
+          estPayout: saved.estPayout ?? seedSlot.estPayout,
+          outletSwap: seedSlot.outletSwap ?? saved.outletSwap,
+        };
+      }
       const keepAssignmentPending =
         seedSlot.status === "assignment-pending" && saved.status !== "scheduled";
       const keepSwapPending =

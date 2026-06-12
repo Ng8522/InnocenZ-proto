@@ -107,7 +107,13 @@ function PostJobPage() {
   return (
     <div className="iz-screen">
       <AppTopbar
-        onBack={editingShiftId ? () => setEditingShiftId(null) : undefined}
+        onBack={() => {
+          if (editingShiftId) {
+            setEditingShiftId(null);
+            return;
+          }
+          return false;
+        }}
         backLabel={editingShiftId ? "Shift list" : undefined}
       />
       <header className="pt-1">

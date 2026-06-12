@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { createFileRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
-import { BottomNav } from "@/components/Nav";
-import { PhoneFrame } from "@/components/Brand";
+import { PortalShell } from "@/components/portal/PortalShell";
 import { Toasts } from "@/components/Toasts";
 import { useStore } from "@/lib/store";
 import {
@@ -27,11 +26,8 @@ function OutletLayout() {
   }, [pathname, outletSubRole, navigate]);
 
   return (
-    <PhoneFrame
-      overlay={<Toasts />}
-      footer={navItems.length > 0 ? <BottomNav items={navItems} /> : undefined}
-    >
+    <PortalShell portal="outlet" navItems={navItems} overlay={<Toasts />}>
       <Outlet />
-    </PhoneFrame>
+    </PortalShell>
   );
 }

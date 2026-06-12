@@ -1,23 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppTopbar } from "@/components/Nav";
 import { AgencyHomeTiles } from "@/components/agency/AgencyHomeTiles";
-import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { DEFAULT_TIED_AGENCY_ID, pvNeedsPrReview } from "@/lib/pr-demo";
-import {
-  AlertTriangle,
-  BarChart3,
-  Calendar,
-  ChevronRight,
-  Receipt,
-  Settings,
-  UserCheck,
-  Users,
-  Wallet,
-} from "lucide-react";
-import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
+import { DEFAULT_TIED_AGENCY_ID } from "@/lib/pr-demo";
+import { AlertTriangle } from "lucide-react";
+import { AiSuggestionsPanel } from "@/components/portal/AiSuggestionsPanel";
+import { LiveWorkforceTable } from "@/components/portal/LiveWorkforceTable";
+import { IzCard, formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/agency/")({
   component: AgencyHub,
@@ -36,84 +27,51 @@ function AgencyHub() {
   );
   const pendingTotal = pendingSignups + pendingFreelancers;
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
-  const outletSwapCount = useStore((s) => s.agencyRoster.filter((r) => r.outletSwap?.status === "pending_pr").length);
-  const prSwapCount = useStore((s) => s.prSwapRequests.filter((r) => r.status === "pending_agency").length);
-  const swapCount = outletSwapCount + prSwapCount;
   const onDuty = useStore((s) => s.agencyRoster.filter((r) => r.status === "on-duty").length);
   const disputed = prPaymentVouchers.filter((p) => p.status === "DISPUTED").length;
   const reconciliation = useStore((s) => s.agencyReconciliation);
   const confirmAgencyReconciliation = useStore((s) => s.confirmAgencyReconciliation);
   const pendingCollections = useStore((s) => s.agencyCollections.filter((c) => c.status === "PENDING").length);
+  const agencyRoster = useStore((s) => s.agencyRoster);
+  const pendingPayoutTotal = useStore((s) =>
+    s.agencyCollections.filter((c) => c.status === "PENDING").reduce((sum, c) => sum + c.amount, 0),
+  );
+  const activeDemand = agencyRoster.filter(
+    (r) => r.status === "assignment-pending" || r.status === "scheduled",
+  ).length;
+  const noShowAlerts = agencyRoster.filter((r) => r.noShowFlag || r.lateFlag).length;
+  const availablePrs = agencyPRs.filter((p) => !p.detached).length;
   const { date, time } = nowAgencyDateTime();
   const isFinance = agencySubRole === "agency_finance";
-
-  const cards: {
-    to: string;
-    title: string;
-    desc: string;
-    badge?: string;
-    icon: typeof UserCheck;
-    permission: Parameters<typeof agencyCan>[1];
-  }[] = [
-    {
-      to: "/agency/pending",
-      title: "Approve PR sign-ups",
-      desc: "IC, comcard & portfolio before shifts unlock",
-      badge: pendingTotal ? `${pendingTotal} pending` : undefined,
-      icon: UserCheck,
-      permission: "approvePrSignups",
-    },
-    {
-      to: "/agency/pv",
-      title: "Payment vouchers",
-      desc: "Raise PVs · dual-sign · PDF export",
-      badge: disputed ? `${disputed} dispute` : prPaymentVouchers.some((p) => pvNeedsPrReview(p.status)) ? "Action" : undefined,
-      icon: Receipt,
-      permission: "viewPv",
-    },
-    {
-      to: "/agency/reports",
-      title: "Payroll & analytics",
-      desc: "PNL by outlet · date filters · live vs sealed",
-      icon: BarChart3,
-      permission: "viewAnalytics",
-    },
-    {
-      to: "/agency/roster",
-      title: "Schedule & roster",
-      desc: "Assign shifts · swap outlets · edit slots",
-      badge: swapCount ? `${swapCount} swap` : undefined,
-      icon: Calendar,
-      permission: "assignShifts",
-    },
-    {
-      to: "/agency/prs",
-      title: "Manage PR",
-      desc: `${agencyPRs.length} on roster · KPI · tier`,
-      icon: Users,
-      permission: "managePr",
-    },
-    {
-      to: "/agency/profile",
-      title: "Agency settings",
-      desc: isFinance ? "Read-only · commission & finance head" : "Owner profile · finance head · commission",
-      icon: Settings,
-      permission: "viewSettings",
-    },
-    {
-      to: "/agency/pv",
-      title: "Collections",
-      desc: "Outlet invoices · aging · payment reminders",
-      badge: pendingCollections ? `${pendingCollections} due` : undefined,
-      icon: Wallet,
-      permission: "viewCollections",
-    },
-  ].filter((c) => agencyCan(agencySubRole, c.permission));
+  const showWorkforce = agencyCan(agencySubRole, "viewWorkforce");
 
   return (
-    <div className="iz-screen">
+    <div className="iz-screen iz-portal-page">
       <AppTopbar />
 
+      <div className="iz-portal-kpi-grid iz-portal-desktop-only">
+        <div className="iz-portal-kpi">
+          <div className="l">Available PR</div>
+          <div className="n">{availablePrs}</div>
+        </div>
+        <div className="iz-portal-kpi">
+          <div className="l">Active demand</div>
+          <div className="n">{activeDemand}</div>
+        </div>
+        <div className="iz-portal-kpi">
+          <div className="l">No-show alerts</div>
+          <div className={`n${noShowAlerts ? " text-[var(--iz-violet)]" : ""}`}>
+            {String(noShowAlerts).padStart(2, "0")}
+          </div>
+        </div>
+        <div className="iz-portal-kpi">
+          <div className="l">Pending payouts</div>
+          <div className="n text-[var(--iz-gold-l)]">{formatRM(pendingPayoutTotal)}</div>
+        </div>
+      </div>
+
+      <div className="iz-portal-home-grid">
+        <div className="iz-portal-home-main">
       <header className="pt-1">
         <p className="iz-tiny iz-muted2 uppercase tracking-widest">Today</p>
         <h2 className="font-sora mt-0.5 text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
@@ -182,35 +140,21 @@ function AgencyHub() {
         </IzCard>
       )}
 
-      <OutletSection title="Modules" hint={`${cards.length} available`} className="!mt-4">
-        <div className="space-y-2">
-          {cards.map((c) => (
-            <Link
-              key={c.to + c.title}
-              to={c.to}
-              className="flex items-center gap-3 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] px-3.5 py-3 transition-opacity hover:opacity-90"
-            >
-              <span className="iz-iconbox !h-9 !w-9">
-                <c.icon className="h-4 w-4" strokeWidth={2} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <div className="font-sora text-sm font-bold">{c.title}</div>
-                <div className="iz-tiny iz-muted2 mt-0.5 line-clamp-2">{c.desc}</div>
-              </span>
-              <span className="flex shrink-0 items-center gap-2">
-                {c.badge && (
-                  <IzPill variant="amber" className="shrink-0 !py-0.5 !text-[9px]">
-                    {c.badge}
-                  </IzPill>
-                )}
-                <ChevronRight className="h-4 w-4 text-[var(--iz-muted)]" />
-              </span>
-            </Link>
-          ))}
-        </div>
-      </OutletSection>
-
       <AgencyHomeTiles />
+
+      {showWorkforce && (
+        <div className="iz-portal-desktop-only mt-4">
+          <LiveWorkforceTable />
+        </div>
+      )}
+        </div>
+
+        {showWorkforce && !isFinance && (
+          <aside className="iz-portal-home-aside iz-portal-desktop-only">
+            <AiSuggestionsPanel />
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

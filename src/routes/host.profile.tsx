@@ -170,7 +170,13 @@ function ProfilePage() {
   return (
     <div className="iz-screen">
       <AppTopbar
-        onBack={editing ? cancelEdit : undefined}
+        onBack={() => {
+          if (editing) {
+            cancelEdit();
+            return;
+          }
+          return false;
+        }}
         backLabel={editing ? "Cancel edit" : undefined}
       />
       <PrPageHeader

@@ -35,8 +35,6 @@ function HostShifts() {
   const approvePrShift = useStore((s) => s.approvePrShift);
   const declinePrOffer = useStore((s) => s.declinePrOffer);
   const applyFreelancerListing = useStore((s) => s.applyFreelancerListing);
-  const simulateOutletAcceptApplication = useStore((s) => s.simulateOutletAcceptApplication);
-  const simulateOutletDeclineApplication = useStore((s) => s.simulateOutletDeclineApplication);
   const prFreelancerLowRatingStrikes = useStore((s) => s.prFreelancerLowRatingStrikes);
   const requestPrSwap = useStore((s) => s.requestPrSwap);
   const agencyRoster = useStore((s) => s.agencyRoster);
@@ -166,7 +164,8 @@ function HostShifts() {
           <p className="iz-tiny iz-muted2 uppercase tracking-wide">{checkedIn ? "On duty" : "Tonight"}</p>
           <p className="font-sora mt-1 text-[16px] font-extrabold">{activeShift.outlet}</p>
           <p className="iz-tiny iz-muted mt-0.5">
-            {activeShift.time} · {formatRM(activeShift.base + activeShift.comm)}
+            {fmtDFriendly(activeShift.date[0], activeShift.date[1], activeShift.date[2])} · {activeShift.time} ·{" "}
+            {formatRM(activeShift.base + activeShift.comm)}
           </p>
           <Link to="/host/tonight" className="iz-btn iz-btn-primary iz-btn-sm mt-3 w-full">
             <MapPin className="h-3.5 w-3.5" />
@@ -183,26 +182,19 @@ function HostShifts() {
       {(pendingApproval || prMarketplaceApplication?.status === "pending") && (
         <div className="iz-pr-note mt-4 flex flex-wrap items-center justify-between gap-2 border-[rgba(244,183,64,.35)]">
           <span className="text-[var(--iz-amber)]">
-            {pendingApproval ? "Awaiting agency approval" : "Application pending"}
+            {pendingApproval
+              ? "Awaiting agency approval"
+              : "Application pending — outlet reviews on Bookings → Applicants"}
           </span>
-          <div className="flex flex-wrap gap-2">
+          {pendingApproval && (
             <button
               type="button"
               className="iz-btn iz-btn-soft iz-btn-sm !py-1.5"
-              onClick={pendingApproval ? approvePrShift : simulateOutletAcceptApplication}
+              onClick={approvePrShift}
             >
-              Simulate accept
+              Simulate agency accept
             </button>
-            {prMarketplaceApplication?.status === "pending" && (
-              <button
-                type="button"
-                className="iz-btn iz-btn-ghost iz-btn-sm !py-1.5"
-                onClick={simulateOutletDeclineApplication}
-              >
-                Simulate decline
-              </button>
-            )}
-          </div>
+          )}
         </div>
       )}
 
@@ -219,7 +211,7 @@ function HostShifts() {
               <InboxCard
                 key={slot.id}
                 title={slot.outlet}
-                subtitle={`Assignment · ${slot.shiftStart}–${slot.shiftEnd}`}
+                subtitle={`${slot.date} · ${slot.shiftStart}–${slot.shiftEnd}`}
                 onApprove={() => approveAgencyAssignmentByPr(slot.id)}
                 onReject={() => declineAgencyAssignmentByPr(slot.id)}
               />
@@ -228,7 +220,7 @@ function HostShifts() {
               <InboxCard
                 key={slot.id}
                 title={`${slot.outlet} → ${slot.outletSwap!.targetOutlet}`}
-                subtitle="Outlet swap"
+                subtitle={`${slot.date} · Outlet swap · ${slot.shift}`}
                 onApprove={() => approveOutletSwapByPr(slot.id)}
                 onReject={() => declineOutletSwapByPr(slot.id)}
               />
@@ -259,7 +251,7 @@ function HostShifts() {
               <PrOfferRow
                 key={s.id}
                 title={s.outlet}
-                subtitle={`Replacement: ${s.replacementPrName}`}
+                subtitle={`${s.date} · Replacement: ${s.replacementPrName}`}
                 badge={<PrStatusPill>{s.status.replace("_", " ")}</PrStatusPill>}
               />
             ))}
@@ -284,7 +276,7 @@ function HostShifts() {
                 <div key={o.id} className="iz-pr-inbox-card">
                   <PrOfferRow
                     title={o.outlet}
-                    subtitle={`${o.time} · ${o.distance}`}
+                    subtitle={`${fmtDFriendly(o.date[0], o.date[1], o.date[2])} · ${o.time} · ${o.distance}`}
                     amount={formatRM(o.base + o.comm)}
                     onClick={hideOfferActions ? undefined : () => setConfirmTiedId(o.id)}
                   />
@@ -301,7 +293,7 @@ function HostShifts() {
                 <div key={l.id} className="iz-pr-inbox-card">
                   <PrOfferRow
                     title={l.outlet}
-                    subtitle={`${l.area} · Tier ${l.tierMin}+`}
+                    subtitle={`${fmtDFriendly(l.date[0], l.date[1], l.date[2])} · ${l.time} · ${l.area}`}
                     amount={formatRM(l.rate)}
                     onClick={hideOfferActions ? undefined : () => setConfirmMktId(l.id)}
                   />
@@ -340,8 +332,7 @@ function HostShifts() {
             tied={false}
             listing={confirmMkt}
             onConfirm={() => {
-              applyFreelancerListing(confirmMkt.id);
-              setConfirmMktId(null);
+              if (applyFreelancerListing(confirmMkt.id)) setConfirmMktId(null);
             }}
             onDecline={() => {
               declinePrOffer(confirmMkt.id);
@@ -473,6 +464,9 @@ function OfferDetailSheet({
   return (
     <>
       <div className="iz-cardttl">{o.outlet}</div>
+      <p className="iz-tiny iz-muted mb-1">
+        {fmtDFriendly(o.date[0], o.date[1], o.date[2])} · {o.time}
+      </p>
       <p className="iz-tiny iz-muted mb-3">{o.event}</p>
       <div className="iz-gps-map mb-2" style={{ height: 64 }}>
         <span className="iz-ping" style={{ left: "50%", top: "50%" }} />

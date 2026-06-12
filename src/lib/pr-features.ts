@@ -45,9 +45,18 @@ export interface PrNotification {
   body: string;
   at: string;
   read: boolean;
+  /** When set, only this roster PR sees the notification in the host portal */
+  prId?: string;
   /** Route target e.g. /host/history?tab=pv or pv id */
   href?: string;
   pvId?: string;
+}
+
+export function prNotificationsForRecipient(
+  notifications: PrNotification[],
+  prId: string,
+): PrNotification[] {
+  return notifications.filter((n) => !n.prId || n.prId === prId);
 }
 
 export interface PrSelfLog {
@@ -198,6 +207,7 @@ export const SEED_PR_NOTIFICATIONS: PrNotification[] = [
     read: false,
     href: "/host/wallet",
     pvId: "PV-2026-0512",
+    prId: "p1",
   },
   {
     id: "n-rate-1",
@@ -207,6 +217,7 @@ export const SEED_PR_NOTIFICATIONS: PrNotification[] = [
     at: "5 Jun · 02:30",
     read: false,
     href: "/host/profile",
+    prId: "p1",
   },
 ];
 

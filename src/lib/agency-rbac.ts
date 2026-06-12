@@ -59,9 +59,13 @@ const ROLE_PERMISSIONS: Record<AgencySubRole, Permission[]> = {
   ],
 };
 
+function resolveAgencySubRole(role: AgencySubRole | null | undefined): AgencySubRole {
+  if (role && role in ROLE_PERMISSIONS) return role;
+  return "agency_owner";
+}
+
 export function agencyCan(role: AgencySubRole | null | undefined, permission: Permission): boolean {
-  const r = role ?? "agency_owner";
-  return ROLE_PERMISSIONS[r].includes(permission);
+  return ROLE_PERMISSIONS[resolveAgencySubRole(role)].includes(permission);
 }
 
 export type AgencyNavItem = { to: string; label: string; icon: LucideIcon; permission: Permission };
@@ -75,7 +79,7 @@ const ALL_NAV: AgencyNavItem[] = [
 ];
 
 export function getAgencyNavItems(role: AgencySubRole | null | undefined): AgencyNavItem[] {
-  const r = role ?? "agency_owner";
+  const r = resolveAgencySubRole(role);
   return ALL_NAV.filter((item) => agencyCan(r, item.permission));
 }
 
@@ -85,7 +89,7 @@ export function getAgencyDefaultRoute(role: AgencySubRole | null | undefined): s
 }
 
 export function canAccessAgencyPath(role: AgencySubRole | null | undefined, pathname: string): boolean {
-  const r = role ?? "agency_owner";
+  const r = resolveAgencySubRole(role);
   if (pathname === "/agency" || pathname === "/agency/") return agencyCan(r, "viewHome");
   if (pathname.startsWith("/agency/roster")) return agencyCan(r, "viewWorkforce");
   if (pathname.startsWith("/agency/pv")) return agencyCan(r, "viewPv");

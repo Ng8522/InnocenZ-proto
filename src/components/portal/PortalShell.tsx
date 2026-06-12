@@ -141,15 +141,6 @@ function PortalHeader({ orgName }: { orgName: string }) {
           <Shield className="h-3.5 w-3.5" />
           RBAC
         </span>
-        <button
-          type="button"
-          className="iz-topbar-action"
-          title="Switch role"
-          aria-label="Switch role"
-          onClick={() => goToWelcome()}
-        >
-          <ArrowLeftRight className="h-3.5 w-3.5" />
-        </button>
       </div>
     </header>
   );
@@ -169,12 +160,11 @@ export function PortalShell({
   const agencySubRole = useStore((s) => s.agencySubRole);
   const outletSubRole = useStore((s) => s.outletSubRole);
   const agencyOwner = useStore((s) => s.agencyOwner);
-  const shifts = useStore((s) => s.shifts);
-
+  const outletOwner = useStore((s) => s.outletOwner);
   const orgName =
     portal === "agency"
       ? agencyOwner.orgName
-      : (shifts.find((s) => s.date === "Tonight")?.outletName ?? "Velvet 23");
+      : outletOwner.orgName;
 
   const subLabel =
     portal === "agency"

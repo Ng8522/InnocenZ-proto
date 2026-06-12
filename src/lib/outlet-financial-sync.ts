@@ -1,6 +1,8 @@
+import type { OutletCommissionRule } from "@/lib/agency-demo";
 import {
   calcShiftPayout,
   getOutletRule,
+  OUTLET_COMMISSION_RULES,
   SEED_OUTLET_PNL,
   type AgencyRosterSlot,
   type OutletPnlRow,
@@ -8,23 +10,67 @@ import {
 import { floorTipsForOutletFromRoster } from "@/lib/portal-sync";
 import type { ShiftRequest } from "@/lib/store";
 
+import type { OutletDrinkPrice } from "@/lib/outlet-demo";
+import type { ShiftRequest } from "@/lib/store";
+
 export const DEFAULT_PER_DRINK_RM = 120;
 export const DEFAULT_PER_TABLE_RM = 100;
 export const DEFAULT_DRINK_UNITS = 4;
 export const DEFAULT_TABLE_UNITS = 0.9;
 
-/** Live floor sales = drink units × per-drink + table units × per-table */
-export function computeShiftLiveSales(shift: {
+export function totalDrinkUnits(shift: {
   drinkUnits?: number;
-  tableUnits?: number;
-  perDrinkRm?: number;
-  perTableRm?: number;
+  drinkUnitCounts?: Record<string, number>;
 }): number {
+  if (shift.drinkUnitCounts && Object.keys(shift.drinkUnitCounts).length > 0) {
+    return Object.values(shift.drinkUnitCounts).reduce((sum, qty) => sum + qty, 0);
+  }
+  return shift.drinkUnits ?? DEFAULT_DRINK_UNITS;
+}
+
+export function computeDrinkSales(
+  shift: {
+    drinkUnits?: number;
+    drinkUnitCounts?: Record<string, number>;
+    legacyDrinkSalesRm?: number;
+    perDrinkRm?: number;
+  },
+  drinkMenu: OutletDrinkPrice[] = [],
+): number {
+  const countEntries = shift.drinkUnitCounts
+    ? Object.entries(shift.drinkUnitCounts).filter(([, qty]) => qty > 0)
+    : [];
+  if (countEntries.length > 0 && drinkMenu.length > 0) {
+    let total = shift.legacyDrinkSalesRm ?? 0;
+    for (const [id, qty] of countEntries) {
+      const item = drinkMenu.find((d) => d.id === id);
+      total += qty * (item?.priceRm ?? shift.perDrinkRm ?? DEFAULT_PER_DRINK_RM);
+    }
+    return total;
+  }
+  if (shift.legacyDrinkSalesRm != null) {
+    return shift.legacyDrinkSalesRm;
+  }
   const drinkUnits = shift.drinkUnits ?? DEFAULT_DRINK_UNITS;
-  const tableUnits = shift.tableUnits ?? DEFAULT_TABLE_UNITS;
   const perDrinkRm = shift.perDrinkRm ?? DEFAULT_PER_DRINK_RM;
+  return drinkUnits * perDrinkRm;
+}
+
+/** Live floor sales = drink sales + table units × per-table */
+export function computeShiftLiveSales(
+  shift: {
+    drinkUnits?: number;
+    drinkUnitCounts?: Record<string, number>;
+    tableUnits?: number;
+    perDrinkRm?: number;
+    perTableRm?: number;
+  },
+  drinkMenu: OutletDrinkPrice[] = [],
+): number {
+  const tableUnits = shift.tableUnits ?? DEFAULT_TABLE_UNITS;
   const perTableRm = shift.perTableRm ?? DEFAULT_PER_TABLE_RM;
-  const raw = drinkUnits * perDrinkRm + tableUnits * perTableRm;
+  const drinkSales = computeDrinkSales(shift, drinkMenu);
+  const raw = drinkSales + tableUnits * perTableRm;
   return Math.round(raw * 100) / 100;
 }
 
@@ -41,12 +87,15 @@ export interface OutletPnlSynced extends OutletPnlRow {
   syncedFromOutlet: boolean;
 }
 
-export function withShiftFinancialDefaults(shift: ShiftRequest): ShiftRequest {
+export function withShiftFinancialDefaults(
+  shift: ShiftRequest,
+  drinkMenu: OutletDrinkPrice[] = [],
+): ShiftRequest {
   const perDrinkRm = shift.perDrinkRm ?? DEFAULT_PER_DRINK_RM;
   const perTableRm = shift.perTableRm ?? DEFAULT_PER_TABLE_RM;
-  const drinkUnits = shift.drinkUnits ?? DEFAULT_DRINK_UNITS;
+  const drinkUnits = totalDrinkUnits(shift);
   const tableUnits = shift.tableUnits ?? DEFAULT_TABLE_UNITS;
-  const live = computeShiftLiveSales({ perDrinkRm, perTableRm, drinkUnits, tableUnits });
+  const live = computeShiftLiveSales({ ...shift, drinkUnits }, drinkMenu);
   const anchorLiveSales = shift.anchorLiveSales ?? live;
   return {
     ...shift,
@@ -64,34 +113,46 @@ export function buildSyncedOutletPnlRow(
   seedRow: OutletPnlRow,
   shift: ShiftRequest,
   roster: AgencyRosterSlot[] = [],
+  drinkMenu: OutletDrinkPrice[] = [],
+  commissionRules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
 ): OutletPnlSynced {
-  const rule = getOutletRule(seedRow.outlet);
-  const s = withShiftFinancialDefaults(shift);
-  const drinkUnits = s.drinkUnits!;
+  const rule = getOutletRule(seedRow.outlet, commissionRules);
+  const s = withShiftFinancialDefaults(shift, drinkMenu);
+  const drinkUnits = totalDrinkUnits(s);
   const tableUnits = s.tableUnits!;
   const perDrinkRm = s.perDrinkRm!;
   const perTableRm = s.perTableRm!;
-  const liveFloorGross = computeShiftLiveSales(s);
+  const liveFloorGross = computeShiftLiveSales(s, drinkMenu);
   const anchorLive = s.anchorLiveSales ?? liveFloorGross;
   const grossDelta = liveFloorGross - anchorLive;
   const grossRevenue = Math.round((seedRow.grossRevenue + grossDelta) * 100) / 100;
 
-  const drinkSales = drinkUnits * perDrinkRm;
+  const drinkSales = computeDrinkSales(s, drinkMenu);
   const tableSales = tableUnits * perTableRm;
   const tips = floorTipsForOutlet(s.outletName, roster);
-  const payout = calcShiftPayout({
-    outlet: seedRow.outlet,
-    hoursWorked: 6,
-    drinks: drinkUnits,
-    drinkSales,
-    tips,
-    tableSales,
-  });
+  const payout = calcShiftPayout(
+    {
+      outlet: seedRow.outlet,
+      hoursWorked: 6,
+      drinks: drinkUnits,
+      drinkSales,
+      tips,
+      tableSales,
+    },
+    commissionRules,
+  );
   const prCommission = Math.round(
     (payout.drinkCommission + payout.tipCommission + payout.tableCommission) * 100,
   ) / 100;
   const prWages = s.estimatedCost;
-  const anchorCommission = calcAnchorCommission(seedRow.outlet, anchorLive, s, roster);
+  const anchorCommission = calcAnchorCommission(
+    seedRow.outlet,
+    anchorLive,
+    s,
+    roster,
+    drinkMenu,
+    commissionRules,
+  );
   const prPayout = Math.round((prWages + prCommission) * 100) / 100;
   const anchorPrPayout = Math.round((prWages + anchorCommission) * 100) / 100;
   const prPayoutDelta = prPayout - anchorPrPayout;
@@ -120,6 +181,8 @@ function calcAnchorCommission(
   anchorLive: number,
   shift: ShiftRequest,
   roster: AgencyRosterSlot[] = [],
+  drinkMenu: OutletDrinkPrice[] = [],
+  commissionRules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
 ) {
   const perDrink = shift.perDrinkRm ?? DEFAULT_PER_DRINK_RM;
   const perTable = shift.perTableRm ?? DEFAULT_PER_TABLE_RM;
@@ -127,14 +190,17 @@ function calcAnchorCommission(
   const drinkShare = perDrink / totalUnit;
   const drinkUnits = (anchorLive * drinkShare) / perDrink;
   const tableUnits = (anchorLive * (1 - drinkShare)) / perTable;
-  const payout = calcShiftPayout({
-    outlet,
-    hoursWorked: 6,
-    drinks: drinkUnits,
-    drinkSales: drinkUnits * perDrink,
-    tips: floorTipsForOutlet(shift.outletName, roster),
-    tableSales: tableUnits * perTable,
-  });
+  const payout = calcShiftPayout(
+    {
+      outlet,
+      hoursWorked: 6,
+      drinks: drinkUnits,
+      drinkSales: computeDrinkSales({ ...shift, drinkUnits }, drinkMenu),
+      tips: floorTipsForOutlet(shift.outletName, roster),
+      tableSales: tableUnits * perTable,
+    },
+    commissionRules,
+  );
   return payout.drinkCommission + payout.tipCommission + payout.tableCommission;
 }
 
@@ -142,6 +208,8 @@ export function recomputeAllOutletPnl(
   shifts: ShiftRequest[],
   seedRows: OutletPnlRow[] = SEED_OUTLET_PNL,
   roster: AgencyRosterSlot[] = [],
+  drinkMenu: OutletDrinkPrice[] = [],
+  commissionRules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
 ): OutletPnlSynced[] {
   return seedRows.map((row) => {
     const active = shifts.find(
@@ -158,7 +226,7 @@ export function recomputeAllOutletPnl(
         syncedFromOutlet: false,
       };
     }
-    return buildSyncedOutletPnlRow(row, active, roster);
+    return buildSyncedOutletPnlRow(row, active, roster, drinkMenu, commissionRules);
   });
 }
 

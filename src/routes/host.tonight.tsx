@@ -29,6 +29,7 @@ function AttendancePage() {
   const cancelPrShift = useStore((s) => s.cancelPrShift);
   const demoPrShiftIn = useStore((s) => s.demoPrShiftIn);
   const simulatePrNoShow = useStore((s) => s.simulatePrNoShow);
+  const simulatePrLate = useStore((s) => s.simulatePrLate);
   const toast = useStore((s) => s.toast);
   const prSubRole = useStore((s) => s.prSubRole);
   const isFreelancer = prSubRole === "pr_free";
@@ -36,11 +37,9 @@ function AttendancePage() {
   const [holding, setHolding] = useState(false);
   const [progress, setProgress] = useState(0);
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [gpsOutOfRange, setGpsOutOfRange] = useState(false);
   const [checkPhase, setCheckPhase] = useState<CheckPhase>("idle");
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const [pendingCheckOut, setPendingCheckOut] = useState(false);
-  const [simulateLate, setSimulateLate] = useState(false);
   const selfieRef = useRef<HTMLInputElement>(null);
 
   const td = SHIFT_TODAY;
@@ -52,13 +51,17 @@ function AttendancePage() {
   const runningPayout = 350 + salesTotal;
   const mapsUrl = "https://www.google.com/maps?q=3.1478,101.7005";
 
+  const gpsOutOfRange = !!prCheckInMeta.gpsFallback;
   const statusLabel = !shiftAccepted ? "No shift" : !checkedIn ? "Pre check-in" : !checkedOut ? "On duty" : "Complete";
 
   const completeCheckIn = () => {
-    prCheckIn({ selfieDataUrl: selfieUrl ?? undefined, gpsFallback: gpsOutOfRange, simulateLate });
+    prCheckIn({
+      selfieDataUrl: selfieUrl ?? undefined,
+      gpsFallback: prCheckInMeta.gpsFallback,
+      simulateLate: prCheckInMeta.late,
+    });
     setCheckPhase("idle");
     setSelfieUrl(null);
-    setSimulateLate(false);
   };
 
   const completeCheckOut = () => {
@@ -163,7 +166,17 @@ function AttendancePage() {
               <span className="iz-tiny iz-muted">Distance to venue</span>
               <PrStatusPill variant={gpsOutOfRange ? "amber" : "green"}>{gpsOutOfRange ? "Out of range" : "In range"}</PrStatusPill>
             </div>
-            <button type="button" className="iz-tiny text-[var(--iz-blue)] underline-offset-2 hover:underline" onClick={() => setGpsOutOfRange((v) => !v)}>
+            <button
+              type="button"
+              className="iz-tiny text-[var(--iz-blue)] underline-offset-2 hover:underline"
+              onClick={() => {
+                const next = !gpsOutOfRange;
+                useStore.setState((st) => ({
+                  prCheckInMeta: { ...st.prCheckInMeta, gpsFallback: next },
+                }));
+                toast(next ? "GPS fail simulated — maps fallback required" : "GPS lock restored", next ? "warn" : "info");
+              }}
+            >
               {gpsOutOfRange ? "Simulate GPS lock" : "Simulate GPS fail"}
             </button>
             {gpsOutOfRange && (
@@ -171,10 +184,20 @@ function AttendancePage() {
                 <ExternalLink className="h-3 w-3" /> Maps fallback
               </a>
             )}
-            <label className="iz-tiny iz-muted2 mt-3 flex items-center gap-2">
-              <input type="checkbox" checked={simulateLate} onChange={(e) => setSimulateLate(e.target.checked)} />
+            <label className="iz-tiny mt-3 flex cursor-pointer items-center gap-2.5 text-[var(--iz-txt)]">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[var(--iz-gold)]"
+                checked={!!prCheckInMeta.late}
+                onChange={(e) => simulatePrLate(e.target.checked)}
+              />
               Simulate late (+15 min)
             </label>
+            {prCheckInMeta.late && (
+              <p className="iz-tiny mt-2 rounded-lg border border-[rgba(244,183,64,.35)] bg-[rgba(244,183,64,.08)] px-2.5 py-1.5 text-[var(--iz-amber)]">
+                Late flag active — +15 min past shift start · visible on agency roster
+              </p>
+            )}
             {prCheckInMeta.noShowRisk && (
               <p className="iz-tiny mt-2 rounded-lg border border-[rgba(255,107,107,.35)] bg-[var(--iz-red-bg)] px-2.5 py-1.5 text-[var(--iz-red)]">
                 No-show risk flagged — +30 min past shift start without check-in
@@ -233,7 +256,9 @@ function AttendancePage() {
             >
               {isFreelancer ? "Vouchers" : "Review PV"}
             </Link>
-            <p className="iz-tiny iz-muted2 mt-3 text-center">Demo resets when you return to the welcome screen.</p>
+            <p className="iz-tiny iz-muted2 mt-3 text-center">
+              Shift progress is saved — reset from the welcome screen when you need a fresh demo.
+            </p>
           </>
         )}
       </div>

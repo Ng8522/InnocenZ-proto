@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Building2, Users, Star, Shield, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { Building2, Users, Star, Shield, ArrowRight, RotateCcw } from "lucide-react";
 import { useStore, type Role } from "@/lib/store";
 import { getAgencyDefaultRoute, type AgencySubRole } from "@/lib/agency-rbac";
 import { getOutletDefaultRoute, type OutletSubRole } from "@/lib/outlet-rbac";
@@ -9,9 +9,6 @@ import { PhoneFrame } from "@/components/Brand";
 import { IzSheet } from "@/components/iz/Sheet";
 
 export const Route = createFileRoute("/")({
-  beforeLoad: () => {
-    if (typeof window !== "undefined") useStore.getState().resetDemo();
-  },
   head: () => ({
     meta: [
       { title: "InnocenZ — Nightlife, Powered by Trust" },
@@ -107,13 +104,15 @@ function Welcome() {
   const setPrSubRole = useStore((s) => s.setPrSubRole);
   const setOutletSubRole = useStore((s) => s.setOutletSubRole);
   const setAgencySubRole = useStore((s) => s.setAgencySubRole);
-  const resetPrDemo = useStore((s) => s.resetPrDemo);
   const resetDemo = useStore((s) => s.resetDemo);
+  const toast = useStore((s) => s.toast);
   const [sheetSide, setSheetSide] = useState<Side | null>(null);
 
-  useEffect(() => {
+  const handleResetDemo = () => {
     resetDemo();
-  }, [resetDemo]);
+    setSheetSide(null);
+    toast("All demo data reset — Outlet, Agency & PR", "success");
+  };
 
   const enter = (
     role: Role,
@@ -126,7 +125,6 @@ function Welcome() {
     setPrSubRole(prSubRole ?? null);
     setOutletSubRole(outletSubRole ?? null);
     setAgencySubRole(agencySubRole ?? null);
-    if (role === "host") resetPrDemo();
     setSheetSide(null);
     const to =
       role === "vendor" && outletSubRole
@@ -170,7 +168,6 @@ function Welcome() {
                       setPrSubRole(item.prSubRole ?? null);
                       setOutletSubRole(item.outletSubRole ?? null);
                       setAgencySubRole(item.agencySubRole ?? null);
-                      if (item.role === "host") resetPrDemo();
                       setSheetSide(null);
                     }}
                   >
@@ -190,13 +187,8 @@ function Welcome() {
       }
     >
       <div className="iz-welcome">
-        <div className="iz-between mt-1.5">
-          <div className="iz-wordmark">
-            Innocen<span className="iz-wordmark-z">Z</span>
-          </div>
-          <button type="button" className="iz-chip" onClick={() => enter("host", "/host")}>
-            Skip
-          </button>
+        <div className="iz-wordmark mt-1.5">
+          Innocen<span className="iz-wordmark-z">Z</span>
         </div>
 
         <div className="iz-logo-tile !mt-[26px]">
@@ -214,7 +206,9 @@ function Welcome() {
             One platform for the entertainment hospitality workforce. Choose your role — each unlocks only its
             permitted tools.
           </p>
-          <p className="iz-tiny iz-muted2 mt-2">Demo data resets each time you return here.</p>
+          <p className="iz-tiny iz-muted2 mt-2">
+            Demo changes persist as you switch roles — reset only when you choose below.
+          </p>
         </div>
 
         <div className="iz-role-grid">
@@ -223,10 +217,17 @@ function Welcome() {
           ))}
         </div>
 
-        <div className="mt-3.5 text-center">
+        <div className="mt-3.5 flex flex-col items-center gap-2">
           <Link to="/signin" className="iz-chip inline-flex">
             <Shield className="h-3 w-3" /> Forgot password / OTP recovery
           </Link>
+          <button
+            type="button"
+            className="iz-chip inline-flex !border-[var(--iz-red)]/35 !text-[var(--iz-red)]"
+            onClick={handleResetDemo}
+          >
+            <RotateCcw className="h-3 w-3" /> Reset all demo data
+          </button>
         </div>
 
         <p className="iz-tiny iz-muted2 mt-3 text-center">

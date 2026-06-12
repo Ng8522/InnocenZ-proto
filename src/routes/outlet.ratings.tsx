@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import type { PR } from "@/lib/store";
-import { AppTopbar } from "@/components/Nav";
 import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
 import { OutletPrSelfLogs } from "@/components/outlet/OutletPrSelfLogs";
 import { OutletSection } from "@/components/outlet/OutletSection";
@@ -11,6 +10,7 @@ import { outletCan } from "@/lib/outlet-rbac";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
 import { IzPill } from "@/components/iz/ui";
+import { workforceStatusLabel, workforceStatusVariant } from "@/components/portal/LiveWorkforceTable";
 import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +63,14 @@ function FloorPage() {
     const ids = liveIds.length > 0 ? liveIds : (tonight?.prs ?? []);
     return ids
       .map((id) => prs.find((p) => p.id === id))
-      .filter((p): p is PR => !!p);
+      .filter((p): p is PR => !!p)
+      .sort((a, b) => {
+        const sa = rosterTonight.find((s) => s.prId === a.id)?.status;
+        const sb = rosterTonight.find((s) => s.prId === b.id)?.status;
+        if (sa === "on-duty" && sb !== "on-duty") return -1;
+        if (sa !== "on-duty" && sb === "on-duty") return 1;
+        return 0;
+      });
   }, [viewMode, tonight?.prs, prs, rosterTonight]);
 
   const openPrData = openPr ? prs.find((p) => p.id === openPr) : null;
@@ -76,7 +83,6 @@ function FloorPage() {
 
   return (
     <div className="iz-screen">
-      <AppTopbar />
       <header>
         <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Floor</h2>
         {tonight && (
@@ -142,6 +148,10 @@ function FloorPage() {
           <div className="space-y-2">
             {onFloor.map((p) => {
               const slot = statsFor(p.id);
+              const liveStatus =
+                viewMode === "live" && slot && (slot.status === "on-duty" || slot.status === "en-route")
+                  ? slot.status
+                  : null;
               return (
                 <div key={p.id} className="iz-outlet-floor-row">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--iz-violet-ink)] text-xl">
@@ -165,6 +175,11 @@ function FloorPage() {
                         : ""}
                     </p>
                   </div>
+                  {liveStatus && (
+                    <IzPill variant={workforceStatusVariant(liveStatus)} className="!py-0.5 !text-[9px] shrink-0">
+                      {workforceStatusLabel(liveStatus)}
+                    </IzPill>
+                  )}
                   <button type="button" onClick={() => setOpenPr(p.id)} className="iz-btn iz-btn-soft iz-btn-sm shrink-0">
                     Rate
                   </button>

@@ -2,7 +2,13 @@
  * Cross-portal sync — single source of truth helpers for Agency, PR, and Outlet.
  */
 
-import type { AgencyCollectionInvoice, AgencyReconciliationDay, AgencyRosterSlot, LiveWorkforceEntry } from "@/lib/agency-demo";
+import type {
+  AgencyCollectionInvoice,
+  AgencyReconciliationDay,
+  AgencyRosterSlot,
+  LiveWorkforceEntry,
+  OutletCommissionRule,
+} from "@/lib/agency-demo";
 import { DEFAULT_AGENCY_OWNER, OUTLET_COMMISSION_RULES } from "@/lib/agency-demo";
 import type { HistRow } from "@/lib/pr-demo";
 import { sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
@@ -29,10 +35,27 @@ export function isDefaultOutlet(name: string): boolean {
   return outletMatches(name, DEFAULT_OUTLET_CANONICAL);
 }
 
+/** Estimated roster payout using live commission rules from the store */
+export function estimateRosterPayout(
+  slot: AgencyRosterSlot,
+  rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
+  perDrinkRm = 12,
+): number {
+  const rule = rules.find((r) => outletMatches(r.outlet, slot.outlet)) ?? rules[0];
+  const wage = (rule?.wagePerHour ?? 60) * 6;
+  const drinks = slot.floorDrinks ?? 0;
+  const tips = slot.floorTips ?? 0;
+  const drinkPct = rule?.drinkPct ?? 8;
+  const tipPct = rule?.tipPct ?? 15;
+  return Math.round((wage + drinks * perDrinkRm * (drinkPct / 100) + tips * (tipPct / 100)) * 100) / 100;
+}
+
 /** Live floor cards derived from roster — replaces static SEED_LIVE_WORKFORCE in UI */
 export function deriveLiveWorkforce(
   roster: AgencyRosterSlot[],
   dateIso: string = DEFAULT_ROSTER_DATE_ISO,
+  rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
+  perDrinkRm = 12,
 ): LiveWorkforceEntry[] {
   return roster
     .filter(
@@ -48,20 +71,50 @@ export function deriveLiveWorkforce(
       status: s.status === "on-duty" ? "on-duty" : "en-route",
       checkIn: s.checkedInAt,
       checkOut: s.checkedOutAt,
-      estPayout: s.estPayout ?? estimatePayout(s),
+      estPayout: s.estPayout ?? estimateRosterPayout(s, rules, perDrinkRm),
       drinks: s.floorDrinks ?? 0,
       tips: s.floorTips ?? 0,
     }));
 }
 
-function estimatePayout(slot: AgencyRosterSlot): number {
-  const rule = OUTLET_COMMISSION_RULES.find((r) => r.outlet === slot.outlet);
-  const wage = (rule?.wagePerHour ?? 60) * 6;
-  const drinks = slot.floorDrinks ?? 0;
-  const tips = slot.floorTips ?? 0;
-  const drinkPct = rule?.drinkPct ?? 8;
-  const tipPct = rule?.tipPct ?? 15;
-  return Math.round((wage + drinks * 12 * (drinkPct / 100) + tips * (tipPct / 100)) * 100) / 100;
+type OutletShiftSlot = {
+  outletName: string;
+  status: string;
+  prs: string[];
+  filled: number;
+  quantity: number;
+};
+
+/** Patch late / no-show flags on a PR's roster slot for the demo date */
+export function patchPrRosterAttendanceFlags(
+  roster: AgencyRosterSlot[],
+  prId: string,
+  outlet: string,
+  dateIso: string,
+  patch: { lateFlag?: boolean; noShowFlag?: boolean },
+): AgencyRosterSlot[] {
+  const idx = roster.findIndex(
+    (s) => s.prId === prId && s.dateIso === dateIso && outletMatches(s.outlet, outlet),
+  );
+  if (idx < 0) return roster;
+  return roster.map((s, i) => (i === idx ? { ...s, ...patch } : s));
+}
+
+/** Add a PR to the first open outlet shift with capacity */
+export function addPrToOutletShift<T extends OutletShiftSlot>(shifts: T[], outlet: string, prId: string): T[] {
+  const idx = shifts.findIndex(
+    (s) =>
+      outletMatches(s.outletName, outlet) &&
+      s.status !== "sealed" &&
+      !s.prs.includes(prId) &&
+      s.filled < s.quantity,
+  );
+  if (idx < 0) return shifts;
+  return shifts.map((sh, i) => {
+    if (i !== idx) return sh;
+    const prs = [...sh.prs, prId];
+    return { ...sh, prs, filled: prs.length };
+  });
 }
 
 export function floorTipsForOutletFromRoster(
@@ -224,6 +277,7 @@ export function marketplacePrsFromAgency(
     p9: "💫",
     p10: "🔥",
     p11: "📋",
+    "freelancer-jaya": "🌸",
   };
   return agencyPRs.map((p) => ({
     id: p.id,

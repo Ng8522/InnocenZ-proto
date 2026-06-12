@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { IzCard, IzPill } from "@/components/iz/ui";
@@ -30,25 +30,56 @@ export function AgencyGpsPanel({
 }) {
   const activePrId = prSubRole ? getPrRosterId(prSubRole) : undefined;
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [outletFilter, setOutletFilter] = useState<string | null>(null);
 
   const rows = useMemo(
     () => buildGpsTrackingRows(roster, agencyPRs, dateIso, prCheckInMeta, activePrId),
     [roster, agencyPRs, dateIso, prCheckInMeta, activePrId],
   );
 
-  const bounds = useMemo(() => gpsMapBounds(rows), [rows]);
-  const outletPins = useMemo(() => uniqueOutletPins(rows), [rows]);
-  const inRangeCount = rows.filter((r) => r.inRange).length;
+  const outletOptions = useMemo(
+    () => [...new Set(rows.map((r) => r.outlet))].sort((a, b) => a.localeCompare(b)),
+    [rows],
+  );
+
+  const filteredRows = useMemo(() => {
+    if (!outletFilter) return rows;
+    return rows.filter((r) => r.outlet === outletFilter);
+  }, [rows, outletFilter]);
+
+  useEffect(() => {
+    if (outletFilter && !outletOptions.includes(outletFilter)) {
+      setOutletFilter(null);
+    }
+  }, [outletFilter, outletOptions]);
+
+  useEffect(() => {
+    if (selectedId && !filteredRows.some((r) => r.slotId === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [filteredRows, selectedId]);
+
+  const bounds = useMemo(() => gpsMapBounds(filteredRows), [filteredRows]);
+  const outletPins = useMemo(() => uniqueOutletPins(filteredRows), [filteredRows]);
+  const inRangeCount = filteredRows.filter((r) => r.inRange).length;
   const groupedByOutlet = useMemo(() => {
-    const map = new Map<string, typeof rows>();
-    for (const row of rows) {
+    const map = new Map<string, typeof filteredRows>();
+    for (const row of filteredRows) {
       const list = map.get(row.outlet) ?? [];
       list.push(row);
       map.set(row.outlet, list);
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [rows]);
+  }, [filteredRows]);
   const mapHeight = outletPins.length > 2 ? 280 : 228;
+
+  const toggleOutletFilter = (outlet: string) => {
+    setOutletFilter((current) => (current === outlet ? null : outlet));
+  };
+
+  const gpsHint = outletFilter
+    ? `${outletFilter} · ${inRangeCount}/${filteredRows.length} in geofence`
+    : `${outletPins.length} outlets · ${inRangeCount}/${rows.length} in geofence`;
 
   if (rows.length === 0) {
     return (
@@ -61,13 +92,38 @@ export function AgencyGpsPanel({
   }
 
   return (
-    <OutletSection
-      title="Live GPS"
-      hint={`${outletPins.length} outlets · ${inRangeCount}/${rows.length} in geofence`}
-    >
+    <OutletSection title="Live GPS" hint={gpsHint}>
       <IzCard flat className="!p-0 overflow-hidden">
+        {outletOptions.length > 1 && (
+          <div className="flex flex-wrap gap-1.5 border-b border-[var(--iz-line)] bg-[var(--iz-panel)] px-3 py-2">
+            <button
+              type="button"
+              className={cn(
+                "iz-chip !text-[10px]",
+                !outletFilter && "ring-1 ring-[var(--iz-gold)]",
+              )}
+              onClick={() => setOutletFilter(null)}
+            >
+              All outlets
+            </button>
+            {outletOptions.map((outlet) => (
+              <button
+                key={outlet}
+                type="button"
+                className={cn(
+                  "iz-chip !text-[10px]",
+                  outletFilter === outlet && "ring-1 ring-[var(--iz-gold)]",
+                )}
+                onClick={() => toggleOutletFilter(outlet)}
+              >
+                {outlet}
+              </button>
+            ))}
+          </div>
+        )}
         <GpsRoadMap
-          rows={rows}
+          key={outletFilter ?? "all"}
+          rows={filteredRows}
           bounds={bounds}
           outletPins={outletPins}
           selectedId={selectedId}
@@ -80,9 +136,18 @@ export function AgencyGpsPanel({
             {groupedByOutlet.map(([outlet, outletRows]) => (
               <div key={outlet}>
                 {groupedByOutlet.length > 1 && (
-                  <p className="iz-tiny iz-muted mb-1.5 px-1 font-semibold uppercase tracking-wide">
+                  <button
+                    type="button"
+                    className={cn(
+                      "iz-tiny iz-muted mb-1.5 w-full rounded-lg px-1 py-0.5 text-left font-semibold uppercase tracking-wide transition-colors",
+                      outletFilter === outlet
+                        ? "text-[var(--iz-gold-l)]"
+                        : "hover:text-[var(--iz-txt)]",
+                    )}
+                    onClick={() => toggleOutletFilter(outlet)}
+                  >
                     {outlet} · {outletRows.length} PR{outletRows.length === 1 ? "" : "s"}
-                  </p>
+                  </button>
                 )}
                 <div className="space-y-2">
                   {outletRows.map((row) => {
@@ -147,20 +212,42 @@ export function AgencyGpsPanel({
             ))}
           </div>
 
-          {outletPins.length > 0 && (
+          {outletOptions.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-              {outletPins.map((pin) => (
-                <a
-                  key={pin.outlet}
-                  href={mapsUrlForCoord(pin.coord)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="iz-tiny inline-flex items-center gap-1 text-[#1a73e8]"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  {pin.outlet}
-                </a>
-              ))}
+              {(outletFilter ? outletOptions.filter((o) => o === outletFilter) : outletOptions).map(
+                (outlet) => {
+                  const pin = outletPins.find((p) => p.outlet === outlet) ?? {
+                    outlet,
+                    coord: OUTLET_GPS[outlet] ?? OUTLET_GPS["Velvet 23"],
+                  };
+                  return (
+                    <span key={outlet} className="inline-flex items-center gap-2">
+                      <button
+                        type="button"
+                        className={cn(
+                          "iz-tiny font-semibold transition-colors",
+                          outletFilter === outlet
+                            ? "text-[var(--iz-gold-l)]"
+                            : "text-[var(--iz-muted)] hover:text-[var(--iz-txt)]",
+                        )}
+                        onClick={() => toggleOutletFilter(outlet)}
+                      >
+                        {outlet}
+                      </button>
+                      <a
+                        href={mapsUrlForCoord(pin.coord)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="iz-tiny inline-flex items-center gap-1 text-[#1a73e8]"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Maps
+                      </a>
+                    </span>
+                  );
+                },
+              )}
             </div>
           )}
         </div>

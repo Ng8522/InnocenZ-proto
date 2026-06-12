@@ -106,16 +106,9 @@ function PostJobPage() {
 
   return (
     <div className="iz-screen">
-      <AppTopbar
-        onBack={() => {
-          if (editingShiftId) {
-            setEditingShiftId(null);
-            return;
-          }
-          return false;
-        }}
-        backLabel={editingShiftId ? "Shift list" : undefined}
-      />
+      {editingShiftId && (
+        <AppTopbar onBack={() => setEditingShiftId(null)} backLabel="Shift list" />
+      )}
       <header className="pt-1">
         <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Post shift</h2>
         <p className="iz-tiny iz-muted mt-0.5">Add shifts to your list, then post when ready.</p>

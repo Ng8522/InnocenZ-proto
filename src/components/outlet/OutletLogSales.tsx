@@ -1,10 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
-import {
-  DEFAULT_PER_DRINK_RM,
-  DEFAULT_PER_TABLE_RM,
-} from "@/lib/outlet-financial-sync";
+import { DEFAULT_PER_TABLE_RM } from "@/lib/outlet-financial-sync";
 import { ChevronDown, Minus, ScanLine, UtensilsCrossed, Wine } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +21,8 @@ export function OutletShiftSalesPanel({
   collapsible = false,
 }: OutletShiftSalesPanelProps) {
   const shift = useStore((s) => s.shifts.find((sh) => sh.id === shiftId));
+  const drinkMenu = useStore((s) => s.outletWorkspace.drinkMenu ?? []);
+  const adjustOutletDrinkSale = useStore((s) => s.adjustOutletDrinkSale);
   const adjustOutletShiftUnits = useStore((s) => s.adjustOutletShiftUnits);
   const toast = useStore((s) => s.toast);
   const [open, setOpen] = useState(!collapsible);
@@ -31,6 +30,7 @@ export function OutletShiftSalesPanel({
   if (!shift) return null;
 
   const liveSales = shift.liveSales ?? 0;
+  const drinkCounts = shift.drinkUnitCounts ?? {};
 
   if (sealed) {
     return (
@@ -42,15 +42,44 @@ export function OutletShiftSalesPanel({
 
   const controls = (
     <>
-      <div className="grid grid-cols-2 gap-2">
-        <SaleKindStepper
-          kind="drink"
-          label="Drink"
-          icon={<Wine className="h-3 w-3" />}
-          shiftId={shiftId}
-          bump={shift.perDrinkRm ?? DEFAULT_PER_DRINK_RM}
-          onAdjust={adjustOutletShiftUnits}
-        />
+      <div className="space-y-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">Drinks</div>
+        {drinkMenu.length === 0 ? (
+          <p className="iz-tiny iz-muted">Add drink prices in Workspace.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {drinkMenu.map((drink) => {
+              const qty = drinkCounts[drink.id] ?? 0;
+              return (
+                <div key={drink.id} className="flex min-w-0 items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => adjustOutletDrinkSale(shiftId, drink.id, -1)}
+                    disabled={qty === 0}
+                    className="iz-chip flex h-7 w-7 shrink-0 items-center justify-center !p-0 disabled:opacity-40"
+                    aria-label={`Remove ${drink.name}`}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => adjustOutletDrinkSale(shiftId, drink.id, 1)}
+                    className="iz-btn iz-btn-soft iz-btn-sm min-w-0 flex-1 !py-1.5 text-[10px]"
+                  >
+                    <Wine className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{drink.name}</span>
+                    <span className="shrink-0 text-[var(--iz-muted)]">
+                      RM{drink.priceRm}
+                      {qty > 0 ? ` · ${qty}` : ""}
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <div className="mt-2">
         <SaleKindStepper
           kind="table"
           label="Table"
@@ -70,7 +99,7 @@ export function OutletShiftSalesPanel({
           <ScanLine className="h-3.5 w-3.5" /> Scan
         </button>
         <Link to="/outlet/workspace" className="iz-chip flex-1 justify-center text-[11px]">
-          Unit rates
+          Drink prices
         </Link>
       </div>
     </>

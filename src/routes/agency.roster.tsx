@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type FormEvent } from "react";
-import { AppTopbar } from "@/components/Nav";
 import { AgencyGpsPanel } from "@/components/agency/AgencyGpsPanel";
 import { PrAvailabilityPanel } from "@/components/iz/PrAvailabilityPanel";
 import { RosterShiftFilters } from "@/components/agency/RosterShiftFilters";
@@ -76,7 +75,12 @@ function AgencyRoster() {
   const editSlot = agencyRoster.find((s) => s.id === editId);
 
   const dateIso = dateFilter || DEFAULT_ROSTER_DATE_ISO;
-  const workforce = useMemo(() => deriveLiveWorkforce(agencyRoster, dateIso), [agencyRoster, dateIso]);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
+  const workforce = useMemo(
+    () => deriveLiveWorkforce(agencyRoster, dateIso, outletCommissionRules, perDrinkRm),
+    [agencyRoster, dateIso, outletCommissionRules, perDrinkRm],
+  );
   const activeCount = workforce.filter((w) => w.status === "on-duty" || w.status === "en-route").length;
   const estPayoutLive = useMemo(() => workforce.reduce((s, w) => s + w.estPayout, 0), [workforce]);
   const scheduled = useMemo(
@@ -92,7 +96,6 @@ function AgencyRoster() {
 
   return (
     <div className="iz-screen iz-roster-page">
-      <AppTopbar backTo="/agency" backLabel="Home" />
 
       <header className="iz-roster-head">
         <div className="min-w-0 flex-1">

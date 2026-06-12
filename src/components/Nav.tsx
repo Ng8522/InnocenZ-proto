@@ -268,52 +268,62 @@ export function AppTopbar({
 
 
   const resolvedBackTo = backTo ?? getAutoBackTo(pathname);
+  const isPortalShell = pathname.startsWith("/outlet") || pathname.startsWith("/agency");
 
-  const showBack = !hideBack && (onBack != null || resolvedBackTo != null);
+  if (isPortalShell && onBack == null) {
+    return null;
+  }
+
+  const showBack =
+    !hideBack &&
+    (isPortalShell ? onBack != null : onBack != null || resolvedBackTo != null);
 
   const goWelcome = () => {
     goToWelcome();
   };
 
   return (
-    <header className="iz-topbar">
+    <header className={`iz-topbar${isPortalShell ? " iz-topbar--minimal" : ""}`}>
       {showBack ? (
         <PortalBackButton backTo={backTo} backLabel={backLabel} onBack={onBack} />
       ) : (
         <span className="iz-topbar-spacer" aria-hidden />
       )}
 
-      <div className="iz-topbar-identity">
-        <div
-          className={`iz-avatar iz-avatar--sm${prAvatarPhoto ? " iz-avatar-photo" : ""}`}
-          style={prAvatarPhoto ? undefined : { background: displayGradient }}
-        >
-          {prAvatarPhoto ? <img src={prAvatarPhoto} alt="" /> : displayAv}
-        </div>
-        <div className="iz-topbar-meta">
-          <div className="iz-topbar-name">{displayName}</div>
-          <div className="iz-topbar-role">{displayLabel}</div>
-        </div>
-      </div>
+      {!isPortalShell && (
+        <>
+          <div className="iz-topbar-identity">
+            <div
+              className={`iz-avatar iz-avatar--sm${prAvatarPhoto ? " iz-avatar-photo" : ""}`}
+              style={prAvatarPhoto ? undefined : { background: displayGradient }}
+            >
+              {prAvatarPhoto ? <img src={prAvatarPhoto} alt="" /> : displayAv}
+            </div>
+            <div className="iz-topbar-meta">
+              <div className="iz-topbar-name">{displayName}</div>
+              <div className="iz-topbar-role">{displayLabel}</div>
+            </div>
+          </div>
 
-      <div className="iz-topbar-actions">
-        {pathname.startsWith("/host") && <PrNotificationBell />}
-        <span className="iz-topbar-action iz-topbar-action--muted" title="Verified portal" aria-hidden>
-          <Shield className="h-3.5 w-3.5" />
-        </span>
-        <button
-          type="button"
-          className="iz-topbar-action"
-          title="Switch role"
-          aria-label="Switch role"
-          onClick={goWelcome}
-        >
-          <ArrowLeftRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
+          <div className="iz-topbar-actions">
+            {pathname.startsWith("/host") && <PrNotificationBell />}
+            <span className="iz-topbar-action iz-topbar-action--muted" title="Verified portal" aria-hidden>
+              <Shield className="h-3.5 w-3.5" />
+            </span>
+            <button
+              type="button"
+              className="iz-topbar-action"
+              title="Switch role"
+              aria-label="Switch role"
+              onClick={goWelcome}
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </>
+      )}
     </header>
   );
-
 }
 
 

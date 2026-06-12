@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
-import { PORTFOLIO_SLOT_COUNT, getPrProfile, type PrComcard } from "@/lib/pr-demo";
+import { PORTFOLIO_SLOT_COUNT, getPrProfile, getPrRosterId, type PrComcard } from "@/lib/pr-demo";
+import { Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
 import { ProfileLanguagePicker } from "@/components/iz/ProfileLanguagePicker";
 import { Camera, Eye, Pencil, Shield, Star, X } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
@@ -291,29 +292,52 @@ function ProfilePage() {
       </IzSectionLabel>
       <IzCard className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
         {editing ? (
-          <div className="iz-comcard-edit">
-            <ComcardInput
-              label="Height (cm)"
-              value={comcard.height}
-              onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, height: n } }))}
-            />
-            <ComcardInput
-              label="Weight (kg)"
-              value={comcard.weight}
-              onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, weight: n } }))}
-            />
-            <ComcardInput
-              label="Age"
-              value={comcard.age}
-              onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, age: n } }))}
-            />
-          </div>
+          <>
+            <p className="iz-tiny iz-muted2 mb-3">
+              Edit height, weight, and age — your comcard preview updates as you type.
+            </p>
+            <div className="iz-comcard-edit">
+              <ComcardInput
+                label="Height (cm)"
+                value={comcard.height}
+                onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, height: n } }))}
+              />
+              <ComcardInput
+                label="Weight (kg)"
+                value={comcard.weight}
+                onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, weight: n } }))}
+              />
+              <ComcardInput
+                label="Age"
+                value={comcard.age}
+                onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, age: n } }))}
+              />
+            </div>
+            <div className="mt-4 border-t border-[var(--iz-line)] pt-4">
+              <p className="iz-tiny iz-muted2 mb-3 text-center">Live preview</p>
+              <Comcard3dPreviewVisual
+                pr={{
+                  id: getPrRosterId(prSubRole),
+                  name: displayName,
+                  height: comcard.height,
+                  weight: comcard.weight,
+                  age: comcard.age,
+                }}
+                showStats={false}
+                showName={false}
+              />
+            </div>
+          </>
         ) : (
-          <div className="flex justify-around text-center">
-            <ComcardStat label="HEIGHT" value={`${comcard.height} cm`} />
-            <ComcardStat label="WEIGHT" value={`${comcard.weight} kg`} />
-            <ComcardStat label="AGE" value={String(comcard.age)} />
-          </div>
+          <Comcard3dPreviewVisual
+            pr={{
+              id: getPrRosterId(prSubRole),
+              name: displayName,
+              height: comcard.height,
+              weight: comcard.weight,
+              age: comcard.age,
+            }}
+          />
         )}
       </IzCard>
 
@@ -520,15 +544,6 @@ function ProfilePage() {
 }
 
 const COMCARD_DEFAULT = { height: 168, weight: 52, age: 25 };
-
-function ComcardStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="font-sora text-xl font-extrabold text-[var(--iz-gold-l)]">{value}</div>
-      <div className="iz-tiny iz-muted2 mt-0.5 tracking-wide">{label}</div>
-    </div>
-  );
-}
 
 function ComcardInput({
   label,

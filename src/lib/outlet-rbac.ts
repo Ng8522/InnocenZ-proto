@@ -24,7 +24,8 @@ type Permission =
   | "manageShiftStaffing"
   | "viewWorkspace"
   | "manageWorkspace"
-  | "viewSettings";
+  | "viewSettings"
+  | "editSettings";
 
 const ROLE_PERMISSIONS: Record<OutletSubRole, Permission[]> = {
   outlet_owner: [
@@ -42,6 +43,7 @@ const ROLE_PERMISSIONS: Record<OutletSubRole, Permission[]> = {
     "viewWorkspace",
     "manageWorkspace",
     "viewSettings",
+    "editSettings",
   ],
   outlet_finance: [
     "viewLiveDashboard",

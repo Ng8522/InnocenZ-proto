@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
-import { AppTopbar } from "@/components/Nav";
 import { OutletBookings } from "@/components/outlet/OutletBookings";
-import { OutletHomeTiles } from "@/components/outlet/OutletHomeTiles";
 import { OutletReconciliationBanner } from "@/components/outlet/OutletReconciliationBanner";
 import { LiveWorkforceList } from "@/components/portal/LiveWorkforceTable";
 import { OutletSection } from "@/components/outlet/OutletSection";
@@ -33,8 +31,6 @@ function OutletHome() {
 
   return (
     <div className="iz-screen iz-portal-page">
-      <AppTopbar />
-
       <div className="iz-portal-home-grid">
         <div className="iz-portal-home-main">
       <header className="pt-1">
@@ -81,7 +77,6 @@ function OutletHome() {
         <OutletBookings />
       </OutletSection>
 
-      <OutletHomeTiles />
       <OutletReconciliationBanner />
         </div>
 

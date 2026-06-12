@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { AppTopbar } from "@/components/Nav";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
 import type { PendingFreelancerPayroll } from "@/lib/store";
@@ -310,7 +309,6 @@ function AgencyPending() {
   if (!agencyCan(agencySubRole, "approvePrSignups")) {
     return (
       <div className="iz-screen">
-        <AppTopbar backTo="/agency" backLabel="Home" />
         <header>
           <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
         </header>
@@ -323,7 +321,6 @@ function AgencyPending() {
 
   return (
     <div className="iz-screen">
-      <AppTopbar backTo="/agency" backLabel="Home" />
       <header>
         <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Approve sign-ups</h2>
         <p className="iz-tiny iz-muted mt-0.5">

@@ -2,6 +2,15 @@
 
 const PORTAL_HUBS = ["/agency", "/outlet", "/host"] as const;
 
+/** Agency bottom-nav tabs — back exits to role picker */
+const AGENCY_MAIN_TABS = [
+  "/agency",
+  "/agency/roster",
+  "/agency/pv",
+  "/agency/history",
+  "/agency/reports",
+] as const;
+
 export type PortalHub = (typeof PORTAL_HUBS)[number];
 
 /** Role-picker screen — exiting a portal returns here */
@@ -25,6 +34,11 @@ export function isOutletMainTab(pathname: string): boolean {
   return OUTLET_MAIN_TABS.some((t) => norm === t);
 }
 
+export function isAgencyMainTab(pathname: string): boolean {
+  const norm = normalizePath(pathname);
+  return AGENCY_MAIN_TABS.some((t) => norm === t);
+}
+
 export function getPortalHub(pathname: string): PortalHub | null {
   if (pathname.startsWith("/agency")) return "/agency";
   if (pathname.startsWith("/outlet")) return "/outlet";
@@ -45,6 +59,7 @@ export function getAutoBackTo(pathname: string): string | undefined {
   const norm = normalizePath(pathname);
   if (norm === WELCOME_PATH) return undefined;
   if (pathname.startsWith("/outlet") && isOutletMainTab(pathname)) return WELCOME_PATH;
+  if (pathname.startsWith("/agency") && isAgencyMainTab(pathname)) return WELCOME_PATH;
   const hub = getPortalHub(pathname);
   if (!hub) return WELCOME_PATH;
   if (isPortalHub(pathname)) return WELCOME_PATH;
@@ -54,6 +69,7 @@ export function getAutoBackTo(pathname: string): string | undefined {
 export function getAutoBackLabel(pathname: string): string {
   if (pathname.startsWith("/signin")) return "Welcome";
   if (pathname.startsWith("/outlet") && isOutletMainTab(pathname)) return "Welcome";
+  if (pathname.startsWith("/agency") && isAgencyMainTab(pathname)) return "Welcome";
   const hub = getPortalHub(pathname);
   if (!hub || isPortalHub(pathname)) return "Welcome";
   if (hub === "/agency") return "Agency home";

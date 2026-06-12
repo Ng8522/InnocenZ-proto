@@ -373,7 +373,16 @@ function HistoryPage() {
 
   return (
     <div className="iz-screen">
-      <AppTopbar onBack={anyFilterOpen ? closeFilters : undefined} backLabel={anyFilterOpen ? "History" : undefined} />
+      <AppTopbar
+        onBack={() => {
+          if (anyFilterOpen) {
+            closeFilters();
+            return;
+          }
+          return false;
+        }}
+        backLabel={anyFilterOpen ? "History" : undefined}
+      />
 
       <PrPageHeader
         label="Earnings"

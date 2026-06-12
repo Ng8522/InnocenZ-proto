@@ -29,7 +29,7 @@ export interface NavItem {
 
 
 
-function navIsActive(pathname: string, to: string) {
+export function navIsActive(pathname: string, to: string) {
 
   if (pathname === to || pathname === `${to}/`) return true;
 
@@ -109,15 +109,99 @@ export type AppTopbarProps = {
 
   backLabel?: string;
 
-  /** In-page back (detail sheets) — overrides `backTo` navigation */
+  /** In-page back — return `false` to also run route navigation */
 
-  onBack?: () => void;
+  onBack?: () => void | boolean;
 
   hideBack?: boolean;
 
 };
 
+export function PortalBackButton({
 
+  backTo,
+
+  backLabel,
+
+  onBack,
+
+  className,
+
+}: {
+
+  backTo?: string;
+
+  backLabel?: string;
+
+  onBack?: () => void | boolean;
+
+  className?: string;
+
+}) {
+
+  const navigate = useNavigate();
+
+  const { pathname } = useLocation();
+
+  const resolvedBackTo = backTo ?? getAutoBackTo(pathname);
+
+  const resolvedLabel = backLabel ?? getAutoBackLabel(pathname);
+
+  const showBack = onBack != null || resolvedBackTo != null;
+
+  if (!showBack) {
+
+    return <span className="iz-topbar-spacer" aria-hidden />;
+
+  }
+
+  const handleBack = () => {
+
+    if (onBack) {
+
+      const fallThrough = onBack();
+
+      if (fallThrough !== false) return;
+
+    }
+
+    if (resolvedBackTo === WELCOME_PATH) {
+
+      goToWelcome();
+
+      return;
+
+    }
+
+    if (resolvedBackTo) void navigate({ to: resolvedBackTo });
+
+  };
+
+  return (
+
+    <button
+
+      type="button"
+
+      className={className ? `iz-topbar-back ${className}` : "iz-topbar-back"}
+
+      onClick={handleBack}
+
+      aria-label={resolvedLabel}
+
+      title={resolvedLabel}
+
+    >
+
+      <ArrowLeft className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+
+      <span className="iz-topbar-back-label">{resolvedLabel}</span>
+
+    </button>
+
+  );
+
+}
 
 export function AppTopbar({
 
@@ -130,8 +214,6 @@ export function AppTopbar({
   hideBack = false,
 
 }: AppTopbarProps) {
-
-  const navigate = useNavigate();
 
   const { pathname } = useLocation();
 
@@ -187,39 +269,16 @@ export function AppTopbar({
 
   const resolvedBackTo = backTo ?? getAutoBackTo(pathname);
 
-  const resolvedLabel = backLabel ?? getAutoBackLabel(pathname);
-
   const showBack = !hideBack && (onBack != null || resolvedBackTo != null);
 
   const goWelcome = () => {
     goToWelcome();
   };
 
-  const handleBack = () => {
-    if (onBack) {
-      onBack();
-      return;
-    }
-    if (resolvedBackTo === WELCOME_PATH) {
-      goWelcome();
-      return;
-    }
-    if (resolvedBackTo) void navigate({ to: resolvedBackTo });
-  };
-
   return (
     <header className="iz-topbar">
       {showBack ? (
-        <button
-          type="button"
-          className="iz-topbar-back"
-          onClick={handleBack}
-          aria-label={resolvedLabel}
-          title={resolvedLabel}
-        >
-          <ArrowLeft className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-          <span className="iz-topbar-back-label">{resolvedLabel}</span>
-        </button>
+        <PortalBackButton backTo={backTo} backLabel={backLabel} onBack={onBack} />
       ) : (
         <span className="iz-topbar-spacer" aria-hidden />
       )}

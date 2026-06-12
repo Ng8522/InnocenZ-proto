@@ -73,7 +73,7 @@ export function getFreePrsWithDistances(
   sortByOutlet?: string,
 ): FreePrWithDistances[] {
   return agencyPRs
-    .filter((pr) => getPrScheduleState(pr.id, roster, dateIso) === "free")
+    .filter((pr) => !pr.suspended && !pr.detached && getPrScheduleState(pr.id, roster, dateIso) === "free")
     .map((pr) => {
       const distances = OUTLET_NAMES.map((outlet) => ({
         outlet,

@@ -1,0 +1,154 @@
+import { useMemo } from "react";
+import { Link } from "@tanstack/react-router";
+import type { LiveWorkforceEntry } from "@/lib/agency-demo";
+import { deriveLiveWorkforce } from "@/lib/portal-sync";
+import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { useStore } from "@/lib/store";
+import { IzPill } from "@/components/iz/ui";
+import { ChevronRight } from "lucide-react";
+
+function statusVariant(status: LiveWorkforceEntry["status"]) {
+  if (status === "on-duty") return "green" as const;
+  if (status === "en-route") return "violet" as const;
+  return "ink" as const;
+}
+
+function statusLabel(status: LiveWorkforceEntry["status"]) {
+  if (status === "on-duty") return "ON-DUTY";
+  if (status === "en-route") return "EN-ROUTE";
+  return "OUT";
+}
+
+function WorkforceRow({
+  entry,
+  shift,
+}: {
+  entry: LiveWorkforceEntry;
+  shift?: string;
+}) {
+  const initials = entry.prName
+    .split(/\s+/)
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <tr>
+      <td>
+        <div className="iz-portal-table-pr">
+          <span className="iz-portal-table-av">{initials}</span>
+          <span className="font-sora text-sm font-semibold">{entry.prName}</span>
+        </div>
+      </td>
+      <td className="iz-muted">{entry.outlet}</td>
+      <td className="iz-muted iz-portal-table-shift">{shift ?? "—"}</td>
+      <td>
+        <IzPill variant={statusVariant(entry.status)} className="!py-0.5 !text-[9px]">
+          {statusLabel(entry.status)}
+        </IzPill>
+      </td>
+    </tr>
+  );
+}
+
+export function LiveWorkforceTable({
+  dateIso = DEFAULT_ROSTER_DATE_ISO,
+  rosterLink = "/agency/roster",
+  title = "Live workforce",
+  outletFilter,
+}: {
+  dateIso?: string;
+  rosterLink?: string;
+  title?: string;
+  outletFilter?: string;
+}) {
+  const agencyRoster = useStore((s) => s.agencyRoster);
+  const workforce = useMemo(() => deriveLiveWorkforce(agencyRoster, dateIso), [agencyRoster, dateIso]);
+  const filtered = outletFilter
+    ? workforce.filter((w) => w.outlet === outletFilter || w.outlet.includes(outletFilter))
+    : workforce;
+
+  const shiftById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const slot of agencyRoster) {
+      if (slot.id) map.set(slot.id, slot.shift);
+    }
+    return map;
+  }, [agencyRoster]);
+
+  if (filtered.length === 0) {
+    return (
+      <section className="iz-portal-panel">
+        <div className="iz-portal-panel-head">
+          <h3 className="font-sora text-base font-bold">{title}</h3>
+        </div>
+        <p className="iz-tiny iz-muted px-4 py-6 text-center">No PRs on floor right now.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="iz-portal-panel">
+      <div className="iz-portal-panel-head">
+        <h3 className="font-sora text-base font-bold">{title}</h3>
+        <Link to={rosterLink} className="iz-tiny flex items-center gap-0.5 text-[var(--iz-gold-l)]">
+          Full roster <ChevronRight className="h-3 w-3" />
+        </Link>
+      </div>
+      <div className="iz-portal-table-wrap">
+        <table className="iz-portal-table">
+          <thead>
+            <tr>
+              <th>PR</th>
+              <th>Outlet</th>
+              <th>Shift</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((w) => (
+              <WorkforceRow key={w.id} entry={w} shift={shiftById.get(w.id)} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/** Compact card list for outlet portal mobile/desktop */
+export function LiveWorkforceList({
+  dateIso = DEFAULT_ROSTER_DATE_ISO,
+  outletName,
+}: {
+  dateIso?: string;
+  outletName: string;
+}) {
+  const agencyRoster = useStore((s) => s.agencyRoster);
+  const workforce = useMemo(() => deriveLiveWorkforce(agencyRoster, dateIso), [agencyRoster, dateIso]);
+  const filtered = workforce.filter((w) => w.outlet === outletName || w.outlet.includes(outletName.split(" ")[0] ?? ""));
+
+  return (
+    <section className="iz-portal-panel">
+      <div className="iz-portal-panel-head">
+        <h3 className="font-sora text-base font-bold">PR roster — tonight</h3>
+        <span className="iz-tiny iz-muted">{filtered.length} on floor</span>
+      </div>
+      <ul className="iz-portal-roster-list">
+        {filtered.map((w) => (
+          <li key={w.id} className="iz-portal-roster-row">
+            <span className="iz-portal-table-av">{w.prName.trim()[0]}</span>
+            <span className="min-w-0 flex-1 truncate font-sora text-sm font-semibold">{w.prName}</span>
+            <IzPill variant={statusVariant(w.status)} className="!py-0.5 !text-[9px]">
+              {statusLabel(w.status)}
+            </IzPill>
+          </li>
+        ))}
+        {filtered.length === 0 && (
+          <li className="iz-tiny iz-muted px-4 py-5 text-center">No PRs checked in yet.</li>
+        )}
+      </ul>
+    </section>
+  );
+}

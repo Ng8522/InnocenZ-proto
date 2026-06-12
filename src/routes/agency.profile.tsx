@@ -8,7 +8,7 @@ import { agencyCan } from "@/lib/agency-rbac";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { Building2, Camera, CreditCard, Mail, Pencil, Phone, Shield, User, Users, X } from "lucide-react";
 
-const SCALING_TIER_ORDER = ["Tier III", "Tier IV", "Tier V", "Tier VI"] as const;
+const SCALING_TIER_ORDER = ["Tier III", "Tier IV", "Tier V"] as const;
 
 export const Route = createFileRoute("/agency/profile")({
   component: AgencyProfile,

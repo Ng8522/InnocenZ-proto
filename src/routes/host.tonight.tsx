@@ -102,8 +102,18 @@ function AttendancePage() {
   return (
     <div className="iz-screen">
       <AppTopbar
-        onBack={cancelOpen || checkPhase === "selfie" ? () => { setCancelOpen(false); setCheckPhase("idle"); } : undefined}
-        backLabel={cancelOpen ? "Attendance" : checkPhase === "selfie" ? "Back" : undefined}
+        onBack={() => {
+          if (cancelOpen) {
+            setCancelOpen(false);
+            return;
+          }
+          if (checkPhase === "selfie") {
+            setCheckPhase("idle");
+            return;
+          }
+          return false;
+        }}
+        backLabel={cancelOpen || checkPhase === "selfie" ? "Attendance" : undefined}
       />
 
       <PrPageHeader label="Attendance" title="Velvet 23" meta={`${todayFriendly} · 9 PM – 2 AM`} />

@@ -67,7 +67,13 @@ function ReceiptScanPage() {
   return (
     <div className="iz-screen">
       <AppTopbar
-        onBack={phase !== "idle" ? resetScan : undefined}
+        onBack={() => {
+          if (phase !== "idle") {
+            resetScan();
+            return;
+          }
+          return false;
+        }}
         backLabel={phase === "logged" ? "Scan" : phase === "review" ? "Rescan" : undefined}
       />
       <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">Receipt Scan</h2>

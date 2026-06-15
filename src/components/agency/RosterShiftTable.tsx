@@ -12,6 +12,7 @@ const STATUS_LABEL: Record<
   unavailable: { label: "Unavailable", variant: "red" },
   "swap-pending": { label: "Swap pending", variant: "violet" },
   "assignment-pending": { label: "Awaiting PR", variant: "amber" },
+  "outlet-pending": { label: "Awaiting outlet", variant: "amber" },
 };
 
 export function RosterShiftTable({

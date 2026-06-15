@@ -4,6 +4,19 @@ import { OUTLET_NAMES } from "@/lib/agency-demo";
 /** Demo “today” for roster availability filters */
 export const DEFAULT_ROSTER_DATE_ISO = "2026-06-04";
 
+export function isDemoDateOnOrAfter(dateIso: string, baselineIso = DEFAULT_ROSTER_DATE_ISO): boolean {
+  return dateIso >= baselineIso;
+}
+
+export function outletPendingShiftsForPr(
+  roster: AgencyRosterSlot[],
+  prId: string,
+): AgencyRosterSlot[] {
+  return roster
+    .filter((s) => s.prId === prId && s.status === "outlet-pending" && isDemoDateOnOrAfter(s.dateIso))
+    .sort((a, b) => a.dateIso.localeCompare(b.dateIso) || a.outlet.localeCompare(b.outlet));
+}
+
 export type PrScheduleState = "free" | "booked" | "unavailable";
 
 /** km from PR home base (place) to outlet — demo matrix */
@@ -26,6 +39,7 @@ export function getPrScheduleState(
   const slots = roster.filter((s) => s.prId === prId && s.dateIso === dateIso);
   if (slots.length === 0) return "free";
   if (slots.some((s) => s.status === "unavailable")) return "unavailable";
+  if (slots.some((s) => s.status === "outlet-pending" || s.status === "assignment-pending")) return "booked";
   return "booked";
 }
 

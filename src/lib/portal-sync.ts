@@ -11,6 +11,7 @@ import type {
 } from "@/lib/agency-demo";
 import { DEFAULT_AGENCY_OWNER, OUTLET_COMMISSION_RULES } from "@/lib/agency-demo";
 import type { HistRow } from "@/lib/pr-demo";
+import { formatPrDisplayName } from "@/lib/pr-demo";
 import { sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
 import type { PrPaymentVoucher, ShiftRequest } from "@/lib/store";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
@@ -63,12 +64,12 @@ export function deriveLiveWorkforce(
         s.dateIso === dateIso &&
         (s.status === "on-duty" || s.status === "en-route" || s.status === "scheduled"),
     )
-    .filter((s) => s.status === "on-duty" || s.status === "en-route")
+    .filter((s) => s.status === "en-route" || (s.status === "on-duty" && !!s.checkedInAt))
     .map((s) => ({
       id: s.id,
       prName: s.prName,
       outlet: s.outlet,
-      status: s.status === "on-duty" ? "on-duty" : "en-route",
+      status: s.status === "on-duty" && s.checkedInAt ? "on-duty" : "en-route",
       checkIn: s.checkedInAt,
       checkOut: s.checkedOutAt,
       estPayout: s.estPayout ?? estimateRosterPayout(s, rules, perDrinkRm),
@@ -228,20 +229,143 @@ export function buildShiftHistoryRow(input: {
 }
 
 /** Sync roster check-in when PR checks in on their app */
+function formatRosterDateLabel(dateIso: string): string {
+  const d = new Date(`${dateIso}T12:00:00`);
+  const weekday = d.toLocaleDateString("en-GB", { weekday: "short" });
+  const rest = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return `${weekday} · ${rest}`;
+}
+
+function parseShiftWindow(shift: string): { shiftStart: string; shiftEnd: string } {
+  const parts = shift.split(/[—–-]/).map((s) => s.trim());
+  return { shiftStart: parts[0] ?? "22:00", shiftEnd: parts[1] ?? "04:00" };
+}
+
+export function shiftDateIso(shiftDate: string): string {
+  if (shiftDate === "Tonight") return DEFAULT_ROSTER_DATE_ISO;
+  return DEFAULT_ROSTER_DATE_ISO;
+}
+
+export interface RosterSlotSeed {
+  prId: string;
+  prName: string;
+  outlet: string;
+  dateIso?: string;
+  dateLabel?: string;
+  shift?: string;
+}
+
+function findRosterSlot(
+  roster: AgencyRosterSlot[],
+  prId: string,
+  outlet: string,
+  dateIso: string,
+): AgencyRosterSlot | undefined {
+  const canon = canonicalOutlet(outlet);
+  return roster.find(
+    (s) => s.prId === prId && s.dateIso === dateIso && outletMatches(s.outlet, canon),
+  );
+}
+
+/** Create a roster slot when a PR is booked on a shift but has no roster row yet */
+export function ensureRosterSlot(
+  roster: AgencyRosterSlot[],
+  seed: RosterSlotSeed,
+  status: AgencyRosterSlot["status"] = "scheduled",
+  patch?: Partial<AgencyRosterSlot>,
+): AgencyRosterSlot[] {
+  const dateIso = seed.dateIso ?? DEFAULT_ROSTER_DATE_ISO;
+  const existing = findRosterSlot(roster, seed.prId, seed.outlet, dateIso);
+  if (existing) {
+    return roster.map((s) => (s.id === existing.id ? { ...s, ...patch, status: patch?.status ?? status } : s));
+  }
+  const canon = canonicalOutlet(seed.outlet);
+  const { shiftStart, shiftEnd } = parseShiftWindow(seed.shift ?? "22:00 — 04:00");
+  const shift = seed.shift ?? `${shiftStart} — ${shiftEnd}`;
+  const slot: AgencyRosterSlot = {
+    id: `rs-${seed.prId}-${dateIso}`,
+    prId: seed.prId,
+    prName: seed.prName,
+    outlet: canon,
+    date: seed.dateLabel ?? formatRosterDateLabel(dateIso),
+    dateIso,
+    shift,
+    shiftStart,
+    shiftEnd,
+    status,
+    ...patch,
+  };
+  return [slot, ...roster];
+}
+
+/** PR tapped "on my way" — booked → en-route (still outside geofence until check-in) */
+export function rosterEnRoute(
+  roster: AgencyRosterSlot[],
+  prId: string,
+  outlet: string,
+  seed?: Omit<RosterSlotSeed, "prId" | "outlet">,
+): AgencyRosterSlot[] {
+  const canon = canonicalOutlet(outlet);
+  const dateIso = seed?.dateIso ?? DEFAULT_ROSTER_DATE_ISO;
+  const existing = findRosterSlot(roster, prId, outlet, dateIso);
+
+  if (existing) {
+    if (existing.status === "on-duty" || existing.status === "en-route") return roster;
+    if (existing.status === "scheduled" || existing.status === "assignment-pending") {
+      return roster.map((s) =>
+        s.id === existing.id ? { ...s, status: "en-route" as const, noShowFlag: false } : s,
+      );
+    }
+    return roster;
+  }
+
+  if (!seed?.prName) return roster;
+
+  const { shiftStart, shiftEnd } = parseShiftWindow(seed.shift ?? "22:00 — 04:00");
+  return ensureRosterSlot(
+    roster,
+    { prId, prName: seed.prName, outlet: canon, dateIso, ...seed },
+    "en-route",
+    { shiftStart, shiftEnd },
+  );
+}
+
 export function rosterCheckIn(
   roster: AgencyRosterSlot[],
   prId: string,
   outlet: string,
   time: string,
+  seed?: Omit<RosterSlotSeed, "prId" | "outlet">,
 ): AgencyRosterSlot[] {
   const canon = canonicalOutlet(outlet);
-  return roster.map((s) => {
-    if (s.prId !== prId || !outletMatches(s.outlet, canon)) return s;
-    if (s.status === "scheduled" || s.status === "en-route" || s.status === "assignment-pending") {
-      return { ...s, status: "on-duty" as const, checkedInAt: time };
+  const dateIso = seed?.dateIso ?? DEFAULT_ROSTER_DATE_ISO;
+  const existing = findRosterSlot(roster, prId, outlet, dateIso);
+
+  if (existing) {
+    if (
+      existing.status === "scheduled" ||
+      existing.status === "en-route" ||
+      existing.status === "assignment-pending" ||
+      existing.status === "on-duty"
+    ) {
+      return roster.map((s) =>
+        s.id === existing.id
+          ? { ...s, status: "on-duty" as const, checkedInAt: time, noShowFlag: false }
+          : s,
+      );
     }
-    return s;
-  });
+    return roster;
+  }
+
+  if (!seed?.prName) return roster;
+
+  const { shiftStart, shiftEnd } = parseShiftWindow(seed.shift ?? "22:00 — 04:00");
+  return ensureRosterSlot(
+    roster,
+    { prId, prName: seed.prName, outlet: canon, dateIso, ...seed },
+    "on-duty",
+    { checkedInAt: time, noShowFlag: false, shiftStart, shiftEnd },
+  );
 }
 
 /** Sync roster check-out */
@@ -281,7 +405,7 @@ export function marketplacePrsFromAgency(
   };
   return agencyPRs.map((p) => ({
     id: p.id,
-    name: p.name,
+    name: formatPrDisplayName(p.id, p.name),
     rating: p.rating,
     languages: p.languages.map((l) => (l.length <= 3 ? l : l.slice(0, 2).toUpperCase())),
     status: "available" as const,

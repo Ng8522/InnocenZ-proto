@@ -32,6 +32,7 @@ const STATUS_LABEL: Record<RosterSlotStatus, { label: string; variant: "green" |
   unavailable: { label: "Unavailable", variant: "red" },
   "swap-pending": { label: "Swap pending", variant: "violet" },
   "assignment-pending": { label: "Awaiting PR", variant: "amber" },
+  "outlet-pending": { label: "Awaiting outlet", variant: "amber" },
 };
 
 type ViewMode = "live" | "planning";
@@ -54,6 +55,8 @@ function AgencyRoster() {
   const [dateFilter, setDateFilter] = useState(DEFAULT_ROSTER_DATE_ISO);
   const [shiftFilters, setShiftFilters] = useState<RosterShiftFilterState>(EMPTY_ROSTER_SHIFT_FILTERS);
   const [editId, setEditId] = useState<string | null>(null);
+  const [approveSwapId, setApproveSwapId] = useState<string | null>(null);
+  const [replacementPick, setReplacementPick] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("live");
   const canAssign = agencyCan(agencySubRole, "assignShifts");
 
@@ -71,7 +74,29 @@ function AgencyRoster() {
 
   const swapCount = agencyRoster.filter((s) => s.outletSwap?.status === "pending_pr").length;
   const assignCount = agencyRoster.filter((s) => s.status === "assignment-pending").length;
-  const pendingPrSwaps = prSwapRequests.filter((s) => s.status === "pending_agency");
+  const pendingPrSwaps = useMemo(
+    () =>
+      prSwapRequests.filter((s) => {
+        if (s.status !== "pending_agency" && s.status !== "pending_replacement") return false;
+        const slot = agencyRoster.find((r) => r.id === s.rosterSlotId);
+        if (slot && slot.prId !== s.requestingPrId) return false;
+        return true;
+      }),
+    [prSwapRequests, agencyRoster],
+  );
+  const swapToApprove = approveSwapId
+    ? prSwapRequests.find((s) => s.id === approveSwapId && s.status === "pending_agency")
+    : null;
+  const replacementCandidates = useMemo(
+    () =>
+      agencyPRs.filter(
+        (p) =>
+          !p.suspended &&
+          !p.detached &&
+          p.id !== swapToApprove?.requestingPrId,
+      ),
+    [agencyPRs, swapToApprove?.requestingPrId],
+  );
   const editSlot = agencyRoster.find((s) => s.id === editId);
 
   const dateIso = dateFilter || DEFAULT_ROSTER_DATE_ISO;
@@ -214,24 +239,47 @@ function AgencyRoster() {
           <div className="grid gap-2 md:grid-cols-2">
             {pendingPrSwaps.map((swap) => (
               <IzCard key={swap.id}>
-                <p className="font-sora text-sm font-bold">{swap.outlet}</p>
-                <p className="iz-tiny iz-muted mt-0.5">Replacement: {swap.replacementPrName}</p>
-                <div className="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    className="iz-btn iz-btn-soft flex-1 !py-1.5 !text-xs"
-                    onClick={() => declinePrSwapRequest(swap.id)}
-                  >
-                    Decline
-                  </button>
-                  <button
-                    type="button"
-                    className="iz-btn iz-btn-primary flex-1 !py-1.5 !text-xs"
-                    onClick={() => approvePrSwapRequest(swap.id)}
-                  >
-                    Approve
-                  </button>
-                </div>
+                <p className="font-sora text-sm font-bold">{swap.requestingPrName}</p>
+                <p className="iz-tiny iz-muted mt-0.5">
+                  {swap.targetOutlet
+                    ? `${swap.outlet} → ${swap.targetOutlet}`
+                    : swap.outlet}{" "}
+                  · {swap.date} · {swap.shift}
+                </p>
+                {swap.reason && (
+                  <p className="iz-tiny iz-muted mt-1 line-clamp-2">&ldquo;{swap.reason}&rdquo;</p>
+                )}
+                {swap.status === "pending_replacement" && swap.replacementPrName && (
+                  <p className="iz-tiny mt-2 text-[var(--iz-amber)]">
+                    Awaiting {swap.replacementPrName} to accept coverage offer
+                  </p>
+                )}
+                {swap.replacementDeclineReason && (
+                  <p className="iz-tiny mt-1 text-[var(--iz-red)] line-clamp-2">
+                    {swap.replacementPrName ?? "Replacement"} declined: &ldquo;{swap.replacementDeclineReason}&rdquo;
+                  </p>
+                )}
+                {swap.status === "pending_agency" && (
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      className="iz-btn iz-btn-soft flex-1 !py-1.5 !text-xs"
+                      onClick={() => declinePrSwapRequest(swap.id)}
+                    >
+                      Decline
+                    </button>
+                    <button
+                      type="button"
+                      className="iz-btn iz-btn-primary flex-1 !py-1.5 !text-xs"
+                      onClick={() => {
+                        setApproveSwapId(swap.id);
+                        setReplacementPick(replacementCandidates[0]?.id ?? "");
+                      }}
+                    >
+                      Pick replacement
+                    </button>
+                  </div>
+                )}
               </IzCard>
             ))}
           </div>
@@ -273,6 +321,51 @@ function AgencyRoster() {
           }}
         />
       )}
+
+      <IzSheet
+        open={!!swapToApprove}
+        onClose={() => {
+          setApproveSwapId(null);
+          setReplacementPick("");
+        }}
+      >
+        {swapToApprove && (
+          <>
+            <div className="iz-cardttl">Assign replacement</div>
+            <p className="iz-tiny iz-muted mb-3">
+              {swapToApprove.requestingPrName} wants to leave{" "}
+              <strong className="text-[var(--iz-txt)]">{swapToApprove.outlet}</strong> for{" "}
+              <strong className="text-[var(--iz-txt)]">{swapToApprove.targetOutlet}</strong> ·{" "}
+              {swapToApprove.targetDate} · {swapToApprove.targetShift}. Pick a replacement for their current slot.
+            </p>
+            <label className="iz-tiny iz-muted mb-1 block">Replacement PR</label>
+            <IzSelect
+              value={replacementPick}
+              onChange={(e) => setReplacementPick(e.target.value)}
+              className="mb-4 w-full"
+            >
+              <option value="">Select PR…</option>
+              {replacementCandidates.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {p.rating}★ · {p.trainingLevel}
+                </option>
+              ))}
+            </IzSelect>
+            <button
+              type="button"
+              className="iz-btn iz-btn-primary w-full"
+              disabled={!replacementPick}
+              onClick={() => {
+                approvePrSwapRequest(swapToApprove.id, replacementPick);
+                setApproveSwapId(null);
+                setReplacementPick("");
+              }}
+            >
+              Send offer to replacement
+            </button>
+          </>
+        )}
+      </IzSheet>
     </div>
   );
 }

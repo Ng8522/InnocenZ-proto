@@ -63,7 +63,9 @@ export type PushEvent =
       prId?: string;
       prName: string;
       outlet: string;
-      status: "pending" | "approved" | "declined";
+      status: "pending" | "approved" | "declined" | "offer" | "replacement_declined";
+      requestingPrName?: string;
+      reason?: string;
       notifyPr?: boolean;
       notifyAgency?: boolean;
     }
@@ -188,14 +190,34 @@ export function applyPushEvent(
     }
     case "swap_update": {
       const statusLabel =
-        event.status === "approved" ? "approved" : event.status === "declined" ? "declined" : "pending";
+        event.status === "approved"
+          ? "approved"
+          : event.status === "declined"
+            ? "declined"
+            : event.status === "offer"
+              ? "coverage offer"
+              : event.status === "replacement_declined"
+                ? "replacement declined"
+                : "pending";
       if (event.notifyPr !== false && prefOn(prefs, "swap_update", "pr") && event.prId) {
+        const title =
+          event.status === "offer"
+            ? "Swap coverage offer"
+            : event.status === "replacement_declined"
+              ? "Swap update"
+              : `Swap ${statusLabel}`;
+        const body =
+          event.status === "offer"
+            ? `${event.requestingPrName ?? "A PR"} needs cover at ${event.outlet} — accept or decline on Shifts`
+            : event.status === "approved"
+              ? `${event.outlet} — coverage confirmed`
+              : `${event.outlet} — ${event.prName}`;
         prNotifications = prependPr(
           {
             id: nid("n-swap"),
             kind: "swap",
-            title: `Swap ${statusLabel}`,
-            body: `${event.outlet} — ${event.prName}`,
+            title,
+            body,
             at,
             read: false,
             prId: event.prId,
@@ -205,13 +227,25 @@ export function applyPushEvent(
         );
       }
       if (event.notifyAgency !== false && prefOn(prefs, "swap_update", "agency")) {
+        const agencyTitle =
+          event.status === "replacement_declined"
+            ? "Replacement declined swap"
+            : event.status === "offer"
+              ? "Swap offer sent"
+              : `Swap ${statusLabel}`;
+        const agencyBody =
+          event.status === "replacement_declined"
+            ? `${event.prName} declined cover for ${event.requestingPrName ?? "PR"} · ${event.outlet}${event.reason ? ` — “${event.reason}”` : ""}`
+            : event.status === "offer"
+              ? `${event.prName} offered cover for ${event.requestingPrName ?? "PR"} · ${event.outlet}`
+              : `${event.prName} · ${event.outlet}`;
         opsNotifications = prependOps(
           {
             id: nid("ops-swap"),
             portal: "agency",
             kind: "swap_update",
-            title: `Swap ${statusLabel}`,
-            body: `${event.prName} · ${event.outlet}`,
+            title: agencyTitle,
+            body: agencyBody,
             at,
             read: false,
             href: "/agency/roster",

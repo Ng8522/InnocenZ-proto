@@ -1,7 +1,8 @@
 /** Agency portal demo data — roster, commission rules, history, PR roster */
 
 import type { PendingFreelancerPayroll, PendingPR } from "@/lib/store";
-import { DEFAULT_TIED_AGENCY_ID, FREELANCER_DEMO_PR_ID } from "@/lib/pr-demo";
+import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { DEFAULT_TIED_AGENCY_ID, FREELANCER_DEMO_PR_ID, fmtDateLabelFromIso } from "@/lib/pr-demo";
 
 export interface OutletCommissionRule {
   outlet: string;
@@ -64,7 +65,8 @@ export type RosterSlotStatus =
   | "en-route"
   | "unavailable"
   | "swap-pending"
-  | "assignment-pending";
+  | "assignment-pending"
+  | "outlet-pending";
 
 export interface AgencyAssignmentMeta {
   agencyName?: string;
@@ -112,21 +114,27 @@ export interface OutletSwapRequest {
   respondedAt?: string;
 }
 
+function rosterDate(iso: string) {
+  return fmtDateLabelFromIso(iso);
+}
+
+function withRosterDate<T extends Pick<AgencyRosterSlot, "dateIso">>(slot: T): T & { date: string } {
+  return { ...slot, date: rosterDate(slot.dateIso) };
+}
+
 export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
-  {
+  withRosterDate({
     id: "rs1",
     prId: "p1",
     prName: "Luna",
     outlet: "Velvet 23",
-    date: "Wed · 04 Jun 2026",
     dateIso: "2026-06-04",
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
     shiftEnd: "04:00",
-    status: "on-duty",
-    checkedInAt: "21:58",
-    floorDrinks: 12,
-    floorTips: 45,
+    status: "scheduled",
+    floorDrinks: 0,
+    floorTips: 0,
     estPayout: 420,
     outletSwap: {
       targetOutlet: "Bear Lounge",
@@ -136,13 +144,12 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
       requestedAt: "3 Jun 2026 · 11:28",
       requestedAtMs: Date.now() - 20 * 60 * 1000,
     },
-  },
-  {
+  }),
+  withRosterDate({
     id: "rs2",
     prId: "p2",
     prName: "Mia",
     outlet: "Velvet 23",
-    date: "Wed · 04 Jun 2026",
     dateIso: "2026-06-04",
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
@@ -151,13 +158,12 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     floorDrinks: 0,
     floorTips: 0,
     estPayout: 380,
-  },
-  {
+  }),
+  withRosterDate({
     id: "rs3",
     prId: "p6",
     prName: "Yuki",
     outlet: "Onyx KL",
-    date: "Wed · 04 Jun 2026",
     dateIso: "2026-06-04",
     shift: "21:00 — 03:00",
     shiftStart: "21:00",
@@ -169,49 +175,63 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
       agencyNote: "VIP coverage — agency moving shift to Mermate",
       requestedAt: "4 Jun 2026 · 09:15",
     },
-  },
-  {
+  }),
+  withRosterDate({
     id: "rs4",
     prId: "p5",
     prName: "Nina",
     outlet: "Mermate",
-    date: "Thu · 05 Jun 2026",
     dateIso: "2026-06-05",
     shift: "20:00 — 02:00",
     shiftStart: "20:00",
     shiftEnd: "02:00",
     status: "unavailable",
-  },
-  {
+  }),
+  withRosterDate({
     id: "rs6",
     prId: "p1",
     prName: "Luna",
     outlet: "Mermate",
-    date: "Wed · 03 Jun 2026",
-    dateIso: "2026-06-03",
+    dateIso: "2026-06-05",
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
     shiftEnd: "04:00",
     status: "assignment-pending",
     agencyAssignment: {
       agencyName: "Atlas Agency",
-      agencyNote: "You are needed at Mermate tonight — lounge relaunch coverage",
-      assignedAt: "3 Jun 2026 · 11:36",
+      agencyNote: "You are needed at Mermate Friday — lounge relaunch coverage",
+      assignedAt: "4 Jun 2026 · 11:36",
       assignedAtMs: Date.now() - 12 * 60 * 1000,
     },
-  },
-  {
+  }),
+  withRosterDate({
+    id: "rs7",
+    prId: "p1",
+    prName: "Luna",
+    outlet: "Onyx KL",
+    dateIso: "2026-06-04",
+    shift: "21:00 — 03:00",
+    shiftStart: "21:00",
+    shiftEnd: "03:00",
+    status: "assignment-pending",
+    agencyAssignment: {
+      agencyName: "Atlas Agency",
+      agencyNote: "Same-night backup at Onyx — only if you can leave Velvet early",
+      assignedAt: "4 Jun 2026 · 14:10",
+      assignedAtMs: Date.now() - 45 * 60 * 1000,
+    },
+  }),
+  withRosterDate({
     id: "rs5",
     prId: "p3",
     prName: "Vivi",
     outlet: "Bear Lounge",
-    date: "Thu · 05 Jun 2026",
     dateIso: "2026-06-05",
     shift: "22:30 — 04:30",
     shiftStart: "22:30",
     shiftEnd: "04:30",
     status: "scheduled",
-  },
+  }),
 ];
 
 export interface AgencyManagedPR {
@@ -688,7 +708,7 @@ export interface AgencyReconciliationDay {
 
 export const SEED_RECONCILIATION: AgencyReconciliationDay = {
   dateIso: "2026-06-04",
-  dateLabel: "Wed · 04 Jun 2026",
+  dateLabel: fmtDateLabelFromIso("2026-06-04"),
   outletSalesTotal: 14820,
   pvTotal: 14760,
   variance: 60,
@@ -715,43 +735,62 @@ export function mergeAgencyRoster(
   persisted: AgencyRosterSlot[] | undefined,
   seed: AgencyRosterSlot[] = SEED_AGENCY_ROSTER,
 ): AgencyRosterSlot[] {
-  if (!persisted?.length) return seed;
+  const normalize = (slot: AgencyRosterSlot): AgencyRosterSlot =>
+    withRosterDate({ ...slot, dateIso: slot.dateIso });
+
+  if (!persisted?.length) return seed.map(normalize);
   const seedIds = new Set(seed.map((s) => s.id));
   const extras = persisted.filter((s) => !seedIds.has(s.id) && !RETIRED_DEMO_ROSTER_IDS.has(s.id));
-  return [
+  const merged = [
     ...extras,
     ...seed.map((seedSlot) => {
       const saved = persisted.find((s) => s.id === seedSlot.id);
       if (!saved) return seedSlot;
+      const dateIso =
+        saved.dateIso < DEFAULT_ROSTER_DATE_ISO && seedSlot.dateIso >= DEFAULT_ROSTER_DATE_ISO
+          ? seedSlot.dateIso
+          : saved.dateIso ?? seedSlot.dateIso;
       if (DEMO_LAYOUT_ROSTER_IDS.has(seedSlot.id)) {
-        return {
+        return normalize({
           ...seedSlot,
           ...saved,
           status: seedSlot.status,
-          date: seedSlot.date,
-          dateIso: seedSlot.dateIso,
+          dateIso,
           outlet: seedSlot.outlet,
           checkedInAt: saved.checkedInAt ?? seedSlot.checkedInAt,
           floorDrinks: saved.floorDrinks ?? seedSlot.floorDrinks,
           floorTips: saved.floorTips ?? seedSlot.floorTips,
           estPayout: saved.estPayout ?? seedSlot.estPayout,
           outletSwap: seedSlot.outletSwap ?? saved.outletSwap,
-        };
+        });
       }
       const keepAssignmentPending =
         seedSlot.status === "assignment-pending" && saved.status !== "scheduled";
       const keepSwapPending =
         seedSlot.outletSwap?.status === "pending_pr" &&
         saved.outletSwap?.status !== "approved";
-      return {
+      const staleOnDuty = saved.status === "on-duty" && seedSlot.status !== "on-duty";
+      const reassigned = saved.prId !== seedSlot.prId;
+      return normalize({
         ...seedSlot,
         ...saved,
-        status: keepAssignmentPending ? seedSlot.status : saved.status,
+        dateIso,
+        prId: reassigned ? saved.prId : saved.prId ?? seedSlot.prId,
+        prName: reassigned ? saved.prName : saved.prName ?? seedSlot.prName,
+        status: keepAssignmentPending
+          ? seedSlot.status
+          : staleOnDuty
+            ? seedSlot.status
+            : saved.status,
+        checkedInAt: staleOnDuty ? undefined : saved.checkedInAt ?? seedSlot.checkedInAt,
+        floorDrinks: staleOnDuty ? seedSlot.floorDrinks : saved.floorDrinks ?? seedSlot.floorDrinks,
+        floorTips: staleOnDuty ? seedSlot.floorTips : saved.floorTips ?? seedSlot.floorTips,
         agencyAssignment: keepAssignmentPending
           ? seedSlot.agencyAssignment
           : saved.agencyAssignment ?? seedSlot.agencyAssignment,
         outletSwap: keepSwapPending ? seedSlot.outletSwap : saved.outletSwap ?? seedSlot.outletSwap,
-      };
+      });
     }),
   ];
+  return merged.map(normalize);
 }

@@ -129,6 +129,17 @@ export function fmtDFriendly(y: number, m: number, d: number) {
   return `${dayName(y, m, d)} · ${String(d).padStart(2, "0")} ${MONTH_NAMES[m - 1]} ${y}`;
 }
 
+export function parseYmdIso(iso: string): [number, number, number] {
+  const [y, m, d] = iso.split("-").map(Number);
+  return [y, m, d];
+}
+
+/** Display label from ISO date — keeps weekday aligned with prototype calendar */
+export function fmtDateLabelFromIso(iso: string) {
+  const [y, m, d] = parseYmdIso(iso);
+  return fmtDFriendly(y, m, d);
+}
+
 /** Relative time for agency notifications on PR Shifts */
 export function formatTimeAgo(ms: number, now = Date.now()) {
   const sec = Math.max(0, Math.floor((now - ms) / 1000));
@@ -168,6 +179,28 @@ export function getPrProfile(role: PrSubRole | null): PrProfile {
 
 /** Demo freelancer PR — payroll requests appear on agency pending screen */
 export const FREELANCER_DEMO_PR_ID = "freelancer-jaya";
+
+export function isFreelancerPrId(prId: string): boolean {
+  return prId.startsWith("freelancer-");
+}
+
+/** Outlet / roster UI — e.g. "Jaya (Freelancers)" instead of "freelancer-jaya" */
+export function formatPrDisplayName(prId: string, name?: string | null): string {
+  if (!isFreelancerPrId(prId)) {
+    return name?.trim() || prId;
+  }
+  const fromName = name?.trim().split(/\s+/)[0];
+  const fromId = prId
+    .replace(/^freelancer-/, "")
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ")
+    .split(/\s+/)[0];
+  const first = (fromName || fromId || "Freelancer").trim();
+  const label = first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+  return `${label} (Freelancers)`;
+}
 
 /** Roster / swap inbox — tied PR maps to Luna demo slot */
 export const TIED_DEMO_ROSTER_PR_ID = "p1";

@@ -12,6 +12,7 @@ import { BottomNav, type NavItem, navIsActive } from "@/components/Nav";
 import { AGENCY_SUB_ROLE_LABELS, agencyCan } from "@/lib/agency-rbac";
 import { goToWelcome } from "@/lib/go-welcome";
 import { OUTLET_SUB_ROLE_LABELS, outletCan } from "@/lib/outlet-rbac";
+import { OpsNotificationBell } from "@/components/portal/OpsNotificationBell";
 import { useStore } from "@/lib/store";
 
 export type PortalKind = "agency" | "outlet";
@@ -128,7 +129,7 @@ function PortalSidebar({
   );
 }
 
-function PortalHeader({ orgName }: { orgName: string }) {
+function PortalHeader({ orgName, portal }: { orgName: string; portal: PortalKind }) {
   return (
     <header className="iz-portal-header">
       <div className="min-w-0">
@@ -137,6 +138,7 @@ function PortalHeader({ orgName }: { orgName: string }) {
         </h1>
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        <OpsNotificationBell portal={portal} />
         <span className="iz-portal-header-badge" title="Verified portal">
           <Shield className="h-3.5 w-3.5" />
           RBAC
@@ -183,7 +185,7 @@ export function PortalShell({
       />
 
       <div className="iz-portal-main">
-        <PortalHeader orgName={orgName} />
+        <PortalHeader orgName={orgName} portal={portal} />
 
         <div className="iz-portal-viewport">{children}</div>
       </div>

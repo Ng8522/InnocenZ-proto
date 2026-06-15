@@ -16,6 +16,7 @@ import { getAutoBackLabel, getAutoBackTo, WELCOME_PATH } from "@/lib/nav-back";
 import { OUTLET_SUB_ROLE_LABELS } from "@/lib/outlet-rbac";
 
 import { useStore } from "@/lib/store";
+import { usePrPortalReady } from "@/lib/use-pr-sub-role";
 
 export interface NavItem {
 
@@ -89,9 +90,9 @@ export function BottomNav({ items }: { items: NavItem[] }) {
 
 const ROLE_LABELS: Record<string, { name: string; label: string; av: string; gradient: string }> = {
 
-  host: { name: "Maggie Chan", label: "PR", av: "M", gradient: "linear-gradient(135deg,#C99B4E,#8a5e22)" },
+  host: { name: "PR", label: "PR", av: "P", gradient: "linear-gradient(135deg,#6b7280,#374151)" },
 
-  host_tied: { name: "Maggie Chan", label: "PR \u00b7 Agency-Tied", av: "M", gradient: "linear-gradient(135deg,#C99B4E,#8a5e22)" },
+  host_tied: { name: "Luna", label: "PR \u00b7 Agency-Tied", av: "L", gradient: "linear-gradient(135deg,#C99B4E,#8a5e22)" },
 
   host_free: { name: "Jaya Nair", label: "PR \u00b7 Freelancer", av: "J", gradient: "linear-gradient(135deg,#5BA8FF,#2d63b8)" },
 
@@ -219,7 +220,7 @@ export function AppTopbar({
 
 
 
-  const prSubRole = useStore((s) => s.prSubRole);
+  const { role: prSubRole } = usePrPortalReady();
 
   const outletSubRole = useStore((s) => s.outletSubRole);
 
@@ -237,7 +238,11 @@ export function AppTopbar({
 
   else if (pathname.startsWith("/host")) {
 
-    role = prSubRole === "pr_free" ? "host_free" : "host_tied";
+    if (prSubRole === "pr_free") role = "host_free";
+
+    else if (prSubRole === "pr_tied") role = "host_tied";
+
+    else role = "host";
 
   }
 

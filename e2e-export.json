@@ -1,0 +1,551 @@
+[
+  {
+    "type": "header",
+    "line": 6,
+    "a": "🟣  ROLE 1  ·  UAB SYSTEM ADMIN  —  hidden portal · MFA · global config · RBAC · audit log · dispute override · golden-audit monitor"
+  },
+  {
+    "line": 7,
+    "section": "1.1  Login",
+    "screen": "Hidden admin URL",
+    "steps": "1. Open the private admin domain (NOT on the main app login page)\r\n2. Enter username + password\r\n3. Complete MFA — hardw",
+    "status": "❌ Missing",
+    "gap": "★ Hidden admin domain not implemented in prototype.\r\n★ MFA flow (hardware key / authenticator) absen"
+  },
+  {
+    "line": 8,
+    "section": "1.2  Approvals queue",
+    "screen": "Approvals tab",
+    "steps": "1. Two tabs: Agencies · Outlets (Admin does NOT approve individual PRs — their Agency does)\r\n2. Tap a pending Agency → r",
+    "status": "❌ Missing",
+    "gap": "★ Agencies / Outlets approval tabs absent.\r\n★ SSM + business-license + GPS-pin review surfaces not b"
+  },
+  {
+    "line": 9,
+    "section": "1.3  Global platform config  ★ v3",
+    "screen": "Settings → Global Config",
+    "steps": "Set platform-wide variables:\r\n• Platform_Fee (default 5%)\r\n• Geofence_Limit (default 50m)\r\n• Subscription_Rate (RM499/mo",
+    "status": "❌ Missing",
+    "gap": "★ Settings → Global Config screen not implemented.\r\n★ Platform_Fee · Geofence_Limit · Subscription_R"
+  },
+  {
+    "line": 10,
+    "section": "1.4  RBAC — roles & accounts",
+    "screen": "RBAC tab",
+    "steps": "1. See all 8 role templates (Admin · Agency Owner · Agency Finance · Outlet Owner · Outlet Finance · Outlet Ops Head · P",
+    "status": "❌ Missing",
+    "gap": "1. Sub-role RBAC implemented at Agency (Owner / Finance) via agency-rbac.ts and at Outlet (Owner / F"
+  },
+  {
+    "line": 11,
+    "section": "1.5  Immutable audit log",
+    "screen": "Audit Log tab",
+    "steps": "1. See every create / update / delete action platform-wide\r\n2. Each row: UserID · Action · Entity · Timestamp · IP · Bef",
+    "status": "❌ Missing",
+    "gap": "★ No platform audit log viewer screen.\r\n★ Approve / reject events, settings changes, PV overrides no"
+  },
+  {
+    "line": 12,
+    "section": "1.6  Dispute override (T+7 escalation)",
+    "screen": "Disputes tab",
+    "steps": "1. Open dispute auto-escalated after 7 days unresolved at Agency level\r\n2. Review: PR claim · Agency response · attendan",
+    "status": "❌ Missing",
+    "gap": "1. PR can raise a flag / dispute in store from the host PV screen.\r\n★ No Admin escalation queue for "
+  },
+  {
+    "line": 13,
+    "section": "1.7  Golden-audit monitor  ★ v3",
+    "screen": "Audit Formula tab",
+    "steps": "1. Live feed of every payout transaction\r\n2. Each row checks: Escrow_Change + Platform_Cut + Agency_Net + PR_Pay = 0.000",
+    "status": "❌ Missing",
+    "gap": "1. Golden Audit referenced as a badge / mention inside agency payroll UI.\r\n★ No live Σ=0 dashboard f"
+  },
+  {
+    "line": 14,
+    "section": "1.8  Subscription & billing control",
+    "screen": "Billing tab",
+    "steps": "1. View all Agency + Outlet subscriptions (RM499/mo each), status, next renewal\r\n2. Process manual override → waive mont",
+    "status": "❌ Missing",
+    "gap": "★ No admin view of all Agency + Outlet subscriptions.\r\n★ Manual override (waive month / extend trial"
+  },
+  {
+    "line": 15,
+    "section": "1.9  SOS / incident feed  ★ v3",
+    "screen": "Safety tab",
+    "steps": "1. Live SOS feed (location + PR + outlet, blinking red on map)\r\n2. Review incident reports (photo + GPS + selfie) — immu",
+    "status": "❌ Missing",
+    "gap": "1. PR-side SOS button exists on host screens (PrSosButton component).\r\n★ No admin live SOS feed (map"
+  },
+  {
+    "type": "header",
+    "line": 16,
+    "a": "🔵  ROLE 2  ·  AGENCY OWNER  —  full dashboard · approvals · roster · PV · commission · analytics · PR mgmt"
+  },
+  {
+    "line": 17,
+    "section": "2.1  Sign-up & login",
+    "screen": "Welcome → Agency sub-role picker",
+    "steps": "1. Register via desktop web portal — company, SSM, contacts, verified mobile, Finance Head IC + e-signature\r\n2. Single-u",
+    "status": "⚠️ Partial",
+    "gap": "1. Demo welcome screen with role picker (Agency / Outlet / PR) wired to sub-role sheets.\r\n2. Agency "
+  },
+  {
+    "line": 18,
+    "section": "2.2  Agency Home",
+    "screen": "Home tab (bottom nav)",
+    "steps": "Top bar: Agency avatar · date/time chip · shield (security) · Switch button\r\nHero: ‘Agency home — Live roster · payroll ",
+    "status": "⚠️ Partial",
+    "gap": "1. KPI tiles (PRs active today · est. payout today) rendered.\r\n2. Reconciliation banner present at t"
+  },
+  {
+    "line": 19,
+    "section": "2.3  Approve PR sign-ups",
+    "screen": "Home → Approve PR sign-ups",
+    "steps": "1. Two tabs: Agency-Tied sign-ups · Freelancer payroll-link requests\r\n2. Tap pending PR → review IC photos, selfie, lang",
+    "status": "✅ Done",
+    "gap": "1. agency.pending.tsx renders two tabs — Agency-Tied sign-ups + Freelancer payroll-link requests.\r\n2"
+  },
+  {
+    "line": 20,
+    "section": "2.4  Schedule & Roster (M2)  ★ v3",
+    "screen": "Roster tab",
+    "steps": "Top: Agency badge · date/time · Title ‘Roster’ · chips ‘N assign’ + ‘N swaps’ · Live ↔ Planning toggle\r\nKPIs: PRs active",
+    "status": "⚠️ Partial",
+    "gap": "1. Live ↔ Planning toggle implemented.\r\n2. GPS map of active PRs on shift.\r\n3. Swap-request Approve "
+  },
+  {
+    "line": 21,
+    "section": "2.5  Payment Vouchers (M7)  ★ v3",
+    "screen": "Payroll tab",
+    "steps": "Top: ‘Payroll & PV’ · Cycle (e.g. 4 May – 10 Jun) · per-item calc badge\r\nKPI: Awaiting PR review / sign · Disputed (held",
+    "status": "⚠️ Partial",
+    "gap": "1. Payroll tab built with cycle header, PV list, status pills.\r\n2. Item-level PV format with auto-pu"
+  },
+  {
+    "line": 22,
+    "section": "2.6  History (M6)",
+    "screen": "History tab",
+    "steps": "Header: 'INNOCENZ · AGENCY — History — Transaction log for completed shifts: payout, drinks, tips per PR'\r\nFilters: Name",
+    "status": "⚠️ Partial",
+    "gap": "1. agency.history.tsx renders shift transaction log with filters (Name · Date · Outlet).\r\n2. Per-car"
+  },
+  {
+    "line": 23,
+    "section": "2.7  Analytics (M6)  ★ v3",
+    "screen": "Analytics tab",
+    "steps": "Title: ‘Agency analytics’\r\nFilter card: outlet dropdown · date range (from → to)\r\nSync banner: ‘Changes from outlet Home",
+    "status": "⚠️ Partial",
+    "gap": "1. agency.analytics.tsx with date-range filter.\r\n2. PNL drill (Outlet → PR commission → Agency net) "
+  },
+  {
+    "line": 24,
+    "section": "2.8  Manage PR",
+    "screen": "Home → Manage PR",
+    "steps": "1. Filter chips: Age · Language · Race · KPI · tier\r\n2. List of tied PRs as PR Cards → photo · languages · height/weight",
+    "status": "✅ Done",
+    "gap": "1. agency.prs.tsx with filter chips (Age / Language / Race / KPI / Tier).\r\n2. Bulk select → broadcas"
+  },
+  {
+    "line": 25,
+    "section": "2.9  Agency Settings  ★ v3",
+    "screen": "Home → Agency settings",
+    "steps": "Sections: Owner info · OTP & 2FA · Commission rules · Sub-roles · Subscription\r\n1. Owner info: name, mobile, email\r\n2. O",
+    "status": "⚠️ Partial",
+    "gap": "1. Owner info edit (name, mobile, email).\r\n2. Commission rules per outlet (per-item matrix) editable"
+  },
+  {
+    "line": 26,
+    "section": "2.10  Daily reconciliation  ★ v3",
+    "screen": "Home banner / Payroll tab",
+    "steps": "1. End-of-day banner → ‘Confirm today’s reconciliation’\r\n2. Review: outlet-reported sales vs PV totals → variance highli",
+    "status": "⚠️ Partial",
+    "gap": "1. End-of-day banner triggers reconciliation flow.\r\n2. Dual confirm (Agency + Outlet) gate enforced "
+  },
+  {
+    "line": 27,
+    "section": "2.11  Collections tracking  ★ v3",
+    "screen": "Payroll → Collections",
+    "steps": "1. Sub-tab Collections → outlet → agency invoices\r\n2. ★ v3 Platform ledger shows SETTLED vs PENDING status per invoice\r\n",
+    "status": "⚠️ Partial",
+    "gap": "1. Aging buckets (Current / 7d / 14d / 30d / 60d+) rendered.\r\n2. Per-invoice ledger with PV links + "
+  },
+  {
+    "type": "header",
+    "line": 28,
+    "a": "🔵  ROLE 3  ·  AGENCY FINANCE  —  Payroll · PV · collections · analytics (read)  —  NO assign / settings / Manage PR"
+  },
+  {
+    "line": 29,
+    "section": "3.1  Login as Finance",
+    "screen": "Welcome → Agency → Finance",
+    "steps": "1. Welcome → Agency → tap ‘Finance — Payroll, PV & collections only’\r\n2. Slimmed Home: Payment vouchers · Payroll & anal",
+    "status": "✅ Done",
+    "gap": "1. Welcome → Agency → Finance picker wired.\r\n2. agency-rbac.ts gates Finance to Payment Vouchers · P"
+  },
+  {
+    "line": 30,
+    "section": "3.2  Raise & track PV",
+    "screen": "Payroll tab",
+    "steps": "Same flow as Owner (section 2.5): raise item-level PV → Finance Head sig auto-applied → PR e-signs → Friday cron pays. O",
+    "status": "⚠️ Partial",
+    "gap": "1. Finance has access to Payroll tab + raise/sign PV (mirrors Owner flow).\r\n★ Same PV-cycle gaps as "
+  },
+  {
+    "line": 31,
+    "section": "3.3  Collections + reconciliation",
+    "screen": "Payroll → Collections / Home banner",
+    "steps": "Same as Owner 2.10 + 2.11: confirm daily reconciliation, mark invoices Settled, send reminders, view aging.",
+    "status": "✅ Done",
+    "gap": "1. Finance can confirm daily reconciliation (Owner OR Finance per RBAC).\r\n2. Collections sub-tab acc"
+  },
+  {
+    "line": 32,
+    "section": "3.4  Analytics (read + export)",
+    "screen": "Analytics tab",
+    "steps": "Same Analytics screen as Owner (2.7): KPIs, PNL drill, Live/Planning toggle, Excel export, scheduled reports 15th / 28th",
+    "status": "⚠️ Partial",
+    "gap": "1. Read access to analytics for Finance role wired via RBAC.\r\n2. Excel export available (toast only "
+  },
+  {
+    "type": "header",
+    "line": 33,
+    "a": "🟢  ROLE 4  ·  OUTLET OWNER  —  post shifts · live floor · log sales · seal · rate · workspace · billing"
+  },
+  {
+    "line": 34,
+    "section": "4.1  Sign-up & login",
+    "screen": "Portal / Welcome → Outlet",
+    "steps": "1. Register via portal — direct OR introduced by an Agency\r\n2. Outlet name, address, SSM, business license, ★ v3 standar",
+    "status": "⚠️ Partial",
+    "gap": "1. Demo welcome → Outlet → sub-role picker (Owner / Finance / Ops Head).\r\n★ GPS-pinned business addr"
+  },
+  {
+    "line": 35,
+    "section": "4.2  Outlet Home",
+    "screen": "Home tab",
+    "steps": "Tiles:\r\n• Post Shift / Job Order\r\n• Live Manpower (Live ↔ Planning)\r\n• Log Sales (+Drink / +Table / Scan QR)\r\n• Seal Shi",
+    "status": "⚠️ Partial",
+    "gap": "1. Bottom nav (Home · Post Job · History · Floor · Reports) implemented for outlet role.\r\n2. Reconci"
+  },
+  {
+    "line": 36,
+    "section": "4.3  Post a Shift (M2)  ★ v3",
+    "screen": "Home → Post Shift",
+    "steps": "1. Tap ‘Post Shift’\r\n2. Enter date, start time, end time, calendar_date (★ v3 explicit field), base rate / hr\r\n3. ★ v3 T",
+    "status": "⚠️ Partial",
+    "gap": "1. Post-job form works (outlet, date, time, rate, role).\r\n2. Basic headcount input wired.\r\n★ Tier-la"
+  },
+  {
+    "line": 37,
+    "section": "4.4  Live floor + Log Sales (M3)  ★ v3",
+    "screen": "Home → Live Manpower",
+    "steps": "1. See PRs checked-in on the floor → cards with check-in time, drinks, tips, status\r\n2. ★ v3 Tap +Drink → increment coun",
+    "status": "⚠️ Partial",
+    "gap": "1. +Drink / +Table buttons logged on live floor.\r\n2. PR self-log path wired — PR can log; outlet con"
+  },
+  {
+    "line": 38,
+    "section": "4.5  Seal Shift  ★ v3",
+    "screen": "Home → Seal Shift",
+    "steps": "1. Tap ‘Seal Shift’ at end of night\r\n2. Review per-PR totals: base hrs, OT (★ v3 from receipt-scan / check-out timestamp",
+    "status": "⚠️ Partial",
+    "gap": "1. Seal action with review screen wired.\r\n2. Post-seal summary visible.\r\n★ Pre-seal variance gate (m"
+  },
+  {
+    "line": 39,
+    "section": "4.6  Rate PRs (M5)  ★ v3",
+    "screen": "Post-seal prompt",
+    "steps": "1. Within 24 h of seal → rate each PR who worked\r\n2. 1–5 stars + optional tags (Punctual, Friendly, Upsell, Late, Issue,",
+    "status": "✅ Done",
+    "gap": "1. outlet.ratings.tsx wired with per-PR rate flow.\r\n2. 24-hour rating window enforced.\r\n3. Tag-based"
+  },
+  {
+    "line": 40,
+    "section": "4.7  Workspace — rates / matrix / happy-hour  ★ v3",
+    "screen": "Home → Workspace",
+    "steps": "1. Set base PR rates per role tag (PR, Hostess, Captain)\r\n2. Per-item commission matrix (per drink type, per table tier,",
+    "status": "✅ Done",
+    "gap": "1. Rates configuration (per-item commission matrix) editable.\r\n2. Happy-hour pricing edit wired.\r\n3."
+  },
+  {
+    "line": 41,
+    "section": "4.8  Billing & spend",
+    "screen": "Home → Billing",
+    "steps": "1. View RM499/mo subscription + next renewal date\r\n2. Pay Agency invoices → upload receipt OR mark paid\r\n3. Spend report",
+    "status": "⚠️ Partial",
+    "gap": "1. Subscription + invoices list present.\r\n2. Card-on-file UI rendered.\r\n★ Outlet-side dispute feed ("
+  },
+  {
+    "line": 42,
+    "section": "4.9  Daily reconciliation",
+    "screen": "Home banner",
+    "steps": "1. End-of-day banner → review live sales totals vs sealed PR totals\r\n2. Variance → edit drinks / tips with reason → re-c",
+    "status": "✅ Done",
+    "gap": "1. OutletReconciliationBanner component renders confirmation prompt at end of day.\r\n2. Integrated in"
+  },
+  {
+    "line": 43,
+    "section": "4.10  History  ★ v3.1",
+    "screen": "History tab (bottom nav)",
+    "steps": "Header: 'INNOCENZ · OUTLET — History — Transaction log for completed shifts: payout, drinks, and tips per PR'\r\nFilters: ",
+    "status": "⚠️ Partial",
+    "gap": "1. outlet.history.tsx exists with shift log filters (PR / Agency / Date / Status).\r\n2. Per-card deta"
+  },
+  {
+    "type": "header",
+    "line": 44,
+    "a": "🟢  ROLE 5  ·  OUTLET FINANCE  —  billing · subscription · workspace rates · reconciliation  (no post / log / seal / rate)"
+  },
+  {
+    "line": 45,
+    "section": "5.1  Login + Home",
+    "screen": "Welcome → Outlet → Finance",
+    "steps": "Welcome → Outlet → tap 'Finance — Payroll, Billing & subscription only'. Slimmed Home: Billing, Workspace, Spend Reports",
+    "status": "✅ Done",
+    "gap": "1. Welcome → Outlet → Finance picker wired.\r\n2. outlet-rbac.ts gates Finance to Billing · Workspace "
+  },
+  {
+    "line": 46,
+    "section": "5.2  Billing + subscription override",
+    "screen": "Billing tab",
+    "steps": "1. RM499/mo subscription → next renewal\r\n2. Update card on file\r\n3. Pay outstanding agency invoices → upload receipt\r\n4.",
+    "status": "⚠️ Partial",
+    "gap": "1. Billing UI accessible to Finance (subscription, invoices, card-on-file).\r\n★ Admin override reques"
+  },
+  {
+    "line": 47,
+    "section": "5.3  Workspace rates",
+    "screen": "Workspace tab",
+    "steps": "Same Workspace as Owner (4.7) — rates, matrix, happy-hour, scaling.",
+    "status": "✅ Done",
+    "gap": "1. Finance shares Workspace screen with Owner.\r\n2. Rates / matrix / happy-hour / scaling all editabl"
+  },
+  {
+    "line": 48,
+    "section": "5.4  Reconciliation",
+    "screen": "Home banner",
+    "steps": "Confirm daily reconciliation (same as 4.9).",
+    "status": "✅ Done",
+    "gap": "1. Finance can confirm daily reconciliation per RBAC (Owner OR Finance).\r\n★ Matches spec (same as §4"
+  },
+  {
+    "type": "header",
+    "line": 49,
+    "a": "🟢  ROLE 6  ·  OUTLET OPS HEAD  —  post · floor · log sales · seal · rate · workspace  (no billing / reconciliation confirm)"
+  },
+  {
+    "line": 50,
+    "section": "6.1  Login + Home",
+    "screen": "Welcome → Outlet → Ops Head",
+    "steps": "Sub-role picker → 'Ops Head'. Floor-ops Home: Post Shift · Live Manpower · Log Sales · Seal Shift · Rate PRs · Workspace",
+    "status": "✅ Done",
+    "gap": "1. Welcome → Outlet → Ops Head picker wired.\r\n2. outlet-rbac.ts gates Ops Head to Post / Floor / Log"
+  },
+  {
+    "line": 51,
+    "section": "6.2  Post / Floor / Seal / Rate",
+    "screen": "Same screens as Outlet Owner",
+    "steps": "Same flows as 4.3 → 4.6: post shifts with tier headcount + split shifts + recommended carousel; live floor with Log Sale",
+    "status": "⚠️ Partial",
+    "gap": "1. Ops Head shares Post / Floor / Seal / Rate screens with Owner.\r\n★ Same gaps as §4.3: split-hour b"
+  },
+  {
+    "line": 52,
+    "section": "6.3  Workspace rates",
+    "screen": "Workspace tab",
+    "steps": "Same as 4.7.",
+    "status": "✅ Done",
+    "gap": "1. Ops Head shares Workspace screen with Owner / Finance.\r\n★ Matches spec (same as §4.7).\r\n🔗 outlet"
+  },
+  {
+    "type": "header",
+    "line": 53,
+    "a": "🟡  ROLE 7  ·  PR PERSONNEL — AGENCY-TIED  —  mobile app · accept shifts · geo + selfie check-in · live shift · PV sign · SOS"
+  },
+  {
+    "line": 54,
+    "section": "7.1  Download & sign-up (M1)",
+    "screen": "Mobile app → Sign-up",
+    "steps": "1. Download InnocenZ mobile app\r\n2. Enter phone number → receive OTP (★ v3 also sent to email)\r\n3. Upload IC photo (fron",
+    "status": "❌ Missing",
+    "gap": "★ No PR registration wizard in prototype (phone OTP → IC upload → selfie → languages → comcard → por"
+  },
+  {
+    "line": 55,
+    "section": "7.2  Home / Marketplace (M2)  ★ v3",
+    "screen": "Home tab (bottom nav)",
+    "steps": "Visible:\r\n• Today's shift card (if any)\r\n• Upcoming shifts list\r\n• Open job offers from tied Agency\r\n• ★ v3.1 'From your",
+    "status": "⚠️ Partial",
+    "gap": "1. host.index.tsx shows open job offers + upcoming shifts.\r\n2. SOS button + notification bell presen"
+  },
+  {
+    "line": 56,
+    "section": "7.2b  Agency inbox  ★ v3.1",
+    "screen": "Home tab → From your agency",
+    "steps": "1. 'From your agency' inbox sits below the open job offers carousel on Home\r\n2. Inbox cards:\r\n   • ASSIGNMENT push from ",
+    "status": "✅ Done",
+    "gap": "1. 'From your agency' inbox section on host.index renders ASSIGNMENT + OUTLET SWAP cards.\r\n2. Approv"
+  },
+  {
+    "line": 57,
+    "section": "7.3  Check-in & Check-out (M4)  ★ v3",
+    "screen": "Today’s shift card",
+    "steps": "1. Arrive at outlet → open today's shift card\r\n2. Tap 'Check in' (★ v3.1 hold-to-confirm gesture — see §7.3b)\r\n3. ★ v3 T",
+    "status": "⚠️ Partial",
+    "gap": "1. Selfie capture wired at check-in / check-out.\r\n2. Demo GPS read on check-in.\r\n★ Hard 50m geofence"
+  },
+  {
+    "line": 58,
+    "section": "7.3b  Attendance screen  ★ v3.1",
+    "screen": "Check-In tab (or Today's shift card)",
+    "steps": "1. Attendance state machine:\r\n   not_accepted → pre_check_in → on_duty → shift_complete\r\n   (each transition push-notifi",
+    "status": "⚠️ Partial",
+    "gap": "1. State machine partial — pre_check_in / on_duty / shift_complete states render.\r\n★ Hold-to-confirm"
+  },
+  {
+    "line": 59,
+    "section": "7.4  During shift",
+    "screen": "Live shift screen",
+    "steps": "v3 supports BOTH sales-capture models (commission + PV logic reconciles regardless of method):\r\n\r\nModel A — QR attributi",
+    "status": "✅ Done",
+    "gap": "1. QR / self-log sale entries wired on live shift screen.\r\n2. Live payout estimate ticker updates pe"
+  },
+  {
+    "line": 60,
+    "section": "7.4b  Receipt scan (Model B)  ★ v3.1",
+    "screen": "During shift → Receipt Scan",
+    "steps": "Model B — PR scans outlet receipts during shift (complements Model A QR-scan in §7.4):\r\n\r\n1. Receipt Scan button visible",
+    "status": "⚠️ Partial",
+    "gap": "1. host.scan.tsx demo draft renders camera frame + capture button.\r\n★ Real camera + OCR pipeline not"
+  },
+  {
+    "line": 61,
+    "section": "7.4c  Commission rules (system)  ★ v3.1",
+    "screen": "System — reference rules",
+    "steps": "Commission engine rules — applied to BOTH Model A (QR) and Model B (receipt scan):\r\n\r\n1. DRINKS: per-unit RM rate set on",
+    "status": "⚠️ Partial",
+    "gap": "1. calcShiftPayout helper implements drinks / tips / tables / OT / base wage rules.\r\n★ Not surfaced "
+  },
+  {
+    "line": 62,
+    "section": "7.5  History (replaces Wallet)  ★ v3",
+    "screen": "History tab (bottom nav)",
+    "steps": "1. List of completed shifts (most recent first)\r\n2. Per card: date, outlet, hours, drinks, tips, payout, PV status\r\n3. F",
+    "status": "✅ Done",
+    "gap": "1. host.history.tsx replaces wallet as primary earnings view.\r\n2. Completed shift list with date / o"
+  },
+  {
+    "line": 63,
+    "section": "7.5b  Receipt audit log  ★ v3.1",
+    "screen": "History tab → Receipts",
+    "steps": "1. Receipts sub-tab inside History (or top-level filter chip 'Receipts only')\r\n2. Per row:\r\n   • Scan timestamp · Shift ",
+    "status": "✅ Done",
+    "gap": "1. Receipts sub-tab inside host.history.tsx with filters (Date / Outlet / Status).\r\n2. Per-receipt r"
+  },
+  {
+    "line": 64,
+    "section": "7.6  Payment Voucher e-sign (M7)  ★ v3",
+    "screen": "Push notification → PV detail",
+    "steps": "1. Receive push: 'PV ready for review' (★ v3.1 Finance Head has already pre-signed at generation)\r\n2. Open PV → see:\r\n  ",
+    "status": "⚠️ Partial",
+    "gap": "1. Push notification → PV detail flow wired.\r\n2. PR sign + dispute actions present on host PV screen"
+  },
+  {
+    "line": 65,
+    "section": "7.6b  PV dual-sign & statuses  ★ v3.1",
+    "screen": "Push → Vouchers → PV detail",
+    "steps": "Dual-signature ladder:\r\n\r\n1. Finance Head pre-signs PV before PR ever sees it (§2.5 Agency Finance generates + e-signs)\r",
+    "status": "⚠️ Partial",
+    "gap": "1. Dual-sign UI renders Finance Head pre-signed block + PR pending block.\r\n2. Status ladder (PENDING"
+  },
+  {
+    "line": 66,
+    "section": "7.7  Profile, PR Card & ratings (M5)  ★ v3",
+    "screen": "Profile tab",
+    "steps": "1. PR Card preview (what outlets see): photo, languages, 3D 三维 comcard, height/weight/age, star rating, portfolio thumb\r",
+    "status": "✅ Done",
+    "gap": "1. host.profile.tsx renders PR Card preview (photo, languages, 3D 三维 comcard).\r\n2. Portfolio gallery"
+  },
+  {
+    "line": 67,
+    "section": "7.7b  Profile edit (post-signup)  ★ v3.1",
+    "screen": "Profile tab",
+    "steps": "Post-signup profile editing (separate from IC selfie locked at signup):\r\n\r\n1. Editable DISPLAY NAME (free text, 30-char ",
+    "status": "⚠️ Partial",
+    "gap": "1. Edit mode toggle wired — display name, profile photo, comcard editable.\r\n2. Languages multi-tag s"
+  },
+  {
+    "line": 68,
+    "section": "7.8  SOS emergency button (M5)  ★ v3",
+    "screen": "Top of every screen",
+    "steps": "1. Tap red SOS button (★ v3 bypasses phone lock screen)\r\n2. Confirm trigger (1 extra tap to avoid mis-fire)\r\n3. Live loc",
+    "status": "⚠️ Partial",
+    "gap": "1. PrSosButton component renders red SOS button on host screens.\r\n2. Confirm-trigger 1-extra-tap imp"
+  },
+  {
+    "line": 69,
+    "section": "7.9  Switch / leave agency",
+    "screen": "Profile → Agency",
+    "steps": "1. View tied agency info\r\n2. ≥ 1 year tied → tap ‘Request transfer’ → pick new Agency Code → both agencies notified\r\n3. ",
+    "status": "✅ Done",
+    "gap": "1. Request transfer flow wired on host profile.\r\n2. < 1 year tied lock enforced.\r\n3. Pick-new-agency"
+  },
+  {
+    "type": "header",
+    "line": 70,
+    "a": "🟡  ROLE 8  ·  PR PERSONNEL — FREELANCER  —  open marketplace · multi-agency payroll links · same shift flow"
+  },
+  {
+    "line": 71,
+    "section": "8.1  Sign-up as Freelancer",
+    "screen": "Mobile sign-up",
+    "steps": "1. Same flow as 7.1, but pick type: Freelancer (no agency code)\r\n2. UAB Admin queue does NOT touch PRs — Freelancer goes",
+    "status": "⚠️ Partial",
+    "gap": "1. Welcome → Freelancer demo entry path wired.\r\n2. Payroll-agency picker visible on profile.\r\n★ Syst"
+  },
+  {
+    "line": 72,
+    "section": "8.1b  Payroll approval gate  ★ v3.1",
+    "screen": "Profile → Payroll  ·  Vouchers",
+    "steps": "Gate that blocks PV generation until linked agency approves the freelancer's payroll link:\r\n\r\n1. PR completes signup as ",
+    "status": "⚠️ Partial",
+    "gap": "1. Freelancer tab in agency.pending.tsx shows payroll-link requests.\r\n2. Agency Accept / Decline wir"
+  },
+  {
+    "line": 73,
+    "section": "8.2  Marketplace (M2)",
+    "screen": "Home tab",
+    "steps": "1. Browse OPEN shifts posted by Outlets to marketplace\r\n2. ★ v3 Filter by date, area, rate, role, language, tier\r\n3. ★ v",
+    "status": "✅ Done",
+    "gap": "1. Open shifts visible to freelancers on host.index.\r\n2. Apply CTA wired.\r\n3. Independent accept (no"
+  },
+  {
+    "line": 74,
+    "section": "8.3  Check-in / Shift / PV / History",
+    "screen": "Same as Tied flow",
+    "steps": "Mirrors the Agency-Tied flow with freelancer-specific payroll routing:\r\n\r\n1. CHECK-IN / CHECK-OUT: same as §7.3 + §7.3b ",
+    "status": "⚠️ Partial",
+    "gap": "1. Freelancer mirrors §7.3–§7.6 flows for check-in / shift / PV / history.\r\n★ Same PV-lifecycle gaps"
+  },
+  {
+    "line": 75,
+    "section": "8.3b  Payroll cycle display  ★ v3.1",
+    "screen": "History tab  ·  Vouchers tab",
+    "steps": "1. Payroll cycle label visible at top of History and Vouchers:\r\n   • 'Current cycle: Mon 8 Jun – Sun 14 Jun 2026'\r\n   • ",
+    "status": "⚠️ Partial",
+    "gap": "1. Cycle label visible on agency.payroll.tsx (Mon–Sun cycle, next Fri transfer).\r\n★ Cycle header not"
+  },
+  {
+    "line": 76,
+    "section": "8.4  Ratings & SOS",
+    "screen": "Profile / global",
+    "steps": "Same as 7.7 + 7.8: PR Card with portfolio + 3D comcard + multi-language; mutual rating within 24 h; SOS button always av",
+    "status": "✅ Done",
+    "gap": "1. Freelancer shares §7.7 ratings + §7.8 SOS surfaces with Tied PR.\r\n★ Matches spec (same as §7.7 + "
+  },
+  {
+    "type": "header",
+    "line": 78,
+    "a": "⚫  CROSS-ROLE UNIVERSAL ACTIONS  —  features every role sees / depends on"
+  }
+]

@@ -1,14 +1,23 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Bell } from "lucide-react";
+import { AlertTriangle, Bell, Briefcase, RefreshCw, Star, Wallet } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzCard, IzPill } from "@/components/iz/ui";
 import { useStore } from "@/lib/store";
 import { getPrRosterId } from "@/lib/pr-demo";
-import { prNotificationsForRecipient, type PrNotification } from "@/lib/pr-features";
+import { prNotificationsForRecipient, type PrNotification, type PrNotificationKind } from "@/lib/pr-features";
+import { usePrPortalReady } from "@/lib/use-pr-sub-role";
+
+function prKindIcon(kind: PrNotificationKind) {
+  if (kind === "sos") return AlertTriangle;
+  if (kind === "pv") return Wallet;
+  if (kind === "rating") return Star;
+  if (kind === "swap") return RefreshCw;
+  return Briefcase;
+}
 
 export function PrNotificationBell() {
-  const prSubRole = useStore((s) => s.prSubRole);
+  const { role: prSubRole } = usePrPortalReady();
   const allNotifications = useStore((s) => s.prNotifications);
   const notifications = prNotificationsForRecipient(allNotifications, getPrRosterId(prSubRole));
   const markPrNotificationRead = useStore((s) => s.markPrNotificationRead);
@@ -20,10 +29,12 @@ export function PrNotificationBell() {
     markPrNotificationRead(n.id);
     setOpen(false);
     if (n.pvId) {
-      void navigate({ to: "/host/history", search: { tab: "pv", pvId: n.pvId } as { tab: "pv"; pvId: string } });
+      void navigate({ to: "/host/PaymentVoucher", search: { pvId: n.pvId } });
       return;
     }
-    if (n.href) void navigate({ to: n.href as "/host/profile" });
+    if (n.href) {
+      void navigate({ to: n.href });
+    }
   };
 
   return (
@@ -45,32 +56,52 @@ export function PrNotificationBell() {
 
       <IzSheet open={open} onClose={() => setOpen(false)}>
         <div className="iz-cardttl">Notifications</div>
-        <p className="iz-tiny iz-muted mb-3">PV alerts, ratings, assignments, and SOS receipts.</p>
+        <p className="iz-tiny iz-muted mb-3">
+          Assignments, swaps, PVs, ratings, and SOS receipts — tap to open the screen.
+        </p>
         {notifications.length === 0 ? (
           <p className="iz-sm iz-muted py-6 text-center">No notifications</p>
         ) : (
           <div className="space-y-2">
-            {notifications.map((n) => (
-              <button
-                key={n.id}
-                type="button"
-                className={`w-full text-left${n.read ? "" : " opacity-100"}`}
-                onClick={() => openNotification(n)}
-              >
-                <IzCard flat className={n.read ? "" : "border-[rgba(232,194,122,.35)]"}>
-                  <div className="iz-between gap-2">
-                    <span className="iz-sm font-bold">{n.title}</span>
-                    {!n.read && <IzPill variant="amber">New</IzPill>}
-                  </div>
-                  <p className="iz-tiny iz-muted mt-1">{n.body}</p>
-                  <p className="iz-tiny iz-muted2 mt-1">{n.at}</p>
-                </IzCard>
-              </button>
-            ))}
+            {notifications.map((n) => {
+              const Icon = prKindIcon(n.kind);
+              const urgent = n.kind === "sos";
+              return (
+                <button
+                  key={n.id}
+                  type="button"
+                  className="w-full text-left"
+                  onClick={() => openNotification(n)}
+                >
+                  <IzCard
+                    flat
+                    className={
+                      urgent
+                        ? n.read
+                          ? "border-[rgba(255,107,107,.2)]"
+                          : "border-[rgba(255,107,107,.45)] bg-[var(--iz-red-bg)]"
+                        : n.read
+                          ? ""
+                          : "border-[rgba(232,194,122,.35)]"
+                    }
+                  >
+                    <div className="iz-between gap-2">
+                      <span className="iz-sm font-bold flex items-center gap-1.5">
+                        <Icon className={`h-3.5 w-3.5 shrink-0${urgent ? " text-[var(--iz-red)]" : ""}`} />
+                        {n.title}
+                      </span>
+                      {!n.read && <IzPill variant={urgent ? "red" : "amber"}>New</IzPill>}
+                    </div>
+                    <p className="iz-tiny iz-muted mt-1">{n.body}</p>
+                    <p className="iz-tiny iz-muted2 mt-1">{n.at}</p>
+                  </IzCard>
+                </button>
+              );
+            })}
           </div>
         )}
-        <Link to="/host/history" search={{ tab: "shifts" }} className="iz-btn iz-btn-soft mt-3" onClick={() => setOpen(false)}>
-          Open History
+        <Link to="/host/PaymentVoucher" className="iz-btn iz-btn-soft mt-3" onClick={() => setOpen(false)}>
+          Open Vouchers
         </Link>
       </IzSheet>
     </>

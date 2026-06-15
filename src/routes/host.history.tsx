@@ -7,6 +7,8 @@ import { useStore } from "@/lib/store";
 import {
   PAYROLL_CYCLE,
   flattenPvLines,
+  filterPvsForPrProfile,
+  filterReceiptScansForPrProfile,
   fmtHistDate,
   getPrProfile,
   pvNeedsPrReview,
@@ -24,6 +26,7 @@ import {
 import { shiftHistoryToHistRows } from "@/lib/portal-sync";
 import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { payeeFromProfile } from "@/lib/pv-template";
+import { usePrPortalReady } from "@/lib/use-pr-sub-role";
 import { Calendar, ChevronDown, Download, Filter, Receipt, Search, Table2, X } from "lucide-react";
 import { FreelancerPayrollNotice } from "@/components/iz/FreelancerPayrollNotice";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
@@ -258,7 +261,7 @@ function receiptStatusPill(status: ReceiptScanStatus) {
 function HistoryPage() {
   const { tab, pvId: searchPvId } = Route.useSearch();
   const navigate = useNavigate();
-  const prSubRole = useStore((s) => s.prSubRole);
+  const { ready, role: prSubRole } = usePrPortalReady();
   const isFreelancer = prSubRole === "pr_free";
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
@@ -266,6 +269,15 @@ function HistoryPage() {
   const toast = useStore((s) => s.toast);
   const profile = getPrProfile(prSubRole);
   const prId = getPrRosterId(prSubRole);
+
+  const myVouchers = useMemo(
+    () => filterPvsForPrProfile(prPaymentVouchers, profile, prSubRole),
+    [prPaymentVouchers, profile, prSubRole],
+  );
+  const myReceiptScans = useMemo(
+    () => filterReceiptScansForPrProfile(prReceiptScans, profile, prSubRole, myVouchers),
+    [prReceiptScans, profile, prSubRole, myVouchers],
+  );
 
   const histRows = useMemo(
     () => shiftHistoryToHistRows(shiftHistory, prId),
@@ -294,19 +306,19 @@ function HistoryPage() {
   const [pvFilterOpen, setPvFilterOpen] = useState(false);
 
   const receiptOutlets = useMemo(
-    () => [...new Set(prReceiptScans.map((s) => s.outlet))].sort(),
-    [prReceiptScans],
+    () => [...new Set(myReceiptScans.map((s) => s.outlet))].sort(),
+    [myReceiptScans],
   );
   const receiptDateOptions = useMemo(
     () =>
-      [...new Map(prReceiptScans.map((s) => [dateKey(s.date), s.date])).entries()]
+      [...new Map(myReceiptScans.map((s) => [dateKey(s.date), s.date])).entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([key, d]) => ({ key, label: fmtHistDate(d[0], d[1], d[2]) })),
-    [prReceiptScans],
+    [myReceiptScans],
   );
   const pvLines = useMemo(
-    () => flattenPvLines(prPaymentVouchers, prReceiptScans),
-    [prPaymentVouchers, prReceiptScans],
+    () => flattenPvLines(myVouchers, myReceiptScans),
+    [myVouchers, myReceiptScans],
   );
   const pvIds = useMemo(() => [...new Set(pvLines.map((l) => l.pvId))], [pvLines]);
   const pvOutlets = useMemo(() => [...new Set(pvLines.map((l) => l.outlet))].sort(), [pvLines]);
@@ -320,13 +332,13 @@ function HistoryPage() {
     }
   }, [searchPvId, tab, navigate]);
 
-  const lifetimeEarnings = prPaymentVouchers
+  const lifetimeEarnings = myVouchers
     .filter((p) => p.status === "PAID" || p.status === "SIGNED")
     .reduce((sum, p) => sum + p.net, 0);
-  const paidThisCycle = prPaymentVouchers
+  const paidThisCycle = myVouchers
     .filter((p) => p.status === "PAID")
     .reduce((sum, p) => sum + p.net, 0);
-  const pendingPv = prPaymentVouchers
+  const pendingPv = myVouchers
     .filter((p) => pvNeedsPrReview(p.status))
     .reduce((sum, p) => sum + p.net, 0);
 
@@ -336,8 +348,8 @@ function HistoryPage() {
   );
 
   const filteredReceipts = useMemo(
-    () => prReceiptScans.filter((s) => matchesReceiptFilters(s, receiptFilters)),
-    [prReceiptScans, receiptFilters],
+    () => myReceiptScans.filter((s) => matchesReceiptFilters(s, receiptFilters)),
+    [myReceiptScans, receiptFilters],
   );
 
   const filteredPvLines = useMemo(
@@ -387,7 +399,7 @@ function HistoryPage() {
       <PrPageHeader
         label="Earnings"
         title="History"
-        meta={isFreelancer ? "Shifts, receipts & PV breakdown" : "Agency payroll · dual-sign PVs"}
+        meta={isFreelancer ? "Shifts, receipts & PV breakdown" : "Shifts & receipts · sign or dispute PVs on Vouchers tab"}
       />
 
       {isFreelancer && <div className="mt-3"><FreelancerPayrollNotice compact /></div>}
@@ -595,10 +607,10 @@ function HistoryPage() {
       {tab === "pv" && (
         <PvBreakdownSection
           lines={filteredPvLines}
-          scans={prReceiptScans}
-          vouchers={prPaymentVouchers}
+          scans={myReceiptScans}
+          vouchers={myVouchers}
           onDownloadPdf={(pv) => {
-            downloadPvBreakdownPdf(pv, payeeFromProfile(profile), prReceiptScans);
+            downloadPvBreakdownPdf(pv, payeeFromProfile(profile), myReceiptScans);
             toast("PV breakdown opened — use Print → Save as PDF", "success");
           }}
           filters={pvFilters}
@@ -1370,7 +1382,7 @@ function PvBreakdownSection({
         </div>
       )}
 
-      <Link to="/host/wallet" className="iz-btn iz-btn-soft mt-3">
+      <Link to="/host/PaymentVoucher" className="iz-btn iz-btn-soft mt-3">
         {isFreelancer ? "Open Payment Vouchers" : "Sign or dispute PV"}
       </Link>
 

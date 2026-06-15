@@ -30,6 +30,7 @@ function AgencyReports() {
   const shiftHistory = useStore((s) => s.shiftHistory);
   const agencySubRole = useStore((s) => s.agencySubRole);
   const toast = useStore((s) => s.toast);
+  const pushNotify = useStore((s) => s.pushNotify);
   const [outletFilter, setOutletFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("2026-06-01");
   const [dateTo, setDateTo] = useState("2026-06-04");
@@ -217,7 +218,14 @@ function AgencyReports() {
         <button
           type="button"
           className="iz-btn iz-btn-soft mt-3 w-full"
-          onClick={() => toast("PNL report.xlsx downloaded", "success")}
+          onClick={() => {
+            pushNotify({
+              type: "report_ready",
+              portal: "agency",
+              label: `PNL report · ${dateFrom} – ${dateTo}`,
+            });
+            toast("PNL report.xlsx downloaded", "success");
+          }}
         >
           <Download className="h-4 w-4" /> Download Excel PNL report
         </button>

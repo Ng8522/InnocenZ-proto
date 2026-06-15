@@ -44,6 +44,7 @@ import {
   PORTFOLIO_SLOT_COUNT,
   type PrPaymentVoucher,
 } from "@/lib/pr-demo";
+import { DEFAULT_NOTIFICATION_PREFS } from "@/lib/push-notifications";
 import {
   DEMO_AGENCY_TIED_AT,
   SEED_PENDING_RATINGS,
@@ -288,6 +289,9 @@ export function buildPrDemoReset() {
     prFreelancerLowRatingStrikes: 0,
     prCheckInMeta: {},
     prLeaveRequest: null,
+    opsNotifications: [],
+    sosIncidents: [],
+    notificationPrefs: { ...DEFAULT_NOTIFICATION_PREFS },
   };
 }
 

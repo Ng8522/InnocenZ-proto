@@ -250,11 +250,11 @@ function AttendancePage() {
               </div>
             </div>
             <Link
-              to={isFreelancer ? "/host/wallet" : "/host/history"}
+              to="/host/PaymentVoucher"
               search={isFreelancer ? undefined : { tab: "pv" }}
               className="iz-btn iz-btn-primary"
             >
-              {isFreelancer ? "Vouchers" : "Review PV"}
+              Vouchers
             </Link>
             <p className="iz-tiny iz-muted2 mt-3 text-center">
               Shift progress is saved — reset from the welcome screen when you need a fresh demo.

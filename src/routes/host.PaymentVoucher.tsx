@@ -15,16 +15,16 @@ import { PvSummaryView } from "@/components/iz/PvSummaryView";
 import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { payeeFromProfile } from "@/lib/pv-template";
 import { usePrPortalReady } from "@/lib/use-pr-sub-role";
-import { FileText, Check, Shield, Star } from "lucide-react";
+import { FileText, Check, Shield, Star, Clock } from "lucide-react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
 import { FreelancerPayrollNotice } from "@/components/iz/FreelancerPayrollNotice";
 import { IzSheet } from "@/components/iz/Sheet";
-import { PrOfferRow } from "@/components/pr/PrOfferRow";
+import { PrSignaturePad } from "@/components/pr/PrSignaturePad";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
-import { PrStatusPill } from "@/components/pr/PrOfferRow";
+import { PrOfferRow, PrStatusPill } from "@/components/pr/PrOfferRow";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/host/PaymentVoucher")({
@@ -105,7 +105,7 @@ function VouchersLoaded({
           isFreelancer={isFreelancer}
           receiptScans={prReceiptScans}
           onBack={closeDetail}
-          onSign={() => signPrPv(pv.id)}
+          onSign={(signatureDataUrl) => signPrPv(pv.id, signatureDataUrl)}
           onDispute={(reason, photo) => disputePrPv(pv.id, reason, photo)}
           onUpdateDispute={(reason) => updatePrPvDisputeReason(pv.id, reason)}
           onEscalateDispute={() => escalatePrPvDispute(pv.id)}
@@ -200,13 +200,14 @@ function PvDetail({
   isFreelancer: boolean;
   receiptScans: PrReceiptScan[];
   onBack: () => void;
-  onSign: () => void;
+  onSign: (signatureDataUrl: string) => void;
   onDispute: (reason: string, photoDataUrl?: string) => void;
   onUpdateDispute: (reason: string) => void;
   onEscalateDispute: () => void;
   onDownloadPdf: () => void;
 }) {
   const [disputeOpen, setDisputeOpen] = useState(false);
+  const [signOpen, setSignOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
   const [disputePhoto, setDisputePhoto] = useState<string | null>(null);
   const [editDisputeReason, setEditDisputeReason] = useState(pv.prDisputeReason ?? "");
@@ -253,12 +254,12 @@ function PvDetail({
         </button>
       </div>
 
-      {pv.status === "PENDING_REVIEW" && (
+      {needsReview && (
         <IzCard flat className="mb-2.5 border-[rgba(232,194,122,.35)] bg-[linear-gradient(180deg,rgba(232,194,122,.1),transparent)]">
           <p className="iz-sm font-bold text-[var(--iz-gold-l)]">Pending your review</p>
           <p className="iz-tiny iz-muted mt-1">
-            Finance Head has pre-signed this PV. Check every line item and linked receipt scans below. Sign if correct,
-            or raise a dispute with a clear description for your agency.
+            Finance Head has pre-signed this PV. Check every line item and linked receipt scans below. Sign manually if
+            correct, or raise a dispute with a clear description for your agency.
           </p>
           <p className="iz-tiny iz-muted2 mt-1">Sign-by: {pv.due}</p>
         </IzCard>
@@ -320,6 +321,7 @@ function PvDetail({
           name={profile.name}
           signedAt={pv.prSignedAt}
           signed={prSigned}
+          signatureDataUrl={pv.prSignatureDataUrl}
         />
       </IzCard>
 
@@ -335,19 +337,35 @@ function PvDetail({
         <>
           <IzCard flat className="iz-tiny iz-muted mt-2.5">
             <Shield className="mr-1 inline h-3 w-3" />
-            {pv.financeHeadName} (Finance Head) has already e-signed. Your signature completes the PV — payment
+            {pv.financeHeadName} (Finance Head) has already e-signed. Draw your signature to complete the PV — payment
             transfers immediately to {profile.bank} {profile.acc}. No wallet or withdraw step.
           </IzCard>
           <div className="iz-grid2 mt-2.5">
             <button type="button" className="iz-btn iz-btn-ghost" onClick={() => setDisputeOpen(true)}>
               Raise Dispute
             </button>
-            <button type="button" className="iz-btn iz-btn-primary" onClick={onSign}>
+            <button type="button" className="iz-btn iz-btn-primary" onClick={() => setSignOpen(true)}>
               Sign &amp; send to bank
             </button>
           </div>
         </>
       )}
+
+      <IzSheet open={signOpen} onClose={() => setSignOpen(false)}>
+        <div className="iz-cardttl">Sign payment voucher</div>
+        <p className="iz-tiny iz-muted mb-3">
+          Draw your signature below to confirm {formatRM(pv.net)} for {pv.id}. Your sign time is stamped on the PV and
+          sent to your agency.
+        </p>
+        <PrSignaturePad
+          signerName={profile.name}
+          onConfirm={(dataUrl) => {
+            onSign(dataUrl);
+            setSignOpen(false);
+          }}
+          onCancel={() => setSignOpen(false)}
+        />
+      </IzSheet>
 
       <IzSheet open={disputeOpen} onClose={() => setDisputeOpen(false)}>
         <div className="iz-cardttl">Raise dispute</div>
@@ -516,11 +534,13 @@ function SignatureBlock({
   name,
   signedAt,
   signed,
+  signatureDataUrl,
 }: {
   role: string;
   name: string;
   signedAt?: string;
   signed: boolean;
+  signatureDataUrl?: string;
 }) {
   return (
     <div className={`iz-pv-sig${signed ? " signed" : " pending"}`}>
@@ -528,10 +548,24 @@ function SignatureBlock({
         <span className={`iz-pv-sig-ico${signed ? " ok" : ""}`}>
           {signed ? <Check className="h-3.5 w-3.5" /> : <Star className="h-3 w-3 opacity-40" />}
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="iz-tiny iz-muted2 tracking-wide">{role}</div>
           <div className="iz-sm font-semibold">{name}</div>
-          <div className="iz-tiny iz-muted mt-0.5">{signed ? signedAt ?? "Signed" : "Awaiting signature"}</div>
+          {signatureDataUrl && signed && (
+            <div className="iz-pv-sig-preview mt-2">
+              <img src={signatureDataUrl} alt={`${name} signature`} />
+            </div>
+          )}
+          <div className="iz-tiny iz-muted mt-1">
+            {signed ? (
+              <>
+                <Clock className="mr-1 inline h-3 w-3 opacity-70" />
+                {signedAt ?? "Signed"}
+              </>
+            ) : (
+              "Awaiting signature"
+            )}
+          </div>
         </div>
       </div>
       <IzPill variant={signed ? "green" : "ink"}>{signed ? "Signed" : "Pending"}</IzPill>

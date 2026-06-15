@@ -282,6 +282,16 @@ export function buildPvBreakdownHtml(
       border-bottom: 1px solid #000;
       height: 36px;
       margin-bottom: 6px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      overflow: hidden;
+    }
+    .sig-line img {
+      max-height: 34px;
+      max-width: 100%;
+      object-fit: contain;
+      object-position: right bottom;
     }
     .sig-fld {
       display: flex;
@@ -394,7 +404,7 @@ export function buildPvBreakdownHtml(
 
     <div class="sig-wrap">
       <div class="sig-inner">
-        <div class="sig-line"></div>
+        <div class="sig-line">${pv.prSignatureDataUrl ? `<img src="${pv.prSignatureDataUrl}" alt="PR signature" />` : ""}</div>
         <div class="sig-fld">
           <span class="lbl">Name:</span>
           <span class="val">${escapeHtml(prSigned ? payee.name : "")}</span>

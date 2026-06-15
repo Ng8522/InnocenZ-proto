@@ -18,7 +18,7 @@ export function payrollRangeActive(range: PayrollRangeFilter): boolean {
   return Boolean(range.fromDate || range.toDate || range.fromTime || range.toTime);
 }
 
-function parseDateInputMs(dateIso: string, time = "00:00"): number | null {
+export function parseDateInputMs(dateIso: string, time = "00:00"): number | null {
   if (!dateIso) return null;
   const [y, m, d] = dateIso.split("-").map(Number);
   if (!y || !m || !d) return null;

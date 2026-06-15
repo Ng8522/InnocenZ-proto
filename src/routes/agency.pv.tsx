@@ -981,8 +981,13 @@ function PvDetail({
           {pv.financeHeadSignedAt ? ` · ${pv.financeHeadSignedAt}` : " · pending"}
         </p>
         <p className="iz-tiny iz-muted mt-0.5">
-          2nd · PR ({pv.prName}): {pv.prSignedAt ? pv.prSignedAt : pv.status === "SENT" || pv.status === "PENDING_REVIEW" ? "awaiting sign" : "—"}
+          2nd · PR ({pv.prName}): {pv.prSignedAt ? pv.prSignedAt : pv.status === "SENT" || pv.status === "PENDING_REVIEW" ? "awaiting manual sign" : "—"}
         </p>
+        {pv.prSignatureDataUrl && (
+          <div className="iz-pv-sig-preview mt-2">
+            <img src={pv.prSignatureDataUrl} alt={`${pv.prName} signature`} />
+          </div>
+        )}
       </IzCard>
 
       <PvBreakdownCard breakdown={breakdown} />

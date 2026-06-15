@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { shiftHistorySubline } from "@/lib/shift-history";
 import { sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
-import { Calendar as CalendarUi } from "@/components/ui/calendar";
+import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCalendar";
 import { IzCard, formatRM } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import type { ReactNode } from "react";
@@ -210,7 +210,13 @@ function HistDatePickerField({
   const selectedLabel = dateOptions.find((o) => o.key === value)?.label;
   const selected = dateFromKey(value);
   const allowedKeys = new Set(dateOptions.map((o) => o.key));
-  const defaultMonth = dateFromKey(dateOptions[0]?.key ?? "") ?? new Date();
+  const defaultMonth = dateFromKey(dateOptions[dateOptions.length - 1]?.key ?? "") ?? new Date();
+  const navBounds = useMemo(() => calendarNavBounds(dateOptions, defaultMonth), [dateOptions, defaultMonth]);
+  const [viewMonth, setViewMonth] = useState(selected ?? defaultMonth);
+
+  useEffect(() => {
+    if (open) setViewMonth(selected ?? defaultMonth);
+  }, [open, selected, defaultMonth]);
 
   useEffect(() => {
     if (!open) return;
@@ -265,18 +271,17 @@ function HistDatePickerField({
       </button>
       {open && (
         <div className="iz-hist-cal iz-hist-cal--popover">
-          <CalendarUi
-            mode="single"
+          <HistDateCalendar
             selected={selected}
-            defaultMonth={selected ?? defaultMonth}
-            onSelect={(d) => {
-              if (d) onChange(keyFromDate(d));
+            viewMonth={viewMonth}
+            onViewMonthChange={setViewMonth}
+            navBounds={navBounds}
+            allowedKeys={allowedKeys}
+            onSelectDay={(d) => {
+              onChange(keyFromDate(d));
               setOpen(false);
             }}
-            disabled={(date) => !allowedKeys.has(keyFromDate(date))}
-            className="rounded-[14px] border-0 bg-transparent p-0 text-[var(--iz-txt)]"
           />
-          <p className="iz-tiny iz-muted2 mt-1 px-1">Only dates with records are selectable.</p>
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { AgencyGpsPanel } from "@/components/agency/AgencyGpsPanel";
 import { PrAvailabilityPanel } from "@/components/iz/PrAvailabilityPanel";
+import { RosterPlanningDatePicker } from "@/components/agency/RosterPlanningDatePicker";
 import { RosterShiftFilters } from "@/components/agency/RosterShiftFilters";
 import { RosterShiftTable } from "@/components/agency/RosterShiftTable";
 import { OutletSection } from "@/components/outlet/OutletSection";
@@ -52,7 +53,7 @@ function AgencyRoster() {
   const demoAutoAssignPr = useStore((s) => s.demoAutoAssignPr);
   const flagRosterAttendance = useStore((s) => s.flagRosterAttendance);
   const { date, time } = nowAgencyDateTime();
-  const [dateFilter, setDateFilter] = useState(DEFAULT_ROSTER_DATE_ISO);
+  const [planningDate, setPlanningDate] = useState(DEFAULT_ROSTER_DATE_ISO);
   const [shiftFilters, setShiftFilters] = useState<RosterShiftFilterState>(EMPTY_ROSTER_SHIFT_FILTERS);
   const [editId, setEditId] = useState<string | null>(null);
   const [approveSwapId, setApproveSwapId] = useState<string | null>(null);
@@ -60,11 +61,16 @@ function AgencyRoster() {
   const [viewMode, setViewMode] = useState<ViewMode>("live");
   const canAssign = agencyCan(agencySubRole, "assignShifts");
 
-  const dates = useMemo(() => [...new Set(agencyRoster.map((s) => s.dateIso))], [agencyRoster]);
+  const dates = useMemo(
+    () => [...new Set(agencyRoster.map((s) => s.dateIso))].sort(),
+    [agencyRoster],
+  );
+
+  const dateIso = viewMode === "live" ? DEFAULT_ROSTER_DATE_ISO : planningDate;
 
   const dateFiltered = useMemo(
-    () => agencyRoster.filter((s) => !dateFilter || s.dateIso === dateFilter),
-    [agencyRoster, dateFilter],
+    () => agencyRoster.filter((s) => s.dateIso === dateIso),
+    [agencyRoster, dateIso],
   );
 
   const filtered = useMemo(
@@ -99,7 +105,6 @@ function AgencyRoster() {
   );
   const editSlot = agencyRoster.find((s) => s.id === editId);
 
-  const dateIso = dateFilter || DEFAULT_ROSTER_DATE_ISO;
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
   const workforce = useMemo(
@@ -157,14 +162,18 @@ function AgencyRoster() {
           </button>
         </div>
         <div className="iz-roster-filters">
-          <IzSelect value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} aria-label="Date">
-            <option value={DEFAULT_ROSTER_DATE_ISO}>Today</option>
-            {dates.filter((d) => d !== DEFAULT_ROSTER_DATE_ISO).map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </IzSelect>
+          {viewMode === "live" ? (
+            <div className="iz-roster-date-live" aria-label="Date: Today (live view)">
+              <Calendar className="h-3.5 w-3.5 shrink-0 text-[var(--iz-green)]" />
+              <span>Today</span>
+            </div>
+          ) : (
+            <RosterPlanningDatePicker
+              value={planningDate}
+              onChange={setPlanningDate}
+              rosterDates={dates}
+            />
+          )}
         </div>
         {canAssign && (
           <Link to="/agency/prs" className="iz-roster-pr-link">

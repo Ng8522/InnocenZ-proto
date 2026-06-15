@@ -802,6 +802,48 @@
 .iz-comcard-3d-preview--thumb .iz-comcard-3d-preview-badge {
   display: none;
 }
+.iz-comcard-3d-preview--card {
+  width: 100%;
+}
+.iz-comcard-3d-preview--card .iz-comcard-3d-preview-stage {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  aspect-ratio: 3 / 4;
+  border-radius: 10px;
+}
+.iz-comcard-3d-preview--card .iz-comcard-3d-preview-plate {
+  top: 6px;
+  left: 6px;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+}
+.iz-comcard-3d-preview--card .iz-comcard-3d-preview-measures {
+  bottom: 5px;
+  font-size: 7.5px;
+}
+.iz-comcard-3d-preview--card .iz-comcard-3d-preview-floor {
+  bottom: 14%;
+}
+.iz-comcard-3d-preview--card .iz-comcard-3d-preview-figure {
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.3));
+}
+.iz-comcard-3d-preview--card-compact .iz-comcard-3d-preview-stage {
+  aspect-ratio: 5 / 6;
+  border-radius: 8px;
+}
+.iz-comcard-3d-preview--card-compact .iz-comcard-3d-preview-plate {
+  font-size: 7px;
+}
+.iz-comcard-3d-preview--card-compact .iz-comcard-3d-preview-measures {
+  font-size: 7px;
+}
+.iz-comcard-3d-preview-card-meta {
+  padding: 6px 0 0;
+}
+.iz-comcard-3d-preview--card-compact .iz-comcard-3d-preview-card-meta {
+  padding: 4px 0 0;
+}
 .iz-comcard-3d-preview-btn {
   flex-shrink: 0;
   padding: 0;
@@ -810,6 +852,9 @@
   cursor: pointer;
   border-radius: 11px;
   transition: box-shadow 0.15s, transform 0.15s;
+}
+.iz-comcard-3d-preview-btn.w-full {
+  border-radius: 12px;
 }
 .iz-comcard-3d-preview-btn:hover {
   box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.45);
@@ -2767,6 +2812,76 @@ button.iz-pr-offer-row:hover {
   min-width: 160px;
 }
 
+.iz-roster-date-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  min-width: 120px;
+  flex: 1;
+  padding: 0 13px;
+  border-radius: 10px;
+  border: 1px solid var(--iz-line);
+  background: rgba(57, 217, 138, 0.06);
+  font-family: "Sora", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--iz-green);
+  cursor: default;
+  user-select: none;
+}
+
+.iz-roster-planning-date {
+  position: relative;
+  flex: 1;
+  min-width: 160px;
+}
+
+.iz-roster-planning-date-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--iz-line2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  font-family: "Sora", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--iz-txt);
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.iz-roster-planning-date-trigger:hover,
+.iz-roster-planning-date-trigger.open {
+  border-color: rgba(232, 194, 122, 0.4);
+  background: rgba(232, 194, 122, 0.06);
+}
+
+.iz-roster-planning-date-popover {
+  min-width: 280px;
+}
+
+.iz-roster-cal-has-shifts {
+  position: relative;
+}
+
+.iz-roster-cal-has-shifts::after {
+  content: "";
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--iz-gold-l);
+}
+
 .iz-roster-filters select {
   min-width: 120px;
   flex: 1;
@@ -2787,6 +2902,39 @@ button.iz-pr-offer-row:hover {
   text-decoration: none;
   white-space: nowrap;
   transition: 0.15s;
+}
+
+.iz-outlet-manage-filters-card {
+  padding: 12px 14px !important;
+}
+
+.iz-outlet-manage-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.iz-outlet-manage-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.iz-outlet-manage-filter-date {
+  width: 100%;
+}
+
+.iz-outlet-manage-filter-date .iz-roster-planning-date-trigger {
+  min-height: 38px;
+  font-size: 12px;
+}
+
+@media (max-width: 767px) {
+  .iz-outlet-manage-filters-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .iz-roster-pr-link:hover {
@@ -2871,12 +3019,25 @@ button.iz-pr-offer-row:hover {
 
 @media (min-width: 768px) {
   .iz-roster-shift-filters-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .iz-roster-filter-field--search {
     grid-column: span 1;
   }
+}
+
+@media (min-width: 1280px) {
+  .iz-roster-shift-filters-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
+.iz-roster-filter-field .iz-roster-filter-time {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .iz-roster-filter-field {

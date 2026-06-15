@@ -2,10 +2,11 @@ import { type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
+  CircleDollarSign,
   Settings,
   Shield,
   SlidersHorizontal,
-  UserCheck,
+  Store,
   Users,
 } from "lucide-react";
 import { BottomNav, type NavItem, navIsActive } from "@/components/Nav";
@@ -20,8 +21,9 @@ export type PortalKind = "agency" | "outlet";
 type ExtraNavItem = NavItem & { permission: string };
 
 const AGENCY_EXTRAS: ExtraNavItem[] = [
-  { to: "/agency/pending", label: "Approvals", icon: UserCheck, permission: "approvePrSignups" },
   { to: "/agency/prs", label: "Manage PR", icon: Users, permission: "managePr" },
+  { to: "/agency/outlets", label: "Manage Outlet", icon: Store, permission: "managePr" },
+  { to: "/agency/commission-rules", label: "Commission Rules", icon: CircleDollarSign, permission: "viewSettings" },
   { to: "/agency/profile", label: "Settings", icon: Settings, permission: "viewSettings" },
 ];
 

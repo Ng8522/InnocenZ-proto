@@ -282,6 +282,8 @@ export interface PrPaymentVoucher {
   financeHeadName: string;
   financeHeadSignedAt: string;
   prSignedAt?: string;
+  /** PR manual digital signature (PNG data URL) */
+  prSignatureDataUrl?: string;
   paidAt?: string;
   bankRef?: string;
   /** Shift refs already paid — duplicate payment guard */
@@ -456,6 +458,17 @@ export function buildPaymentVoucherFromShift(
 
 export function pvNeedsPrReview(status: PrPvStatus) {
   return status === "PENDING_REVIEW" || status === "SENT";
+}
+
+/** Timestamp shown on PV sign / dispute actions */
+export function formatPvSignTimestamp(date = new Date()): string {
+  return date.toLocaleString("en-MY", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function pvStatusLabel(status: PrPvStatus) {
@@ -694,6 +707,11 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     status: "SENT",
     financeHeadName: FINANCE_HEAD_SIGNER,
     financeHeadSignedAt: "10 May 2026 · 09:14",
+    shiftSessionId: "shift-2026-06-04-velvet",
+    shiftTime: "9:00 PM – 2:00 AM",
+    timeIn: "4 Jun 2026 · 21:00",
+    timeOut: "5 Jun 2026 · 02:05",
+    receiptIds: ["rc-luna-1"],
   },
   {
     id: "PV-2026-0604-L",
@@ -717,6 +735,10 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     financeHeadName: FINANCE_HEAD_SIGNER,
     financeHeadSignedAt: "10 May 2026 · 09:14",
     receiptIds: ["rc-luna-2"],
+    shiftSessionId: "shift-2026-06-03-bearlounge",
+    shiftTime: "9:00 PM – 2:00 AM",
+    timeIn: "3 Jun 2026 · 21:05",
+    timeOut: "4 Jun 2026 · 02:10",
   },
 ];
 
@@ -793,6 +815,7 @@ export interface HistRow {
   tips: number;
   st: "PAID" | "SIGNED" | "SENT" | "DISPUTED";
   pill: "green" | "amber" | "ink" | "red";
+  durationHours?: number;
 }
 
 /** Receipt OCR line item */
@@ -877,6 +900,40 @@ export function receiptBelongsToPvLabel(scan: PrReceiptScan) {
   if (!scan.pvId) return "PV pending · check out to generate";
   if (scan.status === "attached") return `→ ${scan.pvId} (this shift)`;
   return scan.pvId;
+}
+
+/** Time portion from scannedAt e.g. "4 Jun 2026 · 22:15" → "22:15" */
+export function formatReceiptScannedTime(scannedAt: string): string {
+  const m = scannedAt.trim().match(/·\s*(\d{1,2}:\d{2})/);
+  return m ? m[1] : scannedAt;
+}
+
+export function receiptShiftDetails(
+  scan: PrReceiptScan,
+  pv?: PrPaymentVoucher | null,
+): { shiftTime: string; window: string } {
+  if (pv?.shiftTime) {
+    const window =
+      pv.timeIn && pv.timeOut ? `${pv.timeIn} → ${pv.timeOut}` : pv.timeIn ?? "";
+    return { shiftTime: pv.shiftTime, window };
+  }
+  if (pv?.timeIn) {
+    return {
+      shiftTime: "Shift",
+      window: pv.timeOut ? `${pv.timeIn} → ${pv.timeOut}` : pv.timeIn,
+    };
+  }
+  if (scan.shiftSessionId) {
+    const slug = scan.shiftSessionId.match(/^shift-(\d{4})-(\d{2})-(\d{2})-(.+)$/);
+    if (slug) {
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const day = parseInt(slug[3], 10);
+      const mon = months[parseInt(slug[2], 10) - 1] ?? slug[2];
+      return { shiftTime: `${day} ${mon} ${slug[1]}`, window: scan.shiftSessionId };
+    }
+    return { shiftTime: scan.shiftSessionId, window: "" };
+  }
+  return { shiftTime: "—", window: "" };
 }
 
 export function receiptStatusLabel(status: ReceiptScanStatus) {

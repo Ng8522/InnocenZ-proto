@@ -193,6 +193,7 @@ export function shiftHistoryToHistRows(rows: ShiftHistoryRow[], prId?: string): 
       tips: row.totalTips,
       st: "PAID",
       pill: "green" as const,
+      durationHours: row.durationHours,
     };
   });
 }

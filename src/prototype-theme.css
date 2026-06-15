@@ -869,6 +869,56 @@
 .iz-pv-sig.pending {
   opacity: 0.85;
 }
+.iz-pv-sig-preview {
+  border-radius: 10px;
+  border: 1px dashed rgba(217, 185, 122, 0.35);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 6px 10px;
+  max-width: 200px;
+}
+.iz-pv-sig-preview img {
+  display: block;
+  width: 100%;
+  height: 48px;
+  object-fit: contain;
+  object-position: left center;
+}
+.iz-pv-sign-pad {
+  width: 100%;
+}
+.iz-pv-sign-canvas-wrap {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid rgba(217, 185, 122, 0.35);
+  background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  touch-action: none;
+}
+.iz-pv-sign-canvas {
+  display: block;
+  width: 100%;
+  height: 160px;
+  cursor: crosshair;
+}
+.iz-pv-sign-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-size: 13px;
+  color: var(--iz-muted2);
+  font-style: italic;
+}
+.iz-pv-sign-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.iz-pv-sign-actions .iz-btn-primary {
+  margin-left: auto;
+}
 
 /* PV in-app summary (payroll detail — not the print template) */
 .iz-pv-sum-card {
@@ -3201,6 +3251,58 @@ button.iz-pr-offer-row:hover {
 .iz-hist-cal button:disabled {
   opacity: 0.28;
 }
+.iz-hist-cal-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.iz-hist-cal-nav-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.iz-hist-cal-nav-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.45px;
+  text-transform: uppercase;
+  color: var(--iz-muted);
+}
+.iz-hist-cal-select-wrap {
+  position: relative;
+  display: block;
+}
+.iz-hist-cal-select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--iz-line2);
+  border-radius: 10px;
+  background: var(--iz-bg2);
+  color: var(--iz-txt);
+  font-family: "Sora", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 32px 9px 10px;
+  line-height: 1.2;
+}
+.iz-hist-cal-select:focus {
+  outline: none;
+  border-color: var(--iz-gold);
+  box-shadow: 0 0 0 2px rgba(232, 194, 122, 0.2);
+}
+.iz-hist-cal-select-icon {
+  pointer-events: none;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translateY(-50%);
+  color: var(--iz-muted2);
+}
 .iz-hist-cal--popover {
   position: absolute;
   left: 0;
@@ -3404,6 +3506,142 @@ button.iz-agency-row:hover {
   background: rgba(217, 185, 122, 0.14);
   box-shadow: inset 0 0 0 1px rgba(217, 185, 122, 0.25);
 }
+.iz-hist-period-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.iz-hist-period-chip {
+  flex: 1;
+  min-width: 4.5rem;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--iz-line2);
+  background: var(--iz-bg2);
+  color: var(--iz-muted);
+  font-family: "Sora", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.iz-hist-period-chip.active {
+  border-color: var(--iz-gold);
+  color: var(--iz-gold-l);
+  background: rgba(232, 194, 122, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(232, 194, 122, 0.15);
+}
+
+/* PR History — Shifts tab earnings banner & cards */
+.iz-hist-earn-banner {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(217, 185, 122, 0.28);
+  background: linear-gradient(145deg, rgba(217, 185, 122, 0.14), rgba(255, 255, 255, 0.02) 55%);
+}
+.iz-hist-earn-banner-glow {
+  position: absolute;
+  inset: -40% -20% auto;
+  height: 120px;
+  background: radial-gradient(ellipse at 50% 100%, rgba(232, 194, 122, 0.22), transparent 70%);
+  pointer-events: none;
+}
+.iz-hist-earn-banner-inner {
+  position: relative;
+  padding: 14px 16px 16px;
+  text-align: center;
+}
+.iz-hist-earn-kicker {
+  color: var(--iz-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.iz-hist-earn-date-pill {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(217, 185, 122, 0.25);
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--iz-gold-l);
+}
+.iz-hist-earn-total {
+  margin-top: 8px;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--iz-gold-l);
+  letter-spacing: -0.02em;
+}
+.iz-hist-earn-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--iz-muted2);
+}
+.iz-hist-shift-filters {
+  border-color: var(--iz-line2) !important;
+}
+.iz-hist-shift-list {
+  padding-bottom: 4px;
+}
+.iz-hist-shift-card {
+  border-color: var(--iz-line2) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)) !important;
+}
+.iz-hist-shift-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.iz-hist-shift-metric {
+  border-radius: 10px;
+  border: 1px solid var(--iz-line);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 8px 9px;
+  min-width: 0;
+}
+.iz-hist-shift-metric .l {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--iz-muted2);
+}
+.iz-hist-shift-metric .v {
+  display: block;
+  margin-top: 3px;
+  font-family: "Sora", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--iz-txt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.iz-hist-shift-footer {
+  position: sticky;
+  bottom: calc(var(--iz-nav-h, 64px) + 8px);
+  z-index: 20;
+  margin-top: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(217, 185, 122, 0.35);
+  background: linear-gradient(180deg, rgba(28, 22, 16, 0.96), rgba(18, 14, 10, 0.98));
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(217, 185, 122, 0.12);
+  backdrop-filter: blur(12px);
+}
+.iz-hist-shift-footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
 .iz-data-table-wrap {
   overflow-x: auto;
   border-radius: 14px;

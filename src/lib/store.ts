@@ -27,6 +27,7 @@ import {
   isFreelancerPrId,
   TIED_DEMO_ROSTER_PR_ID,
   fmtDateLabelFromIso,
+  formatPvSignTimestamp,
 } from "@/lib/pr-demo";
 import { writePersistedPrSubRole } from "@/lib/use-pr-sub-role";
 import {
@@ -362,7 +363,7 @@ interface StoreState {
   }) => void;
 
   prPaymentVouchers: PrPaymentVoucher[];
-  signPrPv: (id: string) => void;
+  signPrPv: (id: string, signatureDataUrl: string) => void;
   disputePrPv: (id: string, reason: string, photoDataUrl?: string) => void;
   updatePrPvDisputeReason: (id: string, reason: string) => void;
   escalatePrPvDispute: (id: string) => void;
@@ -1523,16 +1524,14 @@ export const useStore = create<StoreState>()(
       },
 
       prPaymentVouchers: SEED_PR_PVS,
-      signPrPv: (id) => {
+      signPrPv: (id, signatureDataUrl) => {
+        if (!signatureDataUrl?.startsWith("data:image/")) {
+          get().toast("Draw your signature before confirming", "warn");
+          return;
+        }
         const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
         if (!pv) return;
-        const stamp = new Date().toLocaleString("en-MY", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+        const stamp = formatPvSignTimestamp();
         const bankRef = `INZ-TRF-${Date.now().toString(36).toUpperCase().slice(-8)}`;
         set((st) => ({
           prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
@@ -1541,6 +1540,7 @@ export const useStore = create<StoreState>()(
                   ...p,
                   status: "PAID" as const,
                   prSignedAt: stamp,
+                  prSignatureDataUrl: signatureDataUrl,
                   paidAt: stamp,
                   bankRef,
                 }
@@ -1866,6 +1866,7 @@ export const useStore = create<StoreState>()(
                   ...p,
                   status: "PENDING_REVIEW" as const,
                   prSignedAt: undefined,
+                  prSignatureDataUrl: undefined,
                   paidAt: undefined,
                   bankRef: undefined,
                   overrideAudit: { at: stamp, reason: trimmed, by, previousStatus: p.status },

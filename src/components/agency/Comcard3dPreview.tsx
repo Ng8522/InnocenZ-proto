@@ -44,13 +44,15 @@ function ComcardFigure({
 
 function ComcardStage({
   pr,
-  compact,
+  variant = "full",
 }: {
   pr: ComcardPreviewData;
-  compact?: boolean;
+  variant?: "thumb" | "card" | "full";
 }) {
   const style = getComcardDemoStyle(pr.id, pr.name);
   const weight = comcardWeight(pr.weight);
+  const compact = variant === "thumb";
+  const showPlate = variant !== "thumb";
 
   return (
     <div
@@ -59,7 +61,7 @@ function ComcardStage({
         background: `linear-gradient(145deg, ${style.bgFrom} 0%, ${style.bgMid} 52%, ${style.bgTo} 100%)`,
       }}
     >
-      {!compact && (
+      {showPlate && (
         <>
           <div className="iz-comcard-3d-preview-plate">
             {(pr.name.trim().slice(0, 12) || style.plate).toUpperCase()}
@@ -68,12 +70,12 @@ function ComcardStage({
         </>
       )}
       <ComcardFigure style={style} compact={compact} />
-      {!compact && (
+      {showPlate && (
         <div className="iz-comcard-3d-preview-measures">
           {pr.height}cm · {weight}kg · {pr.age}y
         </div>
       )}
-      {!compact && (
+      {variant === "full" && (
         <IzPill variant="violet" className="iz-comcard-3d-preview-badge !py-0.5 !text-[9px]">
           3D Comcard
         </IzPill>
@@ -94,7 +96,59 @@ export function Comcard3dPreviewThumb({
 
   return (
     <div className={cn("iz-comcard-3d-preview iz-comcard-3d-preview--thumb", className)}>
-      <ComcardStage pr={data} compact />
+      <ComcardStage pr={data} variant="thumb" />
+    </div>
+  );
+}
+
+export type ComcardPreviewCardMeta = {
+  trainingLevel?: string;
+  rating?: number;
+  languages?: string[];
+  place?: string;
+};
+
+/** Grid-card identity preview — 3D figure, name plate, and key profile cues */
+export function Comcard3dPreviewCard({
+  pr,
+  trainingLevel,
+  rating,
+  languages = [],
+  place,
+  className,
+}: {
+  pr: ComcardPreviewData;
+  trainingLevel?: string;
+  rating?: number;
+  languages?: string[];
+  place?: string;
+  className?: string;
+}) {
+  const langLine = languages.filter(Boolean).slice(0, 2).join(" · ");
+
+  return (
+    <div className={cn("iz-comcard-3d-preview iz-comcard-3d-preview--card iz-comcard-3d-preview--card-compact", className)}>
+      <ComcardStage pr={pr} variant="card" />
+      <div className="iz-comcard-3d-preview-card-meta">
+        <div className="flex items-center justify-between gap-1">
+          <p className="min-w-0 truncate font-sora text-[11px] font-bold leading-tight text-[var(--iz-txt)]">
+            {pr.name}
+          </p>
+          {rating != null && (
+            <IzPill variant="gold" className="shrink-0 !px-1 !py-0 !text-[8px]">
+              {rating}★
+            </IzPill>
+          )}
+        </div>
+        {trainingLevel && (
+          <p className="mt-0.5 truncate text-[9px] text-[var(--iz-muted2)]">{trainingLevel}</p>
+        )}
+        {(langLine || place) && (
+          <p className="mt-0.5 line-clamp-1 text-[9px] text-[var(--iz-muted)]">
+            {[langLine, place].filter(Boolean).join(" · ")}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -123,7 +177,7 @@ export function Comcard3dPreviewVisual({
 
   return (
     <div className={cn("iz-comcard-3d-preview", className)}>
-      <ComcardStage pr={pr} />
+      <ComcardStage pr={pr} variant="full" />
       {showStats && (
         <div className="iz-comcard-3d-preview-stats">
           <ComcardStat label="HEIGHT" value={`${pr.height} cm`} />

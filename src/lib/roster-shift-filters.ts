@@ -6,6 +6,8 @@ export type RosterShiftFilterState = {
   status: "" | RosterSlotStatus | "late" | "no-show";
   payoutMin: string;
   payoutMax: string;
+  startTime: string;
+  endTime: string;
 };
 
 export const EMPTY_ROSTER_SHIFT_FILTERS: RosterShiftFilterState = {
@@ -14,10 +16,22 @@ export const EMPTY_ROSTER_SHIFT_FILTERS: RosterShiftFilterState = {
   status: "",
   payoutMin: "",
   payoutMax: "",
+  startTime: "",
+  endTime: "",
 };
 
+function hhmmToMinutes(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const [h, m] = trimmed.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
 export function rosterShiftFiltersActive(f: RosterShiftFilterState): boolean {
-  return Boolean(f.nameQuery || f.outlet || f.status || f.payoutMin || f.payoutMax);
+  return Boolean(
+    f.nameQuery || f.outlet || f.status || f.payoutMin || f.payoutMax || f.startTime || f.endTime,
+  );
 }
 
 export function filterRosterShifts(
@@ -27,6 +41,8 @@ export function filterRosterShifts(
   const q = f.nameQuery.trim().toLowerCase();
   const min = f.payoutMin ? parseFloat(f.payoutMin) : null;
   const max = f.payoutMax ? parseFloat(f.payoutMax) : null;
+  const startFrom = hhmmToMinutes(f.startTime);
+  const endBy = hhmmToMinutes(f.endTime);
 
   return slots.filter((s) => {
     if (q && !s.prName.toLowerCase().includes(q)) return false;
@@ -37,6 +53,14 @@ export function filterRosterShifts(
     const payout = s.estPayout ?? 0;
     if (min != null && !Number.isNaN(min) && payout < min) return false;
     if (max != null && !Number.isNaN(max) && payout > max) return false;
+    if (startFrom != null) {
+      const slotStart = hhmmToMinutes(s.shiftStart);
+      if (slotStart == null || slotStart < startFrom) return false;
+    }
+    if (endBy != null) {
+      const slotEnd = hhmmToMinutes(s.shiftEnd);
+      if (slotEnd == null || slotEnd > endBy) return false;
+    }
     return true;
   });
 }

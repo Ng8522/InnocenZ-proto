@@ -2,10 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
-import type { AgencyFinanceHead, AgencyOwnerSettings, OutletCommissionRule } from "@/lib/agency-demo";
+import type { AgencyFinanceHead, AgencyOwnerSettings } from "@/lib/agency-demo";
 import { SCALING_TIER_MULTIPLIERS } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { rulesMatchOutlet } from "@/lib/outlet-agency-sync";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { Building2, Camera, CreditCard, Mail, Pencil, Phone, Shield, User, X } from "lucide-react";
 
@@ -15,15 +14,10 @@ export const Route = createFileRoute("/agency/profile")({
   component: AgencyProfile,
 });
 
-function cloneCommissionRules(rules: OutletCommissionRule[]): OutletCommissionRule[] {
-  return rules.map((r) => ({ ...r }));
-}
-
 function AgencyProfile() {
   const agencyOwner = useStore((s) => s.agencyOwner);
   const agencyFinanceHead = useStore((s) => s.agencyFinanceHead);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
-  const outletWorkspace = useStore((s) => s.outletWorkspace);
   const scalingTierMultipliers = useStore((s) => s.scalingTierMultipliers);
   const saveAgencyProfileSettings = useStore((s) => s.saveAgencyProfileSettings);
   const sendAgencyOtp = useStore((s) => s.sendAgencyOtp);
@@ -36,7 +30,6 @@ function AgencyProfile() {
   const [draft, setDraft] = useState(agencyOwner);
   const [financeDraft, setFinanceDraft] = useState(agencyFinanceHead);
   const [scalingDraft, setScalingDraft] = useState(scalingTierMultipliers);
-  const [commissionDraft, setCommissionDraft] = useState(() => cloneCommissionRules(outletCommissionRules));
   const [inviteEmail, setInviteEmail] = useState(agencyFinanceHead.email);
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const canEdit = agencyCan(agencySubRole, "editSettings");
@@ -44,7 +37,6 @@ function AgencyProfile() {
   const owner = editing ? draft : agencyOwner;
   const finance = editing ? financeDraft : agencyFinanceHead;
   const scaling = editing ? scalingDraft : scalingTierMultipliers;
-  const commissions = editing ? commissionDraft : outletCommissionRules;
   const avatarLetter = owner.ownerName.trim()[0]?.toUpperCase() ?? owner.orgName.trim()[0]?.toUpperCase() ?? "A";
   const editCardClass = editing ? " border-[rgba(217,185,122,.25)]" : "";
 
@@ -56,7 +48,6 @@ function AgencyProfile() {
     setDraft({ ...agencyOwner });
     setFinanceDraft({ ...agencyFinanceHead });
     setScalingDraft({ ...scalingTierMultipliers });
-    setCommissionDraft(cloneCommissionRules(outletCommissionRules));
     setInviteEmail(agencyFinanceHead.email);
     setOtp("");
     setEditing(true);
@@ -66,7 +57,6 @@ function AgencyProfile() {
     setDraft({ ...agencyOwner });
     setFinanceDraft({ ...agencyFinanceHead });
     setScalingDraft({ ...scalingTierMultipliers });
-    setCommissionDraft(cloneCommissionRules(outletCommissionRules));
     setInviteEmail(agencyFinanceHead.email);
     setOtp("");
     setEditing(false);
@@ -123,7 +113,7 @@ function AgencyProfile() {
       owner: { ...draft, ownerName: draft.ownerName.trim(), orgName: draft.orgName.trim() },
       financeHead: nextFinance,
       scalingTierMultipliers: { ...scalingDraft },
-      outletCommissionRules: commissionDraft.map((r) => ({ ...r })),
+      outletCommissionRules: outletCommissionRules.map((r) => ({ ...r })),
     });
     if (inviteChanged && inviteEmail.trim()) {
       toast(`Invite queued for ${inviteEmail.trim()} — Finance Head must complete IC + e-signature`, "info");
@@ -273,65 +263,6 @@ function AgencyProfile() {
           <p className="iz-tiny text-[var(--iz-green)] mt-2">E-signature on file ✓</p>
         )}
       </IzCard>
-
-      <IzSectionLabel>Commission rules · per outlet</IzSectionLabel>
-      <p className="iz-tiny iz-muted2 -mt-1 mb-2">Drink types · tables · tips · OT — synced with outlet workspace</p>
-      {commissions.map((rule) => (
-        <IzCard key={rule.outlet} flat className={`!mb-2${editing ? " border-[rgba(217,185,122,.25)]" : ""}`}>
-          <div className="font-sora text-xs font-bold">{rule.outlet}</div>
-          {editing && canEdit ? (
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="iz-tiny iz-muted">
-                Drink %
-                <input
-                  type="number"
-                  className="iz-field-input mt-1 !text-xs"
-                  value={rule.drinkPct}
-                  onChange={(e) => {
-                    const drinkPct = Number(e.target.value);
-                    setCommissionDraft((rows) =>
-                      rows.map((r) => (r.outlet === rule.outlet ? { ...r, drinkPct } : r)),
-                    );
-                  }}
-                />
-              </label>
-              <label className="iz-tiny iz-muted">
-                Tip %
-                <input
-                  type="number"
-                  className="iz-field-input mt-1 !text-xs"
-                  value={rule.tipPct}
-                  onChange={(e) => {
-                    const tipPct = Number(e.target.value);
-                    setCommissionDraft((rows) =>
-                      rows.map((r) => (r.outlet === rule.outlet ? { ...r, tipPct } : r)),
-                    );
-                  }}
-                />
-              </label>
-            </div>
-          ) : (
-            <p className="iz-tiny iz-muted2 mt-1">
-              Wage RM{rule.wagePerHour}/hr · Drinks {rule.drinkPct}% · Tips {rule.tipPct}% · Table {rule.tablePct}% · OT after {rule.otAfterHours}h
-            </p>
-          )}
-          {rulesMatchOutlet(rule, outletWorkspace.outletName) && outletWorkspace.drinkMenu.length > 0 && (
-            <div className="mt-2 border-t border-[var(--iz-line)] pt-2">
-              <p className="iz-tiny iz-muted2 mb-1.5">Drink menu · synced from outlet</p>
-              <div className="flex flex-wrap gap-1.5">
-                {outletWorkspace.drinkMenu.map((drink) => (
-                  <span
-                    key={drink.id}
-                    className="iz-tiny rounded-md bg-white/[0.04] px-2 py-0.5 font-semibold text-[var(--iz-gold-l)]"
-                  >
-                    {drink.name} RM{drink.priceRm}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </IzCard>
-      ))}
 
       <IzSectionLabel>Scaling rules · tier multipliers</IzSectionLabel>
       <p className="iz-tiny iz-muted2 -mt-1 mb-2">Volume-band multipliers applied to PR tier payouts</p>

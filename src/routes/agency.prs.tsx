@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { AgencyBroadcastSheet } from "@/components/agency/AgencyBroadcastSheet";
-import { Comcard3dPreviewThumb, Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
+import { Comcard3dPreviewCard, Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import type { AgencyManagedPR } from "@/lib/agency-demo";
@@ -235,7 +235,7 @@ function AgencyManagePRs() {
           <Megaphone className="h-3.5 w-3.5" /> Broadcast shift / message ({selected.size})
         </button>
       )}
-      <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {filtered.map((p) => {
           const flags = getAgencyPrFlags(p);
           const picked = selectMode && selected.has(p.id);
@@ -244,7 +244,7 @@ function AgencyManagePRs() {
               key={p.id}
               role="button"
               tabIndex={0}
-              className={`iz-outlet-floor-row w-full cursor-pointer text-left${picked ? " ring-1 ring-[var(--iz-gold)]" : ""}${flags.suspendStreak && !p.suspended ? " border-[var(--iz-red)]/40" : ""}`}
+              className={`relative flex cursor-pointer flex-col gap-1 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-2 text-left transition-colors hover:border-[var(--iz-line2)]${picked ? " ring-1 ring-[var(--iz-gold)]" : ""}${flags.suspendStreak && !p.suspended ? " border-[var(--iz-red)]/40" : ""}`}
               onClick={() => {
                 if (selectMode) toggleSelect(p.id);
                 else setDetailId(p.id);
@@ -258,25 +258,26 @@ function AgencyManagePRs() {
             >
               {selectMode && (
                 <div
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+                  className={`absolute left-1.5 top-1.5 z-10 flex h-4 w-4 items-center justify-center rounded border shadow-sm ${
                     picked
                       ? "border-[var(--iz-gold)] bg-[var(--iz-gold)] text-[var(--iz-bg)]"
-                      : "border-[var(--iz-line2)] bg-[var(--iz-bg2)]"
+                      : "border-[var(--iz-line2)] bg-[var(--iz-bg2)]/95"
                   }`}
                 >
-                  {picked && <Check className="h-3 w-3" strokeWidth={3} />}
+                  {picked && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
                 </div>
               )}
+
               <button
                 type="button"
-                className="iz-comcard-3d-preview-btn"
+                className="iz-comcard-3d-preview-btn w-full text-left"
                 aria-label={`Preview 3D comcard for ${p.name}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   setComcardPreviewId(p.id);
                 }}
               >
-                <Comcard3dPreviewThumb
+                <Comcard3dPreviewCard
                   pr={{
                     id: p.id,
                     name: p.name,
@@ -284,31 +285,30 @@ function AgencyManagePRs() {
                     weight: p.weight,
                     age: p.age,
                   }}
+                  trainingLevel={p.trainingLevel}
+                  rating={p.rating}
+                  languages={p.languages}
+                  place={p.place}
                 />
               </button>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="truncate font-sora text-sm font-bold">{p.name}</span>
-                  {p.suspended && <IzPill variant="red" className="!py-0.5 !text-[9px]">Suspended</IzPill>}
-                  {flags.warnLowAvg && !p.suspended && (
-                    <IzPill variant="amber" className="!py-0.5 !text-[9px]">Warn</IzPill>
-                  )}
-                  {flags.suspendStreak && !p.suspended && (
-                    <IzPill variant="red" className="!py-0.5 !text-[9px]">Suspend flag</IzPill>
-                  )}
-                  {flags.tiedUnderOneYear && (
-                    <IzPill variant="violet" className="!py-0.5 !text-[9px]">Tied &lt;1y</IzPill>
-                  )}
-                  <IzPill variant="gold" className="!py-0.5 !text-[9px]">{p.rating} ★</IzPill>
-                </div>
-                <p className="iz-tiny iz-muted truncate">
-                  {(p.languages ?? []).join(" · ") || "—"} · {p.place ?? "—"}
-                </p>
-                <p className="iz-tiny iz-muted2">
-                  Paid {formatRM(p.totalPaid ?? 0)} · Att. {p.attendancePct ?? 0}% · KPI {p.kpiScore ?? "—"}
-                  {flags.suspendLabel ? ` · ${flags.suspendLabel}` : ""}
-                </p>
+
+              <div className="flex flex-wrap gap-0.5">
+                {p.suspended && <IzPill variant="red" className="!py-0 !text-[8px]">Suspended</IzPill>}
+                {flags.warnLowAvg && !p.suspended && (
+                  <IzPill variant="amber" className="!py-0 !text-[8px]">Warn</IzPill>
+                )}
+                {flags.suspendStreak && !p.suspended && (
+                  <IzPill variant="red" className="!py-0 !text-[8px]">Suspend</IzPill>
+                )}
+                {flags.tiedUnderOneYear && (
+                  <IzPill variant="violet" className="!py-0 !text-[8px]">Tied</IzPill>
+                )}
               </div>
+
+              <p className="text-[10px] leading-tight text-[var(--iz-muted2)] line-clamp-2">
+                Paid {formatRM(p.totalPaid ?? 0)} · Att. {p.attendancePct ?? 0}% · KPI {p.kpiScore ?? "—"}
+                {flags.suspendLabel ? ` · ${flags.suspendLabel}` : ""}
+              </p>
             </div>
           );
         })}

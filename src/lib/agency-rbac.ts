@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, Calendar, FileText, History, Home } from "lucide-react";
+import { BarChart3, Calendar, FileText, History, Home, UserCheck } from "lucide-react";
 
 /** Module 9 · Agency Owner vs Agency Finance */
 export type AgencySubRole = "agency_owner" | "agency_finance";
@@ -73,6 +73,7 @@ export type AgencyNavItem = { to: string; label: string; icon: LucideIcon; permi
 const ALL_NAV: AgencyNavItem[] = [
   { to: "/agency", label: "Home", icon: Home, permission: "viewHome" },
   { to: "/agency/roster", label: "Roster", icon: Calendar, permission: "viewWorkforce" },
+  { to: "/agency/pending", label: "Approvals", icon: UserCheck, permission: "approvePrSignups" },
   { to: "/agency/pv", label: "Payroll", icon: FileText, permission: "viewPv" },
   { to: "/agency/history", label: "History", icon: History, permission: "viewHistory" },
   { to: "/agency/reports", label: "Analytics", icon: BarChart3, permission: "viewAnalytics" },
@@ -97,7 +98,9 @@ export function canAccessAgencyPath(role: AgencySubRole | null | undefined, path
   if (pathname.startsWith("/agency/reports")) return agencyCan(r, "viewAnalytics");
   if (pathname.startsWith("/agency/pending")) return agencyCan(r, "approvePrSignups");
   if (pathname.startsWith("/agency/prs")) return agencyCan(r, "managePr");
+  if (pathname.startsWith("/agency/outlets")) return agencyCan(r, "managePr");
   if (pathname.startsWith("/agency/profile")) return agencyCan(r, "viewSettings");
+  if (pathname.startsWith("/agency/commission-rules")) return agencyCan(r, "viewSettings");
   if (pathname.startsWith("/agency/live")) return agencyCan(r, "viewWorkforce");
   return true;
 }

@@ -37,8 +37,10 @@ import { Route as AgencyPvRouteImport } from './routes/agency.pv'
 import { Route as AgencyPrsRouteImport } from './routes/agency.prs'
 import { Route as AgencyProfileRouteImport } from './routes/agency.profile'
 import { Route as AgencyPendingRouteImport } from './routes/agency.pending'
+import { Route as AgencyOutletsRouteImport } from './routes/agency.outlets'
 import { Route as AgencyLiveRouteImport } from './routes/agency.live'
 import { Route as AgencyHistoryRouteImport } from './routes/agency.history'
+import { Route as AgencyCommissionRulesRouteImport } from './routes/agency.commission-rules'
 
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
@@ -180,6 +182,11 @@ const AgencyPendingRoute = AgencyPendingRouteImport.update({
   path: '/pending',
   getParentRoute: () => AgencyRoute,
 } as any)
+const AgencyOutletsRoute = AgencyOutletsRouteImport.update({
+  id: '/outlets',
+  path: '/outlets',
+  getParentRoute: () => AgencyRoute,
+} as any)
 const AgencyLiveRoute = AgencyLiveRouteImport.update({
   id: '/live',
   path: '/live',
@@ -190,6 +197,11 @@ const AgencyHistoryRoute = AgencyHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => AgencyRoute,
 } as any)
+const AgencyCommissionRulesRoute = AgencyCommissionRulesRouteImport.update({
+  id: '/commission-rules',
+  path: '/commission-rules',
+  getParentRoute: () => AgencyRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -197,8 +209,10 @@ export interface FileRoutesByFullPath {
   '/host': typeof HostRouteWithChildren
   '/outlet': typeof OutletRouteWithChildren
   '/signin': typeof SigninRoute
+  '/agency/commission-rules': typeof AgencyCommissionRulesRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
+  '/agency/outlets': typeof AgencyOutletsRoute
   '/agency/pending': typeof AgencyPendingRoute
   '/agency/profile': typeof AgencyProfileRoute
   '/agency/prs': typeof AgencyPrsRoute
@@ -226,8 +240,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/signin': typeof SigninRoute
+  '/agency/commission-rules': typeof AgencyCommissionRulesRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
+  '/agency/outlets': typeof AgencyOutletsRoute
   '/agency/pending': typeof AgencyPendingRoute
   '/agency/profile': typeof AgencyProfileRoute
   '/agency/prs': typeof AgencyPrsRoute
@@ -259,8 +275,10 @@ export interface FileRoutesById {
   '/host': typeof HostRouteWithChildren
   '/outlet': typeof OutletRouteWithChildren
   '/signin': typeof SigninRoute
+  '/agency/commission-rules': typeof AgencyCommissionRulesRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
+  '/agency/outlets': typeof AgencyOutletsRoute
   '/agency/pending': typeof AgencyPendingRoute
   '/agency/profile': typeof AgencyProfileRoute
   '/agency/prs': typeof AgencyPrsRoute
@@ -293,8 +311,10 @@ export interface FileRouteTypes {
     | '/host'
     | '/outlet'
     | '/signin'
+    | '/agency/commission-rules'
     | '/agency/history'
     | '/agency/live'
+    | '/agency/outlets'
     | '/agency/pending'
     | '/agency/profile'
     | '/agency/prs'
@@ -322,8 +342,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/signin'
+    | '/agency/commission-rules'
     | '/agency/history'
     | '/agency/live'
+    | '/agency/outlets'
     | '/agency/pending'
     | '/agency/profile'
     | '/agency/prs'
@@ -354,8 +376,10 @@ export interface FileRouteTypes {
     | '/host'
     | '/outlet'
     | '/signin'
+    | '/agency/commission-rules'
     | '/agency/history'
     | '/agency/live'
+    | '/agency/outlets'
     | '/agency/pending'
     | '/agency/profile'
     | '/agency/prs'
@@ -587,6 +611,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgencyPendingRouteImport
       parentRoute: typeof AgencyRoute
     }
+    '/agency/outlets': {
+      id: '/agency/outlets'
+      path: '/outlets'
+      fullPath: '/agency/outlets'
+      preLoaderRoute: typeof AgencyOutletsRouteImport
+      parentRoute: typeof AgencyRoute
+    }
     '/agency/live': {
       id: '/agency/live'
       path: '/live'
@@ -601,12 +632,21 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgencyHistoryRouteImport
       parentRoute: typeof AgencyRoute
     }
+    '/agency/commission-rules': {
+      id: '/agency/commission-rules'
+      path: '/commission-rules'
+      fullPath: '/agency/commission-rules'
+      preLoaderRoute: typeof AgencyCommissionRulesRouteImport
+      parentRoute: typeof AgencyRoute
+    }
   }
 }
 
 interface AgencyRouteChildren {
+  AgencyCommissionRulesRoute: typeof AgencyCommissionRulesRoute
   AgencyHistoryRoute: typeof AgencyHistoryRoute
   AgencyLiveRoute: typeof AgencyLiveRoute
+  AgencyOutletsRoute: typeof AgencyOutletsRoute
   AgencyPendingRoute: typeof AgencyPendingRoute
   AgencyProfileRoute: typeof AgencyProfileRoute
   AgencyPrsRoute: typeof AgencyPrsRoute
@@ -617,8 +657,10 @@ interface AgencyRouteChildren {
 }
 
 const AgencyRouteChildren: AgencyRouteChildren = {
+  AgencyCommissionRulesRoute: AgencyCommissionRulesRoute,
   AgencyHistoryRoute: AgencyHistoryRoute,
   AgencyLiveRoute: AgencyLiveRoute,
+  AgencyOutletsRoute: AgencyOutletsRoute,
   AgencyPendingRoute: AgencyPendingRoute,
   AgencyProfileRoute: AgencyProfileRoute,
   AgencyPrsRoute: AgencyPrsRoute,

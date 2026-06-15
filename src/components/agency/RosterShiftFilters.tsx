@@ -1,7 +1,7 @@
 import { OUTLET_NAMES } from "@/lib/agency-demo";
 import type { RosterShiftFilterState } from "@/lib/roster-shift-filters";
 import { rosterShiftFiltersActive } from "@/lib/roster-shift-filters";
-import { IzSelect } from "@/components/iz/ui";
+import { IzSelect, IzTimeInput } from "@/components/iz/ui";
 import { RotateCcw, Search } from "lucide-react";
 
 export function RosterShiftFilters({
@@ -79,6 +79,28 @@ export function RosterShiftFilters({
         </label>
 
         <label className="iz-roster-filter-field">
+          <span className="iz-roster-filter-label">Start from</span>
+          <IzTimeInput
+            value={filters.startTime}
+            onChange={(v) => onChange({ startTime: v })}
+            showIcon={false}
+            className="iz-roster-filter-time !min-h-0 !py-2 !text-sm"
+            aria-label="Shift start from"
+          />
+        </label>
+
+        <label className="iz-roster-filter-field">
+          <span className="iz-roster-filter-label">End by</span>
+          <IzTimeInput
+            value={filters.endTime}
+            onChange={(v) => onChange({ endTime: v })}
+            showIcon={false}
+            className="iz-roster-filter-time !min-h-0 !py-2 !text-sm"
+            aria-label="Shift end by"
+          />
+        </label>
+
+        <label className="iz-roster-filter-field">
           <span className="iz-roster-filter-label">Min payout (RM)</span>
           <input
             type="number"
@@ -116,6 +138,8 @@ export function RosterShiftFilters({
               status: "",
               payoutMin: "",
               payoutMax: "",
+              startTime: "",
+              endTime: "",
             })
           }
         >

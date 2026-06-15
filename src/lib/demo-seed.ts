@@ -42,6 +42,7 @@ import {
   SEED_RECEIPT_SCANS,
   COMCARD,
   PORTFOLIO_SLOT_COUNT,
+  fmtDateLabelFromIso,
   type PrPaymentVoucher,
 } from "@/lib/pr-demo";
 import { DEFAULT_NOTIFICATION_PREFS } from "@/lib/push-notifications";
@@ -118,7 +119,7 @@ function buildDemoShifts(): ShiftRequest[] {
       date: "Tonight",
       shift: "22:00 — 04:00",
       quantity: 6,
-      filled: 4,
+      filled: 5,
       languages: "English / Mandarin",
       event: "Private VIP — Hennessy Launch",
       preferredRating: 4.5,
@@ -128,7 +129,7 @@ function buildDemoShifts(): ShiftRequest[] {
       drinkUnits: 8,
       tableUnits: 3,
       status: "confirmed",
-      prs: ["p1", "p2", "p3", "p4"],
+      prs: ["p1", "p2", "p3", "p4", "p5"],
       payPerHour: 60,
       dressCode: "Black elegant",
       destination: "both",
@@ -203,18 +204,9 @@ const DEMO_APPLICANTS: ShiftApplicant[] = [
 ];
 
 function buildDemoRoster(): AgencyRosterSlot[] {
-  const date = "Wed · 04 Jun 2026";
+  const date = fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO);
   const shift = "22:00 — 04:00";
   const patched = SEED_AGENCY_ROSTER.map(cloneRosterSlot).map((slot) => {
-    if (slot.id === "rs1") {
-      return {
-        ...slot,
-        status: "on-duty" as const,
-        checkedInAt: "21:58",
-        floorDrinks: 14,
-        floorTips: 52,
-      };
-    }
     if (slot.id === "rs3") {
       return {
         ...slot,
@@ -225,22 +217,50 @@ function buildDemoRoster(): AgencyRosterSlot[] {
         estPayout: 410,
       };
     }
-    if (slot.id === "rs4") {
-      return {
-        ...slot,
-        date,
-        dateIso: DEFAULT_ROSTER_DATE_ISO,
-        status: "on-duty" as const,
-        checkedInAt: "20:55",
-        floorDrinks: 6,
-        floorTips: 22,
-        estPayout: 352,
-      };
-    }
     return slot;
   });
-  // Vivi (p3), Cici (p4), Chen Wei (p7) stay free today — assign via Planning → Free PRs
-  return patched;
+  const velvetTonight: AgencyRosterSlot[] = [
+    {
+      id: "rs-demo-p3",
+      prId: "p3",
+      prName: "Vivi",
+      outlet: "Velvet 23",
+      date,
+      dateIso: DEFAULT_ROSTER_DATE_ISO,
+      shift,
+      shiftStart: "22:00",
+      shiftEnd: "04:00",
+      status: "scheduled",
+      estPayout: 395,
+    },
+    {
+      id: "rs-demo-p4",
+      prId: "p4",
+      prName: "Cici",
+      outlet: "Velvet 23",
+      date,
+      dateIso: DEFAULT_ROSTER_DATE_ISO,
+      shift,
+      shiftStart: "22:00",
+      shiftEnd: "04:00",
+      status: "scheduled",
+      estPayout: 388,
+    },
+    {
+      id: "rs-demo-p5",
+      prId: "p5",
+      prName: "Nina",
+      outlet: "Velvet 23",
+      date,
+      dateIso: DEFAULT_ROSTER_DATE_ISO,
+      shift,
+      shiftStart: "22:00",
+      shiftEnd: "04:00",
+      status: "scheduled",
+      estPayout: 402,
+    },
+  ];
+  return [...patched, ...velvetTonight];
 }
 
 /** Fresh reconciliation — both sides pending so Owner/Finance can confirm */
@@ -256,9 +276,20 @@ function buildDemoReconciliation(shifts: ShiftRequest[], roster: AgencyRosterSlo
   });
 }
 
+import {
+  defaultPrShiftSessionForRole,
+  type PrShiftSessionState,
+} from "@/lib/pr-session";
+
 /** PR portal fields included in the full demo snapshot. */
-export function buildPrDemoReset() {
+export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRoster()) {
+  const prSessionByRole: Record<"pr_tied" | "pr_free", PrShiftSessionState> = {
+    pr_tied: defaultPrShiftSessionForRole("pr_tied", { agencyRoster }),
+    pr_free: defaultPrShiftSessionForRole("pr_free", { agencyRoster }),
+  };
+
   return {
+    prSessionByRole,
     shiftAccepted: false,
     pendingApproval: false,
     acceptedShiftIndex: null as number | null,
@@ -338,6 +369,6 @@ export function buildDemoStoreReset() {
     postSealRatePrompt: null,
     pendingPRs: SEED_PENDING_PRS.map((p) => ({ ...p })),
     pendingFreelancerPayrolls: SEED_PENDING_FREELANCER_PAYROLLS.map((p) => ({ ...p })),
-    ...buildPrDemoReset(),
+    ...buildPrDemoReset(agencyRoster),
   };
 }

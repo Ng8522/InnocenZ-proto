@@ -20,9 +20,13 @@ import {
   makeShiftPvId,
   FINANCE_HEAD_SIGNER,
   FREELANCER_DEMO_PR_ID,
+  formatPrDisplayName,
   DEFAULT_TIED_AGENCY_ID,
   getPrAgencyById,
   getPrRosterId,
+  isFreelancerPrId,
+  TIED_DEMO_ROSTER_PR_ID,
+  fmtDateLabelFromIso,
 } from "@/lib/pr-demo";
 import { writePersistedPrSubRole } from "@/lib/use-pr-sub-role";
 import {
@@ -79,6 +83,9 @@ import {
   recomputeReconciliation,
   rosterCheckIn,
   rosterCheckOut,
+  rosterEnRoute,
+  ensureRosterSlot,
+  shiftDateIso,
   sumPvNetForCycle,
   outletGrossFromPnl,
   canonicalOutlet,
@@ -107,6 +114,17 @@ import {
 } from "@/lib/outlet-demo";
 import { buildDemoStoreReset, buildPrDemoReset } from "@/lib/demo-seed";
 import {
+  applyPrShiftSession,
+  defaultPrShiftSessionForRole,
+  extractPrShiftSession,
+  clearPrShiftSession,
+  patchFreelancerPrSession,
+  patchPrSessionForRole,
+  findAgencyRosterTonight,
+  shiftIndexForOutlet,
+  type PrShiftSessionState,
+} from "@/lib/pr-session";
+import {
   syncCommissionRulesFromWorkspace,
   syncWorkspaceFromCommissionRules,
 } from "@/lib/outlet-agency-sync";
@@ -123,6 +141,10 @@ import {
   SEED_RATING_HISTORY,
   SEED_UPCOMING_SHIFTS,
   SEED_PR_SWAP_REQUESTS,
+  mergePrSwapRequests,
+  PR_AGENCY_TIED_OFFERS,
+  swapTargetOptionsForPr,
+  type PrSwapTargetOption,
   DEMO_AGENCY_TIED_AT,
   offerToShiftIndex,
   listingById,
@@ -256,6 +278,7 @@ interface StoreState {
   resetDemo: () => void;
 
   /** PR Talent shift lifecycle (prototype flow) */
+  prSessionByRole: Partial<Record<PrSubRole, PrShiftSessionState>>;
   shiftAccepted: boolean;
   pendingApproval: boolean;
   acceptedShiftIndex: number | null;
@@ -276,6 +299,10 @@ interface StoreState {
   resetPrDemo: () => void;
   /** Prototype: accept shift (if needed) and check in without GPS/selfie */
   demoPrShiftIn: () => void;
+  /** Prototype: accept shift (if needed) and mark en-route only */
+  demoPrEnRoute: () => void;
+  /** PR started heading to venue — outlet roster shows EN-ROUTE until check-in */
+  prMarkEnRoute: () => void;
   prCheckIn: (opts?: { selfieDataUrl?: string; gpsFallback?: boolean; simulateLate?: boolean }) => void;
   simulatePrLate: (enabled: boolean) => void;
   simulatePrNoShow: () => void;
@@ -306,7 +333,7 @@ interface StoreState {
   prCheckInMeta: { late?: boolean; noShowRisk?: boolean; selfieDataUrl?: string | null; gpsFallback?: boolean };
   prLeaveRequest: { type: "leave" | "transfer"; note: string; newAgencyCode?: string; at: string } | null;
   markPrNotificationRead: (id: string) => void;
-  requestPrSwap: (replacementPrName: string, reason: string) => void;
+  requestPrSwap: (targetId: string, reason: string) => void;
   addPrSelfLog: (log: { category: "drinks" | "tips" | "tables"; qty: number; amount: number }) => void;
   flagPrSelfLog: (id: string) => void;
   confirmOutletPrSelfLog: (id: string) => void;
@@ -385,6 +412,7 @@ interface StoreState {
   approveOutletSwapByPr: (rosterSlotId: string) => void;
   declineOutletSwapByPr: (rosterSlotId: string) => void;
   approveAgencyAssignmentByPr: (rosterSlotId: string) => void;
+  confirmOutletRosterSlot: (rosterSlotId: string) => void;
   declineAgencyAssignmentByPr: (rosterSlotId: string) => void;
   assignPrToOutlet: (input: {
     prId: string;
@@ -394,8 +422,10 @@ interface StoreState {
     shiftStart: string;
     shiftEnd: string;
   }) => void;
-  approvePrSwapRequest: (swapId: string) => void;
+  approvePrSwapRequest: (swapId: string, replacementPrId: string) => void;
   declinePrSwapRequest: (swapId: string) => void;
+  acceptSwapReplacement: (swapId: string) => void;
+  rejectSwapReplacement: (swapId: string, reason: string) => void;
   demoAutoAssignPr: (dateIso: string) => void;
   flagRosterAttendance: (slotId: string, flag: "late" | "no-show") => void;
 
@@ -493,6 +523,8 @@ interface StoreState {
   payOutletInvoice: (collectionId: string) => void;
   updateOutletPaymentCard: (last4: string) => void;
   clearPostSealRatePrompt: () => void;
+  /** Repair agency roster when PR checked in before roster slot existed (freelancers) */
+  syncLivePrCheckInToRoster: () => void;
 
   acceptBooking: (id: string) => void;
   checkIn: (id: string) => void;
@@ -562,7 +594,7 @@ function applyOutletFinancialSync(
       outletGross: outletGrossFromPnl(outletPnl, "Velvet 23"),
       pvTotal: 0,
       dateIso: DEFAULT_ROSTER_DATE_ISO,
-      dateLabel: "Wed · 04 Jun 2026",
+      dateLabel: fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO),
       agencyConfirmed: false,
       outletConfirmed: false,
     });
@@ -635,8 +667,26 @@ export const useStore = create<StoreState>()(
       user: null,
       setRole: (r) => set({ role: r }),
       setPrSubRole: (r) => {
+        const st = get();
+        const prev = st.prSubRole;
+        const cache: Partial<Record<PrSubRole, PrShiftSessionState>> = { ...st.prSessionByRole };
+
+        if (prev && prev !== r) {
+          cache[prev] = extractPrShiftSession(st);
+        }
+
+        const next: Partial<StoreState> = { prSubRole: r, prSessionByRole: cache };
+        if (r) {
+          const session =
+            cache[r] ??
+            defaultPrShiftSessionForRole(r, {
+              agencyRoster: st.agencyRoster,
+              prSwapRequests: st.prSwapRequests,
+            });
+          Object.assign(next, applyPrShiftSession(session));
+        }
         writePersistedPrSubRole(r);
-        set({ prSubRole: r });
+        set(next);
       },
       setOutletSubRole: (r) => set({ outletSubRole: r }),
       setAgencySubRole: (r) => set({ agencySubRole: r }),
@@ -654,6 +704,8 @@ export const useStore = create<StoreState>()(
         const demo = buildDemoStoreReset();
         set({
           ...demo,
+          prSwapRequests: [],
+          prSessionByRole: demo.prSessionByRole ?? {},
           role: null,
           prSubRole: null,
           outletSubRole: null,
@@ -663,7 +715,7 @@ export const useStore = create<StoreState>()(
         });
       },
       resetPrDemo: () => {
-        set(buildPrDemoReset());
+        set(buildPrDemoReset(get().agencyRoster));
       },
       demoPrShiftIn: () => {
         const st = get();
@@ -689,16 +741,76 @@ export const useStore = create<StoreState>()(
         const late = get().prCheckInMeta.late ?? false;
         get().prCheckIn({ simulateLate: late, gpsFallback: get().prCheckInMeta.gpsFallback });
       },
+      demoPrEnRoute: () => {
+        const st = get();
+        if (st.checkedIn && !st.checkedOut) {
+          get().toast("Already on duty", "info");
+          return;
+        }
+        if (!st.shiftAccepted) {
+          set({
+            shiftAccepted: true,
+            pendingApproval: false,
+            acceptedShiftIndex: st.acceptedShiftIndex ?? 0,
+            prMarketplaceApplication:
+              st.prMarketplaceApplication?.status === "pending"
+                ? { ...st.prMarketplaceApplication, status: "accepted" }
+                : st.prMarketplaceApplication,
+          });
+        }
+        get().prMarkEnRoute();
+      },
+      prMarkEnRoute: () => {
+        const st = get();
+        if (!st.shiftAccepted) {
+          get().toast("Accept a shift first", "warn");
+          return;
+        }
+        if (st.checkedIn) {
+          get().toast("Already checked in", "info");
+          return;
+        }
+        const idx = st.acceptedShiftIndex ?? 0;
+        const offer = PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
+        const prId = getPrRosterId(st.prSubRole);
+        const ctx = demoAttendanceContext(st);
+        const pr = st.agencyPRs.find((p) => p.id === prId);
+        const prName = pr?.name ?? getPrProfile(st.prSubRole).name;
+        const next = rosterEnRoute(st.agencyRoster, prId, offer.outlet, {
+          prName,
+          dateIso: ctx.dateIso,
+          shift: offer.time,
+        });
+        const before = st.agencyRoster.find(
+          (s) =>
+            s.prId === prId &&
+            s.dateIso === ctx.dateIso &&
+            outletMatches(s.outlet, offer.outlet),
+        );
+        const after = next.find(
+          (s) =>
+            s.prId === prId &&
+            s.dateIso === ctx.dateIso &&
+            outletMatches(s.outlet, offer.outlet),
+        );
+        if (after?.status === before?.status) {
+          get().toast("Already en route", "info");
+          return;
+        }
+        set({ agencyRoster: next });
+        get().toast("En route — outlet sees you on Live GPS", "success");
+      },
 
-      shiftAccepted: false,
-      pendingApproval: false,
-      acceptedShiftIndex: null,
-      checkedIn: false,
-      checkedOut: false,
-      drinks: 0,
-      tables: 0,
-      outletRatingStars: 0,
-      prActiveShift: null,
+      shiftAccepted: demoSnapshot.shiftAccepted,
+      pendingApproval: demoSnapshot.pendingApproval,
+      acceptedShiftIndex: demoSnapshot.acceptedShiftIndex,
+      checkedIn: demoSnapshot.checkedIn,
+      checkedOut: demoSnapshot.checkedOut,
+      drinks: demoSnapshot.drinks,
+      tables: demoSnapshot.tables,
+      outletRatingStars: demoSnapshot.outletRatingStars,
+      prActiveShift: demoSnapshot.prActiveShift,
+      prSessionByRole: demoSnapshot.prSessionByRole ?? {},
 
       prNotifications: [...SEED_PR_NOTIFICATIONS],
       opsNotifications: [],
@@ -773,8 +885,11 @@ export const useStore = create<StoreState>()(
           return false;
         }
         const prId = FREELANCER_DEMO_PR_ID;
-        const prName = st.prDisplayName?.trim() || getPrProfile("pr_free").name;
         const agencyPr = st.agencyPRs.find((p) => p.id === prId);
+        const prName = formatPrDisplayName(
+          prId,
+          st.prDisplayName?.trim() || agencyPr?.name || getPrProfile("pr_free").name,
+        );
         const shift = st.shifts.find(
           (s) =>
             outletMatches(s.outletName, listing.outlet) &&
@@ -869,39 +984,78 @@ export const useStore = create<StoreState>()(
         });
         get().toast("Shift cancelled — penalty flag logged", "warn");
       },
-      requestPrSwap: (replacementPrName, reason) => {
-        const shift = get().prActiveShift;
-        const outlet = shift?.outlet ?? PR_SHIFT_OFFERS[get().acceptedShiftIndex ?? 0]?.outlet ?? "Velvet 23";
+      requestPrSwap: (targetId, reason) => {
+        const st = get();
+        const prId = getPrRosterId(st.prSubRole);
+        const sourceSlot = findAgencyRosterTonight(st.agencyRoster, prId);
+        if (!sourceSlot) {
+          get().toast("No confirmed shift to swap from", "warn");
+          return;
+        }
+        if (!["scheduled", "en-route", "on-duty"].includes(sourceSlot.status)) {
+          get().toast("Only confirmed shifts can be swapped", "warn");
+          return;
+        }
+        const target = swapTargetOptionsForPr(
+          st.agencyRoster,
+          prId,
+          sourceSlot,
+          PR_AGENCY_TIED_OFFERS,
+          st.prDeclinedOfferIds,
+        ).find((t) => t.id === targetId);
+        if (!target) {
+          get().toast("Pick a different shift to swap into", "warn");
+          return;
+        }
+        const alreadyPending = st.prSwapRequests.some(
+          (s) =>
+            s.rosterSlotId === sourceSlot.id &&
+            (s.status === "pending_agency" || s.status === "pending_replacement"),
+        );
+        if (alreadyPending) {
+          get().toast("Swap already pending for this shift", "info");
+          return;
+        }
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
           hour: "2-digit",
           minute: "2-digit",
         });
-        set((st) => ({
+        const profile = getPrProfile(st.prSubRole);
+        set((cur) => ({
           prSwapRequests: [
             {
               id: "swap-" + Date.now().toString(36),
-              outlet,
-              date: stamp,
-              replacementPrName: replacementPrName.trim(),
+              rosterSlotId: sourceSlot.id,
+              requestingPrId: prId,
+              requestingPrName: profile.name,
+              outlet: sourceSlot.outlet,
+              date: sourceSlot.date,
+              dateIso: sourceSlot.dateIso,
+              shift: sourceSlot.shift,
+              targetOutlet: target.outlet,
+              targetDate: target.date,
+              targetDateIso: target.dateIso,
+              targetShift: target.shift,
+              targetRosterSlotId: target.rosterSlotId,
+              targetOfferId: target.offerId,
               reason: reason.trim(),
-              status: "pending_agency",
+              status: "pending_agency" as const,
               requestedAt: stamp,
             },
-            ...st.prSwapRequests,
+            ...cur.prSwapRequests,
           ],
         }));
-        const profile = getPrProfile(get().prSubRole);
         get().pushNotify({
           type: "swap_update",
-          prId: getPrRosterId(get().prSubRole),
+          prId,
           prName: profile.name,
-          outlet,
+          outlet: `${sourceSlot.outlet} → ${target.outlet}`,
           status: "pending",
           notifyPr: false,
         });
-        get().toast("Swap request sent — agency must approve replacement PR", "info");
+        get().toast(`Swap request sent — ${sourceSlot.outlet} → ${target.outlet}`, "info");
       },
       prCheckIn: (opts) => {
         const idx = get().acceptedShiftIndex ?? 0;
@@ -933,7 +1087,13 @@ export const useStore = create<StoreState>()(
         const gpsFallback = opts?.gpsFallback ?? get().prCheckInMeta.gpsFallback ?? false;
         const ctx = demoAttendanceContext(get());
         set((st) => {
-          let roster = rosterCheckIn(st.agencyRoster, prId, offer.outlet, checkInTime);
+          const pr = st.agencyPRs.find((p) => p.id === prId);
+          const prName = pr?.name ?? getPrProfile(st.prSubRole).name;
+          let roster = rosterCheckIn(st.agencyRoster, prId, offer.outlet, checkInTime, {
+            prName,
+            dateIso: ctx.dateIso,
+            shift: offer.time,
+          });
           roster = patchPrRosterAttendanceFlags(roster, ctx.prId, ctx.outlet, ctx.dateIso, {
             lateFlag: late,
             noShowFlag: false,
@@ -1965,6 +2125,52 @@ export const useStore = create<StoreState>()(
         }));
         get().toast(`Approved — ${slot.outlet} shift locked on your roster`, "success");
       },
+      confirmOutletRosterSlot: (rosterSlotId) => {
+        const st = get();
+        const slot = st.agencyRoster.find((s) => s.id === rosterSlotId);
+        if (!slot || slot.status !== "outlet-pending") return;
+        const prId = getPrRosterId(st.prSubRole);
+        if (slot.prId !== prId) {
+          get().toast("This shift is not assigned to you", "warn");
+          return;
+        }
+        const stamp = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const isTonight = slot.dateIso === DEFAULT_ROSTER_DATE_ISO;
+        set((cur) => ({
+          agencyRoster: cur.agencyRoster.map((s) =>
+            s.id === rosterSlotId
+              ? {
+                  ...s,
+                  status: "scheduled" as const,
+                  agencyAssignment: s.agencyAssignment
+                    ? { ...s.agencyAssignment, respondedAt: stamp }
+                    : { assignedAt: stamp, respondedAt: stamp },
+                }
+              : s,
+          ),
+          ...(slot.prId === TIED_DEMO_ROSTER_PR_ID && isTonight
+            ? patchPrSessionForRole(cur, "pr_tied", {
+                shiftAccepted: true,
+                pendingApproval: false,
+                acceptedShiftIndex: shiftIndexForOutlet(slot.outlet),
+                checkedIn: false,
+                checkedOut: false,
+              })
+            : {}),
+        }));
+        get().toast(`${slot.outlet} confirmed your shift — check in when ready`, "success");
+        get().pushNotify({
+          type: "shift_assigned",
+          prId: slot.prId,
+          prName: slot.prName,
+          outlet: slot.outlet,
+        });
+      },
       declineAgencyAssignmentByPr: (rosterSlotId) => {
         const slot = get().agencyRoster.find((s) => s.id === rosterSlotId);
         if (!slot || slot.status !== "assignment-pending") return;
@@ -1995,20 +2201,273 @@ export const useStore = create<StoreState>()(
         }));
         get().toast("Declined agency outlet swap", "warn");
       },
-      approvePrSwapRequest: (swapId) => {
-        const swap = get().prSwapRequests.find((s) => s.id === swapId);
+      approvePrSwapRequest: (swapId, replacementPrId) => {
+        const st = get();
+        const swap = st.prSwapRequests.find((s) => s.id === swapId);
         if (!swap || swap.status !== "pending_agency") return;
-        set((st) => ({
-          prSwapRequests: st.prSwapRequests.map((s) =>
-            s.id === swapId ? { ...s, status: "approved" as const } : s,
+        const replacement = st.agencyPRs.find((p) => p.id === replacementPrId);
+        if (!replacement || replacement.suspended || replacement.detached) {
+          get().toast("Pick an active PR for replacement", "warn");
+          return;
+        }
+        if (replacementPrId === swap.requestingPrId) {
+          get().toast("Replacement must be a different PR", "warn");
+          return;
+        }
+        const slot = st.agencyRoster.find((s) => s.id === swap.rosterSlotId);
+        if (!slot) {
+          get().toast("Roster slot no longer exists", "warn");
+          return;
+        }
+        const stamp = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        set((cur) => ({
+          prSwapRequests: cur.prSwapRequests.map((s) =>
+            s.id === swapId
+              ? {
+                  ...s,
+                  status: "pending_replacement" as const,
+                  replacementPrId,
+                  replacementPrName: replacement.name,
+                  replacementOfferedAt: stamp,
+                  replacementDeclineReason: undefined,
+                  replacementDeclinedAt: undefined,
+                }
+              : s,
           ),
+          ...(swap.requestingPrId === TIED_DEMO_ROSTER_PR_ID
+            ? patchPrSessionForRole(cur, "pr_tied", clearPrShiftSession())
+            : {}),
         }));
-        get().toast(`Swap approved — ${swap.replacementPrName} confirmed for ${swap.outlet}`, "success");
+        get().toast(`Offer sent to ${replacement.name} — awaiting their response`, "success");
         get().pushNotify({
           type: "swap_update",
-          prName: swap.replacementPrName,
+          prId: replacementPrId,
+          prName: replacement.name,
           outlet: swap.outlet,
+          status: "offer",
+          requestingPrName: swap.requestingPrName,
+          notifyAgency: true,
+          notifyPr: true,
+        });
+      },
+      acceptSwapReplacement: (swapId) => {
+        const st = get();
+        const swap = st.prSwapRequests.find((s) => s.id === swapId);
+        if (!swap || swap.status !== "pending_replacement" || !swap.replacementPrId) return;
+        const prId = getPrRosterId(st.prSubRole);
+        if (swap.replacementPrId !== prId) {
+          get().toast("This swap offer is not assigned to you", "warn");
+          return;
+        }
+        const replacement = st.agencyPRs.find((p) => p.id === swap.replacementPrId);
+        if (!replacement) return;
+        const slot = st.agencyRoster.find((s) => s.id === swap.rosterSlotId);
+        if (!slot) {
+          get().toast("Roster slot no longer exists", "warn");
+          return;
+        }
+        const targetSlot = swap.targetRosterSlotId
+          ? st.agencyRoster.find((s) => s.id === swap.targetRosterSlotId)
+          : undefined;
+        const targetOutlet = swap.targetOutlet ?? targetSlot?.outlet;
+        const targetDateIso = swap.targetDateIso ?? targetSlot?.dateIso;
+        const targetShift = swap.targetShift ?? targetSlot?.shift;
+        if (!targetOutlet || !targetDateIso || !targetShift) {
+          get().toast("Swap target shift is missing — request a new swap", "warn");
+          return;
+        }
+        const sourceIdx = shiftIndexForOutlet(swap.outlet);
+        const requestingPr = st.agencyPRs.find((p) => p.id === swap.requestingPrId);
+        const swapStamp = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const outletPendingMeta = {
+          agencyName: "Atlas Agency",
+          agencyNote: `Swap from ${swap.outlet} — outlet must confirm before check-in`,
+          assignedAt: swapStamp,
+          assignedAtMs: Date.now(),
+        };
+        set((cur) => {
+          const replacementSession = isFreelancerPrId(swap.replacementPrId!)
+            ? patchFreelancerPrSession(cur, {
+                shiftAccepted: true,
+                pendingApproval: false,
+                acceptedShiftIndex: sourceIdx,
+                checkedIn: false,
+                checkedOut: false,
+              })
+            : patchPrSessionForRole(cur, "pr_tied", {
+                shiftAccepted: true,
+                pendingApproval: false,
+                acceptedShiftIndex: sourceIdx,
+                checkedIn: false,
+                checkedOut: false,
+              });
+          const requestingRole = isFreelancerPrId(swap.requestingPrId) ? "pr_free" : "pr_tied";
+          const requestingSession = patchPrSessionForRole(
+            { ...cur, ...replacementSession },
+            requestingRole,
+            clearPrShiftSession(),
+          );
+          let agencyRoster = cur.agencyRoster.map((s) =>
+            s.id === swap.rosterSlotId
+              ? {
+                  ...s,
+                  prId: swap.replacementPrId!,
+                  prName: replacement.name,
+                  status:
+                    s.status === "on-duty" || s.status === "en-route" ? ("scheduled" as const) : s.status,
+                  checkedInAt: undefined,
+                  floorDrinks: 0,
+                  floorTips: 0,
+                }
+              : s,
+          );
+          if (swap.targetRosterSlotId) {
+            agencyRoster = agencyRoster.map((s) =>
+              s.id === swap.targetRosterSlotId
+                ? {
+                    ...s,
+                    prId: swap.requestingPrId,
+                    prName: swap.requestingPrName,
+                    status: "outlet-pending" as const,
+                    agencyAssignment: outletPendingMeta,
+                  }
+                : s,
+            );
+          } else {
+            agencyRoster = ensureRosterSlot(
+              agencyRoster,
+              {
+                prId: swap.requestingPrId,
+                prName: requestingPr?.name ?? swap.requestingPrName,
+                outlet: targetOutlet,
+                dateIso: targetDateIso,
+                shift: targetShift,
+              },
+              "outlet-pending",
+              { agencyAssignment: outletPendingMeta },
+            );
+          }
+          const shiftsAfterSource = cur.shifts.map((sh) => {
+            if (shiftDateIso(sh.date) !== swap.dateIso || !outletMatches(sh.outletName, swap.outlet)) {
+              return sh;
+            }
+            if (!sh.prs.includes(swap.requestingPrId)) return sh;
+            return {
+              ...sh,
+              prs: sh.prs.map((id) => (id === swap.requestingPrId ? swap.replacementPrId! : id)),
+            };
+          });
+          return {
+            ...replacementSession,
+            ...requestingSession,
+            prSwapRequests: cur.prSwapRequests.map((s) => {
+              if (s.id === swapId) return { ...s, status: "approved" as const };
+              if (
+                s.rosterSlotId === swap.rosterSlotId &&
+                s.requestingPrId === swap.requestingPrId &&
+                s.id !== swapId &&
+                (s.status === "pending_agency" || s.status === "pending_replacement")
+              ) {
+                return { ...s, status: "declined" as const };
+              }
+              return s;
+            }),
+            agencyRoster,
+            shifts: addPrToOutletShift(shiftsAfterSource, targetOutlet, swap.requestingPrId),
+          };
+        });
+        get().toast(
+          `Swap approved — ${targetOutlet} awaiting outlet confirmation. ${replacement.name} covers ${swap.outlet}.`,
+          "success",
+        );
+        get().pushNotify({
+          type: "swap_update",
+          prId: swap.requestingPrId,
+          prName: swap.requestingPrName,
+          outlet: targetOutlet,
           status: "approved",
+          notifyAgency: true,
+        });
+        get().pushNotify({
+          type: "shift_assigned",
+          prId: swap.replacementPrId,
+          prName: replacement.name,
+          outlet: swap.outlet,
+        });
+        get().pushNotify({
+          type: "shift_assigned",
+          prId: swap.requestingPrId,
+          prName: swap.requestingPrName,
+          outlet: targetOutlet,
+        });
+      },
+      rejectSwapReplacement: (swapId, reason) => {
+        const trimmed = reason.trim();
+        if (!trimmed) {
+          get().toast("Please give a reason for declining", "warn");
+          return;
+        }
+        const st = get();
+        const swap = st.prSwapRequests.find((s) => s.id === swapId);
+        if (!swap || swap.status !== "pending_replacement" || !swap.replacementPrId) return;
+        const prId = getPrRosterId(st.prSubRole);
+        if (swap.replacementPrId !== prId) {
+          get().toast("This swap offer is not assigned to you", "warn");
+          return;
+        }
+        const replacement = st.agencyPRs.find((p) => p.id === swap.replacementPrId);
+        const stamp = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        set((cur) => ({
+          prSwapRequests: cur.prSwapRequests.map((s) =>
+            s.id === swapId
+              ? {
+                  ...s,
+                  status: "pending_agency" as const,
+                  replacementPrId: undefined,
+                  replacementPrName: undefined,
+                  replacementOfferedAt: undefined,
+                  replacementDeclineReason: trimmed,
+                  replacementDeclinedAt: stamp,
+                }
+              : s,
+          ),
+          ...(swap.requestingPrId === TIED_DEMO_ROSTER_PR_ID
+            ? patchPrSessionForRole(
+                cur,
+                "pr_tied",
+                defaultPrShiftSessionForRole("pr_tied", {
+                  agencyRoster: cur.agencyRoster,
+                  prSwapRequests: cur.prSwapRequests,
+                }),
+              )
+            : {}),
+        }));
+        get().toast("Declined — agency will find another replacement", "info");
+        get().pushNotify({
+          type: "swap_update",
+          prId: swap.replacementPrId,
+          prName: replacement?.name ?? "PR",
+          outlet: swap.outlet,
+          status: "replacement_declined",
+          requestingPrName: swap.requestingPrName,
+          reason: trimmed,
+          notifyPr: false,
+          notifyAgency: true,
         });
       },
       declinePrSwapRequest: (swapId) => {
@@ -2021,7 +2480,8 @@ export const useStore = create<StoreState>()(
         if (swap) {
           get().pushNotify({
             type: "swap_update",
-            prName: swap.replacementPrName,
+            prId: swap.requestingPrId,
+            prName: swap.requestingPrName,
             outlet: swap.outlet,
             status: "declined",
           });
@@ -2610,6 +3070,14 @@ export const useStore = create<StoreState>()(
                   status: accept ? ("accepted" as const) : ("declined" as const),
                 }
               : marketplaceApp;
+          const agencyPr = cur.agencyPRs.find((p) => p.id === app.prId);
+          const rosterSeed = {
+            prId: app.prId,
+            prName: agencyPr?.name ?? app.prName,
+            outlet: shift.outletName,
+            dateIso: shiftDateIso(shift.date),
+            shift: shift.shift,
+          };
           return {
             shiftApplicants: cur.shiftApplicants.map((a) =>
               a.id === applicantId ? { ...a, status: accept ? "accepted" : "declined" } : a,
@@ -2625,8 +3093,15 @@ export const useStore = create<StoreState>()(
                     : sh,
                 )
               : cur.shifts,
+            agencyRoster: accept ? ensureRosterSlot(cur.agencyRoster, rosterSeed, "scheduled") : cur.agencyRoster,
             prMarketplaceApplication: syncMarketplace,
-            ...(accept && isFreelancerApplicant ? { shiftAccepted: true, pendingApproval: false } : {}),
+            ...(accept && isFreelancerApplicant
+              ? patchFreelancerPrSession(cur, {
+                  shiftAccepted: true,
+                  pendingApproval: false,
+                  acceptedShiftIndex: shiftIndexForOutlet(shift.outletName),
+                })
+              : {}),
           };
         });
         get().toast(accept ? `${app.prName} added to shift` : `Declined ${app.prName}`, accept ? "success" : "info");
@@ -2648,6 +3123,61 @@ export const useStore = create<StoreState>()(
         get().toast("Card updated for subscription billing", "success");
       },
       clearPostSealRatePrompt: () => set({ postSealRatePrompt: null }),
+      syncLivePrCheckInToRoster: () => {
+        const st = get();
+        const prId = getPrRosterId(st.prSubRole);
+        const idx = st.acceptedShiftIndex ?? 0;
+        const offer = PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
+        const outlet = st.prActiveShift?.outlet ?? offer.outlet;
+        const session = st.prActiveShift;
+
+        if (st.checkedIn && session) {
+          const pr = st.agencyPRs.find((p) => p.id === prId);
+          const checkInTime =
+            session.timeIn.match(/\d{1,2}:\d{2}/)?.[0] ??
+            new Date().toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
+          const next = rosterCheckIn(st.agencyRoster, prId, session.outlet, checkInTime, {
+            prName: pr?.name ?? getPrProfile(st.prSubRole).name,
+            dateIso: DEFAULT_ROSTER_DATE_ISO,
+            shift: session.shiftTime,
+          });
+          const match = (roster: typeof next) =>
+            roster.find(
+              (s) =>
+                s.prId === prId &&
+                s.dateIso === DEFAULT_ROSTER_DATE_ISO &&
+                outletMatches(s.outlet, session.outlet),
+            );
+          const before = match(st.agencyRoster);
+          const after = match(next);
+          if (after?.status !== before?.status || after?.checkedInAt !== before?.checkedInAt) {
+            set({ agencyRoster: next });
+          }
+          return;
+        }
+
+        let changed = false;
+        const next = st.agencyRoster.map((s) => {
+          if (
+            s.prId === prId &&
+            s.dateIso === DEFAULT_ROSTER_DATE_ISO &&
+            outletMatches(s.outlet, outlet) &&
+            s.status === "on-duty" &&
+            !st.checkedIn
+          ) {
+            changed = true;
+            return {
+              ...s,
+              status: "scheduled" as const,
+              checkedInAt: undefined,
+              floorDrinks: 0,
+              floorTips: 0,
+            };
+          }
+          return s;
+        });
+        if (changed) set({ agencyRoster: next });
+      },
       togglePrOnShift: (shiftId, prId) =>
         set((st) => ({
           shifts: st.shifts.map((sh) => {
@@ -2881,9 +3411,24 @@ export const useStore = create<StoreState>()(
     {
       name: "innocenz-store",
       onRehydrateStorage: () => (state) => {
-        if (state?.prSubRole) writePersistedPrSubRole(state.prSubRole);
+        if (!state?.prSubRole) return;
+        writePersistedPrSubRole(state.prSubRole);
+        const role = state.prSubRole;
+        const cached = state.prSessionByRole?.[role];
+        const session =
+          cached ??
+          defaultPrShiftSessionForRole(role, {
+            agencyRoster: state.agencyRoster ?? [],
+            prSwapRequests: state.prSwapRequests ?? [],
+          });
+        Object.assign(state, applyPrShiftSession(session));
       },
-      partialize: (s) => ({
+      partialize: (s) => {
+        const role = s.prSubRole;
+        const prSessionByRole = role
+          ? { ...s.prSessionByRole, [role]: extractPrShiftSession(s) }
+          : s.prSessionByRole;
+        return {
         role: s.role,
         prSubRole: s.prSubRole,
         outletSubRole: s.outletSubRole,
@@ -2899,6 +3444,7 @@ export const useStore = create<StoreState>()(
         ratings: s.ratings,
         pendingPRs: s.pendingPRs,
         pendingFreelancerPayrolls: s.pendingFreelancerPayrolls,
+        prSessionByRole,
         shiftAccepted: s.shiftAccepted,
         pendingApproval: s.pendingApproval,
         acceptedShiftIndex: s.acceptedShiftIndex,
@@ -2948,7 +3494,8 @@ export const useStore = create<StoreState>()(
         shiftApplicants: s.shiftApplicants,
         paymentCardLast4: s.paymentCardLast4,
         postSealRatePrompt: s.postSealRatePrompt,
-      }),
+        };
+      },
       merge: (persisted, current) => {
         const p = persisted as Partial<StoreState> | undefined;
         const seedById = Object.fromEntries(SEED_PR_PVS.map((s) => [s.id, s]));
@@ -3000,7 +3547,7 @@ export const useStore = create<StoreState>()(
             return saved ? { ...seed, ...saved } : seed;
           }),
         ].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt));
-        return {
+        const merged = {
           ...current,
           ...p,
           prPaymentVouchers: mergedPvs,
@@ -3023,7 +3570,11 @@ export const useStore = create<StoreState>()(
           prMarketplaceApplication: p?.prMarketplaceApplication ?? current.prMarketplaceApplication,
           prUpcomingShifts: p?.prUpcomingShifts?.length ? p.prUpcomingShifts : current.prUpcomingShifts,
           prSelfLogs: p?.prSelfLogs ?? current.prSelfLogs,
-          prSwapRequests: p?.prSwapRequests ?? current.prSwapRequests,
+          prSwapRequests: mergePrSwapRequests(
+            p?.prSwapRequests,
+            current.prSwapRequests,
+            mergeAgencyRoster(p?.agencyRoster, current.agencyRoster),
+          ),
           prAgencyTiedAt: p?.prAgencyTiedAt ?? current.prAgencyTiedAt,
           prFreelancerPayrollLinks: p?.prFreelancerPayrollLinks ?? current.prFreelancerPayrollLinks,
           prPendingRatings: p?.prPendingRatings?.length ? p.prPendingRatings : current.prPendingRatings,
@@ -3082,7 +3633,20 @@ export const useStore = create<StoreState>()(
           shiftApplicants: p?.shiftApplicants ?? current.shiftApplicants ?? [],
           paymentCardLast4: p?.paymentCardLast4 ?? current.paymentCardLast4 ?? "4242",
           postSealRatePrompt: p?.postSealRatePrompt ?? null,
+          prSessionByRole: p?.prSessionByRole ?? current.prSessionByRole ?? {},
         };
+        if (merged.prSubRole) {
+          const role = merged.prSubRole;
+          const cached = merged.prSessionByRole?.[role];
+          const session =
+            cached ??
+            defaultPrShiftSessionForRole(role, {
+              agencyRoster: merged.agencyRoster ?? [],
+              prSwapRequests: merged.prSwapRequests ?? [],
+            });
+          Object.assign(merged, applyPrShiftSession(session));
+        }
+        return merged;
       },
     }
   )

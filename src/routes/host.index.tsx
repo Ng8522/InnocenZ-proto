@@ -7,15 +7,21 @@ import { PrOfferRow, PrOfferRowActions, PrStatusPill } from "@/components/pr/PrO
 import { PrSection } from "@/components/pr/PrSection";
 import { useStore } from "@/lib/store";
 import { PR_SHIFT_OFFERS, SHIFT_TODAY, fmtDFriendly, fmtDShort, getPrProfile, getPrRosterId } from "@/lib/pr-demo";
+import { findAgencyRosterTonight, shiftIndexForOutlet } from "@/lib/pr-session";
+import { DEFAULT_ROSTER_DATE_ISO, isDemoDateOnOrAfter, outletPendingShiftsForPr } from "@/lib/roster-availability";
 import {
   PR_AGENCY_TIED_OFFERS,
   PR_MARKETPLACE_LISTINGS,
+  pendingSwapOffersForPr,
+  swapBlocksRequestingPrShift,
+  swapTargetOptionsForPr,
   tiedOfferToShiftIndex,
   type AgencyTiedOffer,
   type MarketplaceListing,
 } from "@/lib/pr-features";
 import { ArrowLeftRight, ExternalLink, Filter, MapPin } from "lucide-react";
 import { formatRM } from "@/components/iz/ui";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/host/")({
   component: HostShifts,
@@ -37,6 +43,8 @@ function HostShifts() {
   const applyFreelancerListing = useStore((s) => s.applyFreelancerListing);
   const prFreelancerLowRatingStrikes = useStore((s) => s.prFreelancerLowRatingStrikes);
   const requestPrSwap = useStore((s) => s.requestPrSwap);
+  const acceptSwapReplacement = useStore((s) => s.acceptSwapReplacement);
+  const rejectSwapReplacement = useStore((s) => s.rejectSwapReplacement);
   const agencyRoster = useStore((s) => s.agencyRoster);
   const prDeclinedOfferIds = useStore((s) => s.prDeclinedOfferIds);
   const prMarketplaceApplication = useStore((s) => s.prMarketplaceApplication);
@@ -45,6 +53,7 @@ function HostShifts() {
   const approveOutletSwapByPr = useStore((s) => s.approveOutletSwapByPr);
   const declineOutletSwapByPr = useStore((s) => s.declineOutletSwapByPr);
   const approveAgencyAssignmentByPr = useStore((s) => s.approveAgencyAssignmentByPr);
+  const confirmOutletRosterSlot = useStore((s) => s.confirmOutletRosterSlot);
   const declineAgencyAssignmentByPr = useStore((s) => s.declineAgencyAssignmentByPr);
   const prDisplayName = useStore((s) => s.prDisplayName);
   const prPayrollAgencyId = useStore((s) => s.prPayrollAgencyId);
@@ -53,22 +62,89 @@ function HostShifts() {
   const [confirmTiedId, setConfirmTiedId] = useState<string | null>(null);
   const [confirmMktId, setConfirmMktId] = useState<string | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
-  const [swapReplacement, setSwapReplacement] = useState("");
+  const [swapTargetId, setSwapTargetId] = useState<string | null>(null);
   const [swapReason, setSwapReason] = useState("");
+  const [swapRejectId, setSwapRejectId] = useState<string | null>(null);
+  const [swapRejectReason, setSwapRejectReason] = useState("");
   const [mktFilters, setMktFilters] = useState<MktFilters>(EMPTY_MKT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const profile = getPrProfile(prSubRole);
   const tied = prSubRole !== "pr_free";
-  const todayLine = fmtDFriendly(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2]);
-  const activeShift =
-    shiftAccepted && acceptedShiftIndex != null ? PR_SHIFT_OFFERS[acceptedShiftIndex] ?? PR_SHIFT_OFFERS[0] : null;
-  const firstName = (prDisplayName ?? profile.first).split(" ")[0];
   const myRosterId = getPrRosterId(prSubRole);
+  const todayLine = fmtDFriendly(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2]);
+  const agencyTonight = useMemo(
+    () => (tied ? findAgencyRosterTonight(agencyRoster, myRosterId) : undefined),
+    [tied, agencyRoster, myRosterId],
+  );
+  const blockingSwap = useMemo(
+    () => swapBlocksRequestingPrShift(prSwapRequests, myRosterId, agencyTonight?.id, DEFAULT_ROSTER_DATE_ISO),
+    [prSwapRequests, myRosterId, agencyTonight?.id],
+  );
+  const swapOffers = useMemo(
+    () => pendingSwapOffersForPr(prSwapRequests, myRosterId),
+    [prSwapRequests, myRosterId],
+  );
+  const mySwapRequests = useMemo(
+    () => prSwapRequests.filter((s) => s.requestingPrId === myRosterId),
+    [prSwapRequests, myRosterId],
+  );
+  const rosterBooked =
+    !!agencyTonight && agencyTonight.status !== "assignment-pending";
+  const effectiveShiftAccepted = (shiftAccepted || rosterBooked) && !blockingSwap;
+  const activeShift = useMemo(() => {
+    if (!effectiveShiftAccepted) return null;
+    if (acceptedShiftIndex != null) {
+      return PR_SHIFT_OFFERS[acceptedShiftIndex] ?? PR_SHIFT_OFFERS[0];
+    }
+    if (agencyTonight) {
+      return PR_SHIFT_OFFERS[shiftIndexForOutlet(agencyTonight.outlet)] ?? PR_SHIFT_OFFERS[0];
+    }
+    return null;
+  }, [effectiveShiftAccepted, acceptedShiftIndex, agencyTonight]);
+  const firstName = (prDisplayName ?? profile.first).split(" ")[0];
 
-  const pendingOutletSwaps = agencyRoster.filter((s) => s.prId === myRosterId && s.outletSwap?.status === "pending_pr");
-  const pendingAgencyAssignments = agencyRoster.filter((s) => s.prId === myRosterId && s.status === "assignment-pending");
-  const inboxCount = pendingAgencyAssignments.length + pendingOutletSwaps.length;
+  const pendingOutletSwaps = agencyRoster.filter(
+    (s) =>
+      s.prId === myRosterId &&
+      s.outletSwap?.status === "pending_pr" &&
+      isDemoDateOnOrAfter(s.dateIso),
+  );
+  const pendingAgencyAssignments = agencyRoster.filter(
+    (s) => s.prId === myRosterId && s.status === "assignment-pending" && isDemoDateOnOrAfter(s.dateIso),
+  );
+  const outletPendingShifts = useMemo(
+    () => outletPendingShiftsForPr(agencyRoster, myRosterId),
+    [agencyRoster, myRosterId],
+  );
+  const swapTargets = useMemo(
+    () =>
+      swapTargetOptionsForPr(
+        agencyRoster,
+        myRosterId,
+        agencyTonight,
+        PR_AGENCY_TIED_OFFERS,
+        prDeclinedOfferIds,
+      ),
+    [agencyRoster, myRosterId, agencyTonight, prDeclinedOfferIds],
+  );
+  const hasPendingSwapOnSource =
+    !!agencyTonight &&
+    prSwapRequests.some(
+      (s) =>
+        s.requestingPrId === myRosterId &&
+        s.rosterSlotId === agencyTonight.id &&
+        (s.status === "pending_agency" || s.status === "pending_replacement"),
+    );
+  const canRequestSwap =
+    tied &&
+    !checkedIn &&
+    !blockingSwap &&
+    !!agencyTonight &&
+    !hasPendingSwapOnSource &&
+    swapTargets.length > 0;
+  const inboxCount =
+    pendingAgencyAssignments.length + pendingOutletSwaps.length + swapOffers.length;
 
   const tiedOffers = PR_AGENCY_TIED_OFFERS.filter((o) => !prDeclinedOfferIds.includes(o.id));
   const confirmTied = confirmTiedId ? tiedOffers.find((o) => o.id === confirmTiedId) : null;
@@ -98,17 +174,36 @@ function HostShifts() {
   const mktRates = [...new Set(PR_MARKETPLACE_LISTINGS.map((l) => l.rate))].sort((a, b) => a - b);
 
   const offerCount = tied ? tiedOffers.length : filteredMarketplace.length;
-  const statusLabel = shiftAccepted ? (checkedIn ? "On duty" : "Confirmed") : pendingApproval ? "Pending" : "Browsing";
+  const statusLabel = blockingSwap?.status === "pending_replacement"
+    ? "Swap pending"
+    : outletPendingShifts.length > 0
+      ? "Outlet pending"
+      : effectiveShiftAccepted
+      ? checkedIn
+        ? "On duty"
+        : "Confirmed"
+      : pendingApproval
+        ? "Pending"
+        : "Browsing";
 
   const submitSwap = () => {
-    if (!swapReplacement.trim()) return;
-    requestPrSwap(swapReplacement, swapReason);
+    if (!swapTargetId) return;
+    requestPrSwap(swapTargetId, swapReason);
     setSwapOpen(false);
-    setSwapReplacement("");
+    setSwapTargetId(null);
     setSwapReason("");
   };
 
-  const hideOfferActions = shiftAccepted || pendingApproval || prMarketplaceApplication?.status === "pending";
+  const openSwapSheet = () => {
+    setSwapTargetId(swapTargets[0]?.id ?? null);
+    setSwapReason("");
+    setSwapOpen(true);
+  };
+
+  const hideOfferActions =
+    effectiveShiftAccepted ||
+    pendingApproval ||
+    (!tied && prMarketplaceApplication?.status === "pending");
 
   return (
     <div className="iz-screen">
@@ -143,7 +238,7 @@ function HostShifts() {
         <p className="iz-pr-note mt-3">Link payroll on Profile before PVs unlock.</p>
       )}
 
-      {!shiftAccepted && !pendingApproval && prMarketplaceApplication?.status !== "pending" && (
+      {!effectiveShiftAccepted && !pendingApproval && (!tied || !rosterBooked) && prMarketplaceApplication?.status !== "pending" && (
         <div className="iz-pr-note mt-3 flex flex-wrap items-center justify-between gap-2">
           <span className="iz-tiny iz-muted">Skip to on-duty flow</span>
           <button
@@ -159,7 +254,42 @@ function HostShifts() {
         </div>
       )}
 
-      {shiftAccepted && activeShift && (
+      {blockingSwap?.status === "pending_replacement" && (
+        <div className="iz-pr-note mt-4 border-[rgba(244,183,64,.35)]">
+          <span className="text-[var(--iz-amber)]">
+            Swap in progress — awaiting {blockingSwap.replacementPrName} to confirm coverage for {blockingSwap.outlet}
+          </span>
+        </div>
+      )}
+
+      {outletPendingShifts.length > 0 && (
+        <PrSection title="Awaiting outlet" hint="Swap approved — outlet must confirm" collapsible defaultOpen>
+          <div className="iz-pr-list">
+            {outletPendingShifts.map((slot) => (
+              <div key={slot.id} className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
+                <PrOfferRow
+                  title={slot.outlet}
+                  subtitle={`${slot.date} · ${slot.shift}`}
+                  badge={<PrStatusPill variant="amber">Outlet pending</PrStatusPill>}
+                />
+                <p className="iz-tiny iz-muted mt-2 px-1">
+                  {slot.agencyAssignment?.agencyNote ??
+                    "Agency approved your swap — the outlet reviews before you can check in."}
+                </p>
+                <button
+                  type="button"
+                  className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-full"
+                  onClick={() => confirmOutletRosterSlot(slot.id)}
+                >
+                  Simulate outlet confirm
+                </button>
+              </div>
+            ))}
+          </div>
+        </PrSection>
+      )}
+
+      {effectiveShiftAccepted && activeShift && (
         <div className="iz-pr-hero mt-4">
           <p className="iz-tiny iz-muted2 uppercase tracking-wide">{checkedIn ? "On duty" : "Tonight"}</p>
           <p className="font-sora mt-1 text-[16px] font-extrabold">{activeShift.outlet}</p>
@@ -171,15 +301,15 @@ function HostShifts() {
             <MapPin className="h-3.5 w-3.5" />
             {checkedIn ? "Attendance" : "Check in"}
           </Link>
-          {tied && !checkedIn && (
-            <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm mt-2 w-full" onClick={() => setSwapOpen(true)}>
+          {canRequestSwap && (
+            <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm mt-2 w-full" onClick={openSwapSheet}>
               <ArrowLeftRight className="h-3.5 w-3.5" /> Request swap
             </button>
           )}
         </div>
       )}
 
-      {(pendingApproval || prMarketplaceApplication?.status === "pending") && (
+      {(pendingApproval || (!tied && prMarketplaceApplication?.status === "pending")) && (
         <div className="iz-pr-note mt-4 flex flex-wrap items-center justify-between gap-2 border-[rgba(244,183,64,.35)]">
           <span className="text-[var(--iz-amber)]">
             {pendingApproval
@@ -202,6 +332,25 @@ function HostShifts() {
         <p className="iz-pr-note mt-3 border-[rgba(255,107,107,.35)] text-[var(--iz-red)]">
           Marketplace suspended — 3 ratings below 3.0★. See Profile for details.
         </p>
+      )}
+
+      {swapOffers.length > 0 && !tied && (
+        <PrSection title="Coverage offers" hint={`${swapOffers.length} need your response`} collapsible defaultOpen>
+          <div className="iz-pr-list">
+            {swapOffers.map((offer) => (
+              <InboxCard
+                key={offer.id}
+                title={offer.outlet}
+                subtitle={`Cover for ${offer.requestingPrName} · ${offer.date} · ${offer.shift}`}
+                onApprove={() => acceptSwapReplacement(offer.id)}
+                onReject={() => {
+                  setSwapRejectId(offer.id);
+                  setSwapRejectReason("");
+                }}
+              />
+            ))}
+          </div>
+        </PrSection>
       )}
 
       {tied && inboxCount > 0 && (
@@ -244,15 +393,23 @@ function HostShifts() {
         </PrSection>
       )}
 
-      {prSwapRequests.length > 0 && tied && (
+      {mySwapRequests.length > 0 && tied && (
         <PrSection title="Swap requests" collapsible defaultOpen={false}>
           <div className="iz-pr-list">
-            {prSwapRequests.slice(0, 3).map((s) => (
+            {mySwapRequests.slice(0, 3).map((s) => (
               <PrOfferRow
                 key={s.id}
                 title={s.outlet}
-                subtitle={`${s.date} · Replacement: ${s.replacementPrName}`}
-                badge={<PrStatusPill>{s.status.replace("_", " ")}</PrStatusPill>}
+                subtitle={
+                  s.status === "approved" && s.targetOutlet
+                    ? `${s.outlet} → ${s.targetOutlet} · awaiting outlet approval`
+                    : s.status === "pending_replacement" && s.replacementPrName
+                    ? `${s.outlet} → ${s.targetOutlet} · awaiting ${s.replacementPrName}`
+                    : s.targetOutlet
+                      ? `${s.outlet} → ${s.targetOutlet} · ${s.status.replaceAll("_", " ")}`
+                      : `${s.date} · ${s.shift} · ${s.status.replaceAll("_", " ")}`
+                }
+                badge={<PrStatusPill>{s.status.replaceAll("_", " ")}</PrStatusPill>}
               />
             ))}
           </div>
@@ -391,12 +548,82 @@ function HostShifts() {
         </button>
       </IzSheet>
 
+      <IzSheet
+        open={swapRejectId !== null}
+        onClose={() => {
+          setSwapRejectId(null);
+          setSwapRejectReason("");
+        }}
+      >
+        <div className="iz-cardttl">Decline coverage</div>
+        <p className="iz-tiny iz-muted mb-3">Tell the agency why you cannot take this shift — they will find someone else.</p>
+        <textarea
+          className="iz-pv-dispute-input mb-3"
+          rows={3}
+          placeholder="Reason (required)"
+          value={swapRejectReason}
+          onChange={(e) => setSwapRejectReason(e.target.value)}
+        />
+        <button
+          type="button"
+          className="iz-btn iz-btn-primary w-full"
+          disabled={!swapRejectReason.trim() || !swapRejectId}
+          onClick={() => {
+            if (!swapRejectId) return;
+            rejectSwapReplacement(swapRejectId, swapRejectReason);
+            setSwapRejectId(null);
+            setSwapRejectReason("");
+          }}
+        >
+          Submit decline
+        </button>
+      </IzSheet>
+
       <IzSheet open={swapOpen} onClose={() => setSwapOpen(false)}>
         <div className="iz-cardttl">Request swap</div>
-        <p className="iz-tiny iz-muted mb-3">Name a replacement PR for agency approval.</p>
-        <input className="iz-field-input mb-3 w-full" placeholder="Replacement name" value={swapReplacement} onChange={(e) => setSwapReplacement(e.target.value)} />
+        {agencyTonight && (
+          <p className="iz-tiny iz-muted mb-2">
+            Leaving{" "}
+            <strong className="text-[var(--iz-txt)]">
+              {agencyTonight.outlet}
+            </strong>{" "}
+            · {agencyTonight.date} · {agencyTonight.shift}
+          </p>
+        )}
+        <p className="iz-tiny iz-muted mb-3">Pick a different shift to move to. Atlas will approve and assign a replacement for your current slot.</p>
+        {swapTargets.length === 0 ? (
+          <p className="iz-tiny iz-muted rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
+            No other shifts available to swap into right now.
+          </p>
+        ) : (
+          <div className="mb-3 space-y-2">
+            {swapTargets.map((target) => {
+              const selected = swapTargetId === target.id;
+              return (
+                <button
+                  key={target.id}
+                  type="button"
+                  onClick={() => setSwapTargetId(target.id)}
+                  className={cn(
+                    "w-full rounded-xl border px-3 py-2.5 text-left transition-colors",
+                    selected
+                      ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.1)]"
+                      : "border-[var(--iz-line)] bg-white/[0.02] hover:bg-white/[0.04]",
+                  )}
+                >
+                  <p className="font-sora text-sm font-bold">{target.outlet}</p>
+                  <p className="iz-tiny iz-muted mt-0.5">
+                    {target.date} · {target.shift}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <textarea className="iz-pv-dispute-input mb-3" rows={2} placeholder="Reason (optional)" value={swapReason} onChange={(e) => setSwapReason(e.target.value)} />
-        <button type="button" className="iz-btn iz-btn-primary" onClick={submitSwap}>Send request</button>
+        <button type="button" className="iz-btn iz-btn-primary w-full" disabled={!swapTargetId} onClick={submitSwap}>
+          Send request
+        </button>
       </IzSheet>
     </div>
   );

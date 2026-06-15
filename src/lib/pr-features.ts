@@ -1,7 +1,10 @@
 /** PR spec features beyond base pr-demo — marketplace, notifications, swaps, ratings */
 
 import type { PrShiftOffer } from "@/lib/pr-demo";
-import { PR_SHIFT_OFFERS, SHIFT_TODAY } from "@/lib/pr-demo";
+import { PR_SHIFT_OFFERS, SHIFT_TODAY, fmtDateLabelFromIso } from "@/lib/pr-demo";
+import { SEED_AGENCY_ROSTER, type AgencyRosterSlot } from "@/lib/agency-demo";
+import { DEFAULT_ROSTER_DATE_ISO, isDemoDateOnOrAfter } from "@/lib/roster-availability";
+import { outletMatches } from "@/lib/portal-sync";
 
 export interface TierSlot {
   tier: string;
@@ -71,27 +74,158 @@ export interface PrSelfLog {
   shiftSessionId?: string;
 }
 
+export type PrSwapRequestStatus =
+  | "pending_agency"
+  | "pending_replacement"
+  | "approved"
+  | "declined";
+
 export interface PrSwapRequest {
   id: string;
+  /** PR's current shift being vacated */
+  rosterSlotId: string;
+  requestingPrId: string;
+  requestingPrName: string;
   outlet: string;
   date: string;
-  replacementPrName: string;
+  dateIso: string;
+  shift: string;
+  /** Shift the PR wants to move to — optional for swaps saved before target field existed */
+  targetOutlet?: string;
+  targetDate?: string;
+  targetDateIso?: string;
+  targetShift?: string;
+  targetRosterSlotId?: string;
+  targetOfferId?: string;
   reason: string;
-  status: "pending_agency" | "approved" | "declined";
+  status: PrSwapRequestStatus;
   requestedAt: string;
+  /** Set when agency picks a replacement — awaiting their accept/decline */
+  replacementPrId?: string;
+  replacementPrName?: string;
+  replacementOfferedAt?: string;
+  /** Set when replacement declines — agency picks another PR */
+  replacementDeclineReason?: string;
+  replacementDeclinedAt?: string;
 }
 
-export const SEED_PR_SWAP_REQUESTS: PrSwapRequest[] = [
-  {
-    id: "swap-seed-1",
-    outlet: "Velvet 23",
-    date: "4 Jun 2026",
-    replacementPrName: "Chen Wei",
-    reason: "Family emergency — replacement confirmed available",
-    status: "pending_agency",
-    requestedAt: "4 Jun 2026 · 18:20",
-  },
-];
+/** Swap blocks the requesting PR from treating the shift as active (awaiting replacement or done). */
+export function swapBlocksRequestingPrShift(
+  swaps: PrSwapRequest[],
+  prId: string,
+  rosterSlotId?: string,
+  dateIso: string = DEFAULT_ROSTER_DATE_ISO,
+): PrSwapRequest | undefined {
+  return swaps.find((s) => {
+    if (s.requestingPrId !== prId) return false;
+    if (s.status !== "pending_replacement") return false;
+    if (rosterSlotId && s.rosterSlotId === rosterSlotId) return true;
+    if (s.dateIso === dateIso) return true;
+    return false;
+  });
+}
+
+/** Removed from demo — drop on hydrate / reset so agency inbox stays clean */
+export const RETIRED_DEMO_SWAP_IDS = new Set(["swap-seed-1"]);
+
+/** Drop resolved / stale swap inbox rows after hydrate. */
+export function mergePrSwapRequests(
+  persisted: PrSwapRequest[] | undefined,
+  seed: PrSwapRequest[] = SEED_PR_SWAP_REQUESTS,
+  agencyRoster: AgencyRosterSlot[] = SEED_AGENCY_ROSTER,
+): PrSwapRequest[] {
+  const withoutRetired = (list: PrSwapRequest[]) =>
+    list.filter((s) => !RETIRED_DEMO_SWAP_IDS.has(s.id));
+  const persistedClean = withoutRetired(persisted ?? []);
+  const seedClean = withoutRetired(seed);
+  const base = persistedClean.length ? persistedClean : seedClean;
+  return base.filter((swap) => {
+    if (swap.status !== "pending_agency" && swap.status !== "pending_replacement") return true;
+    const slot = agencyRoster.find((s) => s.id === swap.rosterSlotId);
+    if (!slot) return false;
+    if (slot.prId !== swap.requestingPrId) return false;
+    return true;
+  });
+}
+
+export function pendingSwapOffersForPr(swaps: PrSwapRequest[], prId: string): PrSwapRequest[] {
+  return swaps.filter((s) => s.status === "pending_replacement" && s.replacementPrId === prId);
+}
+
+export interface PrSwapTargetOption {
+  id: string;
+  kind: "roster" | "offer";
+  outlet: string;
+  date: string;
+  dateIso: string;
+  shift: string;
+  rosterSlotId?: string;
+  offerId?: string;
+}
+
+/** Shifts a PR can swap into — excludes their current booked shift. */
+export function swapTargetOptionsForPr(
+  roster: AgencyRosterSlot[],
+  prId: string,
+  sourceSlot: AgencyRosterSlot | undefined,
+  tiedOffers: AgencyTiedOffer[],
+  declinedOfferIds: string[] = [],
+): PrSwapTargetOption[] {
+  if (!sourceSlot) return [];
+
+  const seen = new Set<string>();
+  const targets: PrSwapTargetOption[] = [];
+
+  const add = (option: PrSwapTargetOption) => {
+    if (
+      outletMatches(option.outlet, sourceSlot.outlet) &&
+      option.dateIso === sourceSlot.dateIso
+    ) {
+      return;
+    }
+    const key = `${option.outlet}|${option.dateIso}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    targets.push(option);
+  };
+
+  for (const slot of roster) {
+    if (slot.id === sourceSlot.id) continue;
+    if (slot.prId !== prId || slot.status !== "assignment-pending") continue;
+    if (!isDemoDateOnOrAfter(slot.dateIso)) continue;
+    add({
+      id: `roster-${slot.id}`,
+      kind: "roster",
+      outlet: slot.outlet,
+      date: slot.date,
+      dateIso: slot.dateIso,
+      shift: slot.shift,
+      rosterSlotId: slot.id,
+    });
+  }
+
+  for (const offer of tiedOffers) {
+    if (declinedOfferIds.includes(offer.id)) continue;
+    if (outletMatches(offer.outlet, sourceSlot.outlet)) continue;
+    const dateIso = `${offer.date[0]}-${String(offer.date[1]).padStart(2, "0")}-${String(offer.date[2]).padStart(2, "0")}`;
+    if (!isDemoDateOnOrAfter(dateIso)) continue;
+    add({
+      id: `offer-${offer.id}`,
+      kind: "offer",
+      outlet: offer.outlet,
+      date: fmtDateLabelFromIso(dateIso),
+      dateIso,
+      shift: offer.time,
+      offerId: offer.id,
+    });
+  }
+
+  return targets.sort(
+    (a, b) => a.dateIso.localeCompare(b.dateIso) || a.outlet.localeCompare(b.outlet),
+  );
+}
+
+export const SEED_PR_SWAP_REQUESTS: PrSwapRequest[] = [];
 
 export interface PrPendingRating {
   id: string;
@@ -150,6 +284,70 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     vip: false,
     rating: "4.7",
     briefing: "Casual smart. Agency pre-confirmed rate RM260 + comm.",
+  },
+  {
+    id: "tied-onyx",
+    agencyName: "Atlas Agency",
+    outlet: "Onyx KL",
+    event: "Thursday lounge",
+    date: [2026, 6, 4],
+    time: "21:00 — 03:00",
+    endNext: true,
+    distance: "3.4 km",
+    addr: "Jalan P. Ramlee, KL",
+    base: 240,
+    comm: 40,
+    vip: false,
+    rating: "4.6",
+    briefing: "Same-night coverage. Smart casual. English + Cantonese helpful.",
+  },
+  {
+    id: "tied-bear",
+    agencyName: "Atlas Agency",
+    outlet: "Bear Lounge",
+    event: "Lounge launch",
+    date: [2026, 6, 5],
+    time: "22:30 — 04:30",
+    endNext: true,
+    distance: "4.5 km",
+    addr: "Damansara, PJ",
+    base: 270,
+    comm: 38,
+    vip: true,
+    rating: "4.8",
+    briefing: "Launch night floor. Black dress code. High table turnover expected.",
+  },
+  {
+    id: "tied-urban",
+    agencyName: "Atlas Agency",
+    outlet: "Urban Soul",
+    event: "Friday party",
+    date: [2026, 6, 5],
+    time: "20:00 — 01:00",
+    endNext: true,
+    distance: "5.1 km",
+    addr: "Bukit Bintang, KL",
+    base: 220,
+    comm: 40,
+    vip: true,
+    rating: "4.9",
+    briefing: "Launch party energy. Heels required. Tier III+ preferred.",
+  },
+  {
+    id: "tied-mermate-sat",
+    agencyName: "Atlas Agency",
+    outlet: "Mermate",
+    event: "Saturday VIP",
+    date: [2026, 6, 6],
+    time: "21:00 — 02:00",
+    endNext: true,
+    distance: "2.8 km",
+    addr: "Bangsar, KL",
+    base: 280,
+    comm: 45,
+    vip: true,
+    rating: "4.8",
+    briefing: "VIP tables only. Mandarin preferred. Agency pre-approved rate.",
   },
 ];
 

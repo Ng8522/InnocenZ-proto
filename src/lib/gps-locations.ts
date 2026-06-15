@@ -194,7 +194,9 @@ export function buildGpsTrackingRows(
 ): GpsTrackingRow[] {
   const prById = Object.fromEntries(agencyPRs.map((p) => [p.id, p]));
   const slots = roster.filter(
-    (s) => s.dateIso === dateIso && (s.status === "on-duty" || s.status === "en-route"),
+    (s) =>
+      s.dateIso === dateIso &&
+      (s.status === "en-route" || (s.status === "on-duty" && !!s.checkedInAt)),
   );
 
   return slots.map((slot) => {

@@ -1,12 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { IzSheet } from "@/components/iz/Sheet";
 import { PrDuringShiftExtras } from "@/components/pr/PrDuringShiftExtras";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { PrStatusPill } from "@/components/pr/PrOfferRow";
 import { useStore } from "@/lib/store";
-import { SHIFT_TODAY, addDay, fmtDFriendly, fmtDShort } from "@/lib/pr-demo";
+import { outletMatches } from "@/lib/portal-sync";
+import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { SHIFT_TODAY, addDay, fmtDFriendly, fmtDShort, getPrRosterId } from "@/lib/pr-demo";
 import { Calendar, Camera, Check, ExternalLink, MapPin } from "lucide-react";
 import { formatRM } from "@/components/iz/ui";
 
@@ -23,11 +25,14 @@ function AttendancePage() {
   const drinks = useStore((s) => s.drinks);
   const tables = useStore((s) => s.tables);
   const prCheckIn = useStore((s) => s.prCheckIn);
+  const prMarkEnRoute = useStore((s) => s.prMarkEnRoute);
   const prCheckOut = useStore((s) => s.prCheckOut);
   const prActiveShift = useStore((s) => s.prActiveShift);
   const prCheckInMeta = useStore((s) => s.prCheckInMeta);
+  const agencyRoster = useStore((s) => s.agencyRoster);
   const cancelPrShift = useStore((s) => s.cancelPrShift);
   const demoPrShiftIn = useStore((s) => s.demoPrShiftIn);
+  const demoPrEnRoute = useStore((s) => s.demoPrEnRoute);
   const simulatePrNoShow = useStore((s) => s.simulatePrNoShow);
   const simulatePrLate = useStore((s) => s.simulatePrLate);
   const toast = useStore((s) => s.toast);
@@ -52,7 +57,25 @@ function AttendancePage() {
   const mapsUrl = "https://www.google.com/maps?q=3.1478,101.7005";
 
   const gpsOutOfRange = !!prCheckInMeta.gpsFallback;
-  const statusLabel = !shiftAccepted ? "No shift" : !checkedIn ? "Pre check-in" : !checkedOut ? "On duty" : "Complete";
+  const rosterSlot = useMemo(() => {
+    const prId = getPrRosterId(prSubRole);
+    return agencyRoster.find(
+      (s) =>
+        s.prId === prId &&
+        s.dateIso === DEFAULT_ROSTER_DATE_ISO &&
+        outletMatches(s.outlet, "Velvet 23"),
+    );
+  }, [agencyRoster, prSubRole]);
+  const enRoute = rosterSlot?.status === "en-route";
+  const statusLabel = !shiftAccepted
+    ? "No shift"
+    : checkedIn && !checkedOut
+      ? "On duty"
+      : checkedOut
+        ? "Complete"
+        : enRoute
+          ? "En route"
+          : "Booked";
 
   const completeCheckIn = () => {
     prCheckIn({
@@ -162,6 +185,22 @@ function AttendancePage() {
               <span className="iz-ping" style={{ left: "50%", top: "50%" }} />
               <span className="iz-tiny iz-muted absolute bottom-2 left-2.5">Geofence 50 m</span>
             </div>
+            {enRoute ? (
+              <div className="mb-3 rounded-xl border border-[rgba(139,92,246,.35)] bg-[rgba(139,92,246,.08)] px-3 py-2.5">
+                <p className="text-xs font-semibold text-[var(--iz-violet-l)]">En route to venue</p>
+                <p className="iz-tiny iz-muted mt-0.5">
+                  Outlet sees you on Live GPS. Check in when you arrive inside the geofence.
+                </p>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="iz-btn iz-btn-soft iz-btn-sm mb-3 w-full"
+                onClick={() => prMarkEnRoute()}
+              >
+                <MapPin className="h-3.5 w-3.5" /> Head to venue
+              </button>
+            )}
             <div className="iz-between mb-2">
               <span className="iz-tiny iz-muted">Distance to venue</span>
               <PrStatusPill variant={gpsOutOfRange ? "amber" : "green"}>{gpsOutOfRange ? "Out of range" : "In range"}</PrStatusPill>
@@ -207,9 +246,14 @@ function AttendancePage() {
               Simulate no-show (+30 min)
             </button>
             <HoldButton label="Check in" icon={<MapPin className="h-4 w-4" />} holding={holding} progress={progress} onPress={() => startHold(false)} />
-            <button type="button" className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-full" onClick={demoPrShiftIn}>
-              Demo shift in
-            </button>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" className="iz-btn iz-btn-soft iz-btn-sm flex-1" onClick={demoPrEnRoute}>
+                Demo: en route
+              </button>
+              <button type="button" className="iz-btn iz-btn-soft iz-btn-sm flex-1" onClick={demoPrShiftIn}>
+                Demo: check in
+              </button>
+            </div>
             <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm mt-2 w-full" onClick={() => setCancelOpen(true)}>
               Cancel shift
             </button>

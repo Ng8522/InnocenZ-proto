@@ -58,7 +58,10 @@ function FloorPage() {
         .filter((p): p is PR => !!p);
     }
     const liveIds = rosterTonight
-      .filter((s) => s.status === "on-duty" || s.status === "en-route")
+      .filter(
+        (s) =>
+          s.status === "en-route" || (s.status === "on-duty" && !!s.checkedInAt),
+      )
       .map((s) => s.prId);
     const ids = liveIds.length > 0 ? liveIds : (tonight?.prs ?? []);
     return ids
@@ -149,8 +152,12 @@ function FloorPage() {
             {onFloor.map((p) => {
               const slot = statsFor(p.id);
               const liveStatus =
-                viewMode === "live" && slot && (slot.status === "on-duty" || slot.status === "en-route")
-                  ? slot.status
+                viewMode === "live" &&
+                slot &&
+                (slot.status === "en-route" || (slot.status === "on-duty" && slot.checkedInAt))
+                  ? slot.status === "on-duty" && slot.checkedInAt
+                    ? "on-duty"
+                    : "en-route"
                   : null;
               return (
                 <div key={p.id} className="iz-outlet-floor-row">

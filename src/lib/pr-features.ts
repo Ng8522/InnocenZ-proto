@@ -108,13 +108,8 @@ export interface PrRatingRecord {
   date: string;
 }
 
-export interface SosIncident {
-  id: string;
-  at: string;
-  note: string;
-  photoDataUrl?: string;
-  locationLabel: string;
-}
+/** @deprecated Use SosIncident from @/lib/ops-notifications */
+export type { SosIncident } from "@/lib/ops-notifications";
 
 /** Agency code → id (freelancer payroll link) */
 export const PR_AGENCY_CODES: Record<string, string> = {
@@ -205,7 +200,7 @@ export const SEED_PR_NOTIFICATIONS: PrNotification[] = [
     body: "PV-2026-0512 · RM1,630 net — Finance Head pre-signed. Review & sign.",
     at: "10 May · 09:20",
     read: false,
-    href: "/host/wallet",
+    href: "/host/PaymentVoucher",
     pvId: "PV-2026-0512",
     prId: "p1",
   },

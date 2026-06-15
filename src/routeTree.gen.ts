@@ -30,6 +30,7 @@ import { Route as HostTonightRouteImport } from './routes/host.tonight'
 import { Route as HostScanRouteImport } from './routes/host.scan'
 import { Route as HostProfileRouteImport } from './routes/host.profile'
 import { Route as HostHistoryRouteImport } from './routes/host.history'
+import { Route as HostPaymentVoucherRouteImport } from './routes/host.PaymentVoucher'
 import { Route as AgencyRosterRouteImport } from './routes/agency.roster'
 import { Route as AgencyReportsRouteImport } from './routes/agency.reports'
 import { Route as AgencyPvRouteImport } from './routes/agency.pv'
@@ -144,6 +145,11 @@ const HostHistoryRoute = HostHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => HostRoute,
 } as any)
+const HostPaymentVoucherRoute = HostPaymentVoucherRouteImport.update({
+  id: '/PaymentVoucher',
+  path: '/PaymentVoucher',
+  getParentRoute: () => HostRoute,
+} as any)
 const AgencyRosterRoute = AgencyRosterRouteImport.update({
   id: '/roster',
   path: '/roster',
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
   '/agency/roster': typeof AgencyRosterRoute
+  '/host/PaymentVoucher': typeof HostPaymentVoucherRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
@@ -227,6 +234,7 @@ export interface FileRoutesByTo {
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
   '/agency/roster': typeof AgencyRosterRoute
+  '/host/PaymentVoucher': typeof HostPaymentVoucherRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
@@ -259,6 +267,7 @@ export interface FileRoutesById {
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
   '/agency/roster': typeof AgencyRosterRoute
+  '/host/PaymentVoucher': typeof HostPaymentVoucherRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
@@ -292,6 +301,7 @@ export interface FileRouteTypes {
     | '/agency/pv'
     | '/agency/reports'
     | '/agency/roster'
+    | '/host/PaymentVoucher'
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/agency/pv'
     | '/agency/reports'
     | '/agency/roster'
+    | '/host/PaymentVoucher'
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
@@ -351,6 +362,7 @@ export interface FileRouteTypes {
     | '/agency/pv'
     | '/agency/reports'
     | '/agency/roster'
+    | '/host/PaymentVoucher'
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
@@ -526,6 +538,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HostHistoryRouteImport
       parentRoute: typeof HostRoute
     }
+    '/host/PaymentVoucher': {
+      id: '/host/PaymentVoucher'
+      path: '/PaymentVoucher'
+      fullPath: '/host/PaymentVoucher'
+      preLoaderRoute: typeof HostPaymentVoucherRouteImport
+      parentRoute: typeof HostRoute
+    }
     '/agency/roster': {
       id: '/agency/roster'
       path: '/roster'
@@ -613,6 +632,7 @@ const AgencyRouteWithChildren =
   AgencyRoute._addFileChildren(AgencyRouteChildren)
 
 interface HostRouteChildren {
+  HostPaymentVoucherRoute: typeof HostPaymentVoucherRoute
   HostHistoryRoute: typeof HostHistoryRoute
   HostProfileRoute: typeof HostProfileRoute
   HostScanRoute: typeof HostScanRoute
@@ -622,6 +642,7 @@ interface HostRouteChildren {
 }
 
 const HostRouteChildren: HostRouteChildren = {
+  HostPaymentVoucherRoute: HostPaymentVoucherRoute,
   HostHistoryRoute: HostHistoryRoute,
   HostProfileRoute: HostProfileRoute,
   HostScanRoute: HostScanRoute,

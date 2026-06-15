@@ -166,6 +166,57 @@ export function getPrProfile(role: PrSubRole | null): PrProfile {
   return PR_PROFILES[role ?? "pr_tied"];
 }
 
+/** Demo freelancer PR — payroll requests appear on agency pending screen */
+export const FREELANCER_DEMO_PR_ID = "freelancer-jaya";
+
+/** Roster / swap inbox — tied PR maps to Luna demo slot */
+export const TIED_DEMO_ROSTER_PR_ID = "p1";
+
+export function getPrRosterId(prSubRole: PrSubRole | null): string {
+  return prSubRole === "pr_free" ? FREELANCER_DEMO_PR_ID : TIED_DEMO_ROSTER_PR_ID;
+}
+
+/** True when a PV / receipt / shift row belongs to the logged-in PR profile. */
+export function prProfileMatchesPayee(
+  payee: { prName?: string; prIc?: string; prId?: string },
+  profile: PrProfile,
+  rosterId?: string | null,
+): boolean {
+  if (payee.prId && rosterId && payee.prId === rosterId) return true;
+  if (payee.prIc && profile.ic && payee.prIc === profile.ic) return true;
+  if (!payee.prName) return false;
+  const label = payee.prName.trim().toLowerCase();
+  const full = profile.name.trim().toLowerCase();
+  const first = profile.first.trim().toLowerCase();
+  return label === full || label === first || label.startsWith(`${first} `) || full.startsWith(`${label} `);
+}
+
+/** PVs belonging to the logged-in PR only (freelancer vs agency-tied). */
+export function filterPvsForPrProfile(
+  vouchers: PrPaymentVoucher[],
+  profile: PrProfile,
+  role: PrSubRole | null,
+): PrPaymentVoucher[] {
+  if (!role) return [];
+  const rosterId = getPrRosterId(role);
+  return vouchers.filter((p) => prProfileMatchesPayee({ prName: p.prName, prIc: p.prIc }, profile, rosterId));
+}
+
+export function filterReceiptScansForPrProfile(
+  scans: PrReceiptScan[],
+  profile: PrProfile,
+  role: PrSubRole | null,
+  vouchers?: PrPaymentVoucher[],
+): PrReceiptScan[] {
+  const rosterId = getPrRosterId(role);
+  const myPvIds = new Set((vouchers ?? []).map((p) => p.id));
+  return scans.filter(
+    (s) =>
+      prProfileMatchesPayee({ prName: s.prName, prId: s.prId }, profile, rosterId) ||
+      Boolean(s.pvId && myPvIds.has(s.pvId)),
+  );
+}
+
 export type PrPvStatus = "PENDING_REVIEW" | "SENT" | "SIGNED" | "PAID" | "DISPUTED";
 
 export interface PrPvRow {
@@ -452,8 +503,8 @@ export const PAYROLL_CYCLE = {
 export const SEED_PR_PVS: PrPaymentVoucher[] = [
   {
     id: "PV-2026-0512",
-    prName: "Maggie Chan",
-    prIc: "000001-08-7778",
+    prName: "Jaya Nair",
+    prIc: "880214-10-5566",
     outlet: "Multi-Outlet (3)",
     cycle: "4 May \u2013 10 May 2026",
     issued: "10 May 2026",
@@ -474,8 +525,8 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
   },
   {
     id: "PV-2026-0498",
-    prName: "Maggie Chan",
-    prIc: "000001-08-7778",
+    prName: "Jaya Nair",
+    prIc: "880214-10-5566",
     outlet: "Mermate",
     paidRefs: ["27 Apr-Mermate-Sealed", "27 Apr-Mermate-Tap log"],
     cycle: "27 Apr \u2013 3 May 2026",
@@ -503,8 +554,8 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
   },
   {
     id: "PV-2026-0521",
-    prName: "Maggie Chan",
-    prIc: "000001-08-7778",
+    prName: "Jaya Nair",
+    prIc: "880214-10-5566",
     outlet: "Bear Lounge",
     prDisputeReason:
       "Commission – Drinks shows RM120 but my receipt scans (rc-seed-4) only total RM120 from 8 cocktails — outlet POS log shows 18 units. Please reconcile with Bear Lounge before payment.",
@@ -530,6 +581,69 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     receiptIds: ["rc-seed-4"],
   },
   {
+    id: "PV-2026-0535-J",
+    prName: "Jaya Nair",
+    prIc: "880214-10-5566",
+    outlet: "Urban Soul",
+    cycle: "11 May \u2013 17 May 2026",
+    issued: "17 May 2026",
+    due: "24 May 2026",
+    rows: [
+      { i: 1, date: "14 May", day: "Wed", outlet: "Urban Soul", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
+      { i: 2, date: "15 May", day: "Thu", outlet: "Urban Soul", desc: "Commission – Drinks", qty: 1, amt: 95, ref: "Tap log" },
+    ],
+    subtotal: 445,
+    deduct: 0,
+    net: 445,
+    status: "PENDING_REVIEW",
+    financeHeadName: FINANCE_HEAD_SIGNER,
+    financeHeadSignedAt: "17 May 2026 · 09:02",
+  },
+  {
+    id: "PV-2026-0548-J",
+    prName: "Jaya Nair",
+    prIc: "880214-10-5566",
+    outlet: "Mermate",
+    cycle: "18 May \u2013 24 May 2026",
+    issued: "24 May 2026",
+    due: "31 May 2026",
+    rows: [
+      { i: 1, date: "20 May", day: "Wed", outlet: "Mermate", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
+      { i: 2, date: "21 May", day: "Thu", outlet: "Mermate", desc: "Commission – Drinks", qty: 1, amt: 140, ref: "Tap log" },
+      { i: 3, date: "22 May", day: "Fri", outlet: "Mermate", desc: "Commission – Tips", qty: 1, amt: 60, ref: "Tap log" },
+    ],
+    subtotal: 550,
+    deduct: 50,
+    net: 500,
+    status: "SIGNED",
+    financeHeadName: FINANCE_HEAD_SIGNER,
+    financeHeadSignedAt: "24 May 2026 · 08:55",
+    prSignedAt: "26 May 2026 · 11:05",
+  },
+  {
+    id: "PV-2026-0472-J",
+    prName: "Jaya Nair",
+    prIc: "880214-10-5566",
+    outlet: "Velvet 23",
+    paidRefs: ["19 Apr-Velvet 23-Sealed"],
+    cycle: "13 Apr \u2013 19 Apr 2026",
+    issued: "19 Apr 2026",
+    due: "26 Apr 2026",
+    rows: [
+      { i: 1, date: "18 Apr", day: "Sat", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 360, ref: "Sealed" },
+      { i: 2, date: "18 Apr", day: "Sat", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 210, ref: "Tap log" },
+    ],
+    subtotal: 570,
+    deduct: 0,
+    net: 570,
+    status: "PAID",
+    financeHeadName: FINANCE_HEAD_SIGNER,
+    financeHeadSignedAt: "19 Apr 2026 · 09:30",
+    prSignedAt: "21 Apr 2026 · 15:40",
+    paidAt: "21 Apr 2026 · 15:40",
+    bankRef: "INZ-TRF-202604211540",
+  },
+  {
     id: "PV-2026-0611-A",
     prName: "Luna",
     prIc: "950312-14-8821",
@@ -547,6 +661,29 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     status: "SENT",
     financeHeadName: FINANCE_HEAD_SIGNER,
     financeHeadSignedAt: "10 May 2026 · 09:14",
+  },
+  {
+    id: "PV-2026-0604-L",
+    prName: "Luna",
+    prIc: "950312-14-8821",
+    outlet: "Bear Lounge",
+    prDisputeReason:
+      "Drink commission RM85 does not match my receipt scans — outlet logged 12 units but PV shows 6. Please verify with Bear Lounge.",
+    disputedAt: "8 May 2026 · 18:20",
+    cycle: "4 May \u2013 10 May 2026",
+    issued: "10 May 2026",
+    due: "17 May 2026",
+    rows: [
+      { i: 1, date: "3 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
+      { i: 2, date: "3 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Commission – Drinks", qty: 6, amt: 85, ref: "Disputed", receiptIds: ["rc-luna-2"] },
+    ],
+    subtotal: 435,
+    deduct: 0,
+    net: 435,
+    status: "DISPUTED",
+    financeHeadName: FINANCE_HEAD_SIGNER,
+    financeHeadSignedAt: "10 May 2026 · 09:14",
+    receiptIds: ["rc-luna-2"],
   },
 ];
 
@@ -723,7 +860,8 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 4, 27],
     outlet: "Mermate",
     prCode: "PR-0042",
-    prName: "Maggie",
+    prName: "Jaya",
+    prId: "freelancer-jaya",
     shiftSessionId: "shift-2026-04-27-mermate",
     items: [
       { label: "Cocktail", qty: 6, unitPrice: 45, amount: 270, category: "drinks" },
@@ -744,7 +882,8 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 4, 27],
     outlet: "Mermate",
     prCode: "PR-0042",
-    prName: "Maggie",
+    prName: "Jaya",
+    prId: "freelancer-jaya",
     shiftSessionId: "shift-2026-04-27-mermate",
     items: [{ label: "Whisky", qty: 1, unitPrice: 320, amount: 320, category: "drinks" }],
     totalLogged: 320,
@@ -762,7 +901,8 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 4, 27],
     outlet: "Mermate",
     prCode: "PR-0042",
-    prName: "Maggie",
+    prName: "Jaya",
+    prId: "freelancer-jaya",
     shiftSessionId: "shift-2026-04-27-mermate",
     items: [{ label: "Tip", qty: 1, unitPrice: 80, amount: 80, category: "tips" }],
     totalLogged: 80,
@@ -780,7 +920,8 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 5, 9],
     outlet: "Bear Lounge",
     prCode: "PR-0042",
-    prName: "Maggie",
+    prName: "Jaya",
+    prId: "freelancer-jaya",
     shiftSessionId: "shift-2026-05-09-bearlounge",
     items: [
       { label: "Cocktail", qty: 8, unitPrice: 45, amount: 360, category: "drinks" },
@@ -800,7 +941,8 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 5, 21],
     outlet: "Mermate",
     prCode: "PR-0042",
-    prName: "Maggie",
+    prName: "Jaya",
+    prId: "freelancer-jaya",
     shiftSessionId: "shift-2026-05-21-mermate",
     pvId: "PV-SHIFT-2026-0521-MERMATE",
     items: [
@@ -823,7 +965,7 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     prName: "Luna",
     prId: "p1",
     shiftSessionId: "shift-2026-06-04-velvet",
-    pvId: "PV-2026-0610-A",
+    pvId: "PV-2026-0611-A",
     items: [
       { label: "Champagne", qty: 2, unitPrice: 280, amount: 560, category: "drinks" },
       { label: "VIP Table", qty: 1, unitPrice: 400, amount: 400, category: "tables" },
@@ -1024,15 +1166,8 @@ export const PR_AGENCIES: PrAgency[] = [
 
 export const DEFAULT_TIED_AGENCY_ID = "atlas";
 
-/** Demo freelancer PR — payroll requests appear on agency pending screen */
-export const FREELANCER_DEMO_PR_ID = "freelancer-jaya";
-
-/** Roster / swap inbox — tied PR maps to Luna demo slot */
-export const TIED_DEMO_ROSTER_PR_ID = "p1";
-
-export function getPrRosterId(prSubRole: PrSubRole | null): string {
-  return prSubRole === "pr_free" ? FREELANCER_DEMO_PR_ID : TIED_DEMO_ROSTER_PR_ID;
-}
+/** Jaya Nair — freelancer demo IC (matches SEED_PR_PVS freelancer rows) */
+export const FREELANCER_DEMO_IC = PR_PROFILES.pr_free.ic;
 
 export function getPrAgencyById(id: string | null | undefined): PrAgency | undefined {
   if (!id) return undefined;

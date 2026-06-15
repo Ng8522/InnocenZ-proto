@@ -1,0 +1,76 @@
+/** Agency & outlet portal notifications (SOS, ops alerts) */
+
+export type OpsPortal = "agency" | "outlet";
+
+export type OpsNotificationKind =
+  | "sos"
+  | "shift_assigned"
+  | "shift_edit"
+  | "swap_update"
+  | "check_in"
+  | "pv_ready"
+  | "pv_signed"
+  | "pv_paid"
+  | "dispute_raised"
+  | "rating_prompt"
+  | "reconciliation_due"
+  | "report_ready";
+
+export interface SosIncident {
+  id: string;
+  at: string;
+  note: string;
+  photoDataUrl?: string;
+  locationLabel: string;
+  lat: number;
+  lng: number;
+  prId: string;
+  prName: string;
+  prIc: string;
+  prType: "freelancer" | "agency_tied";
+  outlet: string;
+  agencyName: string;
+}
+
+export interface OpsNotification {
+  id: string;
+  portal: OpsPortal;
+  kind: OpsNotificationKind;
+  title: string;
+  body: string;
+  at: string;
+  read: boolean;
+  href?: string;
+  sosId?: string;
+  pvId?: string;
+  prName?: string;
+  prType?: SosIncident["prType"];
+  outlet?: string;
+}
+
+export const DEMO_SOS_LOCATION = {
+  label: "Jalan Changkat, KL",
+  lat: 3.1478,
+  lng: 101.7005,
+} as const;
+
+export function opsNotificationsForPortal(
+  notifications: OpsNotification[],
+  portal: OpsPortal,
+  outletName?: string,
+): OpsNotification[] {
+  return notifications.filter((n) => {
+    if (n.portal !== portal) return false;
+    if (portal === "outlet" && n.outlet && outletName && n.outlet !== outletName) return false;
+    return true;
+  });
+}
+
+export function sosIncidentById(incidents: SosIncident[], id: string | undefined): SosIncident | undefined {
+  if (!id) return undefined;
+  return incidents.find((i) => i.id === id);
+}
+
+export function prTypeLabel(prType: SosIncident["prType"]): string {
+  return prType === "freelancer" ? "Freelancer" : "Agency-tied";
+}

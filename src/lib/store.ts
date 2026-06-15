@@ -24,6 +24,18 @@ import {
   getPrAgencyById,
   getPrRosterId,
 } from "@/lib/pr-demo";
+import { writePersistedPrSubRole } from "@/lib/use-pr-sub-role";
+import {
+  DEMO_SOS_LOCATION,
+  type OpsNotification,
+  type SosIncident,
+} from "@/lib/ops-notifications";
+import {
+  applyPushEvent,
+  DEFAULT_NOTIFICATION_PREFS,
+  type NotificationPrefs,
+  type PushEvent,
+} from "@/lib/push-notifications";
 import {
   type AgencyOwnerSettings,
   type AgencyRosterSlot,
@@ -271,6 +283,11 @@ interface StoreState {
   setOutletRatingStars: (n: number) => void;
 
   prNotifications: PrNotification[];
+  opsNotifications: OpsNotification[];
+  sosIncidents: SosIncident[];
+  notificationPrefs: NotificationPrefs;
+  pushNotify: (event: PushEvent) => void;
+  markOpsNotificationRead: (id: string) => void;
   prDeclinedOfferIds: string[];
   prMarketplaceApplication: {
     listingId: string;
@@ -508,6 +525,16 @@ function normalizeAgencyPrs(list: AgencyManagedPR[]): AgencyManagedPR[] {
   }));
 }
 
+function prIdForPayeeName(
+  prName: string,
+  prIc: string | undefined,
+  agencyPRs: AgencyManagedPR[],
+): string {
+  const match = agencyPRs.find((p) => p.name === prName || (prIc && p.ic === prIc));
+  if (match) return match.id;
+  return FREELANCER_DEMO_PR_ID;
+}
+
 function demoAttendanceContext(st: Pick<StoreState, "prSubRole" | "acceptedShiftIndex">) {
   const idx = st.acceptedShiftIndex ?? 0;
   const offer = PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
@@ -607,7 +634,10 @@ export const useStore = create<StoreState>()(
       agencySubRole: null,
       user: null,
       setRole: (r) => set({ role: r }),
-      setPrSubRole: (r) => set({ prSubRole: r }),
+      setPrSubRole: (r) => {
+        writePersistedPrSubRole(r);
+        set({ prSubRole: r });
+      },
       setOutletSubRole: (r) => set({ outletSubRole: r }),
       setAgencySubRole: (r) => set({ agencySubRole: r }),
       signIn: (name, email) => set({ user: { name, email } }),
@@ -671,6 +701,26 @@ export const useStore = create<StoreState>()(
       prActiveShift: null,
 
       prNotifications: [...SEED_PR_NOTIFICATIONS],
+      opsNotifications: [],
+      sosIncidents: [],
+      notificationPrefs: { ...DEFAULT_NOTIFICATION_PREFS },
+      pushNotify: (event) => {
+        set((st) => {
+          const pushed = applyPushEvent(
+            {
+              prNotifications: st.prNotifications,
+              opsNotifications: st.opsNotifications,
+              notificationPrefs: st.notificationPrefs,
+            },
+            event,
+          );
+          return pushed;
+        });
+      },
+      markOpsNotificationRead: (id) =>
+        set((st) => ({
+          opsNotifications: st.opsNotifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
+        })),
       prDeclinedOfferIds: [],
       prMarketplaceApplication: null,
       prUpcomingShifts: [...SEED_UPCOMING_SHIFTS],
@@ -770,6 +820,16 @@ export const useStore = create<StoreState>()(
           shiftAccepted: true,
           pendingApproval: false,
         });
+        const st = get();
+        const idx = st.acceptedShiftIndex ?? 0;
+        const offer = PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
+        const profile = getPrProfile("pr_free");
+        get().pushNotify({
+          type: "shift_assigned",
+          prId: FREELANCER_DEMO_PR_ID,
+          prName: profile.name,
+          outlet: offer.outlet,
+        });
         get().toast("Outlet accepted your application — slot locked", "success");
       },
       simulateOutletDeclineApplication: () => {
@@ -784,6 +844,15 @@ export const useStore = create<StoreState>()(
       },
       approvePrShift: () => {
         set({ pendingApproval: false, shiftAccepted: true });
+        const st = get();
+        const ctx = demoAttendanceContext(st);
+        const profile = getPrProfile(st.prSubRole);
+        get().pushNotify({
+          type: "shift_assigned",
+          prId: ctx.prId,
+          prName: profile.name,
+          outlet: ctx.outlet,
+        });
         get().toast("Agency approved — slot locked", "success");
       },
       cancelPrShift: () => {
@@ -823,6 +892,15 @@ export const useStore = create<StoreState>()(
             ...st.prSwapRequests,
           ],
         }));
+        const profile = getPrProfile(get().prSubRole);
+        get().pushNotify({
+          type: "swap_update",
+          prId: getPrRosterId(get().prSubRole),
+          prName: profile.name,
+          outlet,
+          status: "pending",
+          notifyPr: false,
+        });
         get().toast("Swap request sent — agency must approve replacement PR", "info");
       },
       prCheckIn: (opts) => {
@@ -874,6 +952,14 @@ export const useStore = create<StoreState>()(
         });
         const lateNote = late ? " · Late flag (+15 min)" : "";
         const gpsNote = gpsFallback ? " · Manual maps fallback" : "";
+        const profile = getPrProfile(get().prSubRole);
+        get().pushNotify({
+          type: "check_in",
+          prId,
+          prName: profile.name,
+          outlet: offer.outlet,
+          late,
+        });
         get().toast(`Checked in ✓ Time-In locked · PV ${session.pvId}${lateNote}${gpsNote}`, "success");
       },
       simulatePrLate: (enabled) => {
@@ -983,21 +1069,21 @@ export const useStore = create<StoreState>()(
           `Checked out ✓ PV ${shift.pvId} generated from ${scans.length} receipt(s) + shift wages`,
           "success",
         );
-        set((st) => ({
-          prNotifications: [
-            {
-              id: "n-pv-" + shift.pvId,
-              kind: "pv" as const,
-              title: "New shift PV ready",
-              body: `${shift.pvId} generated — review and sign when finance pre-signs.`,
-              at: stamp,
-              read: false,
-              pvId: shift.pvId,
-              prId,
-            },
-            ...st.prNotifications,
-          ],
-        }));
+        get().pushNotify({
+          type: "pv_ready",
+          pvId: shift.pvId,
+          prId,
+          prName: managedPr?.name ?? profile.name,
+          net: pv.net,
+          outlet: shift.outlet,
+        });
+        get().pushNotify({
+          type: "rating_prompt",
+          prId,
+          prName: managedPr?.name ?? profile.name,
+          outlet: shift.outlet,
+          audience: "pr",
+        });
       },
       setOutletRatingStars: (n) => set({ outletRatingStars: n }),
 
@@ -1140,27 +1226,44 @@ export const useStore = create<StoreState>()(
         }
       },
       submitSosIncident: (note, photoDataUrl) => {
+        const st = get();
+        const profile = getPrProfile(st.prSubRole);
+        const prId = getPrRosterId(st.prSubRole);
+        const prType = st.prSubRole === "pr_free" ? "freelancer" : "agency_tied";
+        const offer =
+          st.acceptedShiftIndex != null
+            ? PR_SHIFT_OFFERS[st.acceptedShiftIndex]
+            : PR_SHIFT_OFFERS[0];
+        const outlet = st.prActiveShift?.outlet ?? offer?.outlet ?? "Velvet 23";
+        const agencyName =
+          st.prSubRole === "pr_free"
+            ? getPrAgencyById(st.prPayrollAgencyId)?.name ?? "Atlas Agency"
+            : getPrAgencyById(DEFAULT_TIED_AGENCY_ID)?.name ?? "Atlas Agency";
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
           hour: "2-digit",
           minute: "2-digit",
         });
-        set((st) => ({
-          prNotifications: [
-            {
-              id: "n-sos-" + Date.now().toString(36),
-              kind: "sos",
-              title: "SOS sent",
-              body: note.slice(0, 80),
-              at: stamp,
-              read: true,
-            },
-            ...st.prNotifications,
-          ],
-        }));
+        const sosId = "sos-" + Date.now().toString(36);
+        const incident: SosIncident = {
+          id: sosId,
+          at: stamp,
+          note: note.trim(),
+          photoDataUrl,
+          locationLabel: DEMO_SOS_LOCATION.label,
+          lat: DEMO_SOS_LOCATION.lat,
+          lng: DEMO_SOS_LOCATION.lng,
+          prId,
+          prName: profile.name,
+          prIc: profile.ic,
+          prType,
+          outlet,
+          agencyName,
+        };
+        set((st) => ({ sosIncidents: [incident, ...st.sosIncidents] }));
+        get().pushNotify({ type: "sos", incident });
         get().toast("SOS alert sent · Agency, outlet, admin & emergency contacts notified", "warn");
-        void photoDataUrl;
       },
       requestLeaveAgency: (note) => {
         const stamp = new Date().toLocaleString("en-MY", { day: "numeric", month: "short", year: "numeric" });
@@ -1284,6 +1387,20 @@ export const useStore = create<StoreState>()(
               : p,
           ),
         }));
+        const prId = prIdForPayeeName(pv.prName, pv.prIc, get().agencyPRs);
+        get().pushNotify({
+          type: "pv_signed",
+          pvId: id,
+          prName: pv.prName,
+          net: pv.net,
+        });
+        get().pushNotify({
+          type: "pv_paid",
+          pvId: id,
+          prId,
+          prName: pv.prName,
+          net: pv.net,
+        });
         get().toast(
           `Signed ✓ · ${pv.net.toLocaleString("en-MY", { style: "currency", currency: "MYR" })} sent to your bank (${bankRef})`,
           "success",
@@ -1295,6 +1412,8 @@ export const useStore = create<StoreState>()(
           get().toast("Describe the issue so your agency can verify", "warn");
           return;
         }
+        const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
+        if (!pv) return;
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -1315,6 +1434,12 @@ export const useStore = create<StoreState>()(
               : p,
           ),
         }));
+        get().pushNotify({
+          type: "dispute_raised",
+          pvId: id,
+          prName: pv.prName,
+          outlet: pv.outlet,
+        });
         get().toast("Dispute submitted — agency has 7 days to resolve or escalates to Admin", "warn");
       },
       updatePrPvDisputeReason: (id, reason) => {
@@ -1508,6 +1633,14 @@ export const useStore = create<StoreState>()(
             p.id === id ? { ...p, status: "SENT" as const } : p,
           ),
         }));
+        const prId = prIdForPayeeName(pv.prName, pv.prIc, get().agencyPRs);
+        get().pushNotify({
+          type: "pv_sent",
+          pvId: id,
+          prId,
+          prName: pv.prName,
+          net: pv.net,
+        });
         get().toast(`PV sent to ${pv.prName} · awaiting PR e-signature`, "success");
       },
       resolveAgencyPvDispute: (id) => {
@@ -1538,6 +1671,13 @@ export const useStore = create<StoreState>()(
         set((st) => ({
           prPaymentVouchers: [pv, ...(st.prPaymentVouchers ?? SEED_PR_PVS)],
         }));
+        get().pushNotify({
+          type: "pv_sent",
+          pvId: pv.id,
+          prId: pr.id,
+          prName: pr.name,
+          net: pv.net,
+        });
         get().toast(`PV ${pv.id} raised · Finance Head pre-signed · sent to ${pr.name}`, "success");
       },
       overrideSignedAgencyPv: (id, reason) => {
@@ -1648,9 +1788,28 @@ export const useStore = create<StoreState>()(
 
       agencyRoster: demoSnapshot.agencyRoster,
       editRosterSlot: (id, patch) => {
+        const slot = get().agencyRoster.find((s) => s.id === id);
         set((st) => ({
           agencyRoster: st.agencyRoster.map((s) => (s.id === id ? { ...s, ...patch } : s)),
         }));
+        if (slot) {
+          const detail = [
+            patch.outlet && patch.outlet !== slot.outlet ? `outlet → ${patch.outlet}` : null,
+            patch.shift && patch.shift !== slot.shift ? `shift → ${patch.shift}` : null,
+            patch.status && patch.status !== slot.status ? `status → ${patch.status}` : null,
+          ]
+            .filter(Boolean)
+            .join(", ");
+          if (detail) {
+            get().pushNotify({
+              type: "shift_edit",
+              prId: slot.prId,
+              prName: slot.prName,
+              outlet: patch.outlet ?? slot.outlet,
+              detail,
+            });
+          }
+        }
         get().toast("Roster updated", "success");
       },
       requestOutletSwap: (id, targetOutlet, agencyNote) => {
@@ -1679,6 +1838,14 @@ export const useStore = create<StoreState>()(
             s.id === id ? { ...s, status: "swap-pending" as const, outletSwap: swap } : s,
           ),
         }));
+        get().pushNotify({
+          type: "swap_update",
+          prId: slot.prId,
+          prName: slot.prName,
+          outlet: slot.outlet,
+          status: "pending",
+          notifyAgency: false,
+        });
         get().toast(`Outlet swap sent to ${slot.prName} — awaiting PR approval`, "success");
       },
       cancelOutletSwap: (id) => {
@@ -1767,6 +1934,12 @@ export const useStore = create<StoreState>()(
           shifts: addPrToOutletShift(st.shifts, outlet, prId),
         }));
         get().toast(`Assignment sent to ${pr.name} — awaiting Approve or Reject on Shifts`, "success");
+        get().pushNotify({
+          type: "shift_assigned",
+          prId,
+          prName: pr.name,
+          outlet,
+        });
       },
       approveAgencyAssignmentByPr: (rosterSlotId) => {
         const slot = get().agencyRoster.find((s) => s.id === rosterSlotId);
@@ -1831,13 +2004,28 @@ export const useStore = create<StoreState>()(
           ),
         }));
         get().toast(`Swap approved — ${swap.replacementPrName} confirmed for ${swap.outlet}`, "success");
+        get().pushNotify({
+          type: "swap_update",
+          prName: swap.replacementPrName,
+          outlet: swap.outlet,
+          status: "approved",
+        });
       },
       declinePrSwapRequest: (swapId) => {
+        const swap = get().prSwapRequests.find((s) => s.id === swapId);
         set((st) => ({
           prSwapRequests: st.prSwapRequests.map((s) =>
             s.id === swapId ? { ...s, status: "declined" as const } : s,
           ),
         }));
+        if (swap) {
+          get().pushNotify({
+            type: "swap_update",
+            prName: swap.replacementPrName,
+            outlet: swap.outlet,
+            status: "declined",
+          });
+        }
         get().toast("Swap request declined", "info");
       },
       demoAutoAssignPr: (dateIso) => {
@@ -2442,6 +2630,14 @@ export const useStore = create<StoreState>()(
           };
         });
         get().toast(accept ? `${app.prName} added to shift` : `Declined ${app.prName}`, accept ? "success" : "info");
+        if (accept && shift) {
+          get().pushNotify({
+            type: "shift_assigned",
+            prId: app.prId,
+            prName: app.prName,
+            outlet: shift.outletName,
+          });
+        }
       },
       payOutletInvoice: (collectionId) => {
         get().markCollectionSettled(collectionId);
@@ -2462,9 +2658,21 @@ export const useStore = create<StoreState>()(
           }),
         })),
       confirmShift: (shiftId) => {
+        const shift = get().shifts.find((sh) => sh.id === shiftId);
         set((st) => ({
           shifts: st.shifts.map((sh) => sh.id === shiftId ? { ...sh, status: "confirmed" } : sh),
         }));
+        if (shift) {
+          shift.prs.forEach((prId) => {
+            const pr = get().agencyPRs.find((p) => p.id === prId);
+            get().pushNotify({
+              type: "shift_assigned",
+              prId,
+              prName: pr?.name ?? prId,
+              outlet: shift.outletName,
+            });
+          });
+        }
         get().toast("Booking confirmed · PRs notified", "success");
       },
       sealShift: (shiftId) => {
@@ -2500,6 +2708,20 @@ export const useStore = create<StoreState>()(
           }),
           postSealRatePrompt: { shiftId, prIds: [...shift.prs] },
         });
+        shift.prs.forEach((pid) => {
+          const pr = st.agencyPRs.find((p) => p.id === pid);
+          get().pushNotify({
+            type: "rating_prompt",
+            prId: pid,
+            prName: pr?.name ?? pid,
+            outlet: shift.outletName,
+            audience: "outlet",
+          });
+        });
+        const recon = get().agencyReconciliation;
+        if (!recon.outletConfirmed) {
+          get().pushNotify({ type: "reconciliation_due", outlet: shift.outletName });
+        }
         get().toast("Shift sealed · rate PRs within 24h · PVs synced", "success");
       },
 
@@ -2658,6 +2880,9 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: "innocenz-store",
+      onRehydrateStorage: () => (state) => {
+        if (state?.prSubRole) writePersistedPrSubRole(state.prSubRole);
+      },
       partialize: (s) => ({
         role: s.role,
         prSubRole: s.prSubRole,
@@ -2689,6 +2914,9 @@ export const useStore = create<StoreState>()(
         prAvatarPhoto: s.prAvatarPhoto,
         prPayrollAgencyId: s.prPayrollAgencyId,
         prNotifications: s.prNotifications,
+        opsNotifications: s.opsNotifications,
+        sosIncidents: s.sosIncidents,
+        notificationPrefs: s.notificationPrefs,
         prDeclinedOfferIds: s.prDeclinedOfferIds,
         prMarketplaceApplication: s.prMarketplaceApplication,
         prUpcomingShifts: s.prUpcomingShifts,
@@ -2724,16 +2952,18 @@ export const useStore = create<StoreState>()(
       merge: (persisted, current) => {
         const p = persisted as Partial<StoreState> | undefined;
         const seedById = Object.fromEntries(SEED_PR_PVS.map((s) => [s.id, s]));
-        const mergedPvs =
-          p?.prPaymentVouchers && p.prPaymentVouchers.length > 0
-            ? p.prPaymentVouchers.map((pv) => {
+        const persistedPvs = p?.prPaymentVouchers ?? [];
+        const mergedFromPersisted =
+          persistedPvs.length > 0
+            ? persistedPvs.map((pv) => {
                 const seed = seedById[pv.id];
                 if (!seed) return pv;
                 return {
                   ...seed,
                   ...pv,
+                  prName: seed.prName,
+                  prIc: seed.prIc,
                   status: pv.status ?? seed.status,
-                  prName: pv.prName ?? seed.prName,
                   issued: pv.issued ?? seed.issued,
                   due: pv.due ?? seed.due,
                   cycle: pv.cycle ?? seed.cycle,
@@ -2753,6 +2983,12 @@ export const useStore = create<StoreState>()(
                     : seed.rows,
                 };
               })
+            : [];
+        const persistedIds = new Set(mergedFromPersisted.map((pv) => pv.id));
+        const missingSeedPvs = SEED_PR_PVS.filter((s) => !persistedIds.has(s.id));
+        const mergedPvs =
+          persistedPvs.length > 0
+            ? [...mergedFromPersisted, ...missingSeedPvs]
             : current.prPaymentVouchers;
         const seedScanById = Object.fromEntries(SEED_RECEIPT_SCANS.map((s) => [s.id, s]));
         const persistedScans = p?.prReceiptScans ?? [];
@@ -2780,6 +3016,9 @@ export const useStore = create<StoreState>()(
           prDisplayName: p?.prDisplayName ?? current.prDisplayName,
           prPayrollAgencyId: p?.prPayrollAgencyId ?? current.prPayrollAgencyId,
           prNotifications: p?.prNotifications?.length ? p.prNotifications : current.prNotifications,
+          opsNotifications: p?.opsNotifications ?? current.opsNotifications,
+          sosIncidents: p?.sosIncidents ?? current.sosIncidents,
+          notificationPrefs: p?.notificationPrefs ?? current.notificationPrefs,
           prDeclinedOfferIds: p?.prDeclinedOfferIds ?? current.prDeclinedOfferIds,
           prMarketplaceApplication: p?.prMarketplaceApplication ?? current.prMarketplaceApplication,
           prUpcomingShifts: p?.prUpcomingShifts?.length ? p.prUpcomingShifts : current.prUpcomingShifts,

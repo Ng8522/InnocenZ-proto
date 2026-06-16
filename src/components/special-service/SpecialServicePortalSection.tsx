@@ -10,13 +10,15 @@ import { IzCard } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import { getPrRosterId } from "@/lib/pr-demo";
+import { isWithinOneYearTie } from "@/lib/pr-features";
 import {
-  AGENCY_SPECIAL_SERVICE_OFFERS,
+  bookableServiceOffers,
   EMPTY_SPECIAL_SERVICE_FILTERS,
   collectSpecialServiceAmountInOptions,
   collectSpecialServiceAmountOutOptions,
   collectSpecialServiceDateIsos,
   filterSpecialServiceRecords,
+  isLeaveAgencyService,
   specialServiceOffer,
   type SpecialServiceInitiator,
 } from "@/lib/special-service-demo";
@@ -33,7 +35,11 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
   const prSubRole = useStore((s) => s.prSubRole);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const records = useStore((s) => s.specialServiceOrders);
+  const prAgencyTiedAt = useStore((s) => s.prAgencyTiedAt);
+  const prLeaveRequest = useStore((s) => s.prLeaveRequest);
   const submitOrder = useStore((s) => s.submitSpecialServiceOrder);
+  const requestLeaveAgency = useStore((s) => s.requestLeaveAgency);
+  const toast = useStore((s) => s.toast);
   const acceptByPr = useStore((s) => s.acceptSpecialServiceByPr);
   const declineByPr = useStore((s) => s.declineSpecialServiceByPr);
   const acceptByOutlet = useStore((s) => s.acceptSpecialServiceByOutlet);
@@ -41,6 +47,13 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
 
   const outletName = outletWorkspace.outletName;
   const prId = getPrRosterId(prSubRole);
+  const prTied = prSubRole !== "pr_free";
+  const prTiedLocked = prTied && isWithinOneYearTie(prAgencyTiedAt);
+  const serviceOffers = useMemo(
+    () => bookableServiceOffers(role, { prTiedLocked }),
+    [role, prTiedLocked],
+  );
+  const defaultOffer = serviceOffers[0];
 
   const scopedRecords = useMemo(() => {
     if (role === "outlet") return specialServicesForOutlet(records, outletName);
@@ -57,8 +70,8 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
   const [draft, setDraft] = useState<SpecialServiceOrderDraft>({
     prId: agencyPRs[0]?.id ?? "",
     outlet: outletName,
-    serviceType: AGENCY_SPECIAL_SERVICE_OFFERS[0]?.id ?? "transportation",
-    amountOut: String(AGENCY_SPECIAL_SERVICE_OFFERS[0]?.defaultRate ?? ""),
+    serviceType: defaultOffer?.id ?? "transportation",
+    amountOut: String(defaultOffer?.defaultRate ?? ""),
     amountIn: "",
     time: "19:00",
     note: "",
@@ -78,6 +91,30 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
   const submitOrderDraft = () => {
     const offer = specialServiceOffer(draft.serviceType);
     if (!offer) return;
+
+    if (role === "pr" && isLeaveAgencyService(draft.serviceType)) {
+      const note = draft.note.trim();
+      if (!note) {
+        toast("Enter a reason for early leave", "warn");
+        return;
+      }
+      requestLeaveAgency(note);
+      submitOrder({
+        initiatedBy: "pr",
+        raisedBy: `${agencyPRs.find((p) => p.id === prId)?.name ?? "PR"} (PR)`,
+        prId,
+        prName: agencyPRs.find((p) => p.id === prId)?.name ?? "PR",
+        outlet: "Agency service",
+        serviceType: offer.id,
+        description: note,
+        amountIn: 0,
+        amountOut: 0,
+        time: "—",
+      });
+      setOrderOpen(false);
+      setDraft((prev) => ({ ...prev, note: "" }));
+      return;
+    }
 
     if (role === "outlet") {
       const pr = agencyPRs.find((p) => p.id === draft.prId);
@@ -143,15 +180,31 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
           <Sparkles className="mr-1 inline h-3 w-3 text-[var(--iz-violet-l)]" />
           {role === "outlet"
             ? "Order agency add-ons for your venue — delivery, emergency cover, styling, and more."
-            : "Request transportation, makeup, wardrobe, and other agency services for your shifts."}
+            : prTiedLocked
+              ? "Request transportation, makeup, wardrobe, and other agency services — or raise Leave agency under Service."
+              : "Request transportation, makeup, wardrobe, and other agency services for your shifts."}
         </p>
       </IzCard>
+
+      {role === "pr" && prLeaveRequest && (
+        <p className="iz-tiny iz-muted2 mt-2">
+          {prLeaveRequest.type === "leave" ? "Leave ticket" : "Transfer request"} submitted {prLeaveRequest.at}
+        </p>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
           className="iz-btn iz-btn-primary !py-2 !text-xs"
-          onClick={() => setOrderOpen(true)}
+          onClick={() => {
+            const first = serviceOffers[0];
+            setDraft((prev) => ({
+              ...prev,
+              serviceType: first?.id ?? prev.serviceType,
+              amountOut: String(first?.defaultRate ?? ""),
+            }));
+            setOrderOpen(true);
+          }}
         >
           <Plus className="h-3.5 w-3.5" /> Order service
         </button>
@@ -196,8 +249,13 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
           prOptions={prOptions}
           showPrPicker={role === "outlet"}
           showAmountIn={role === "outlet"}
+          serviceOffers={serviceOffers}
           onSubmit={submitOrderDraft}
-          submitLabel="Submit to agency"
+          submitLabel={
+            role === "pr" && isLeaveAgencyService(draft.serviceType)
+              ? "Raise support ticket"
+              : "Submit to agency"
+          }
         />
       </IzSheet>
     </div>

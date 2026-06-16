@@ -1,18 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { SpecialServicePortalSection } from "@/components/special-service/SpecialServicePortalSection";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/host/special-service")({
-  component: HostSpecialService,
+  beforeLoad: () => {
+    throw redirect({ to: "/host", search: { view: "services" } });
+  },
 });
-
-function HostSpecialService() {
-  return (
-    <div className="iz-screen">
-      <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Special Service</h2>
-        <p className="iz-tiny iz-muted mt-0.5">Agency add-on services</p>
-      </header>
-      <SpecialServicePortalSection role="pr" />
-    </div>
-  );
-}

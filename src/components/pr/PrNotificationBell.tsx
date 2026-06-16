@@ -101,7 +101,7 @@ export function PrNotificationBell() {
           </div>
         )}
         <Link to="/host/PaymentVoucher" className="iz-btn iz-btn-soft mt-3" onClick={() => setOpen(false)}>
-          Open Vouchers
+          Open Payment
         </Link>
       </IzSheet>
     </>

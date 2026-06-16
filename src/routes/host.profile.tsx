@@ -5,12 +5,9 @@ import { useStore } from "@/lib/store";
 import { PORTFOLIO_SLOT_COUNT, getPrProfile, getPrRosterId, type PrComcard } from "@/lib/pr-demo";
 import { Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
 import { ProfileLanguagePicker } from "@/components/iz/ProfileLanguagePicker";
-import { Camera, Eye, Pencil, Shield, Star, X } from "lucide-react";
-import { IzSheet } from "@/components/iz/Sheet";
+import { Camera, Pencil, Star, X } from "lucide-react";
 import { FreelancerAgencyPicker } from "@/components/iz/FreelancerAgencyPicker";
-import { PrPageHeader } from "@/components/pr/PrPageHeader";
-import { PrSection } from "@/components/pr/PrSection";
-import { IzCard, IzPill, IzSectionLabel } from "@/components/iz/ui";
+import { IzCard, IzPill } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/host/profile")({
   component: ProfilePage,
@@ -43,10 +40,7 @@ function buildProfileDraft(
 
 function ProfilePage() {
   const prSubRole = useStore((s) => s.prSubRole);
-  const prPendingRatings = useStore((s) => s.prPendingRatings);
-  const prRatingHistory = useStore((s) => s.prRatingHistory);
   const prFreelancerLowRatingStrikes = useStore((s) => s.prFreelancerLowRatingStrikes);
-  const submitPrOutletRating = useStore((s) => s.submitPrOutletRating);
   const demoFreelancerLowRatingStrike = useStore((s) => s.demoFreelancerLowRatingStrike);
   const prComcard = useStore((s) => s.prComcard);
   const prPortfolio = useStore((s) => s.prPortfolio);
@@ -60,8 +54,6 @@ function ProfilePage() {
   const tied = prSubRole !== "pr_free";
 
   const [editing, setEditing] = useState(false);
-  const [prCardOpen, setPrCardOpen] = useState(false);
-  const [ratingStars, setRatingStars] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState<ProfileDraft>(() =>
     buildProfileDraft(u, prDisplayName, prAvatarPhoto, prComcard, prPortfolio, prLanguages),
   );
@@ -109,6 +101,14 @@ function ProfilePage() {
   const comcard = editing ? draft.comcard : prComcard;
   const portfolio = editing ? draft.portfolio : prPortfolio;
   const languages = editing ? draft.languages : prLanguages;
+
+  const comcardPr = {
+    id: getPrRosterId(prSubRole),
+    name: displayName,
+    height: comcard.height,
+    weight: comcard.weight,
+    age: comcard.age,
+  };
 
   const openPortfolioUpload = (slot: number) => {
     if (!editing) return;
@@ -180,21 +180,25 @@ function ProfilePage() {
         }}
         backLabel={editing ? "Cancel edit" : undefined}
       />
-      <PrPageHeader
-        label="Account"
-        title={displayName}
-        meta={tied ? "Agency-Tied · Atlas Agency" : "Freelancer"}
-      />
-      {editing && (
-        <span className="iz-pill iz-pill-amber mt-2 !text-[10px]">Editing</span>
-      )}
 
-      <IzCard className={`mt-3${editing ? " border-[rgba(217,185,122,.25)]" : ""}`}>
+      <IzCard
+        glow
+        className={`iz-pr-account-hero mt-3${editing ? " iz-pr-account-hero--edit" : ""}`}
+      >
         <input ref={avatarFileRef} type="file" accept="image/*" className="sr-only" onChange={onAvatarFilePick} />
-        <div className="flex gap-2.5">
+
+        <div className="iz-pr-account-hero__head">
+          <p className="iz-pr-account-hero__eyebrow">Account</p>
+          <div className="iz-pr-account-hero__head-badges">
+            {editing && <span className="iz-pr-account-hero__badge iz-pr-account-hero__badge--amber">Editing</span>}
+            <span className="iz-pr-account-hero__badge">3D Comcard · IC · v3</span>
+          </div>
+        </div>
+
+        <div className="iz-pr-account-hero__profile">
           <div className="relative shrink-0">
             <div
-              className={`iz-avatar !h-[54px] !w-[54px] text-xl${avatarPhoto ? " iz-avatar-photo" : ""}`}
+              className={`iz-avatar iz-pr-account-hero__avatar${avatarPhoto ? " iz-avatar-photo" : ""}`}
               style={avatarPhoto ? undefined : { background: u.avg }}
             >
               {avatarPhoto ? <img src={avatarPhoto} alt="" /> : avatarLetter}
@@ -222,272 +226,180 @@ function ProfilePage() {
               </>
             )}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="iz-between items-start gap-2">
-              {editing ? (
-                <div className="iz-field !mb-0 min-w-0 flex-1">
-                  <label className="!text-[9px]">Display name</label>
-                  <input
-                    type="text"
-                    value={draft.displayName}
-                    maxLength={40}
-                    placeholder="Your name"
-                    onChange={(e) => setDraft((p) => ({ ...p, displayName: e.target.value }))}
-                  />
-                </div>
-              ) : (
-                <div className="font-sora text-[17px] font-bold">{displayName}</div>
-              )}
-              <span className="iz-tier shrink-0">
+
+          <div className="iz-pr-account-hero__profile-body">
+            {editing ? (
+              <div className="iz-field iz-pr-account-hero__name-field !mb-0">
+                <label className="!text-[9px]">Display name</label>
+                <input
+                  type="text"
+                  value={draft.displayName}
+                  maxLength={40}
+                  placeholder="Your name"
+                  onChange={(e) => setDraft((p) => ({ ...p, displayName: e.target.value }))}
+                />
+              </div>
+            ) : (
+              <h1 className="iz-pr-account-hero__name">{displayName}</h1>
+            )}
+            <div className="iz-pr-account-hero__meta">
+              <span className="iz-tier iz-pr-account-hero__tier">
                 <Star className="h-3 w-3" /> {u.tier}
               </span>
+              <span className="iz-pr-account-hero__meta-text">
+                {tied ? "Agency-Tied · Atlas Agency" : "Freelancer"}
+              </span>
+              <span className="iz-pr-account-hero__meta-ic">IC {u.ic}</span>
             </div>
-            <p className="iz-tiny iz-muted mt-0.5">
-              {tied ? "Agency-Tied · Atlas Agency" : "Freelancer"} � IC {u.ic}
-            </p>
             {editing && (
-              <p className="iz-tiny iz-muted2 mt-1">Tap the camera on your photo to upload a new profile picture.</p>
+              <p className="iz-pr-account-hero__hint">Tap the camera on your photo to upload a new picture.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="iz-pr-account-hero__showcase">
+          <div className="iz-pr-account-hero__showcase-glow" aria-hidden />
+          <Comcard3dPreviewVisual
+            pr={comcardPr}
+            className="iz-pr-account-hero__comcard-visual"
+            showName={!editing}
+            showStats={!editing}
+          />
+          {editing && (
+            <div className="iz-pr-account-hero__measure-edit">
+              <p className="iz-pr-account-hero__measure-hint">Adjust measurements — preview updates live</p>
+              <div className="iz-pr-account-hero__measure-grid">
+                <ComcardInput
+                  compact
+                  label="Height"
+                  suffix="cm"
+                  value={comcard.height}
+                  onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, height: n } }))}
+                />
+                <ComcardInput
+                  compact
+                  label="Weight"
+                  suffix="kg"
+                  value={comcard.weight}
+                  onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, weight: n } }))}
+                />
+                <ComcardInput
+                  compact
+                  label="Age"
+                  suffix="y"
+                  value={comcard.age}
+                  onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, age: n } }))}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="iz-pr-account-hero__kpi">
+          <div className="iz-pr-account-hero__kpi-cell">
+            <span className="l">Rep</span>
+            <span className="n gold">{u.rep}%</span>
+          </div>
+          <div className="iz-pr-account-hero__kpi-cell">
+            <span className="l">Shifts</span>
+            <span className="n">{u.shifts}</span>
+          </div>
+          <div className="iz-pr-account-hero__kpi-cell">
+            <span className="l">No-shows</span>
+            <span className="n">{u.noshow}</span>
+          </div>
+          <div className="iz-pr-account-hero__kpi-cell">
+            <span className="l">Tier</span>
+            <span className="n gold">{u.tier}</span>
+          </div>
+        </div>
+
+        <div className="iz-pr-account-hero__lifecycle">
+          <div className="iz-pr-account-hero__lifecycle-head">
+            <span>Workforce lifecycle</span>
+            <b>{u.prog}%</b>
+          </div>
+          <div className="iz-bar-track iz-pr-account-hero__bar">
+            <div className="iz-bar-fill bg-[var(--iz-grad-gold)]" style={{ width: `${u.prog}%` }} />
+          </div>
+          <p className="iz-pr-account-hero__lifecycle-note">{u.next}</p>
+        </div>
+
+        <div className="iz-pr-account-hero__section">
+          <div className="iz-pr-account-hero__section-title">
+            <span>Portfolio gallery · v3</span>
+            {editing && (
+              <span className="iz-pr-account-hero__section-hint">Tap slot to upload</span>
+            )}
+          </div>
+          <input ref={portfolioFileRef} type="file" accept="image/*" className="sr-only" onChange={onPortfolioFilePick} />
+          <div className="iz-pgrid iz-pgrid-8 iz-pr-account-hero__portfolio">
+            {Array.from({ length: PORTFOLIO_SLOT_COUNT }, (_, i) => {
+              const src = portfolio[i];
+              return (
+                <div key={i} className="relative">
+                  <button
+                    type="button"
+                    className={`iz-pcell w-full${src ? " has-photo" : ""}${editing ? " editable" : ""}`}
+                    onClick={() => (editing ? openPortfolioUpload(i) : src ? toast("Portfolio photo", "info") : undefined)}
+                    aria-label={src ? `Portfolio photo ${i + 1}` : `Add portfolio photo ${i + 1}`}
+                  >
+                    {src ? (
+                      <img src={src} alt="" className="h-full w-full rounded-[10px] object-cover" />
+                    ) : (
+                      <Camera className="h-[18px] w-[18px]" />
+                    )}
+                  </button>
+                  {editing && src && (
+                    <button
+                      type="button"
+                      className="iz-pcell-remove"
+                      aria-label="Remove photo"
+                      onClick={() => removePhoto(i)}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {!editing && portfolio.every((p) => !p) && (
+            <p className="iz-pr-account-hero__empty">No photos yet — tap Edit profile to add your gallery.</p>
+          )}
+        </div>
+
+        <div className="iz-pr-account-hero__section">
+          <div className="iz-pr-account-hero__section-title">
+            <span>Languages</span>
+          </div>
+          <div className={editing ? "iz-pr-account-hero__languages-edit" : "iz-pr-account-hero__languages-view"}>
+            {editing ? (
+              <ProfileLanguagePicker
+                value={languages}
+                onChange={(next) => setDraft((p) => ({ ...p, languages: next }))}
+                hint="Tap to select all languages you speak (shown to outlets)."
+              />
+            ) : (
+              <div className="iz-pr-account-hero__lang-chips">
+                {languages.length > 0 ? (
+                  languages.map((l) => (
+                    <IzPill key={l} variant="violet">
+                      {l}
+                    </IzPill>
+                  ))
+                ) : (
+                  <span className="iz-tiny iz-muted">No languages selected</span>
+                )}
+              </div>
             )}
           </div>
         </div>
       </IzCard>
-
-      <div className="iz-outlet-stat-strip mt-3">
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Rep</div>
-          <div className="n text-[var(--iz-gold)]">{u.rep}%</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Shifts</div>
-          <div className="n">{u.shifts}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">No-shows</div>
-          <div className="n">{u.noshow}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Tier</div>
-          <div className="n text-[var(--iz-gold-l)]">{u.tier}</div>
-        </div>
-      </div>
 
       <div className="mt-2.5">
         <FreelancerAgencyPicker tied={tied} />
       </div>
-
-      <IzCard flat className="mt-2.5">
-        <div className="iz-between iz-tiny mb-1.5">
-          <span className="iz-muted">Workforce lifecycle � {u.tier}</span>
-          <b>{u.prog}%</b>
-        </div>
-        <div className="iz-bar-track">
-          <div className="iz-bar-fill bg-[var(--iz-grad-gold)]" style={{ width: `${u.prog}%` }} />
-        </div>
-        <p className="iz-tiny iz-muted2 mt-1.5">{u.next}</p>
-      </IzCard>
-
-      <IzSectionLabel>
-        3D Comcard � IC � v3
-        {editing && <span className="ml-auto text-[var(--iz-gold-l)] normal-case tracking-normal">Editable</span>}
-      </IzSectionLabel>
-      <IzCard className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
-        {editing ? (
-          <>
-            <p className="iz-tiny iz-muted2 mb-3">
-              Edit height, weight, and age — your comcard preview updates as you type.
-            </p>
-            <div className="iz-comcard-edit">
-              <ComcardInput
-                label="Height (cm)"
-                value={comcard.height}
-                onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, height: n } }))}
-              />
-              <ComcardInput
-                label="Weight (kg)"
-                value={comcard.weight}
-                onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, weight: n } }))}
-              />
-              <ComcardInput
-                label="Age"
-                value={comcard.age}
-                onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, age: n } }))}
-              />
-            </div>
-            <div className="mt-4 border-t border-[var(--iz-line)] pt-4">
-              <p className="iz-tiny iz-muted2 mb-3 text-center">Live preview</p>
-              <Comcard3dPreviewVisual
-                pr={{
-                  id: getPrRosterId(prSubRole),
-                  name: displayName,
-                  height: comcard.height,
-                  weight: comcard.weight,
-                  age: comcard.age,
-                }}
-                showStats={false}
-                showName={false}
-              />
-            </div>
-          </>
-        ) : (
-          <Comcard3dPreviewVisual
-            pr={{
-              id: getPrRosterId(prSubRole),
-              name: displayName,
-              height: comcard.height,
-              weight: comcard.weight,
-              age: comcard.age,
-            }}
-          />
-        )}
-      </IzCard>
-
-      <IzSectionLabel>
-        Portfolio gallery � v3
-        {editing && (
-          <span className="ml-auto text-[var(--iz-muted2)] normal-case tracking-normal font-normal">
-            Tap slot to upload
-          </span>
-        )}
-      </IzSectionLabel>
-      <IzCard className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
-        <input ref={portfolioFileRef} type="file" accept="image/*" className="sr-only" onChange={onPortfolioFilePick} />
-        <div className="iz-pgrid iz-pgrid-8">
-          {Array.from({ length: PORTFOLIO_SLOT_COUNT }, (_, i) => {
-            const src = portfolio[i];
-            return (
-              <div key={i} className="relative">
-                <button
-                  type="button"
-                  className={`iz-pcell w-full${src ? " has-photo" : ""}${editing ? " editable" : ""}`}
-                  onClick={() => (editing ? openPortfolioUpload(i) : src ? toast("Portfolio photo", "info") : undefined)}
-                  aria-label={src ? `Portfolio photo ${i + 1}` : `Add portfolio photo ${i + 1}`}
-                >
-                  {src ? (
-                    <img src={src} alt="" className="h-full w-full rounded-[10px] object-cover" />
-                  ) : (
-                    <Camera className="h-[18px] w-[18px]" />
-                  )}
-                </button>
-                {editing && src && (
-                  <button
-                    type="button"
-                    className="iz-pcell-remove"
-                    aria-label="Remove photo"
-                    onClick={() => removePhoto(i)}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        {!editing && portfolio.every((p) => !p) && (
-          <p className="iz-tiny iz-muted2 mt-2 text-center">No photos yet � tap Edit profile to add your gallery.</p>
-        )}
-      </IzCard>
-
-      <IzSectionLabel>Languages</IzSectionLabel>
-      <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
-        {editing ? (
-          <ProfileLanguagePicker
-            value={languages}
-            onChange={(next) => setDraft((p) => ({ ...p, languages: next }))}
-            hint="Tap to select all languages you speak (shown to outlets)."
-          />
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {languages.length > 0 ? (
-              languages.map((l) => (
-                <IzPill key={l} variant="violet">
-                  {l}
-                </IzPill>
-              ))
-            ) : (
-              <span className="iz-tiny iz-muted">No languages selected</span>
-            )}
-          </div>
-        )}
-      </IzCard>
-
-      <IzSectionLabel>PR Card (outlet view)</IzSectionLabel>
-      <IzCard>
-        <p className="iz-tiny iz-muted">What outlets see when browsing PRs.</p>
-        <button type="button" className="iz-btn iz-btn-soft iz-btn-sm mt-2.5 w-auto" onClick={() => setPrCardOpen(true)}>
-          <Eye className="h-3.5 w-3.5" /> Preview PR Card
-        </button>
-      </IzCard>
-
-      <IzSectionLabel>Mutual ratings (24h window)</IzSectionLabel>
-      {prPendingRatings.length === 0 ? (
-        <IzCard flat className="iz-tiny iz-muted py-4 text-center">
-          No pending ratings — outlets can rate you within 24h after a shift.
-        </IzCard>
-      ) : (
-        <div className="space-y-2.5">
-          {prPendingRatings.map((pending) => {
-            const stars = ratingStars[pending.id] ?? 0;
-            const hoursLeft = Math.max(0, Math.ceil((pending.expiresAt - Date.now()) / (60 * 60 * 1000)));
-            return (
-              <IzCard key={pending.id}>
-                <div className="iz-between flex-wrap gap-2">
-                  <div>
-                    <p className="iz-sm font-bold">{pending.outlet}</p>
-                    <p className="iz-tiny iz-muted">{pending.shiftDate} · {hoursLeft}h left</p>
-                  </div>
-                  <div className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setRatingStars((s) => ({ ...s, [pending.id]: n }))}
-                        className={n <= stars ? "text-[var(--iz-gold)]" : "text-[var(--iz-muted2)]"}
-                      >
-                        <Star className="h-5 w-5" fill={n <= stars ? "currentColor" : "none"} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {stars > 0 && (
-                  <button
-                    type="button"
-                    className="iz-btn iz-btn-primary iz-btn-sm mt-2.5 w-auto"
-                    onClick={() => {
-                      submitPrOutletRating(pending.id, stars);
-                      setRatingStars((s) => {
-                        const next = { ...s };
-                        delete next[pending.id];
-                        return next;
-                      });
-                    }}
-                  >
-                    Submit {stars}/5
-                  </button>
-                )}
-              </IzCard>
-            );
-          })}
-        </div>
-      )}
-
-
-      <IzCard flat className="iz-tiny iz-muted mt-2.5">
-        <Shield className="mr-1 inline h-3 w-3" />
-        Mutual outlet ratings within 24h of shift end. IC under PDPA disclaimer.
-      </IzCard>
-
-      {prRatingHistory.length > 0 && (
-        <>
-          <IzSectionLabel>Rating history</IzSectionLabel>
-          <IzCard flat>
-            {prRatingHistory.slice(0, 5).map((r) => (
-              <p key={r.id} className="iz-tiny iz-muted border-t border-[rgba(255,255,255,.06)] py-2 first:border-0 first:pt-0">
-                {r.direction === "pr_rates_outlet" ? "You rated" : "Rated you"} {r.outlet} · {r.stars} stars · {r.date}
-              </p>
-            ))}
-          </IzCard>
-        </>
-      )}
 
       {!tied && (
         <IzCard flat className="mt-2 border-[rgba(244,183,64,.35)]">
@@ -509,19 +421,6 @@ function ProfilePage() {
           </button>
         </IzCard>
       )}
-
-      <IzSheet open={prCardOpen} onClose={() => setPrCardOpen(false)}>
-        <div className="iz-cardttl">PR Card preview</div>
-        <IzCard glow>
-          <div className="flex gap-3">
-            <div className="iz-avatar !h-14 !w-14 text-xl" style={{ background: u.avg }}>{avatarLetter}</div>
-            <div>
-              <p className="font-sora font-bold">{displayName}</p>
-              <p className="iz-tiny iz-muted">{u.tier} · {u.rep} rep · {languages.join(", ")}</p>
-            </div>
-          </div>
-        </IzCard>
-      </IzSheet>
 
       <div className="iz-profile-actions mt-4">
         {editing ? (
@@ -549,11 +448,32 @@ function ComcardInput({
   label,
   value,
   onChange,
+  suffix,
+  compact,
 }: {
   label: string;
   value: number;
   onChange: (n: number) => void;
+  suffix?: string;
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <div className="iz-pr-measure-field">
+        <label>{label}</label>
+        <div className="iz-pr-measure-field__wrap">
+          <input
+            type="number"
+            inputMode="numeric"
+            value={Number.isFinite(value) ? value : ""}
+            onChange={(e) => onChange(Number(e.target.value))}
+          />
+          {suffix && <span className="iz-pr-measure-field__suffix">{suffix}</span>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="iz-comcard-field">
       <label>{label}</label>

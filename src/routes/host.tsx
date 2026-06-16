@@ -3,7 +3,7 @@ import { BottomNav } from "@/components/Nav";
 import { PhoneFrame } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
 import { PrSosFab } from "@/components/pr/PrSosButton";
-import { Briefcase, MapPin, History, FileText, User, Sparkles } from "lucide-react";
+import { Briefcase, MapPin, History, FileText, User } from "lucide-react";
 
 export const Route = createFileRoute("/host")({
   component: HostLayout,
@@ -12,9 +12,8 @@ export const Route = createFileRoute("/host")({
 function HostLayout() {
   const items = [
     { to: "/host", label: "Shifts", icon: Briefcase },
-    { to: "/host/special-service", label: "Services", icon: Sparkles },
     { to: "/host/tonight", label: "Check-In", icon: MapPin },
-    { to: "/host/PaymentVoucher", label: "Vouchers", icon: FileText },
+    { to: "/host/PaymentVoucher", label: "Payment", icon: FileText },
     { to: "/host/history", label: "History", icon: History },
     { to: "/host/profile", label: "Profile", icon: User },
   ];

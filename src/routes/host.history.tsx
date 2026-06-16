@@ -5,7 +5,6 @@ import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import {
   PAYROLL_CYCLE,
-  flattenPvLines,
   filterPvsForPrProfile,
   filterReceiptScansForPrProfile,
   fmtHistDate,
@@ -27,20 +26,23 @@ import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { payeeFromProfile } from "@/lib/pv-template";
 import { usePrPortalReady } from "@/lib/use-pr-sub-role";
-import { Calendar, ChevronDown, Clock, Download, Filter, Receipt, Search, Table2, X } from "lucide-react";
+import { Calendar, ChevronDown, Clock, Download, Filter, Receipt, Search, Wallet, X } from "lucide-react";
+import { PrPaymentHistoryPanel } from "@/components/pr/PrPaymentHistoryPanel";
+import { buildPaymentHistoryRecords } from "@/lib/pr-payment-history";
 import { FreelancerPayrollNotice } from "@/components/iz/FreelancerPayrollNotice";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { IzCard, IzPill, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCalendar";
 import { parseDateInputMs, parseScannedAtMs } from "@/lib/payroll-filters";
 
-type HistTab = "shifts" | "receipts" | "pv";
+type HistTab = "shifts" | "receipts" | "payment";
 
 export const Route = createFileRoute("/host/history")({
   validateSearch: (search: Record<string, unknown>): { tab: HistTab; pvId?: string } => {
     const tab = search.tab;
     const pvId = typeof search.pvId === "string" ? search.pvId : undefined;
-    if (tab === "receipts" || tab === "pv") return { tab, pvId };
+    if (tab === "receipts") return { tab: "receipts", pvId };
+    if (tab === "payment" || tab === "pv") return { tab: "payment", pvId };
     return { tab: "shifts", pvId };
   },
   component: HistoryPage,
@@ -558,10 +560,6 @@ function HistoryPage() {
   const [receiptDraft, setReceiptDraft] = useState<ReceiptFilters>(EMPTY_RECEIPT_FILTERS);
   const [receiptFilterOpen, setReceiptFilterOpen] = useState(false);
 
-  const [pvFilters, setPvFilters] = useState<PvFilters>(EMPTY_PV_FILTERS);
-  const [pvDraft, setPvDraft] = useState<PvFilters>(EMPTY_PV_FILTERS);
-  const [pvFilterOpen, setPvFilterOpen] = useState(false);
-
   const receiptOutlets = useMemo(
     () => [...new Set(myReceiptScans.map((s) => s.outlet))].sort(),
     [myReceiptScans],
@@ -588,41 +586,20 @@ function HistoryPage() {
         .map((id) => ({ value: id, label: formatShiftSessionLabel(id) })),
     [myReceiptScans],
   );
-  const pvLines = useMemo(
-    () => flattenPvLines(myVouchers, myReceiptScans),
-    [myVouchers, myReceiptScans],
-  );
-  const pvIds = useMemo(() => [...new Set(pvLines.map((l) => l.pvId))], [pvLines]);
-  const pvOutlets = useMemo(() => [...new Set(pvLines.map((l) => l.outlet))].sort(), [pvLines]);
-  const pvRefs = useMemo(() => [...new Set(pvLines.map((l) => l.ref))].sort(), [pvLines]);
-  const scansById = useMemo(() => Object.fromEntries(myReceiptScans.map((s) => [s.id, s])), [myReceiptScans]);
-  const pvDateOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const line of pvLines) {
-      const key = pvLineDateKey(line, pvById[line.pvId]?.issued ?? "");
-      if (key && !map.has(key)) map.set(key, line.date);
-    }
-    return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, label]) => ({ key, label }));
-  }, [pvLines, pvById]);
-  const pvDefaultMonth =
-    dateFromKey(pvDateOptions[pvDateOptions.length - 1]?.key ?? "") ?? new Date(2026, 5, 1);
 
   const setTab = (next: HistTab) => navigate({ to: "/host/history", search: { tab: next } });
 
   useEffect(() => {
-    if (searchPvId && tab !== "pv") {
-      navigate({ to: "/host/history", search: { tab: "pv", pvId: searchPvId } });
+    if (searchPvId && tab !== "payment") {
+      navigate({ to: "/host/history", search: { tab: "payment", pvId: searchPvId } });
     }
   }, [searchPvId, tab, navigate]);
 
-  const lifetimeEarnings = myVouchers
-    .filter((p) => p.status === "PAID" || p.status === "SIGNED")
-    .reduce((sum, p) => sum + p.net, 0);
-  const paidThisCycle = myVouchers
-    .filter((p) => p.status === "PAID")
-    .reduce((sum, p) => sum + p.net, 0);
+  const paymentHistory = useMemo(() => buildPaymentHistoryRecords(myVouchers), [myVouchers]);
+  const lifetimeEarnings = paymentHistory.reduce((sum, r) => sum + r.net, 0);
+  const paidThisCycle = paymentHistory
+    .filter((r) => r.status === "PAID")
+    .reduce((sum, r) => sum + r.net, 0);
   const pendingPv = myVouchers
     .filter((p) => pvNeedsPrReview(p.status))
     .reduce((sum, p) => sum + p.net, 0);
@@ -700,14 +677,8 @@ function HistoryPage() {
     [myReceiptScans, receiptFilters],
   );
 
-  const filteredPvLines = useMemo(
-    () => pvLines.filter((l) => matchesPvFilters(l, pvFilters, { pvById, scansById })),
-    [pvLines, pvFilters, pvById, scansById],
-  );
-
   const filterCount = activeFilterCount(filters);
   const receiptFilterCountN = receiptFilterCount(receiptFilters);
-  const pvFilterCountN = pvFilterCount(pvFilters);
 
   const openFilters = () => {
     setDraft(filters);
@@ -724,11 +695,10 @@ function HistoryPage() {
     setDraft(EMPTY_FILTERS);
   };
 
-  const anyFilterOpen = filterOpen || receiptFilterOpen || pvFilterOpen;
+  const anyFilterOpen = filterOpen || receiptFilterOpen;
   const closeFilters = () => {
     setFilterOpen(false);
     setReceiptFilterOpen(false);
-    setPvFilterOpen(false);
   };
 
   return (
@@ -747,7 +717,7 @@ function HistoryPage() {
       <PrPageHeader
         label="Earnings"
         title="History"
-        meta={isFreelancer ? "Shifts, receipts & PV breakdown" : "Shifts & receipts · sign or dispute PVs on Vouchers tab"}
+        meta={isFreelancer ? "Shifts, receipts & payment history" : "Shifts, receipts & signed/paid weekly PVs"}
       />
 
       {isFreelancer && <div className="mt-3"><FreelancerPayrollNotice compact /></div>}
@@ -779,9 +749,9 @@ function HistoryPage() {
           <Receipt className="mr-1 inline h-3.5 w-3.5" />
           Receipt scans
         </button>
-        <button type="button" className={tab === "pv" ? "active" : ""} onClick={() => setTab("pv")}>
-          <Table2 className="mr-1 inline h-3.5 w-3.5" />
-          PV breakdown
+        <button type="button" className={tab === "payment" ? "active" : ""} onClick={() => setTab("payment")}>
+          <Wallet className="mr-1 inline h-3.5 w-3.5" />
+          Payment history
         </button>
       </div>
 
@@ -1040,33 +1010,13 @@ function HistoryPage() {
         />
       )}
 
-      {tab === "pv" && (
-        <PvBreakdownSection
-          lines={filteredPvLines}
-          scans={myReceiptScans}
+      {tab === "payment" && (
+        <PrPaymentHistoryPanel
           vouchers={myVouchers}
           onDownloadPdf={(pv) => {
             downloadPvBreakdownPdf(pv, payeeFromProfile(profile), myReceiptScans);
-            toast("PV breakdown opened — use Print → Save as PDF", "success");
+            toast("Payment voucher opened — use Print → Save as PDF", "success");
           }}
-          filters={pvFilters}
-          setFilters={setPvFilters}
-          filterCount={pvFilterCountN}
-          pvDraft={pvDraft}
-          setPvDraft={setPvDraft}
-          pvFilterOpen={pvFilterOpen}
-          setPvFilterOpen={setPvFilterOpen}
-          pvIds={pvIds}
-          pvOutlets={pvOutlets}
-          pvRefs={pvRefs}
-          pvDateOptions={pvDateOptions}
-          pvDefaultMonth={pvDefaultMonth}
-          onClear={() => {
-            setPvFilters(EMPTY_PV_FILTERS);
-            setPvDraft(EMPTY_PV_FILTERS);
-          }}
-          isFreelancer={isFreelancer}
-          highlightPvId={searchPvId}
         />
       )}
 

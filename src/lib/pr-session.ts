@@ -16,6 +16,8 @@ export type PrCheckInMetaState = {
   noShowRisk?: boolean;
   selfieDataUrl?: string | null;
   gpsFallback?: boolean;
+  /** Preserved after check-out for attendance summary */
+  closedShift?: PrActiveShiftSession | null;
 };
 
 export interface PrShiftSessionState {

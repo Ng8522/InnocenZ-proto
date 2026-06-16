@@ -695,7 +695,7 @@ export function applyPushEvent(
             at,
             read: false,
             prId: event.prId,
-            href: "/host/special-service",
+            href: "/host?view=services",
           },
           prNotifications,
         );
@@ -753,7 +753,7 @@ export function applyPushEvent(
             at,
             read: false,
             prId: event.prId,
-            href: "/host/special-service",
+            href: "/host?view=services",
           },
           prNotifications,
         );

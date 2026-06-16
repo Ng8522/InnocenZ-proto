@@ -77,7 +77,33 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
     defaultRate: 80,
     unit: "per session",
   },
+  {
+    id: "leave_agency",
+    label: "Leave agency",
+    summary: "Before 1 year you must raise a support ticket for early leave",
+    defaultRate: 0,
+    unit: "support ticket",
+  },
 ];
+
+export const LEAVE_AGENCY_SERVICE_ID = "leave_agency";
+
+export function isLeaveAgencyService(serviceType: string): boolean {
+  return serviceType === LEAVE_AGENCY_SERVICE_ID;
+}
+
+/** Service types available when raising a new order (role-specific). */
+export function bookableServiceOffers(
+  initiator: SpecialServiceInitiator,
+  opts?: { prTiedLocked?: boolean },
+): AgencySpecialServiceOffer[] {
+  if (initiator === "pr") {
+    return AGENCY_SPECIAL_SERVICE_OFFERS.filter(
+      (o) => !isLeaveAgencyService(o.id) || opts?.prTiedLocked,
+    );
+  }
+  return AGENCY_SPECIAL_SERVICE_OFFERS.filter((o) => !isLeaveAgencyService(o.id));
+}
 
 export const SPECIAL_SERVICE_TYPE_LABELS = Object.fromEntries(
   AGENCY_SPECIAL_SERVICE_OFFERS.map((s) => [s.id, s.label]),

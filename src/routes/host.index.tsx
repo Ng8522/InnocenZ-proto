@@ -7,7 +7,7 @@ import { PrOfferRow, PrOfferRowActions, PrStatusPill } from "@/components/pr/PrO
 import { PrAgencySchedulePanel } from "@/components/pr/PrAgencySchedulePanel";
 import { PrSection } from "@/components/pr/PrSection";
 import { useStore } from "@/lib/store";
-import { PR_SHIFT_OFFERS, SHIFT_TODAY, DEFAULT_PR_AGENCY_NAME, fmtDFriendly, fmtDShort, getPrProfile, getPrRosterId } from "@/lib/pr-demo";
+import { PR_SHIFT_OFFERS, DEFAULT_PR_AGENCY_NAME, SHIFT_TODAY, fmtDFriendly, fmtDShort, getPrProfile, getPrRosterId, filterPvsForPrProfile, filterReceiptScansForPrProfile, pvNeedsPrReview, receiptStatusLabel } from "@/lib/pr-demo";
 import { findAgencyRosterTonight, shiftIndexForOutlet } from "@/lib/pr-session";
 import { DEFAULT_ROSTER_DATE_ISO, outletPendingShiftsForPr } from "@/lib/roster-availability";
 import {
@@ -18,11 +18,20 @@ import {
   swapTargetOptionsForPr,
   type MarketplaceListing,
 } from "@/lib/pr-features";
-import { ArrowLeftRight, ExternalLink, Filter, MapPin } from "lucide-react";
+import { SpecialServicePortalSection } from "@/components/special-service/SpecialServicePortalSection";
+import { SpecialServiceOrderCard } from "@/components/special-service/SpecialServiceOrderCard";
+import { pendingSpecialServicesForPr } from "@/lib/special-service-actions";
+import { ArrowLeftRight, Briefcase, ExternalLink, FileText, Filter, MapPin, Receipt, Sparkles } from "lucide-react";
 import { formatRM } from "@/components/iz/ui";
 import { cn } from "@/lib/utils";
 
+type HostHubView = "shifts" | "services";
+
 export const Route = createFileRoute("/host/")({
+  validateSearch: (search: Record<string, unknown>): { view: HostHubView } => {
+    if (search.view === "services") return { view: "services" };
+    return { view: "shifts" };
+  },
   component: HostShifts,
 });
 
@@ -31,6 +40,7 @@ const EMPTY_MKT_FILTERS: MktFilters = { area: "", tier: "", language: "", date: 
 
 function HostShifts() {
   const navigate = useNavigate();
+  const { view } = Route.useSearch();
   const prSubRole = useStore((s) => s.prSubRole);
   const shiftAccepted = useStore((s) => s.shiftAccepted);
   const pendingApproval = useStore((s) => s.pendingApproval);
@@ -52,6 +62,11 @@ function HostShifts() {
   const declineAgencyAssignmentByPr = useStore((s) => s.declineAgencyAssignmentByPr);
   const togglePrDayAvailability = useStore((s) => s.togglePrDayAvailability);
   const cancelPrRosterShift = useStore((s) => s.cancelPrRosterShift);
+  const specialServiceOrders = useStore((s) => s.specialServiceOrders);
+  const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
+  const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
+  const acceptSpecialServiceByPr = useStore((s) => s.acceptSpecialServiceByPr);
+  const declineSpecialServiceByPr = useStore((s) => s.declineSpecialServiceByPr);
   const prDisplayName = useStore((s) => s.prDisplayName);
   const prPayrollAgencyId = useStore((s) => s.prPayrollAgencyId);
   const demoPrShiftIn = useStore((s) => s.demoPrShiftIn);
@@ -68,7 +83,11 @@ function HostShifts() {
   const profile = getPrProfile(prSubRole);
   const tied = prSubRole !== "pr_free";
   const myRosterId = getPrRosterId(prSubRole);
-  const todayLine = fmtDFriendly(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2]);
+  const pendingServices = useMemo(
+    () => pendingSpecialServicesForPr(specialServiceOrders, myRosterId),
+    [specialServiceOrders, myRosterId],
+  );
+  const setHubView = (next: HostHubView) => navigate({ to: "/host", search: { view: next } });
   const agencyTonight = useMemo(
     () => (tied ? findAgencyRosterTonight(agencyRoster, myRosterId) : undefined),
     [tied, agencyRoster, myRosterId],
@@ -80,6 +99,10 @@ function HostShifts() {
   const swapOffers = useMemo(
     () => pendingSwapOffersForPr(prSwapRequests, myRosterId),
     [prSwapRequests, myRosterId],
+  );
+  const outletPendingShifts = useMemo(
+    () => outletPendingShiftsForPr(agencyRoster, myRosterId),
+    [agencyRoster, myRosterId],
   );
   const mySwapRequests = useMemo(
     () => prSwapRequests.filter((s) => s.requestingPrId === myRosterId),
@@ -99,11 +122,40 @@ function HostShifts() {
     return null;
   }, [effectiveShiftAccepted, acceptedShiftIndex, agencyTonight]);
   const firstName = (prDisplayName ?? profile.first).split(" ")[0];
+  const todayLabel = fmtDFriendly(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2]);
 
-  const outletPendingShifts = useMemo(
-    () => outletPendingShiftsForPr(agencyRoster, myRosterId),
-    [agencyRoster, myRosterId],
+  const myVouchers = useMemo(
+    () => filterPvsForPrProfile(prPaymentVouchers, profile, prSubRole),
+    [prPaymentVouchers, profile, prSubRole],
   );
+  const myReceipts = useMemo(
+    () => filterReceiptScansForPrProfile(prReceiptScans, profile, prSubRole, myVouchers),
+    [prReceiptScans, profile, prSubRole, myVouchers],
+  );
+  const todoPvs = useMemo(
+    () => myVouchers.filter((p) => pvNeedsPrReview(p.status)),
+    [myVouchers],
+  );
+  const todoReceipts = useMemo(
+    () => myReceipts.filter((r) => r.status === "attached" || r.status === "pending"),
+    [myReceipts],
+  );
+  const todoCount =
+    todoPvs.length +
+    todoReceipts.length +
+    pendingServices.length +
+    swapOffers.length +
+    outletPendingShifts.length +
+    (pendingApproval ? 1 : 0) +
+    (!tied && prMarketplaceApplication?.status === "pending" ? 1 : 0);
+  const todayStatus = checkedIn
+    ? "On duty"
+    : effectiveShiftAccepted
+      ? "Tonight"
+      : agencyTonight
+        ? "Scheduled"
+        : "Off";
+
   const swapTargets = useMemo(
     () =>
       swapTargetOptionsForPr(
@@ -162,14 +214,16 @@ function HostShifts() {
   const statusLabel = blockingSwap?.status === "pending_replacement"
     ? "Swap pending"
     : outletPendingShifts.length > 0
-      ? "Outlet pending"
-      : effectiveShiftAccepted
-      ? checkedIn
-        ? "On duty"
-        : "Confirmed"
-      : pendingApproval
-        ? "Pending"
-        : "Browsing";
+      ? "Action needed"
+      : todoCount > 0
+        ? `${todoCount} to-do`
+        : effectiveShiftAccepted
+          ? checkedIn
+            ? "On duty"
+            : "Confirmed"
+          : pendingApproval
+            ? "Pending"
+            : "Browsing";
 
   const submitSwap = () => {
     if (!swapTargetId) return;
@@ -195,14 +249,51 @@ function HostShifts() {
       <AppTopbar />
 
       <PrPageHeader
-        label={tied ? "Agency shifts" : "Marketplace"}
-        title={`Hi, ${firstName}`}
-        meta={todayLine}
+        label={view === "services" ? "Agency add-on services" : tied ? "Agency shifts" : "Marketplace"}
+        title={view === "services" ? "Special service" : `Hi, ${firstName}`}
       />
 
+      <div className="iz-pr-hub-toolbar mt-3">
+        <div className="iz-pr-hub-toggle">
+          <button
+            type="button"
+            className={view === "shifts" ? "on shifts" : ""}
+            onClick={() => setHubView("shifts")}
+          >
+            <Briefcase className="h-3.5 w-3.5 shrink-0" />
+            Shifts
+          </button>
+          <button
+            type="button"
+            className={view === "services" ? "on services" : ""}
+            onClick={() => setHubView("services")}
+          >
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            Special services
+            {pendingServices.length > 0 && (
+              <span className="iz-pr-hub-toggle__badge">{pendingServices.length}</span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {view === "services" ? (
+        <div className="mt-3">
+          <SpecialServicePortalSection role="pr" />
+        </div>
+      ) : (
+        <>
       <div className="iz-outlet-stat-strip mt-3">
         {tied ? (
           <>
+            <div className="iz-outlet-stat-cell">
+              <div className="l">Today</div>
+              <div className="n text-[var(--iz-gold-l)]">{todayStatus}</div>
+            </div>
+            <div className="iz-outlet-stat-cell">
+              <div className="l">To-do</div>
+              <div className={`n${todoCount > 0 ? " text-[var(--iz-amber)]" : ""}`}>{todoCount}</div>
+            </div>
             <div className="iz-outlet-stat-cell">
               <div className="l">Upcoming</div>
               <div className="n">{prUpcomingShifts.length}</div>
@@ -210,14 +301,6 @@ function HostShifts() {
             <div className="iz-outlet-stat-cell">
               <div className="l">Confirmed</div>
               <div className="n text-[var(--iz-green)]">{upcomingConfirmed}</div>
-            </div>
-            <div className="iz-outlet-stat-cell">
-              <div className="l">Pending</div>
-              <div className="n text-[var(--iz-amber)]">{upcomingPending}</div>
-            </div>
-            <div className="iz-outlet-stat-cell">
-              <div className="l">Status</div>
-              <div className="n text-[var(--iz-gold-l)]">{statusLabel}</div>
             </div>
           </>
         ) : (
@@ -263,16 +346,109 @@ function HostShifts() {
       )}
 
       {blockingSwap?.status === "pending_replacement" && (
-        <div className="iz-pr-note mt-4 border-[rgba(244,183,64,.35)]">
+        <div className="iz-pr-note mt-3 border-[rgba(244,183,64,.35)]">
           <span className="text-[var(--iz-amber)]">
             Swap in progress — awaiting {blockingSwap.replacementPrName} to confirm coverage for {blockingSwap.outlet}
           </span>
         </div>
       )}
 
-      {outletPendingShifts.length > 0 && (
-        <PrSection title="Awaiting outlet" hint="Swap approved — outlet must confirm" collapsible defaultOpen>
+      <PrSection title="Today" hint={todayLabel} collapsible defaultOpen className="mt-4">
+        {effectiveShiftAccepted && activeShift ? (
+          <div className="iz-pr-hero">
+            <p className="iz-tiny iz-muted2 uppercase tracking-wide">{checkedIn ? "On duty" : "Tonight"}</p>
+            <p className="font-sora mt-1 text-[16px] font-extrabold">{activeShift.outlet}</p>
+            <p className="iz-tiny iz-muted mt-0.5">
+              {fmtDFriendly(activeShift.date[0], activeShift.date[1], activeShift.date[2])} · {activeShift.time} ·{" "}
+              {formatRM(activeShift.base + activeShift.comm)}
+            </p>
+            <Link to="/host/tonight" className="iz-btn iz-btn-primary iz-btn-sm mt-3 w-full">
+              <MapPin className="h-3.5 w-3.5" />
+              {checkedIn ? "Attendance" : "Check in"}
+            </Link>
+            {canRequestSwap && (
+              <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm mt-2 w-full" onClick={openSwapSheet}>
+                <ArrowLeftRight className="h-3.5 w-3.5" /> Request swap
+              </button>
+            )}
+          </div>
+        ) : agencyTonight ? (
+          <div className="iz-pr-inbox-card">
+            <PrOfferRow
+              title={agencyTonight.outlet}
+              subtitle={`${agencyTonight.date} · ${agencyTonight.shift}`}
+              badge={
+                <PrStatusPill variant={agencyTonight.status === "assignment-pending" ? "amber" : "green"}>
+                  {agencyTonight.status === "assignment-pending" ? "Pending" : "Scheduled"}
+                </PrStatusPill>
+              }
+            />
+            <p className="iz-tiny iz-muted mt-2 px-1">Rostered for today — confirm when the outlet finalises your slot.</p>
+          </div>
+        ) : (
+          <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
+            No shift scheduled for today.
+          </p>
+        )}
+      </PrSection>
+
+      <PrSection
+        title="To-do"
+        hint={todoCount > 0 ? `${todoCount} need your action` : "All caught up"}
+        collapsible
+        defaultOpen
+        className="mt-4"
+      >
+        {todoCount === 0 ? (
+          <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
+            Nothing needs your action right now.
+          </p>
+        ) : (
           <div className="iz-pr-list">
+            {todoPvs.map((pv) => (
+              <TodoActionCard
+                key={pv.id}
+                icon={<FileText className="h-4 w-4" />}
+                title="Review payment voucher"
+                subtitle={`${pv.outlet} · ${pv.cycle} · ${formatRM(pv.net)}`}
+                actionLabel="Review PV"
+                to="/host/PaymentVoucher"
+                search={{ pvId: pv.id }}
+              />
+            ))}
+            {todoReceipts.map((scan) => (
+              <TodoActionCard
+                key={scan.id}
+                icon={<Receipt className="h-4 w-4" />}
+                title="Confirm receipt"
+                subtitle={`${scan.outlet} · ${scan.receiptRef} · ${receiptStatusLabel(scan.status)}`}
+                actionLabel="Review"
+                to="/host/history"
+                search={{ tab: "receipts" as const }}
+              />
+            ))}
+            {pendingServices.map((row) => (
+              <div key={row.id} className="iz-pr-todo-service">
+                <SpecialServiceOrderCard
+                  row={row}
+                  role="pr"
+                  onAccept={acceptSpecialServiceByPr}
+                  onDecline={declineSpecialServiceByPr}
+                />
+              </div>
+            ))}
+            {swapOffers.map((offer) => (
+              <InboxCard
+                key={offer.id}
+                title={offer.outlet}
+                subtitle={`Cover for ${offer.requestingPrName} · ${offer.date} · ${offer.shift}`}
+                onApprove={() => acceptSwapReplacement(offer.id)}
+                onReject={() => {
+                  setSwapRejectId(offer.id);
+                  setSwapRejectReason("");
+                }}
+              />
+            ))}
             {outletPendingShifts.map((slot) => (
               <div key={slot.id} className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
                 <PrOfferRow
@@ -293,76 +469,37 @@ function HostShifts() {
                 </button>
               </div>
             ))}
+            {pendingApproval && (
+              <div className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
+                <PrOfferRow
+                  title="Shift approval"
+                  subtitle="Agency must approve before you can check in"
+                  badge={<PrStatusPill variant="amber">Pending</PrStatusPill>}
+                />
+                <button
+                  type="button"
+                  className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-full"
+                  onClick={approvePrShift}
+                >
+                  Simulate agency accept
+                </button>
+              </div>
+            )}
+            {!tied && prMarketplaceApplication?.status === "pending" && (
+              <div className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
+                <PrOfferRow
+                  title="Marketplace application"
+                  subtitle="Outlet reviews on Bookings → Applicants"
+                  badge={<PrStatusPill variant="amber">Pending</PrStatusPill>}
+                />
+              </div>
+            )}
           </div>
-        </PrSection>
-      )}
-
-      {effectiveShiftAccepted && activeShift && (
-        <div className="iz-pr-hero mt-4">
-          <p className="iz-tiny iz-muted2 uppercase tracking-wide">{checkedIn ? "On duty" : "Tonight"}</p>
-          <p className="font-sora mt-1 text-[16px] font-extrabold">{activeShift.outlet}</p>
-          <p className="iz-tiny iz-muted mt-0.5">
-            {fmtDFriendly(activeShift.date[0], activeShift.date[1], activeShift.date[2])} · {activeShift.time} ·{" "}
-            {formatRM(activeShift.base + activeShift.comm)}
-          </p>
-          <Link to="/host/tonight" className="iz-btn iz-btn-primary iz-btn-sm mt-3 w-full">
-            <MapPin className="h-3.5 w-3.5" />
-            {checkedIn ? "Attendance" : "Check in"}
-          </Link>
-          {canRequestSwap && (
-            <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm mt-2 w-full" onClick={openSwapSheet}>
-              <ArrowLeftRight className="h-3.5 w-3.5" /> Request swap
-            </button>
-          )}
-        </div>
-      )}
-
-      {(pendingApproval || (!tied && prMarketplaceApplication?.status === "pending")) && (
-        <div className="iz-pr-note mt-4 flex flex-wrap items-center justify-between gap-2 border-[rgba(244,183,64,.35)]">
-          <span className="text-[var(--iz-amber)]">
-            {pendingApproval
-              ? "Awaiting agency approval"
-              : "Application pending — outlet reviews on Bookings → Applicants"}
-          </span>
-          {pendingApproval && (
-            <button
-              type="button"
-              className="iz-btn iz-btn-soft iz-btn-sm !py-1.5"
-              onClick={approvePrShift}
-            >
-              Simulate agency accept
-            </button>
-          )}
-        </div>
-      )}
-
-      {!tied && prFreelancerLowRatingStrikes >= 3 && (
-        <p className="iz-pr-note mt-3 border-[rgba(255,107,107,.35)] text-[var(--iz-red)]">
-          Marketplace suspended — 3 ratings below 3.0★. See Profile for details.
-        </p>
-      )}
-
-      {swapOffers.length > 0 && !tied && (
-        <PrSection title="Coverage offers" hint={`${swapOffers.length} need your response`} collapsible defaultOpen>
-          <div className="iz-pr-list">
-            {swapOffers.map((offer) => (
-              <InboxCard
-                key={offer.id}
-                title={offer.outlet}
-                subtitle={`Cover for ${offer.requestingPrName} · ${offer.date} · ${offer.shift}`}
-                onApprove={() => acceptSwapReplacement(offer.id)}
-                onReject={() => {
-                  setSwapRejectId(offer.id);
-                  setSwapRejectReason("");
-                }}
-              />
-            ))}
-          </div>
-        </PrSection>
-      )}
+        )}
+      </PrSection>
 
       {prUpcomingShifts.length > 0 && (
-        <PrSection title="Upcoming" hint="Outlet-confirmed & agency-proposed shifts" collapsible defaultOpen className="mt-4">
+        <PrSection title="Upcoming" hint="Future shifts — outlet-confirmed & agency-proposed" collapsible defaultOpen className="mt-4">
           <div className="iz-pr-list">
             {prUpcomingShifts.map((u) => (
               <PrOfferRow
@@ -378,6 +515,12 @@ function HostShifts() {
             ))}
           </div>
         </PrSection>
+      )}
+
+      {!tied && prFreelancerLowRatingStrikes >= 3 && (
+        <p className="iz-pr-note mt-3 border-[rgba(255,107,107,.35)] text-[var(--iz-red)]">
+          Marketplace suspended — 3 ratings below 3.0★. See Profile for details.
+        </p>
       )}
 
       {tied && (
@@ -452,6 +595,8 @@ function HostShifts() {
               ))}
         </div>
       </PrSection>
+      )}
+        </>
       )}
 
       <IzSheet open={confirmMkt !== null} onClose={() => setConfirmMktId(null)}>
@@ -617,6 +762,35 @@ function FilterSelect({
         {children}
       </select>
     </>
+  );
+}
+
+function TodoActionCard({
+  icon,
+  title,
+  subtitle,
+  actionLabel,
+  to,
+  search,
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+  actionLabel: string;
+  to: string;
+  search?: Record<string, string>;
+}) {
+  return (
+    <div className="iz-pr-todo-card">
+      <div className="iz-pr-todo-card__icon">{icon}</div>
+      <div className="iz-pr-todo-card__body">
+        <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">{title}</p>
+        <p className="iz-tiny iz-muted mt-0.5">{subtitle}</p>
+      </div>
+      <Link to={to} search={search} className="iz-btn iz-btn-primary iz-btn-sm shrink-0">
+        {actionLabel}
+      </Link>
+    </div>
   );
 }
 

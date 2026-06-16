@@ -4,6 +4,7 @@ import {
   specialServiceStatusLabel,
   specialServiceStatusVariant,
   specialServiceTypeLabel,
+  isLeaveAgencyService,
   type SpecialServiceRecord,
 } from "@/lib/special-service-demo";
 import { isSpecialServiceActionable } from "@/lib/special-service-actions";
@@ -40,9 +41,13 @@ export function SpecialServiceOrderCard({
           {specialServiceTypeLabel(row.serviceType)} · {row.outlet} · {row.date} · {row.time}
         </p>
         <p className="iz-tiny iz-muted2 mt-1 line-clamp-2">{row.description}</p>
-        <p className="iz-tiny iz-muted2 mt-1">
-          In {formatRM(row.amountIn)} · Out {formatRM(row.amountOut)} · Raised by {row.raisedBy}
-        </p>
+        {!isLeaveAgencyService(row.serviceType) ? (
+          <p className="iz-tiny iz-muted2 mt-1">
+            In {formatRM(row.amountIn)} · Out {formatRM(row.amountOut)} · Raised by {row.raisedBy}
+          </p>
+        ) : (
+          <p className="iz-tiny iz-muted2 mt-1">Support ticket · Raised by {row.raisedBy}</p>
+        )}
         {row.approvedAt && row.initiatedBy !== "agency" && (
           <p className="iz-tiny text-[var(--iz-green)] mt-0.5">Agency approved {row.approvedAt}</p>
         )}
@@ -51,12 +56,20 @@ export function SpecialServiceOrderCard({
         )}
       </div>
       <div className="shrink-0 text-right">
-        <div className="iz-tiny iz-muted2">Out</div>
-        <div className="iz-ledger font-sora text-base font-bold text-[var(--iz-gold-l)]">
-          {formatRM(row.amountOut)}
-        </div>
-        {row.amountIn > 0 && (
-          <p className="iz-tiny mt-1 text-[var(--iz-green)]">In {formatRM(row.amountIn)}</p>
+        {!isLeaveAgencyService(row.serviceType) ? (
+          <>
+            <div className="iz-tiny iz-muted2">Out</div>
+            <div className="iz-ledger font-sora text-base font-bold text-[var(--iz-gold-l)]">
+              {formatRM(row.amountOut)}
+            </div>
+            {row.amountIn > 0 && (
+              <p className="iz-tiny mt-1 text-[var(--iz-green)]">In {formatRM(row.amountIn)}</p>
+            )}
+          </>
+        ) : (
+          <IzPill variant="amber" className="!text-[9px]">
+            Support
+          </IzPill>
         )}
         {actionable && role === "agency" && onApprove && onDecline && (
           <div className="mt-2 flex flex-col gap-1">

@@ -152,6 +152,7 @@ import {
   shiftIndexForOutlet,
   type PrShiftSessionState,
 } from "@/lib/pr-session";
+import { calcDutyWagesFromOutlet, shiftPayoutTotal } from "@/lib/pr-shift-status";
 import {
   syncCommissionRulesFromWorkspace,
   syncWorkspaceFromCommissionRules,
@@ -358,7 +359,7 @@ interface StoreState {
   prPendingRatings: PrPendingRating[];
   prRatingHistory: PrRatingRecord[];
   prFreelancerLowRatingStrikes: number;
-  prCheckInMeta: { late?: boolean; noShowRisk?: boolean; selfieDataUrl?: string | null; gpsFallback?: boolean };
+  prCheckInMeta: { late?: boolean; noShowRisk?: boolean; selfieDataUrl?: string | null; gpsFallback?: boolean; closedShift?: PrActiveShiftSession | null };
   prLeaveRequest: { type: "leave" | "transfer"; note: string; newAgencyCode?: string; at: string } | null;
   markPrNotificationRead: (id: string) => void;
   requestPrSwap: (targetId: string, reason: string) => void;
@@ -1150,13 +1151,16 @@ export const useStore = create<StoreState>()(
           minute: "2-digit",
         });
         const date = [...SHIFT_TODAY] as [number, number, number];
+        const dutyWages = calcDutyWagesFromOutlet(offer.outlet, offer.time);
         const session: PrActiveShiftSession = {
           id: makeShiftSessionId(date, offer.outlet),
           pvId: makeShiftPvId(date, offer.outlet),
           outlet: offer.outlet,
           date,
           shiftTime: offer.time,
-          baseWages: offer.base + 70,
+          baseWages: dutyWages.wages,
+          wagePerHour: dutyWages.wagePerHour,
+          shiftHours: dutyWages.shiftHours,
           timeIn: stamp,
           receiptIds: [],
         };
@@ -1189,6 +1193,7 @@ export const useStore = create<StoreState>()(
               noShowRisk: false,
               selfieDataUrl: opts?.selfieDataUrl ?? st.prCheckInMeta.selfieDataUrl ?? null,
               gpsFallback,
+              closedShift: null,
             },
           };
         });
@@ -1266,15 +1271,23 @@ export const useStore = create<StoreState>()(
           get().toast("Checked out ✓ duration recorded", "success");
           return;
         }
-        const closed: PrActiveShiftSession = { ...shift, timeOut: stamp, overtimeMinutes: 11 };
+        const overtimeMinutes = 11;
+        const dutyWages = calcDutyWagesFromOutlet(shift.outlet, shift.shiftTime, overtimeMinutes);
+        const closed: PrActiveShiftSession = {
+          ...shift,
+          timeOut: stamp,
+          overtimeMinutes,
+          baseWages: dutyWages.wages,
+          wagePerHour: dutyWages.wagePerHour,
+          shiftHours: dutyWages.shiftHours,
+        };
         const scans = (get().prReceiptScans ?? SEED_RECEIPT_SCANS).filter(
           (r) =>
             r.prId === prId &&
             (r.shiftSessionId === shift.id || (r.pvId === shift.pvId && r.status === "attached")),
         );
         const profile = getPrProfile(get().prSubRole);
-        const fh = financeHeadStampFromProfile(get().agencyFinanceHead);
-        const pv = buildPaymentVoucherFromShift(closed, scans, profile, fh);
+        const shiftPayout = shiftPayoutTotal(closed.baseWages, scans);
         const scanIds = new Set(scans.map((s) => s.id));
         const [y, m, d] = shift.date;
         const managedPr = get().agencyPRs.find((p) => p.id === prId);
@@ -1284,7 +1297,7 @@ export const useStore = create<StoreState>()(
           outlet: shift.outlet,
           dateIso: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
           dateDisplay: stamp.split("·")[0]?.trim() ?? stamp,
-          totalPayout: pv.net,
+          totalPayout: shiftPayout,
           totalDrinks: get().drinks,
           totalTips: scans.reduce((s, r) => s + (r.items?.reduce((a, i) => a + (i.category === "tips" ? i.amount : 0), 0) ?? 0), 0),
           durationHours: 6,
@@ -1297,31 +1310,23 @@ export const useStore = create<StoreState>()(
           ...syncLedgerState(st, {
             agencyRoster: rosterCheckOut(st.agencyRoster, prId, shift.outlet, checkOutTime),
             shiftHistory: mergeShiftHistory(st.shiftHistory, [historyRow]),
-            prPaymentVouchers: [
-              pv,
-              ...(st.prPaymentVouchers ?? SEED_PR_PVS).filter((p) => p.id !== pv.id),
-            ],
           }),
           checkedOut: true,
           prActiveShift: null,
+          prCheckInMeta: {
+            ...st.prCheckInMeta,
+            closedShift: closed,
+          },
           prReceiptScans: (st.prReceiptScans ?? SEED_RECEIPT_SCANS).map((r) =>
             scanIds.has(r.id)
-              ? { ...r, pvId: shift.pvId, shiftSessionId: shift.id, status: "in_pv" as const, pvStatus: "PENDING_REVIEW" as const }
+              ? { ...r, shiftSessionId: shift.id, status: "attached" as const }
               : r,
           ),
         }));
         get().toast(
-          `Checked out ✓ PV ${shift.pvId} generated from ${scans.length} receipt(s) + shift wages`,
+          `Checked out ✓ shift sealed · ${scans.length} receipt(s) · weekly PV issues Saturday`,
           "success",
         );
-        get().pushNotify({
-          type: "pv_ready",
-          pvId: shift.pvId,
-          prId,
-          prName: managedPr?.name ?? profile.name,
-          net: pv.net,
-          outlet: shift.outlet,
-        });
         get().pushNotify({
           type: "rating_prompt",
           prId,
@@ -4073,9 +4078,14 @@ export const useStore = create<StoreState>()(
                   prName: seed.prName,
                   prIc: seed.prIc,
                   status: pv.status ?? seed.status,
-                  issued: pv.issued ?? seed.issued,
+                  issued: seed.weekStartIso ? seed.issued : (pv.issued ?? seed.issued),
                   due: pv.due ?? seed.due,
-                  cycle: pv.cycle ?? seed.cycle,
+                  cycle: seed.weekStartIso ? seed.cycle : (pv.cycle ?? seed.cycle),
+                  weekStartIso: seed.weekStartIso ?? pv.weekStartIso,
+                  weekEndIso: seed.weekEndIso ?? pv.weekEndIso,
+                  subtotal: seed.weekStartIso ? seed.subtotal : (pv.subtotal ?? seed.subtotal),
+                  net: seed.weekStartIso ? seed.net : (pv.net ?? seed.net),
+                  outlet: seed.weekStartIso ? seed.outlet : (pv.outlet ?? seed.outlet),
                   financeHeadName:
                     pv.financeHeadName === LEGACY_FINANCE_HEAD_SIGNER
                       ? seed.financeHeadName
@@ -4093,14 +4103,20 @@ export const useStore = create<StoreState>()(
                   disputedAt: pv.disputedAt ?? seed.disputedAt,
                   disputeUpdatedAt: pv.disputeUpdatedAt ?? seed.disputeUpdatedAt,
                   disputeNote: pv.disputeNote ?? seed.disputeNote,
-                  shiftSessionId: pv.shiftSessionId ?? seed.shiftSessionId,
-                  timeIn: pv.timeIn ?? seed.timeIn,
-                  timeOut: pv.timeOut ?? seed.timeOut,
-                  shiftTime: pv.shiftTime ?? seed.shiftTime,
+                  shiftSessionId: seed.weekStartIso ? seed.shiftSessionId : (pv.shiftSessionId ?? seed.shiftSessionId),
+                  timeIn: seed.weekStartIso ? undefined : (pv.timeIn ?? seed.timeIn),
+                  timeOut: seed.weekStartIso ? undefined : (pv.timeOut ?? seed.timeOut),
+                  shiftTime: seed.weekStartIso ? undefined : (pv.shiftTime ?? seed.shiftTime),
                   receiptIds: pv.receiptIds?.length ? pv.receiptIds : seed.receiptIds,
-                  rows: pv.rows?.length
-                    ? pv.rows.map((row, idx) => ({ ...seed.rows[idx], ...row, receiptIds: row.receiptIds ?? seed.rows[idx]?.receiptIds }))
-                    : seed.rows,
+                  rows: seed.weekStartIso
+                    ? seed.rows
+                    : pv.rows?.length
+                      ? pv.rows.map((row, idx) => ({
+                          ...seed.rows[idx],
+                          ...row,
+                          receiptIds: row.receiptIds ?? seed.rows[idx]?.receiptIds,
+                        }))
+                      : seed.rows,
                 };
               })
             : [];

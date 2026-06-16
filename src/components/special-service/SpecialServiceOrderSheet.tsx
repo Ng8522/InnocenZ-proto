@@ -2,6 +2,8 @@ import { IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
 import {
   AGENCY_SPECIAL_SERVICE_OFFERS,
   specialServiceOffer,
+  isLeaveAgencyService,
+  type AgencySpecialServiceOffer,
 } from "@/lib/special-service-demo";
 import type { SpecialServiceInitiator } from "@/lib/special-service-demo";
 
@@ -26,6 +28,7 @@ export function SpecialServiceOrderSheet({
   showAmountIn,
   onSubmit,
   submitLabel,
+  serviceOffers = AGENCY_SPECIAL_SERVICE_OFFERS,
 }: {
   role: SpecialServiceInitiator;
   draft: SpecialServiceOrderDraft;
@@ -37,8 +40,10 @@ export function SpecialServiceOrderSheet({
   showAmountIn?: boolean;
   onSubmit: () => void;
   submitLabel: string;
+  serviceOffers?: AgencySpecialServiceOffer[];
 }) {
   const offer = specialServiceOffer(draft.serviceType);
+  const leaveRequest = isLeaveAgencyService(draft.serviceType);
 
   const onServiceTypeChange = (serviceId: string) => {
     const next = specialServiceOffer(serviceId);
@@ -51,14 +56,20 @@ export function SpecialServiceOrderSheet({
   return (
     <>
       <div className="iz-cardttl">
-        {role === "agency" ? "Book agency service" : "Order agency service"}
+        {leaveRequest
+          ? "Service request"
+          : role === "agency"
+            ? "Book agency service"
+            : "Order agency service"}
       </div>
       <p className="iz-tiny iz-muted mb-3">
-        {role === "agency"
-          ? "Book on behalf of a PR or outlet — they will be notified to accept or decline."
-          : role === "outlet"
-            ? "Request an add-on from your agency — transportation, delivery, wardrobe, and more."
-            : "Request an agency add-on service — your agency will review and confirm."}
+        {leaveRequest
+          ? "Before 1 year with your agency you must raise a support ticket to leave early."
+          : role === "agency"
+            ? "Book on behalf of a PR or outlet — they will be notified to accept or decline."
+            : role === "outlet"
+              ? "Request an add-on from your agency — transportation, delivery, wardrobe, and more."
+              : "Request an agency add-on service — your agency will review and confirm."}
       </p>
 
       {showPrPicker !== false && (
@@ -104,7 +115,7 @@ export function SpecialServiceOrderSheet({
         value={draft.serviceType}
         onChange={(e) => onServiceTypeChange(e.target.value)}
       >
-        {AGENCY_SPECIAL_SERVICE_OFFERS.map((o) => (
+        {serviceOffers.map((o) => (
           <option key={o.id} value={o.id}>
             {o.label}
           </option>
@@ -112,7 +123,7 @@ export function SpecialServiceOrderSheet({
       </IzSelect>
       {offer && <p className="iz-tiny iz-muted2 mb-3">{offer.summary}</p>}
 
-      {role === "agency" && (
+      {!leaveRequest && role === "agency" && (
         <>
           <label className="iz-tiny iz-muted mb-1 block">
             Amount out (RM)
@@ -129,7 +140,7 @@ export function SpecialServiceOrderSheet({
         </>
       )}
 
-      {(showAmountIn || role === "agency") && (
+      {(showAmountIn || role === "agency") && !leaveRequest && (
         <>
           <label className="iz-tiny iz-muted mb-1 block">Amount in (RM) · outlet recovery</label>
           <input
@@ -144,18 +155,24 @@ export function SpecialServiceOrderSheet({
         </>
       )}
 
-      <label className="iz-tiny iz-muted mb-1 block">Service time</label>
-      <IzTimeInput
-        value={draft.time}
-        onChange={(time) => onChange({ time })}
-        className="mb-3 !text-sm"
-        aria-label="Service time"
-      />
+      {!leaveRequest && (
+        <>
+          <label className="iz-tiny iz-muted mb-1 block">Service time</label>
+          <IzTimeInput
+            value={draft.time}
+            onChange={(time) => onChange({ time })}
+            className="mb-3 !text-sm"
+            aria-label="Service time"
+          />
+        </>
+      )}
 
-      <label className="iz-tiny iz-muted mb-1 block">Notes</label>
+      <label className="iz-tiny iz-muted mb-1 block">{leaveRequest ? "Reason" : "Notes"}</label>
       <textarea
         className="iz-field-input mb-4 min-h-[72px] !text-sm"
-        placeholder="Pickup address, delivery items, outlet contact…"
+        placeholder={
+          leaveRequest ? "Reason for early leave…" : "Pickup address, delivery items, outlet contact…"
+        }
         value={draft.note}
         onChange={(e) => onChange({ note: e.target.value })}
       />

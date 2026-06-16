@@ -95,11 +95,9 @@ export function FreelancerAgencyPicker({ tied }: { tied?: boolean }) {
   const setPrPayrollAgency = useStore((s) => s.setPrPayrollAgency);
   const linkPayrollByAgencyCode = useStore((s) => s.linkPayrollByAgencyCode);
   const detachFreelancerPayroll = useStore((s) => s.detachFreelancerPayroll);
-  const requestLeaveAgency = useStore((s) => s.requestLeaveAgency);
   const requestTransferAgency = useStore((s) => s.requestTransferAgency);
   const [agencyCode, setAgencyCode] = useState("");
   const [transferCode, setTransferCode] = useState("");
-  const [leaveNote, setLeaveNote] = useState("");
 
   const effectiveId = tied ? DEFAULT_TIED_AGENCY_ID : prPayrollAgencyId;
   const selected = getPrAgencyById(effectiveId);
@@ -125,29 +123,10 @@ export function FreelancerAgencyPicker({ tied }: { tied?: boolean }) {
           <IzCard flat className="border-[rgba(217,185,122,.25)]">
             <AgencyRow agency={selected} selected readOnly />
             <p className="iz-tiny iz-muted2 mt-2 border-t border-[rgba(255,255,255,.06)] pt-2">
-              Tied {tiedMonths} months · {tiedLocked ? "1-year lock active" : "eligible to transfer"}
+              Tied {tiedMonths} months · {tiedLocked ? "1-year lock active · leave via Special services" : "eligible to transfer"}
             </p>
           </IzCard>
-          {tiedLocked ? (
-            <IzCard flat className="mt-2.5">
-              <p className="iz-sm font-bold">Leave agency</p>
-              <p className="iz-tiny iz-muted mt-1">Before 1 year you must raise a support ticket.</p>
-              <textarea
-                className="iz-pv-dispute-input mt-2"
-                rows={2}
-                placeholder="Reason for early leave…"
-                value={leaveNote}
-                onChange={(e) => setLeaveNote(e.target.value)}
-              />
-              <button
-                type="button"
-                className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-auto"
-                onClick={() => requestLeaveAgency(leaveNote)}
-              >
-                Raise support ticket
-              </button>
-            </IzCard>
-          ) : (
+          {!tiedLocked && (
             <IzCard flat className="mt-2.5">
               <p className="iz-sm font-bold">Transfer agency</p>
               <input

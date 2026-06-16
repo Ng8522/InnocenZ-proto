@@ -131,6 +131,11 @@ export function fmtDFriendly(y: number, m: number, d: number) {
   return `${dayName(y, m, d)} · ${String(d).padStart(2, "0")} ${MONTH_NAMES[m - 1]} ${y}`;
 }
 
+/** Compact date for PR topbar (no year). */
+export function fmtDTopbar(y: number, m: number, d: number) {
+  return `${dayName(y, m, d)} · ${String(d).padStart(2, "0")} ${MONTH_NAMES[m - 1]}`;
+}
+
 export function parseYmdIso(iso: string): [number, number, number] {
   const [y, m, d] = iso.split("-").map(Number);
   return [y, m, d];
@@ -292,6 +297,9 @@ export interface PrPaymentVoucher {
   prSignatureDataUrl?: string;
   paidAt?: string;
   bankRef?: string;
+  /** One PV per calendar week (Mon–Sun) — issued on Saturday */
+  weekStartIso?: string;
+  weekEndIso?: string;
   /** Shift refs already paid — duplicate payment guard */
   paidRefs?: string[];
   /** PR-submitted dispute — shown to agency for verification */
@@ -305,7 +313,7 @@ export interface PrPaymentVoucher {
   disputeEscalatedAt?: string;
   /** Finance override of signed/paid PV — audit logged */
   overrideAudit?: { at: string; reason: string; by: string; previousStatus: string };
-  /** One PV per shift — time-in to time-out */
+  /** One PV per shift session — legacy; weekly PV uses weekStartIso */
   shiftSessionId?: string;
   timeIn?: string;
   timeOut?: string;
@@ -322,6 +330,10 @@ export interface PrActiveShiftSession {
   date: [number, number, number];
   shiftTime: string;
   baseWages: number;
+  /** Outlet hourly rate at check-in (RM/hr) */
+  wagePerHour?: number;
+  /** Scheduled shift length from roster label */
+  shiftHours?: number;
   timeIn: string;
   timeOut?: string;
   receiptIds: string[];
@@ -551,9 +563,9 @@ function seedPrSignature(prName: string) {
 }
 
 export const PAYROLL_CYCLE = {
-  label: "Current payroll cycle",
-  range: "4 May \u2013 10 Jun 2026",
-  nextTransfer: "Friday, 13 Jun 2026 \u00b7 23:59",
+  label: "Current payroll week",
+  range: "1 Jun – 7 Jun 2026",
+  nextTransfer: "Saturday 7 Jun 2026 · PV auto-issued",
 };
 
 export const SEED_PR_PVS: PrPaymentVoucher[] = [
@@ -697,53 +709,111 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     bankRef: "INZ-TRF-202604211540",
   },
   {
-    id: "PV-2026-0611-A",
+    id: "PV-2026-W20-L",
+    prName: "Luna",
+    prIc: "950312-14-8821",
+    outlet: "Multi-outlet (2)",
+    weekStartIso: "2026-05-12",
+    weekEndIso: "2026-05-18",
+    cycle: "12 May – 18 May 2026",
+    issued: "17 May 2026",
+    due: "24 May 2026",
+    rows: [
+      { i: 1, date: "13 May", day: "Wed", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
+      { i: 2, date: "13 May", day: "Wed", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 112, ref: "Verified" },
+      { i: 3, date: "15 May", day: "Fri", outlet: "Mermate", desc: "Daily Wages", qty: 1, amt: 290, ref: "Sealed" },
+      { i: 4, date: "15 May", day: "Fri", outlet: "Mermate", desc: "Commission – Tips", qty: 1, amt: 78, ref: "Verified" },
+      { i: 5, date: "17 May", day: "Sun", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
+      { i: 6, date: "17 May", day: "Sun", outlet: "Velvet 23", desc: "Commission – Tables", qty: 2, amt: 120, ref: "Verified" },
+      { i: 7, date: "17 May", day: "Sun", outlet: "—", desc: "Early withdrawal", qty: 1, amt: 150, ref: "Advance · T+1" },
+    ],
+    subtotal: 1048,
+    deduct: 150,
+    net: 898,
+    status: "PAID",
+    ...seedFinanceHeadStamp("17 May 2026 · 09:02"),
+    prSignedAt: "18 May 2026 · 16:20",
+    ...seedPrSignature("Luna"),
+    paidAt: "19 May 2026 · 11:42",
+    bankRef: "INZ-TRF-202605191142",
+  },
+  {
+    id: "PV-2026-W19-L",
     prName: "Luna",
     prIc: "950312-14-8821",
     outlet: "Velvet 23",
-    cycle: "4 May \u2013 10 Jun 2026",
+    weekStartIso: "2026-05-05",
+    weekEndIso: "2026-05-11",
+    cycle: "5 May – 11 May 2026",
     issued: "10 May 2026",
     due: "17 May 2026",
     rows: [
-      { i: 1, date: "4 Jun", day: "Thu", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 360, ref: "Sealed" },
-      { i: 2, date: "4 Jun", day: "Thu", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 90, ref: "Tap log", receiptIds: ["rc-luna-1"] },
+      { i: 1, date: "6 May", day: "Wed", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
+      { i: 2, date: "6 May", day: "Wed", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 95, ref: "Verified" },
+      { i: 3, date: "8 May", day: "Fri", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
+      { i: 4, date: "8 May", day: "Fri", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 88, ref: "Verified" },
+      { i: 5, date: "10 May", day: "Sun", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
+      { i: 6, date: "10 May", day: "Sun", outlet: "Velvet 23", desc: "Commission – Tables", qty: 1, amt: 65, ref: "Verified" },
     ],
-    subtotal: 450,
+    subtotal: 1148,
     deduct: 0,
-    net: 450,
-    status: "SENT",
+    net: 1148,
+    status: "SIGNED",
     ...seedFinanceHeadStamp("10 May 2026 · 09:14"),
-    shiftSessionId: "shift-2026-06-04-velvet",
-    shiftTime: "9:00 PM – 2:00 AM",
-    timeIn: "4 Jun 2026 · 21:00",
-    timeOut: "5 Jun 2026 · 02:05",
-    receiptIds: ["rc-luna-1"],
+    prSignedAt: "12 May 2026 · 20:05",
+    ...seedPrSignature("Luna"),
+  },
+  {
+    id: "PV-2026-0611-A",
+    prName: "Luna",
+    prIc: "950312-14-8821",
+    outlet: "Multi-outlet (2)",
+    weekStartIso: "2026-06-01",
+    weekEndIso: "2026-06-07",
+    cycle: "1 Jun – 7 Jun 2026",
+    issued: "7 Jun 2026",
+    due: "14 Jun 2026",
+    rows: [
+      { i: 1, date: "2 Jun", day: "Tue", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
+      { i: 2, date: "2 Jun", day: "Tue", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 96, ref: "Verified", receiptIds: ["rc-luna-w2-d"] },
+      { i: 3, date: "2 Jun", day: "Tue", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 84, ref: "Verified" },
+      { i: 4, date: "3 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 290, ref: "Sealed" },
+      { i: 5, date: "3 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Commission – Drinks", qty: 1, amt: 85, ref: "Disputed", receiptIds: ["rc-luna-2"] },
+      { i: 6, date: "4 Jun", day: "Thu", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
+      { i: 7, date: "4 Jun", day: "Thu", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 90, ref: "Verified", receiptIds: ["rc-luna-1"] },
+    ],
+    subtotal: 1245,
+    deduct: 0,
+    net: 1245,
+    status: "SENT",
+    ...seedFinanceHeadStamp("7 Jun 2026 · 09:00"),
+    receiptIds: ["rc-luna-w2-d", "rc-luna-2", "rc-luna-1"],
   },
   {
     id: "PV-2026-0604-L",
     prName: "Luna",
     prIc: "950312-14-8821",
     outlet: "Bear Lounge",
+    weekStartIso: "2026-05-26",
+    weekEndIso: "2026-06-01",
     prDisputeReason:
-      "Drink commission RM85 does not match my receipt scans — outlet logged 12 units but PV shows 6. Please verify with Bear Lounge.",
-    disputedAt: "8 May 2026 · 18:20",
-    cycle: "4 May \u2013 10 May 2026",
-    issued: "10 May 2026",
-    due: "17 May 2026",
+      "Drink commission RM85 on 28 May does not match my receipt scans — outlet logged 12 units but PV shows 6. Please verify with Bear Lounge.",
+    disputedAt: "1 Jun 2026 · 18:20",
+    cycle: "26 May – 1 Jun 2026",
+    issued: "31 May 2026",
+    due: "7 Jun 2026",
     rows: [
-      { i: 1, date: "3 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
-      { i: 2, date: "3 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Commission – Drinks", qty: 6, amt: 85, ref: "Disputed", receiptIds: ["rc-luna-2"] },
+      { i: 1, date: "28 May", day: "Thu", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 290, ref: "Sealed" },
+      { i: 2, date: "28 May", day: "Thu", outlet: "Bear Lounge", desc: "Commission – Drinks", qty: 6, amt: 85, ref: "Disputed", receiptIds: ["rc-luna-2"] },
+      { i: 3, date: "30 May", day: "Sat", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
+      { i: 4, date: "30 May", day: "Sat", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 72, ref: "Verified" },
     ],
-    subtotal: 435,
+    subtotal: 747,
     deduct: 0,
-    net: 435,
+    net: 747,
     status: "DISPUTED",
-    ...seedFinanceHeadStamp("10 May 2026 · 09:14"),
+    ...seedFinanceHeadStamp("31 May 2026 · 09:14"),
     receiptIds: ["rc-luna-2"],
-    shiftSessionId: "shift-2026-06-03-bearlounge",
-    shiftTime: "9:00 PM – 2:00 AM",
-    timeIn: "3 Jun 2026 · 21:05",
-    timeOut: "4 Jun 2026 · 02:10",
   },
 ];
 

@@ -5,22 +5,32 @@ import {
   type PvPayeeProfile,
 } from "@/lib/pv-template";
 import type { PrPaymentVoucher } from "@/lib/pr-demo";
+import type { WeeklyPaymentSummary } from "@/lib/pr-weekly-payment";
 
 export function PvSummaryView({
   pv,
   payee,
+  weekSummary,
   className,
 }: {
   pv: PrPaymentVoucher;
   payee: PvPayeeProfile;
+  weekSummary?: WeeklyPaymentSummary | null;
   className?: string;
 }) {
+  const isWeekly = Boolean(pv.weekStartIso && weekSummary);
   return (
     <div className={className}>
       <div className="iz-pv-summary">
         <div className="iz-pv-summary-hero">
           <div className="iz-pv-summary-hero-lbl">Net payable</div>
           <div className="iz-pv-summary-hero-amt">{formatRM(pv.net)}</div>
+          {isWeekly && weekSummary && (
+            <p className="iz-tiny iz-muted2 mt-1">
+              Matches week summary · {weekSummary.verifiedDayCount} verified day
+              {weekSummary.verifiedDayCount !== 1 ? "s" : ""}
+            </p>
+          )}
         </div>
 
         <div className="iz-pv-summary-grid">
@@ -28,15 +38,30 @@ export function PvSummaryView({
           {formatPayeeField(payee.code) && <SummaryRow label="Code" value={payee.code} />}
           {formatPayeeField(payee.ic) && <SummaryRow label="IC / Passport" value={payee.ic} />}
           {formatPayeeField(payee.phone) && <SummaryRow label="Phone" value={payee.phone} />}
-          <SummaryRow label="Cycle" value={pv.cycle} highlight />
+          <SummaryRow label="Week" value={pv.cycle} highlight />
           <SummaryRow label="Issued" value={pv.issued} />
           <SummaryRow label="Due (sign-by)" value={pv.due} />
           <SummaryRow label="Outlet" value={pv.outlet} />
-          {pv.shiftTime && <SummaryRow label="Shift" value={pv.shiftTime} />}
-          {pv.timeIn && <SummaryRow label="Time-In" value={pv.timeIn} />}
-          {pv.timeOut && <SummaryRow label="Time-Out" value={pv.timeOut} />}
+          {isWeekly && weekSummary ? (
+            <>
+              <SummaryRow label="Week total" value={formatRM(weekSummary.totals.net)} highlight />
+              <SummaryRow
+                label="Breakdown"
+                value={`Wages ${formatRM(weekSummary.totals.wages)} · Comm ${formatRM(weekSummary.totals.drinks + weekSummary.totals.tips + weekSummary.totals.tables)}`}
+              />
+            </>
+          ) : (
+            <>
+              {pv.shiftTime && <SummaryRow label="Shift" value={pv.shiftTime} />}
+              {pv.timeIn && <SummaryRow label="Time-In" value={pv.timeIn} />}
+              {pv.timeOut && <SummaryRow label="Time-Out" value={pv.timeOut} />}
+            </>
+          )}
           {pv.receiptIds && pv.receiptIds.length > 0 && (
-            <SummaryRow label="Receipt scans" value={`${pv.receiptIds.length} on this shift`} />
+            <SummaryRow
+              label="Receipt scans"
+              value={isWeekly ? `${pv.receiptIds.length} this week` : `${pv.receiptIds.length} on this shift`}
+            />
           )}
           {pv.financeHeadSignedAt && (
             <SummaryRow label="Finance Head" value={`${pv.financeHeadName} · ${pv.financeHeadSignedAt}`} />

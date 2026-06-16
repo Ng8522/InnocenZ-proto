@@ -3,6 +3,9 @@ import { useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { IzSheet } from "@/components/iz/Sheet";
 import { PrDuringShiftExtras } from "@/components/pr/PrDuringShiftExtras";
+import { PrShiftStatusPanel } from "@/components/pr/PrShiftStatusPanel";
+import { PrShiftOutletBriefCard } from "@/components/pr/PrShiftOutletBrief";
+import { getPrShiftOutletBrief } from "@/lib/pr-shift-outlet";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { PrStatusPill } from "@/components/pr/PrOfferRow";
 import { useStore } from "@/lib/store";
@@ -10,14 +13,14 @@ import { outletMatches } from "@/lib/portal-sync";
 import { findAgencyRosterTonight } from "@/lib/pr-session";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { evaluateShiftCancellation, CANCEL_RULES } from "@/lib/pr-schedule-cancellation";
-import { SHIFT_TODAY, addDay, fmtDFriendly, fmtDShort, getPrRosterId } from "@/lib/pr-demo";
+import { SHIFT_TODAY, fmtDFriendly, getPrRosterId, PR_SHIFT_OFFERS } from "@/lib/pr-demo";
+import { aggregateShiftSales, calcDutyWagesFromOutlet, receiptItemsForShift, shiftDurationLabel, shiftPayoutTotal } from "@/lib/pr-shift-status";
 import { Calendar, Camera, Check, ExternalLink, MapPin, Navigation } from "lucide-react";
 import { formatRM } from "@/components/iz/ui";
 import {
   GEOFENCE_METERS,
   computePrCheckInGpsState,
   formatDistanceMeters,
-  mapsDirectionsUrl,
   prGpsPingOffset,
 } from "@/lib/gps-locations";
 
@@ -31,13 +34,13 @@ function AttendancePage() {
   const shiftAccepted = useStore((s) => s.shiftAccepted);
   const checkedIn = useStore((s) => s.checkedIn);
   const checkedOut = useStore((s) => s.checkedOut);
-  const drinks = useStore((s) => s.drinks);
-  const tables = useStore((s) => s.tables);
   const prCheckIn = useStore((s) => s.prCheckIn);
   const prMarkEnRoute = useStore((s) => s.prMarkEnRoute);
   const prCheckOut = useStore((s) => s.prCheckOut);
   const prActiveShift = useStore((s) => s.prActiveShift);
   const prCheckInMeta = useStore((s) => s.prCheckInMeta);
+  const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
+  const acceptedShiftIndex = useStore((s) => s.acceptedShiftIndex);
   const agencyRoster = useStore((s) => s.agencyRoster);
   const cancelPrShift = useStore((s) => s.cancelPrShift);
   const demoPrShiftIn = useStore((s) => s.demoPrShiftIn);
@@ -58,17 +61,22 @@ function AttendancePage() {
   const selfieRef = useRef<HTMLInputElement>(null);
 
   const td = SHIFT_TODAY;
-  const nx = addDay(td[0], td[1], td[2]);
   const todayFriendly = fmtDFriendly(td[0], td[1], td[2]);
-  const todayShort = fmtDShort(td[0], td[1], td[2]);
-  const nextShort = fmtDShort(nx[0], nx[1], nx[2]);
-  const salesTotal = drinks * 15 + tables * 60;
-  const runningPayout = 350 + salesTotal;
-  const mapsUrl = "https://www.google.com/maps?q=3.1478,101.7005";
+  const shiftOffer = PR_SHIFT_OFFERS[acceptedShiftIndex ?? 0] ?? PR_SHIFT_OFFERS[0];
+  const venueName = shiftOffer.outlet;
+  const attendanceSession = prActiveShift ?? prCheckInMeta.closedShift ?? null;
+  const dutyEstimate = calcDutyWagesFromOutlet(venueName, shiftOffer.time, attendanceSession?.overtimeMinutes ?? 0);
+  const baseWages = prActiveShift?.baseWages ?? prCheckInMeta.closedShift?.baseWages ?? dutyEstimate.wages;
+  const shiftScans = useMemo(
+    () => receiptItemsForShift(attendanceSession, prReceiptScans),
+    [attendanceSession, prReceiptScans],
+  );
+  const shiftSales = useMemo(() => aggregateShiftSales(shiftScans), [shiftScans]);
+  const runningCommission = shiftSales.commissionTotal;
+  const runningPayout = shiftPayoutTotal(baseWages, shiftScans);
 
   const prId = getPrRosterId(prSubRole);
   const prAgencyRow = agencyPRs.find((p) => p.id === prId);
-  const venueName = "Velvet 23";
 
   const gpsOutOfRange = !!prCheckInMeta.gpsFallback;
   const rosterSlot = useMemo(() => {
@@ -104,8 +112,17 @@ function AttendancePage() {
     [prId, venueName, enRoute, prAgencyRow?.place, gpsOutOfRange],
   );
 
+  const outletBrief = useMemo(
+    () =>
+      getPrShiftOutletBrief(shiftOffer, {
+        shiftDateLabel: todayFriendly,
+        rosterSlot,
+        prCoord: gpsState.prCoord,
+      }),
+    [shiftOffer, todayFriendly, rosterSlot, gpsState.prCoord],
+  );
+
   const pingPos = prGpsPingOffset(gpsState.meters, gpsState.inRange, prId);
-  const directionsUrl = mapsDirectionsUrl(gpsState.prCoord, gpsState.outletCoord);
   const rangePct = Math.min(100, (gpsState.meters / Math.max(gpsState.geofenceMeters * 4, 200)) * 100);
   const fencePct = (gpsState.geofenceMeters / Math.max(gpsState.geofenceMeters * 4, 200)) * 100;
   const statusLabel = !shiftAccepted
@@ -183,7 +200,20 @@ function AttendancePage() {
         backLabel={cancelOpen || checkPhase === "selfie" ? "Attendance" : undefined}
       />
 
-      <PrPageHeader label="Attendance" title="Velvet 23" meta={`${todayFriendly} · 9 PM – 2 AM`} />
+      <PrPageHeader label="Attendance" title={venueName} meta={`${todayFriendly} · ${shiftOffer.time}`} />
+
+      {shiftAccepted && (
+        <div className="mt-3">
+          <PrShiftOutletBriefCard
+            brief={outletBrief}
+            assignmentLabel={rosterSlot ? "Outlet assigned · Atlas Agency" : "Tonight's shift"}
+          />
+        </div>
+      )}
+
+      {!shiftAccepted && (
+        <p className="iz-tiny iz-muted mt-3">Accept a shift to see your assigned outlet briefing.</p>
+      )}
 
       <div className="iz-outlet-stat-strip mt-3">
         <div className="iz-outlet-stat-cell">
@@ -191,12 +221,22 @@ function AttendancePage() {
           <div className="n text-[var(--iz-gold-l)]">{statusLabel}</div>
         </div>
         <div className="iz-outlet-stat-cell">
+          <div className="l">Wages</div>
+          <div className="n text-[var(--iz-violet-l)]">{formatRM(baseWages)}</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Commission</div>
+          <div className="n text-[var(--iz-gold-l)]">{formatRM(runningCommission)}</div>
+        </div>
+        <div className="iz-outlet-stat-cell">
           <div className="l">Payout</div>
           <div className="n text-[var(--iz-gold)]">{formatRM(runningPayout)}</div>
         </div>
         <div className="iz-outlet-stat-cell">
           <div className="l">Sales</div>
-          <div className="n">{drinks + tables}</div>
+          <div className="n text-[11px] leading-tight">
+            D {shiftSales.drinkUnits} · T {shiftSales.tipRm}
+          </div>
         </div>
         <div className="iz-outlet-stat-cell">
           <div className="l">GPS</div>
@@ -288,7 +328,7 @@ function AttendancePage() {
             </div>
 
             <a
-              href={directionsUrl}
+              href={outletBrief.directionsUrl}
               target="_blank"
               rel="noreferrer"
               className="iz-outlet-quick-chip mb-2 inline-flex w-full justify-center"
@@ -309,7 +349,7 @@ function AttendancePage() {
               {gpsOutOfRange ? "Simulate GPS lock" : "Simulate GPS fail"}
             </button>
             {gpsOutOfRange && (
-              <a href={mapsUrl} target="_blank" rel="noreferrer" className="iz-outlet-quick-chip mt-2 inline-flex">
+              <a href={outletBrief.mapsUrl} target="_blank" rel="noreferrer" className="iz-outlet-quick-chip mt-2 inline-flex">
                 <ExternalLink className="h-3 w-3" /> Maps fallback
               </a>
             )}
@@ -352,47 +392,61 @@ function AttendancePage() {
 
         {shiftAccepted && checkedIn && !checkedOut && (
           <>
-            <div className="iz-pr-hero mb-3">
-              <div className="iz-between">
-                <PrStatusPill variant="green"><Check className="h-3 w-3" /> On duty</PrStatusPill>
-                <span className="iz-tiny iz-muted">{todayShort} · 21:04{prCheckInMeta.late && " · Late"}</span>
-              </div>
-              {prCheckInMeta.selfieDataUrl && (
-                <img src={prCheckInMeta.selfieDataUrl} alt="" className="mt-2 h-12 w-12 rounded-lg object-cover" />
-              )}
-              {prActiveShift && (
-                <p className="iz-tiny iz-muted mt-2">PV {prActiveShift.pvId} · {prActiveShift.receiptIds.length} receipt(s)</p>
-              )}
-            </div>
+            <PrShiftStatusPanel
+              session={prActiveShift}
+              scans={prReceiptScans}
+              baseWages={baseWages}
+              checkedOut={false}
+            />
             <PrDuringShiftExtras />
             <HoldButton label="Check out" icon={<MapPin className="h-4 w-4" />} holding={holding} progress={progress} onPress={() => startHold(true)} />
           </>
         )}
 
-        {shiftAccepted && checkedOut && (
+        {shiftAccepted && checkedOut && attendanceSession && (
           <>
             <div className="iz-pr-hero mb-3 border-[rgba(57,217,138,.3)] bg-[var(--iz-green-bg)]">
               <PrStatusPill variant="green"><Check className="h-3 w-3" /> Complete</PrStatusPill>
-              <div className="mt-3 space-y-1.5">
-                <div className="iz-between iz-tiny"><span className="iz-muted">Time in</span><b>{todayShort} · 21:04</b></div>
-                <div className="iz-between iz-tiny"><span className="iz-muted">Time out</span><b>{nextShort} · 02:11</b></div>
-                <div className="iz-between iz-tiny"><span className="iz-muted">Overtime</span><b className="text-[var(--iz-gold)]">+11m</b></div>
-                <div className="iz-between iz-tiny border-t border-[var(--iz-line)] pt-2">
-                  <span>Final payout</span>
-                  <span className="font-sora font-bold text-[var(--iz-gold)]">{formatRM(runningPayout)}</span>
-                </div>
+            </div>
+            <PrShiftStatusPanel
+              session={attendanceSession}
+              scans={prReceiptScans}
+              baseWages={baseWages}
+              checkedOut
+            />
+            <div className="iz-pr-shift-status__summary mt-3 rounded-xl border border-[var(--iz-line)] bg-white/[0.02] p-3">
+              <div className="iz-between iz-tiny">
+                <span className="iz-muted">Final payout</span>
+                <span className="font-sora font-bold text-[var(--iz-gold)]">{formatRM(runningPayout)}</span>
               </div>
+              {attendanceSession.overtimeMinutes != null && attendanceSession.overtimeMinutes > 0 && (
+                <p className="iz-tiny iz-muted2 mt-1">
+                  Duration {shiftDurationLabel(attendanceSession)} incl. +{attendanceSession.overtimeMinutes}m OT
+                </p>
+              )}
             </div>
             <Link
               to="/host/PaymentVoucher"
-              search={isFreelancer ? undefined : { tab: "pv" }}
-              className="iz-btn iz-btn-primary"
+              search={isFreelancer ? undefined : { pvId: attendanceSession.pvId }}
+              className="iz-btn iz-btn-primary mt-3"
             >
-              Vouchers
+              Payment
             </Link>
             <p className="iz-tiny iz-muted2 mt-3 text-center">
               Shift progress is saved — reset from the welcome screen when you need a fresh demo.
             </p>
+          </>
+        )}
+
+        {shiftAccepted && checkedOut && !attendanceSession && (
+          <>
+            <div className="iz-pr-hero mb-3 border-[rgba(57,217,138,.3)] bg-[var(--iz-green-bg)]">
+              <PrStatusPill variant="green"><Check className="h-3 w-3" /> Complete</PrStatusPill>
+              <div className="mt-3 space-y-1.5">
+                <div className="iz-between iz-tiny"><span className="iz-muted">Final payout</span><b className="text-[var(--iz-gold)]">{formatRM(runningPayout)}</b></div>
+              </div>
+            </div>
+            <Link to="/host/PaymentVoucher" className="iz-btn iz-btn-primary">Payment</Link>
           </>
         )}
       </div>

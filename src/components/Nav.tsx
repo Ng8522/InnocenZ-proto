@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 
 import type { LucideIcon } from "lucide-react";
 
-import { ArrowLeft, ArrowLeftRight, Shield } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight } from "lucide-react";
 
-import { getPrProfile } from "@/lib/pr-demo";
+import { SHIFT_TODAY, fmtDTopbar, getPrProfile } from "@/lib/pr-demo";
 
 import { AGENCY_SUB_ROLE_LABELS } from "@/lib/agency-rbac";
 
@@ -104,6 +105,31 @@ const ROLE_LABELS: Record<string, { name: string; label: string; av: string; gra
 
 
 
+function formatTopbarTime(d: Date) {
+  return d.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function PrTopbarDateTime() {
+  const [time, setTime] = useState(() => formatTopbarTime(new Date()));
+  const dateLine = fmtDTopbar(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2]);
+
+  useEffect(() => {
+    const tick = () => setTime(formatTopbarTime(new Date()));
+    tick();
+    const id = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <div className="iz-topbar-datetime" aria-label={`${dateLine}, ${time}`}>
+      <span className="iz-topbar-date">{dateLine}</span>
+      <span className="iz-topbar-time">{time}</span>
+    </div>
+  );
+}
+
+
+
 export type AppTopbarProps = {
 
   backTo?: string;
@@ -194,7 +220,7 @@ export function PortalBackButton({
 
     >
 
-      <ArrowLeft className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+      <ArrowLeft className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
 
       <span className="iz-topbar-back-label">{resolvedLabel}</span>
 
@@ -300,23 +326,26 @@ export function AppTopbar({
       {!isPortalShell && (
         <>
           {isPrPortal ? (
-            <Link
-              to="/host/profile"
-              className="iz-topbar-identity iz-topbar-identity--link"
-              aria-label="Open profile"
-              title="Profile"
-            >
-              <div
-                className={`iz-avatar iz-avatar--sm${prAvatarPhoto ? " iz-avatar-photo" : ""}`}
-                style={prAvatarPhoto ? undefined : { background: displayGradient }}
+            <div className="iz-topbar-center">
+              <Link
+                to="/host/profile"
+                className="iz-topbar-identity iz-topbar-identity--link"
+                aria-label="Open profile"
+                title="Profile"
               >
-                {prAvatarPhoto ? <img src={prAvatarPhoto} alt="" /> : displayAv}
-              </div>
-              <div className="iz-topbar-meta">
-                <div className="iz-topbar-name">{displayName}</div>
-                <div className="iz-topbar-role">{displayLabel}</div>
-              </div>
-            </Link>
+                <div
+                  className={`iz-avatar iz-avatar--sm${prAvatarPhoto ? " iz-avatar-photo" : ""}`}
+                  style={prAvatarPhoto ? undefined : { background: displayGradient }}
+                >
+                  {prAvatarPhoto ? <img src={prAvatarPhoto} alt="" /> : displayAv}
+                </div>
+                <div className="iz-topbar-meta">
+                  <div className="iz-topbar-name">{displayName}</div>
+                  <div className="iz-topbar-role">{displayLabel}</div>
+                </div>
+              </Link>
+              <PrTopbarDateTime />
+            </div>
           ) : (
             <div className="iz-topbar-identity">
               <div
@@ -334,9 +363,6 @@ export function AppTopbar({
 
           <div className="iz-topbar-actions">
             {isPrPortal && <PrNotificationBell />}
-            <span className="iz-topbar-action iz-topbar-action--muted" title="Verified portal" aria-hidden>
-              <Shield className="h-3.5 w-3.5" />
-            </span>
             <button
               type="button"
               className="iz-topbar-action"

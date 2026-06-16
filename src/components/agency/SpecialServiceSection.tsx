@@ -12,7 +12,7 @@ import { useStore } from "@/lib/store";
 import { OUTLET_NAMES } from "@/lib/agency-demo";
 import { AGENCY_SUB_ROLE_LABELS } from "@/lib/agency-rbac";
 import {
-  AGENCY_SPECIAL_SERVICE_OFFERS,
+  bookableServiceOffers,
   EMPTY_SPECIAL_SERVICE_FILTERS,
   collectSpecialServiceAmountInOptions,
   collectSpecialServiceAmountOutOptions,
@@ -24,6 +24,7 @@ import { pendingSpecialServicesForAgency } from "@/lib/special-service-actions";
 import { Plus, Truck } from "lucide-react";
 
 const OUTLET_OPTIONS = ["Agency service", ...OUTLET_NAMES];
+const AGENCY_SERVICE_OFFERS = bookableServiceOffers("agency");
 
 export function SpecialServiceSection({ canBook }: { canBook: boolean }) {
   const agencyPRs = useStore((s) => s.agencyPRs);
@@ -38,8 +39,8 @@ export function SpecialServiceSection({ canBook }: { canBook: boolean }) {
   const [draft, setDraft] = useState<SpecialServiceOrderDraft>({
     prId: agencyPRs[0]?.id ?? "",
     outlet: OUTLET_OPTIONS[1] ?? "Velvet 23",
-    serviceType: AGENCY_SPECIAL_SERVICE_OFFERS[0]?.id ?? "transportation",
-    amountOut: String(AGENCY_SPECIAL_SERVICE_OFFERS[0]?.defaultRate ?? ""),
+    serviceType: AGENCY_SERVICE_OFFERS[0]?.id ?? "transportation",
+    amountOut: String(AGENCY_SERVICE_OFFERS[0]?.defaultRate ?? ""),
     amountIn: "",
     time: "19:00",
     note: "",
@@ -65,7 +66,7 @@ export function SpecialServiceSection({ canBook }: { canBook: boolean }) {
     .reduce((s, r) => s + r.amountOut, 0);
 
   const openRaise = () => {
-    const offer = specialServiceOffer(draft.serviceType) ?? AGENCY_SPECIAL_SERVICE_OFFERS[0];
+    const offer = specialServiceOffer(draft.serviceType) ?? AGENCY_SERVICE_OFFERS[0];
     setDraft((prev) => ({
       ...prev,
       prId: prev.prId || agencyPRs[0]?.id || "",
@@ -177,6 +178,7 @@ export function SpecialServiceSection({ canBook }: { canBook: boolean }) {
           outletOptions={OUTLET_OPTIONS}
           showOutletPicker
           showAmountIn
+          serviceOffers={AGENCY_SERVICE_OFFERS}
           onSubmit={submitDraft}
           submitLabel="Book & notify"
         />

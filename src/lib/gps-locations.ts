@@ -72,6 +72,65 @@ function coordEnRouteToOutlet(outlet: GeoCoord, home: GeoCoord, seed: string): G
   return offsetMeters(outlet, seed, dist, bearing + ((h % 40) - 20));
 }
 
+export function formatDistanceMeters(meters: number): string {
+  if (meters < 1000) return `${meters.toLocaleString("en-MY")} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
+export type PrCheckInGpsPhase = "booked" | "en-route";
+
+export function computePrCheckInGpsState(opts: {
+  prId: string;
+  outlet: string;
+  phase: PrCheckInGpsPhase;
+  homePlace?: string;
+  gpsFallback?: boolean;
+}): {
+  meters: number;
+  inRange: boolean;
+  outletCoord: GeoCoord;
+  prCoord: GeoCoord;
+  geofenceMeters: number;
+} {
+  const { prId, outlet, phase, homePlace = "KL", gpsFallback = false } = opts;
+  const outletCoord = OUTLET_GPS[outlet] ?? OUTLET_GPS["Velvet 23"];
+  const home = PLACE_GPS[homePlace] ?? PLACE_GPS.KL;
+
+  let prCoord: GeoCoord;
+  if (phase === "en-route") {
+    prCoord = coordEnRouteToOutlet(outletCoord, home, prId);
+  } else {
+    prCoord = home;
+  }
+
+  let meters = metersBetween(prCoord, outletCoord);
+  if (gpsFallback) {
+    meters = Math.max(meters, GEOFENCE_METERS + 70);
+  }
+
+  return {
+    meters,
+    inRange: !gpsFallback && meters <= GEOFENCE_METERS,
+    outletCoord,
+    prCoord,
+    geofenceMeters: GEOFENCE_METERS,
+  };
+}
+
+/** Mini-map ping offset from venue center (percent) */
+export function prGpsPingOffset(meters: number, inRange: boolean, seed: string): { left: string; top: string } {
+  if (inRange) return { left: "50%", top: "50%" };
+  const maxDisplay = 420;
+  const ratio = Math.min(meters / maxDisplay, 0.88);
+  const angle = 38 + (hashSeed(seed) % 50);
+  const rad = (angle * Math.PI) / 180;
+  const r = ratio * 38;
+  return {
+    left: `${50 + r * Math.cos(rad)}%`,
+    top: `${50 - r * Math.sin(rad)}%`,
+  };
+}
+
 export function metersBetween(a: GeoCoord, b: GeoCoord): number {
   const km =
     Math.sqrt((a.lat - b.lat) ** 2 + ((a.lng - b.lng) * Math.cos((a.lat * Math.PI) / 180)) ** 2) *

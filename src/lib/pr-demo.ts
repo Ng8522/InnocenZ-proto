@@ -850,6 +850,8 @@ export interface PrReceiptScan {
   shiftSessionId?: string;
   /** PV this receipt belongs to (assigned at check-in, finalized at time-out) */
   pvId?: string;
+  /** POS / OCR receipt number — used to block duplicate scans */
+  receiptRef?: string;
   pvLineDesc?: string;
   pvStatus?: PrPvStatus;
   status: ReceiptScanStatus;
@@ -879,21 +881,83 @@ export function calcReceiptCommissions(items: PrReceiptItem[]) {
   };
 }
 
-export function buildDemoReceiptDraft(profile: { name: string; first: string }, outlet = "Velvet 23") {
-  const items: PrReceiptItem[] = [
-    { label: "Cocktail", qty: 2, unitPrice: 45, amount: 90, category: "drinks" },
-    { label: "Tip", qty: 1, unitPrice: 60, amount: 60, category: "tips" },
+export function buildDemoReceiptDraft(
+  profile: { name: string; first: string },
+  outlet = "Velvet 23",
+  variantIndex = 0,
+) {
+  const variants: {
+    receiptRef: string;
+    items: PrReceiptItem[];
+  }[] = [
+    {
+      receiptRef: "POS-88421",
+      items: [
+        { label: "Cocktail", qty: 2, unitPrice: 45, amount: 90, category: "drinks" },
+        { label: "Tip", qty: 1, unitPrice: 60, amount: 60, category: "tips" },
+      ],
+    },
+    {
+      receiptRef: "POS-88422",
+      items: [
+        { label: "Beer", qty: 3, unitPrice: 35, amount: 105, category: "drinks" },
+        { label: "VIP Table", qty: 1, unitPrice: 200, amount: 200, category: "tables" },
+      ],
+    },
+    {
+      receiptRef: "POS-88423",
+      items: [{ label: "Whisky", qty: 1, unitPrice: 180, amount: 180, category: "drinks" }],
+    },
   ];
+
+  const picked = variants[variantIndex % variants.length]!;
+  const items = picked.items;
   const totalLogged = items.reduce((s, i) => s + i.amount, 0);
   const comm = calcReceiptCommissions(items);
   return {
     outlet: outlet.includes("KL") ? outlet : `${outlet} KL`,
     prCode: "PR-0042",
     prName: profile.first,
+    receiptRef: picked.receiptRef,
     items,
     totalLogged,
     ...comm,
   };
+}
+
+/** Unique key for duplicate receipt detection (POS ref preferred) */
+export function receiptScanFingerprint(input: {
+  outlet: string;
+  totalLogged: number;
+  items: PrReceiptItem[];
+  receiptRef?: string;
+}): string {
+  const ref = input.receiptRef?.trim();
+  if (ref) {
+    const outlet = input.outlet.replace(/\s+KL$/i, "").trim().toLowerCase();
+    return `ref:${outlet}|${ref.toUpperCase()}`;
+  }
+  const outlet = input.outlet.replace(/\s+KL$/i, "").trim().toLowerCase();
+  const itemsKey = input.items
+    .map((i) => `${i.category}|${i.label}|${i.qty}|${i.amount}`)
+    .sort()
+    .join(";");
+  return `fp:${outlet}|${input.totalLogged}|${itemsKey}`;
+}
+
+export function findDuplicateReceiptScan(
+  scans: PrReceiptScan[],
+  fingerprint: string,
+): PrReceiptScan | undefined {
+  return scans.find((s) => {
+    const fp = receiptScanFingerprint({
+      outlet: s.outlet,
+      totalLogged: s.totalLogged,
+      items: s.items,
+      receiptRef: s.receiptRef,
+    });
+    return fp === fingerprint;
+  });
 }
 
 export function receiptBelongsToPvLabel(scan: PrReceiptScan) {

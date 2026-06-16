@@ -4,19 +4,18 @@ import { AppTopbar } from "@/components/Nav";
 import { IzSheet } from "@/components/iz/Sheet";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { PrOfferRow, PrOfferRowActions, PrStatusPill } from "@/components/pr/PrOfferRow";
+import { PrAgencySchedulePanel } from "@/components/pr/PrAgencySchedulePanel";
 import { PrSection } from "@/components/pr/PrSection";
 import { useStore } from "@/lib/store";
-import { PR_SHIFT_OFFERS, SHIFT_TODAY, fmtDFriendly, fmtDShort, getPrProfile, getPrRosterId } from "@/lib/pr-demo";
+import { PR_SHIFT_OFFERS, SHIFT_TODAY, DEFAULT_PR_AGENCY_NAME, fmtDFriendly, fmtDShort, getPrProfile, getPrRosterId } from "@/lib/pr-demo";
 import { findAgencyRosterTonight, shiftIndexForOutlet } from "@/lib/pr-session";
-import { DEFAULT_ROSTER_DATE_ISO, isDemoDateOnOrAfter, outletPendingShiftsForPr } from "@/lib/roster-availability";
+import { DEFAULT_ROSTER_DATE_ISO, outletPendingShiftsForPr } from "@/lib/roster-availability";
 import {
   PR_AGENCY_TIED_OFFERS,
   PR_MARKETPLACE_LISTINGS,
   pendingSwapOffersForPr,
   swapBlocksRequestingPrShift,
   swapTargetOptionsForPr,
-  tiedOfferToShiftIndex,
-  type AgencyTiedOffer,
   type MarketplaceListing,
 } from "@/lib/pr-features";
 import { ArrowLeftRight, ExternalLink, Filter, MapPin } from "lucide-react";
@@ -37,7 +36,6 @@ function HostShifts() {
   const pendingApproval = useStore((s) => s.pendingApproval);
   const checkedIn = useStore((s) => s.checkedIn);
   const acceptedShiftIndex = useStore((s) => s.acceptedShiftIndex);
-  const acceptPrShift = useStore((s) => s.acceptPrShift);
   const approvePrShift = useStore((s) => s.approvePrShift);
   const declinePrOffer = useStore((s) => s.declinePrOffer);
   const applyFreelancerListing = useStore((s) => s.applyFreelancerListing);
@@ -50,16 +48,14 @@ function HostShifts() {
   const prMarketplaceApplication = useStore((s) => s.prMarketplaceApplication);
   const prUpcomingShifts = useStore((s) => s.prUpcomingShifts);
   const prSwapRequests = useStore((s) => s.prSwapRequests);
-  const approveOutletSwapByPr = useStore((s) => s.approveOutletSwapByPr);
-  const declineOutletSwapByPr = useStore((s) => s.declineOutletSwapByPr);
-  const approveAgencyAssignmentByPr = useStore((s) => s.approveAgencyAssignmentByPr);
   const confirmOutletRosterSlot = useStore((s) => s.confirmOutletRosterSlot);
   const declineAgencyAssignmentByPr = useStore((s) => s.declineAgencyAssignmentByPr);
+  const togglePrDayAvailability = useStore((s) => s.togglePrDayAvailability);
+  const cancelPrRosterShift = useStore((s) => s.cancelPrRosterShift);
   const prDisplayName = useStore((s) => s.prDisplayName);
   const prPayrollAgencyId = useStore((s) => s.prPayrollAgencyId);
   const demoPrShiftIn = useStore((s) => s.demoPrShiftIn);
 
-  const [confirmTiedId, setConfirmTiedId] = useState<string | null>(null);
   const [confirmMktId, setConfirmMktId] = useState<string | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapTargetId, setSwapTargetId] = useState<string | null>(null);
@@ -104,15 +100,6 @@ function HostShifts() {
   }, [effectiveShiftAccepted, acceptedShiftIndex, agencyTonight]);
   const firstName = (prDisplayName ?? profile.first).split(" ")[0];
 
-  const pendingOutletSwaps = agencyRoster.filter(
-    (s) =>
-      s.prId === myRosterId &&
-      s.outletSwap?.status === "pending_pr" &&
-      isDemoDateOnOrAfter(s.dateIso),
-  );
-  const pendingAgencyAssignments = agencyRoster.filter(
-    (s) => s.prId === myRosterId && s.status === "assignment-pending" && isDemoDateOnOrAfter(s.dateIso),
-  );
   const outletPendingShifts = useMemo(
     () => outletPendingShiftsForPr(agencyRoster, myRosterId),
     [agencyRoster, myRosterId],
@@ -143,11 +130,7 @@ function HostShifts() {
     !!agencyTonight &&
     !hasPendingSwapOnSource &&
     swapTargets.length > 0;
-  const inboxCount =
-    pendingAgencyAssignments.length + pendingOutletSwaps.length + swapOffers.length;
 
-  const tiedOffers = PR_AGENCY_TIED_OFFERS.filter((o) => !prDeclinedOfferIds.includes(o.id));
-  const confirmTied = confirmTiedId ? tiedOffers.find((o) => o.id === confirmTiedId) : null;
   const confirmMkt = confirmMktId ? PR_MARKETPLACE_LISTINGS.find((l) => l.id === confirmMktId) : null;
 
   const filteredMarketplace = useMemo(() => {
@@ -173,7 +156,9 @@ function HostShifts() {
   const mktRoles = [...new Set(PR_MARKETPLACE_LISTINGS.map((l) => l.role))];
   const mktRates = [...new Set(PR_MARKETPLACE_LISTINGS.map((l) => l.rate))].sort((a, b) => a - b);
 
-  const offerCount = tied ? tiedOffers.length : filteredMarketplace.length;
+  const upcomingConfirmed = prUpcomingShifts.filter((u) => u.status === "confirmed").length;
+  const upcomingPending = prUpcomingShifts.filter((u) => u.status === "pending").length;
+  const offerCount = tied ? prUpcomingShifts.length : filteredMarketplace.length;
   const statusLabel = blockingSwap?.status === "pending_replacement"
     ? "Swap pending"
     : outletPendingShifts.length > 0
@@ -216,22 +201,45 @@ function HostShifts() {
       />
 
       <div className="iz-outlet-stat-strip mt-3">
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Offers</div>
-          <div className="n">{offerCount}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Upcoming</div>
-          <div className="n">{prUpcomingShifts.length}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Status</div>
-          <div className="n text-[var(--iz-gold-l)]">{statusLabel}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Inbox</div>
-          <div className="n">{inboxCount}</div>
-        </div>
+        {tied ? (
+          <>
+            <div className="iz-outlet-stat-cell">
+              <div className="l">Upcoming</div>
+              <div className="n">{prUpcomingShifts.length}</div>
+            </div>
+            <div className="iz-outlet-stat-cell">
+              <div className="l">Confirmed</div>
+              <div className="n text-[var(--iz-green)]">{upcomingConfirmed}</div>
+            </div>
+            <div className="iz-outlet-stat-cell">
+              <div className="l">Pending</div>
+              <div className="n text-[var(--iz-amber)]">{upcomingPending}</div>
+            </div>
+            <div className="iz-outlet-stat-cell">
+              <div className="l">Status</div>
+              <div className="n text-[var(--iz-gold-l)]">{statusLabel}</div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="iz-outlet-stat-cell">
+              <div className="l">Offers</div>
+              <div className="n">{offerCount}</div>
+            </div>
+            <div className="iz-outlet-stat-cell">
+              <div className="l">Upcoming</div>
+              <div className="n">{prUpcomingShifts.length}</div>
+            </div>
+            <div className="iz-outlet-stat-cell">
+              <div className="l">Status</div>
+              <div className="n text-[var(--iz-gold-l)]">{statusLabel}</div>
+            </div>
+            <div className="iz-outlet-stat-cell">
+              <div className="l">Open</div>
+              <div className="n">{filteredMarketplace.length}</div>
+            </div>
+          </>
+        )}
       </div>
 
       {!tied && !prPayrollAgencyId && (
@@ -353,43 +361,41 @@ function HostShifts() {
         </PrSection>
       )}
 
-      {tied && inboxCount > 0 && (
-        <PrSection title="Agency inbox" hint={`${inboxCount} need your response`} collapsible defaultOpen>
+      {prUpcomingShifts.length > 0 && (
+        <PrSection title="Upcoming" hint="Outlet-confirmed & agency-proposed shifts" collapsible defaultOpen className="mt-4">
           <div className="iz-pr-list">
-            {pendingAgencyAssignments.map((slot) => (
-              <InboxCard
-                key={slot.id}
-                title={slot.outlet}
-                subtitle={`${slot.date} · ${slot.shiftStart}–${slot.shiftEnd}`}
-                onApprove={() => approveAgencyAssignmentByPr(slot.id)}
-                onReject={() => declineAgencyAssignmentByPr(slot.id)}
-              />
-            ))}
-            {pendingOutletSwaps.map((slot) => (
-              <InboxCard
-                key={slot.id}
-                title={`${slot.outlet} → ${slot.outletSwap!.targetOutlet}`}
-                subtitle={`${slot.date} · Outlet swap · ${slot.shift}`}
-                onApprove={() => approveOutletSwapByPr(slot.id)}
-                onReject={() => declineOutletSwapByPr(slot.id)}
+            {prUpcomingShifts.map((u) => (
+              <PrOfferRow
+                key={u.id}
+                title={u.outlet}
+                subtitle={
+                  u.status === "confirmed"
+                    ? `Outlet · ${u.outlet} confirmed · ${fmtDFriendly(u.date[0], u.date[1], u.date[2])} · ${u.time}`
+                    : `Agency · ${DEFAULT_PR_AGENCY_NAME} proposed · outlet reviewing · ${fmtDFriendly(u.date[0], u.date[1], u.date[2])} · ${u.time}`
+                }
+                badge={<PrStatusPill variant={u.status === "confirmed" ? "green" : "amber"}>{u.status}</PrStatusPill>}
               />
             ))}
           </div>
         </PrSection>
       )}
 
-      {prUpcomingShifts.length > 0 && (
-        <PrSection title="Upcoming" hint="Confirmed & pending" collapsible defaultOpen={false}>
-          <div className="iz-pr-list">
-            {prUpcomingShifts.map((u) => (
-              <PrOfferRow
-                key={u.id}
-                title={u.outlet}
-                subtitle={`${fmtDFriendly(u.date[0], u.date[1], u.date[2])} · ${u.time}`}
-                badge={<PrStatusPill variant={u.status === "confirmed" ? "green" : "amber"}>{u.status}</PrStatusPill>}
-              />
-            ))}
-          </div>
+      {tied && (
+        <PrSection
+          title="Agency schedule"
+          hint="Mark days you're not available · Atlas manages roster"
+          collapsible
+          defaultOpen
+          className="mt-4"
+        >
+          <PrAgencySchedulePanel
+            prId={myRosterId}
+            roster={agencyRoster}
+            upcoming={prUpcomingShifts}
+            onToggleAvailability={togglePrDayAvailability}
+            onCancelShift={cancelPrRosterShift}
+            onDeclineAssignment={declineAgencyAssignmentByPr}
+          />
         </PrSection>
       )}
 
@@ -416,37 +422,18 @@ function HostShifts() {
         </PrSection>
       )}
 
+      {!tied && (
       <PrSection
-        title={tied ? "Atlas Agency offers" : "Open shifts"}
-        hint={tied ? "Tap to view & request" : "Apply — outlet confirms"}
+        title="Open shifts"
+        hint="Apply — outlet confirms"
         trailing={
-          !tied ? (
-            <button type="button" className="iz-outlet-quick-chip !py-1" onClick={() => setFiltersOpen(true)}>
-              <Filter className="h-3 w-3" /> Filter
-            </button>
-          ) : undefined
+          <button type="button" className="iz-outlet-quick-chip !py-1" onClick={() => setFiltersOpen(true)}>
+            <Filter className="h-3 w-3" /> Filter
+          </button>
         }
       >
         <div className="iz-pr-list">
-          {tied
-            ? tiedOffers.map((o) => (
-                <div key={o.id} className="iz-pr-inbox-card">
-                  <PrOfferRow
-                    title={o.outlet}
-                    subtitle={`${fmtDFriendly(o.date[0], o.date[1], o.date[2])} · ${o.time} · ${o.distance}`}
-                    amount={formatRM(o.base + o.comm)}
-                    onClick={hideOfferActions ? undefined : () => setConfirmTiedId(o.id)}
-                  />
-                  {!hideOfferActions && (
-                    <PrOfferRowActions
-                      primaryLabel="View"
-                      onPrimary={() => setConfirmTiedId(o.id)}
-                      onSecondary={() => declinePrOffer(o.id)}
-                    />
-                  )}
-                </div>
-              ))
-            : filteredMarketplace.map((l) => (
+          {filteredMarketplace.map((l) => (
                 <div key={l.id} className="iz-pr-inbox-card">
                   <PrOfferRow
                     title={l.outlet}
@@ -465,28 +452,11 @@ function HostShifts() {
               ))}
         </div>
       </PrSection>
-
-      <IzSheet open={confirmTied !== null} onClose={() => setConfirmTiedId(null)}>
-        {confirmTied && (
-          <OfferDetailSheet
-            tied
-            offer={confirmTied}
-            onConfirm={() => {
-              acceptPrShift(tiedOfferToShiftIndex(confirmTied.id));
-              setConfirmTiedId(null);
-            }}
-            onDecline={() => {
-              declinePrOffer(confirmTied.id);
-              setConfirmTiedId(null);
-            }}
-          />
-        )}
-      </IzSheet>
+      )}
 
       <IzSheet open={confirmMkt !== null} onClose={() => setConfirmMktId(null)}>
         {confirmMkt && (
           <OfferDetailSheet
-            tied={false}
             listing={confirmMkt}
             onConfirm={() => {
               if (applyFreelancerListing(confirmMkt.id)) setConfirmMktId(null);
@@ -670,31 +640,26 @@ function InboxCard({
 }
 
 function OfferDetailSheet({
-  tied,
-  offer,
   listing,
   onConfirm,
   onDecline,
 }: {
-  tied: boolean;
-  offer?: AgencyTiedOffer;
-  listing?: MarketplaceListing;
+  listing: MarketplaceListing;
   onConfirm: () => void;
   onDecline: () => void;
 }) {
-  const o = offer ?? listing!;
-  const lat = listing?.lat ?? 3.1478;
-  const lng = listing?.lng ?? 101.7005;
+  const lat = listing.lat ?? 3.1478;
+  const lng = listing.lng ?? 101.7005;
   const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-  const briefing = offer?.briefing ?? listing?.briefing ?? "";
+  const briefing = listing.briefing ?? "";
 
   return (
     <>
-      <div className="iz-cardttl">{o.outlet}</div>
+      <div className="iz-cardttl">{listing.outlet}</div>
       <p className="iz-tiny iz-muted mb-1">
-        {fmtDFriendly(o.date[0], o.date[1], o.date[2])} · {o.time}
+        {fmtDFriendly(listing.date[0], listing.date[1], listing.date[2])} · {listing.time}
       </p>
-      <p className="iz-tiny iz-muted mb-3">{o.event}</p>
+      <p className="iz-tiny iz-muted mb-3">{listing.event}</p>
       <div className="iz-gps-map mb-2" style={{ height: 64 }}>
         <span className="iz-ping" style={{ left: "50%", top: "50%" }} />
       </div>
@@ -703,10 +668,10 @@ function OfferDetailSheet({
       </a>
       <p className="iz-tiny iz-muted mb-3 line-clamp-3">{briefing}</p>
       <div className="iz-between iz-tiny mb-4">
-        <span className="iz-muted">{o.addr}</span>
-        <span className="font-sora font-bold text-[var(--iz-gold)]">{formatRM(o.base + o.comm)}</span>
+        <span className="iz-muted">{listing.addr}</span>
+        <span className="font-sora font-bold text-[var(--iz-gold)]">{formatRM(listing.rate)}</span>
       </div>
-      {listing?.tierSlots && (
+      {listing.tierSlots && (
         <div className="mb-4 space-y-1">
           {listing.tierSlots.map((s) => (
             <p key={s.tier} className="iz-tiny iz-muted2">{s.tier} ×{s.count} · {s.hours}</p>
@@ -715,7 +680,7 @@ function OfferDetailSheet({
       )}
       <div className="iz-grid2">
         <button type="button" className="iz-btn iz-btn-soft" onClick={onDecline}>Decline</button>
-        <button type="button" className="iz-btn iz-btn-primary" onClick={onConfirm}>{tied ? "Request" : "Apply"}</button>
+        <button type="button" className="iz-btn iz-btn-primary" onClick={onConfirm}>Apply</button>
       </div>
     </>
   );

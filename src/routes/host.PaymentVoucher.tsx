@@ -7,6 +7,7 @@ import {
   pvNeedsPrReview,
   pvStatusLabel,
   pvStatusPillVariant,
+  parsePvIssuedMs,
   type PrPaymentVoucher,
   type PrReceiptScan,
   type PrSubRole,
@@ -15,7 +16,7 @@ import { PvSummaryView } from "@/components/iz/PvSummaryView";
 import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { payeeFromProfile } from "@/lib/pv-template";
 import { usePrPortalReady } from "@/lib/use-pr-sub-role";
-import { FileText, Check, Shield, Star, Clock } from "lucide-react";
+import { FileText, Check, Shield, Star, Clock, Filter, X } from "lucide-react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
@@ -26,6 +27,16 @@ import { PrSignaturePad } from "@/components/pr/PrSignaturePad";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { PrOfferRow, PrStatusPill } from "@/components/pr/PrOfferRow";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
+import { PvDateTimeFilter } from "@/components/iz/PvDateTimeFilter";
+import {
+  buildPvDateOptions,
+  dateFromIsoKey,
+  EMPTY_PV_DAY_TIME_FILTER,
+  matchesPvDayTimeFilter,
+  pvDayTimeFilterActive,
+  pvDayTimeFilterCount,
+  type PvDayTimeFilter,
+} from "@/lib/pv-list-filters";
 
 export const Route = createFileRoute("/host/PaymentVoucher")({
   validateSearch: (search: Record<string, unknown>): { pvId?: string } => ({
@@ -70,6 +81,8 @@ function VouchersLoaded({
   const escalatePrPvDispute = useStore((s) => s.escalatePrPvDispute);
   const toast = useStore((s) => s.toast);
   const [detailId, setDetailId] = useState<string | null>(searchPvId ?? null);
+  const [pvFilter, setPvFilter] = useState<PvDayTimeFilter>(EMPTY_PV_DAY_TIME_FILTER);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const profile = getPrProfile(prSubRole);
   const isFreelancer = prSubRole === "pr_free";
@@ -78,6 +91,25 @@ function VouchersLoaded({
     () => filterPvsForPrProfile(prPaymentVouchers, profile, prSubRole),
     [prPaymentVouchers, profile, prSubRole],
   );
+
+  const pvDateOptions = useMemo(
+    () => buildPvDateOptions(myVouchers, prReceiptScans),
+    [myVouchers, prReceiptScans],
+  );
+
+  const pvDefaultMonth = useMemo(() => {
+    const latest = Math.max(0, ...myVouchers.map((p) => parsePvIssuedMs(p.issued)));
+    if (latest) return new Date(latest);
+    const firstKey = pvDateOptions[0]?.key;
+    return firstKey ? dateFromIsoKey(firstKey) ?? new Date() : new Date();
+  }, [myVouchers, pvDateOptions]);
+
+  const filteredVouchers = useMemo(
+    () => myVouchers.filter((p) => matchesPvDayTimeFilter(p, pvFilter, prReceiptScans)),
+    [myVouchers, pvFilter, prReceiptScans],
+  );
+
+  const filterCount = pvDayTimeFilterCount(pvFilter);
 
   useEffect(() => {
     if (searchPvId) setDetailId(searchPvId);
@@ -118,9 +150,9 @@ function VouchersLoaded({
     );
   }
 
-  const pendingCount = myVouchers.filter((p) => pvNeedsPrReview(p.status)).length;
-  const signedCount = myVouchers.filter((p) => p.status === "SIGNED" || p.status === "PAID").length;
-  const totalNet = myVouchers.reduce((sum, p) => sum + p.net, 0);
+  const pendingCount = filteredVouchers.filter((p) => pvNeedsPrReview(p.status)).length;
+  const signedCount = filteredVouchers.filter((p) => p.status === "SIGNED" || p.status === "PAID").length;
+  const totalNet = filteredVouchers.reduce((sum, p) => sum + p.net, 0);
 
   return (
     <div className="iz-screen">
@@ -151,7 +183,7 @@ function VouchersLoaded({
       <div className="iz-outlet-stat-strip mt-3">
         <div className="iz-outlet-stat-cell">
           <div className="l">PVs</div>
-          <div className="n">{myVouchers.length}</div>
+          <div className="n">{filteredVouchers.length}</div>
         </div>
         <div className="iz-outlet-stat-cell">
           <div className="l">Review</div>
@@ -167,8 +199,70 @@ function VouchersLoaded({
         </div>
       </div>
 
+      <div className="mt-3 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-bg2)]/50">
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+          onClick={() => setFilterOpen((o) => !o)}
+          aria-expanded={filterOpen}
+        >
+          <Filter className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />
+          <span className="text-sm font-semibold">Filter by date &amp; time</span>
+          {filterCount > 0 && (
+            <span className="rounded-full bg-[var(--iz-gold)]/20 px-2 py-0.5 text-[10px] font-bold text-[var(--iz-gold-l)]">
+              {filterCount}
+            </span>
+          )}
+          {pvDayTimeFilterActive(pvFilter) && (
+            <button
+              type="button"
+              className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-[var(--iz-gold-l)]"
+              onClick={(e) => {
+                e.stopPropagation();
+                setPvFilter(EMPTY_PV_DAY_TIME_FILTER);
+              }}
+            >
+              <X className="h-3 w-3" />
+              Clear
+            </button>
+          )}
+        </button>
+        {filterOpen && (
+          <div className="border-t border-[var(--iz-line)] px-3 pb-3 pt-2">
+            <PvDateTimeFilter
+              compact
+              date={pvFilter.date}
+              timeFrom={pvFilter.timeFrom}
+              timeTo={pvFilter.timeTo}
+              onDateChange={(date) => setPvFilter((f) => ({ ...f, date }))}
+              onTimeFromChange={(timeFrom) => setPvFilter((f) => ({ ...f, timeFrom }))}
+              onTimeToChange={(timeTo) => setPvFilter((f) => ({ ...f, timeTo }))}
+              dateOptions={pvDateOptions}
+              defaultMonth={pvDefaultMonth}
+              timeHint="PVs matched by shift Time-In or receipt scan on the selected day."
+            />
+          </div>
+        )}
+      </div>
+
       <div className="iz-pr-list mt-4">
-        {myVouchers.map((p) => (
+        {filteredVouchers.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
+            <Clock className="mx-auto mb-2 h-8 w-8 text-[var(--iz-muted2)]" />
+            <p className="text-sm font-semibold">No vouchers match this filter</p>
+            <p className="iz-tiny iz-muted2 mt-1">Try another date or clear the time range.</p>
+            {pvDayTimeFilterActive(pvFilter) && (
+              <button
+                type="button"
+                className="iz-tiny mt-3 font-semibold text-[var(--iz-gold-l)]"
+                onClick={() => setPvFilter(EMPTY_PV_DAY_TIME_FILTER)}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        ) : (
+          filteredVouchers.map((p) => (
           <PrOfferRow
             key={p.id}
             title={p.id}
@@ -177,7 +271,8 @@ function VouchersLoaded({
             badge={<PrStatusPill variant={pvStatusPillVariant(p.status)}>{pvStatusLabel(p.status)}</PrStatusPill>}
             onClick={() => openDetail(p.id)}
           />
-        ))}
+          ))
+        )}
       </div>
     </div>
   );

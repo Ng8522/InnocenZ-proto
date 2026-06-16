@@ -7,19 +7,21 @@ import {
   PR_SHIFT_OFFERS,
   SHIFT_TODAY,
   buildDemoReceiptDraft,
+  findDuplicateReceiptScan,
   fmtHistDate,
   getPrProfile,
   receiptBelongsToPvLabel,
   receiptPvCalcNote,
+  receiptScanFingerprint,
 } from "@/lib/pr-demo";
-import { Camera, Check, History, Shield } from "lucide-react";
+import { Camera, Check, History, Shield, TriangleAlert } from "lucide-react";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/host/scan")({
   component: ReceiptScanPage,
 });
 
-type ScanPhase = "idle" | "scanning" | "review" | "logged";
+type ScanPhase = "idle" | "scanning" | "review" | "duplicate" | "logged";
 
 function ReceiptScanPage() {
   const prSubRole = useStore((s) => s.prSubRole);
@@ -27,31 +29,62 @@ function ReceiptScanPage() {
   const checkedOut = useStore((s) => s.checkedOut);
   const prActiveShift = useStore((s) => s.prActiveShift);
   const addReceiptScan = useStore((s) => s.addReceiptScan);
+  const toast = useStore((s) => s.toast);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
   const profile = getPrProfile(prSubRole);
 
   const [phase, setPhase] = useState<ScanPhase>("idle");
   const [loggedId, setLoggedId] = useState<string | null>(null);
+  const [scanVariant, setScanVariant] = useState(0);
 
   const outlet = prActiveShift?.outlet ?? PR_SHIFT_OFFERS[0].outlet;
-  const draft = useMemo(() => buildDemoReceiptDraft(profile, outlet), [profile, outlet]);
+  const draft = useMemo(
+    () => buildDemoReceiptDraft(profile, outlet, scanVariant),
+    [profile, outlet, scanVariant],
+  );
+
+  const draftFingerprint = useMemo(
+    () =>
+      receiptScanFingerprint({
+        outlet: draft.outlet,
+        totalLogged: draft.totalLogged,
+        items: draft.items,
+        receiptRef: draft.receiptRef,
+      }),
+    [draft],
+  );
+
+  const duplicateScan = useMemo(
+    () => findDuplicateReceiptScan(prReceiptScans, draftFingerprint),
+    [prReceiptScans, draftFingerprint],
+  );
 
   const canScan = checkedIn && !checkedOut && prActiveShift;
 
   const runScan = () => {
     setPhase("scanning");
     setLoggedId(null);
-    setTimeout(() => setPhase("review"), 900);
+    setTimeout(() => {
+      const dup = findDuplicateReceiptScan(prReceiptScans, draftFingerprint);
+      setPhase(dup ? "duplicate" : "review");
+    }, 900);
   };
 
   const confirmLog = () => {
+    if (duplicateScan) {
+      toast(`Duplicate receipt — already logged as ${duplicateScan.id}`, "warn");
+      setPhase("duplicate");
+      return;
+    }
     const id = addReceiptScan({
       outlet: draft.outlet,
       prCode: draft.prCode,
       prName: draft.prName,
       items: draft.items,
       totalLogged: draft.totalLogged,
+      receiptRef: draft.receiptRef,
     });
+    if (!id) return;
     setLoggedId(id);
     setPhase("logged");
   };
@@ -64,6 +97,11 @@ function ReceiptScanPage() {
     setLoggedId(null);
   };
 
+  const scanAnother = () => {
+    setScanVariant((v) => v + 1);
+    resetScan();
+  };
+
   return (
     <div className="iz-screen">
       <AppTopbar
@@ -74,7 +112,7 @@ function ReceiptScanPage() {
           }
           return false;
         }}
-        backLabel={phase === "logged" ? "Scan" : phase === "review" ? "Rescan" : undefined}
+        backLabel={phase === "logged" ? "Scan" : phase === "review" || phase === "duplicate" ? "Rescan" : undefined}
       />
       <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">Receipt Scan</h2>
       <p className="iz-tiny iz-muted mt-0.5">
@@ -109,9 +147,11 @@ function ReceiptScanPage() {
           {phase === "scanning" && (
             <span className="iz-tiny text-[var(--iz-violet-l)]">Scanning… reading OCR fields</span>
           )}
-          {(phase === "review" || phase === "logged") && (
+          {(phase === "review" || phase === "logged" || phase === "duplicate") && (
             <div className="font-sora w-full text-left text-[11px] leading-relaxed text-[var(--iz-txt)]">
               <b className="text-[var(--iz-violet-l)]">— OCR EXTRACTED —</b>
+              <br />
+              Receipt #: <b>{draft.receiptRef}</b>
               <br />
               Outlet: {draft.outlet}
               <br />
@@ -127,6 +167,34 @@ function ReceiptScanPage() {
             </div>
           )}
         </div>
+
+        {phase === "duplicate" && duplicateScan && (
+          <IzCard flat className="mt-3 border-[rgba(255,107,107,.35)] bg-[var(--iz-red-bg)]">
+            <p className="iz-sm font-bold text-[var(--iz-red)]">
+              <TriangleAlert className="mr-1 inline h-4 w-4" />
+              Duplicate receipt detected
+            </p>
+            <p className="iz-tiny iz-muted mt-1">
+              Receipt <b className="text-[var(--iz-txt)]">{draft.receiptRef}</b> was already scanned. Each POS
+              receipt can only be logged once.
+            </p>
+            <div className="mt-2 rounded-lg border border-[var(--iz-line)] bg-[rgba(0,0,0,.2)] px-2.5 py-2">
+              <div className="iz-tiny iz-muted2">Original log</div>
+              <div className="iz-sm font-semibold">{duplicateScan.id}</div>
+              <div className="iz-tiny iz-muted mt-0.5">
+                {duplicateScan.scannedAt} · {formatRM(duplicateScan.totalLogged)} · PV{" "}
+                {duplicateScan.pvId ?? "—"}
+              </div>
+            </div>
+            <Link
+              to="/host/history"
+              search={{ tab: "receipts" }}
+              className="iz-tiny mt-2 inline-block text-[var(--iz-blue)] underline-offset-2 hover:underline"
+            >
+              View in receipt history
+            </Link>
+          </IzCard>
+        )}
 
         {phase === "review" && (
           <IzCard flat className="mt-3 border-[rgba(111,176,255,.25)] bg-[linear-gradient(180deg,rgba(111,176,255,.08),transparent)]">
@@ -202,17 +270,21 @@ function ReceiptScanPage() {
           <button
             type="button"
             className="iz-btn iz-btn-primary mt-3"
-            onClick={phase === "review" ? confirmLog : runScan}
+            onClick={phase === "review" ? confirmLog : phase === "duplicate" ? scanAnother : runScan}
             disabled={phase === "scanning"}
           >
             <Camera className="h-4 w-4" />
-            {phase === "review" ? "Confirm & log receipt" : "Scan receipt now"}
+            {phase === "review"
+              ? "Confirm & log receipt"
+              : phase === "duplicate"
+                ? "Scan a different receipt"
+                : "Scan receipt now"}
           </button>
         )}
 
         {phase === "logged" && (
           <div className="iz-grid2 mt-3">
-            <button type="button" className="iz-btn iz-btn-soft" onClick={() => setPhase("idle")}>
+            <button type="button" className="iz-btn iz-btn-soft" onClick={scanAnother}>
               Scan another
             </button>
             <Link to="/host/history" search={{ tab: "receipts" }} className="iz-btn iz-btn-primary">

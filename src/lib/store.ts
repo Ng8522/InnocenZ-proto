@@ -14,6 +14,8 @@ import {
   COMCARD,
   PORTFOLIO_SLOT_COUNT,
   calcReceiptCommissions,
+  findDuplicateReceiptScan,
+  receiptScanFingerprint,
   buildPaymentVoucherFromShift,
   getPrProfile,
   makeShiftSessionId,
@@ -95,6 +97,12 @@ import {
   patchPrRosterAttendanceFlags,
 } from "@/lib/portal-sync";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import {
+  buildAvailabilityOpsNotifications,
+  canTogglePrDayAvailability,
+  prDayIsUnavailable,
+} from "@/lib/pr-availability-sync";
+import { evaluateShiftCancellation, CANCEL_RULES } from "@/lib/pr-schedule-cancellation";
 import {
   type OutletSettings,
   type OutletWorkspaceSettings,
@@ -376,6 +384,7 @@ interface StoreState {
     prName: string;
     items: PrReceiptScan["items"];
     totalLogged: number;
+    receiptRef?: string;
   }) => string;
   editAgencyPv: (id: string, patch: { rows?: PrPvRow[]; deduct?: number; disputeNote?: string }) => void;
   resendAgencyPv: (id: string) => void;
@@ -415,6 +424,10 @@ interface StoreState {
   approveAgencyAssignmentByPr: (rosterSlotId: string) => void;
   confirmOutletRosterSlot: (rosterSlotId: string) => void;
   declineAgencyAssignmentByPr: (rosterSlotId: string) => void;
+  togglePrDayAvailability: (dateIso: string) => void;
+  setPrDayUnavailable: (dateIso: string, note?: string) => void;
+  clearPrDayUnavailable: (dateIso: string) => void;
+  cancelPrRosterShift: (rosterSlotId: string) => void;
   assignPrToOutlet: (input: {
     prId: string;
     outlet: string;
@@ -972,6 +985,38 @@ export const useStore = create<StoreState>()(
         get().toast("Agency approved — slot locked", "success");
       },
       cancelPrShift: () => {
+        const st = get();
+        const prId = getPrRosterId(st.prSubRole);
+        const slot = findAgencyRosterTonight(st.agencyRoster, prId);
+        let deductionRm = 0;
+        if (slot) {
+          const evalResult = evaluateShiftCancellation(
+            new Date(),
+            slot.dateIso,
+            slot.shiftStart,
+            slot.estPayout ?? CANCEL_RULES.defaultDailyWagesRm,
+          );
+          deductionRm = evalResult.deductionRm;
+          const stamp = new Date().toLocaleString("en-MY", {
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          set((cur) => ({
+            agencyRoster: cur.agencyRoster.map((s) =>
+              s.id === slot.id
+                ? {
+                    ...s,
+                    status: "unavailable" as const,
+                    payDeductionRm: deductionRm,
+                    cancelledAt: stamp,
+                    prUnavailableNote: "Tonight shift cancelled by PR",
+                  }
+                : s,
+            ),
+          }));
+        }
         set({
           shiftAccepted: false,
           pendingApproval: false,
@@ -983,7 +1028,12 @@ export const useStore = create<StoreState>()(
           prActiveShift: null,
           prCheckInMeta: {},
         });
-        get().toast("Shift cancelled — penalty flag logged", "warn");
+        get().toast(
+          deductionRm > 0
+            ? `Shift cancelled — −RM ${deductionRm} logged on next PV`
+            : "Shift cancelled — no pay deduction",
+          deductionRm > 0 ? "warn" : "info",
+        );
       },
       requestPrSwap: (targetId, reason) => {
         const st = get();
@@ -1688,6 +1738,20 @@ export const useStore = create<StoreState>()(
           get().toast("No active shift session — check in again", "warn");
           return "";
         }
+        const fingerprint = receiptScanFingerprint({
+          outlet: draft.outlet,
+          totalLogged: draft.totalLogged,
+          items: draft.items,
+          receiptRef: draft.receiptRef,
+        });
+        const existing = findDuplicateReceiptScan(get().prReceiptScans ?? SEED_RECEIPT_SCANS, fingerprint);
+        if (existing) {
+          get().toast(
+            `Duplicate receipt — already logged as ${existing.id}${existing.receiptRef ? ` (${existing.receiptRef})` : ""}`,
+            "warn",
+          );
+          return "";
+        }
         const id = `rc-${Date.now().toString(36)}`;
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
@@ -1705,6 +1769,7 @@ export const useStore = create<StoreState>()(
           outlet,
           prCode: draft.prCode,
           prName: draft.prName,
+          receiptRef: draft.receiptRef,
           items: draft.items,
           totalLogged: draft.totalLogged,
           ...comm,
@@ -2179,6 +2244,157 @@ export const useStore = create<StoreState>()(
           agencyRoster: st.agencyRoster.filter((s) => s.id !== rosterSlotId),
         }));
         get().toast(`Rejected agency assignment at ${slot.outlet}`, "warn");
+      },
+      togglePrDayAvailability: (dateIso) => {
+        const st = get();
+        const prId = getPrRosterId(st.prSubRole);
+        const profile = getPrProfile(st.prSubRole);
+        if (!prId) return;
+
+        const daySlots = st.agencyRoster.filter((s) => s.prId === prId && s.dateIso === dateIso);
+        const dateLabel = fmtDateLabelFromIso(dateIso);
+        const stamp = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        if (prDayIsUnavailable(daySlots)) {
+          const unavailableSlot = daySlots.find((s) => s.status === "unavailable");
+          if (!unavailableSlot) return;
+          const syncNotes = buildAvailabilityOpsNotifications({
+            prName: profile.name,
+            dateLabel,
+            available: true,
+            at: stamp,
+          });
+          set((cur) => ({
+            agencyRoster: cur.agencyRoster.filter((s) => s.id !== unavailableSlot.id),
+            opsNotifications: [...syncNotes, ...cur.opsNotifications],
+          }));
+          get().toast(`${dateLabel} open again — Atlas & outlets synced`, "success");
+          return;
+        }
+
+        if (!canTogglePrDayAvailability(daySlots)) {
+          get().toast("Cancel or decline booked shifts on this day first", "warn");
+          return;
+        }
+
+        const unavailableSlot: AgencyRosterSlot = {
+          id: `rs-unavail-${prId}-${dateIso}`,
+          prId,
+          prName: profile.name,
+          outlet: "—",
+          date: dateLabel,
+          dateIso,
+          shift: "—",
+          shiftStart: "00:00",
+          shiftEnd: "00:00",
+          status: "unavailable",
+          prUnavailableNote: "PR marked day off on schedule",
+          cancelledAt: stamp,
+        };
+        const syncNotes = buildAvailabilityOpsNotifications({
+          prName: profile.name,
+          dateLabel,
+          available: false,
+          at: stamp,
+        });
+        set((cur) => ({
+          agencyRoster: [
+            ...cur.agencyRoster.filter(
+              (s) =>
+                !(s.prId === prId && s.dateIso === dateIso && s.status === "assignment-pending"),
+            ),
+            unavailableSlot,
+          ],
+          opsNotifications: [...syncNotes, ...cur.opsNotifications],
+        }));
+        get().toast(`${dateLabel} blocked — synced to Atlas & outlets`, "success");
+      },
+      setPrDayUnavailable: (dateIso, note) => {
+        const st = get();
+        const prId = getPrRosterId(st.prSubRole);
+        if (!prId) return;
+        const daySlots = st.agencyRoster.filter((s) => s.prId === prId && s.dateIso === dateIso);
+        if (prDayIsUnavailable(daySlots)) return;
+        if (!canTogglePrDayAvailability(daySlots)) {
+          get().toast("Cancel or decline the shift first — then mark the day unavailable", "warn");
+          return;
+        }
+        get().togglePrDayAvailability(dateIso);
+        if (note) {
+          set((cur) => ({
+            agencyRoster: cur.agencyRoster.map((s) =>
+              s.prId === prId && s.dateIso === dateIso && s.status === "unavailable"
+                ? { ...s, prUnavailableNote: note }
+                : s,
+            ),
+          }));
+        }
+      },
+      clearPrDayUnavailable: (dateIso) => {
+        const st = get();
+        const prId = getPrRosterId(st.prSubRole);
+        if (!prId) return;
+        const daySlots = st.agencyRoster.filter((s) => s.prId === prId && s.dateIso === dateIso);
+        if (!prDayIsUnavailable(daySlots)) return;
+        get().togglePrDayAvailability(dateIso);
+      },
+      cancelPrRosterShift: (rosterSlotId) => {
+        const st = get();
+        const prId = getPrRosterId(st.prSubRole);
+        const slot = st.agencyRoster.find((s) => s.id === rosterSlotId);
+        if (!slot || slot.prId !== prId) return;
+        if (["on-duty", "en-route"].includes(slot.status)) {
+          get().toast("Check out first — cannot cancel while on duty", "warn");
+          return;
+        }
+        const evalResult = evaluateShiftCancellation(
+          new Date(),
+          slot.dateIso,
+          slot.shiftStart,
+          slot.estPayout ? Math.min(slot.estPayout, CANCEL_RULES.defaultDailyWagesRm) : CANCEL_RULES.defaultDailyWagesRm,
+        );
+        const stamp = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        set((cur) => ({
+          agencyRoster: cur.agencyRoster.map((s) =>
+            s.id === rosterSlotId
+              ? {
+                  ...s,
+                  status: "unavailable" as const,
+                  payDeductionRm: evalResult.deductionRm,
+                  cancelledAt: stamp,
+                  prUnavailableNote: "Shift cancelled by PR",
+                }
+              : s,
+          ),
+          prUpcomingShifts: cur.prUpcomingShifts.filter((u) => {
+            const key = `${u.date[0]}-${String(u.date[1]).padStart(2, "0")}-${String(u.date[2]).padStart(2, "0")}`;
+            return !(key === slot.dateIso && u.outlet === slot.outlet);
+          }),
+          ...(slot.dateIso === DEFAULT_ROSTER_DATE_ISO && slot.prId === getPrRosterId(cur.prSubRole)
+            ? {
+                shiftAccepted: false,
+                pendingApproval: false,
+                acceptedShiftIndex: null,
+                checkedIn: false,
+                checkedOut: false,
+              }
+            : {}),
+        }));
+        const penalty =
+          evalResult.deductionRm > 0
+            ? ` · −RM ${evalResult.deductionRm} on next PV`
+            : " · no deduction";
+        get().toast(`Shift cancelled at ${slot.outlet}${penalty}`, evalResult.tier === "safe" ? "info" : "warn");
       },
       declineOutletSwapByPr: (rosterSlotId) => {
         const slot = get().agencyRoster.find((s) => s.id === rosterSlotId);

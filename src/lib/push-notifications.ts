@@ -19,7 +19,10 @@ export type PushEventType =
   | "dispute_raised"
   | "rating_prompt"
   | "reconciliation_due"
-  | "report_ready";
+  | "report_ready"
+  | "collection_reminder"
+  | "special_service_requested"
+  | "special_service_update";
 
 export type PushAudience = "pr" | "agency" | "outlet";
 
@@ -40,6 +43,9 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   rating_prompt: { pr: true, agency: false, outlet: true },
   reconciliation_due: { pr: false, agency: true, outlet: true },
   report_ready: { pr: false, agency: true, outlet: true },
+  collection_reminder: { pr: false, agency: false, outlet: true },
+  special_service_requested: { pr: true, agency: true, outlet: true },
+  special_service_update: { pr: true, agency: true, outlet: true },
 };
 
 export function notificationStamp(): string {
@@ -78,7 +84,33 @@ export type PushEvent =
   | { type: "dispute_raised"; pvId: string; prName: string; outlet: string }
   | { type: "rating_prompt"; prId?: string; prName: string; outlet: string; audience: "pr" | "outlet" }
   | { type: "reconciliation_due"; outlet: string }
-  | { type: "report_ready"; portal: OpsPortal; label: string };
+  | { type: "report_ready"; portal: OpsPortal; label: string }
+  | { type: "collection_reminder"; collectionId: string; outlet: string; amount: number; dueDate: string }
+  | {
+      type: "special_service_requested";
+      orderId: string;
+      serviceLabel: string;
+      initiatedBy: "agency" | "outlet" | "pr";
+      prId?: string;
+      prName: string;
+      outlet: string;
+      notifyAgency?: boolean;
+      notifyPr?: boolean;
+      notifyOutlet?: boolean;
+    }
+  | {
+      type: "special_service_update";
+      orderId: string;
+      serviceLabel: string;
+      status: "accepted" | "declined" | "confirmed";
+      prId?: string;
+      prName: string;
+      outlet: string;
+      by: "agency" | "outlet" | "pr";
+      notifyAgency?: boolean;
+      notifyPr?: boolean;
+      notifyOutlet?: boolean;
+    };
 
 export interface PushNotifyInput {
   prNotifications: PrNotification[];
@@ -570,6 +602,29 @@ export function applyPushEvent(
       }
       break;
     }
+    case "collection_reminder": {
+      if (prefOn(prefs, "collection_reminder", "outlet")) {
+        const amountLabel = `RM ${event.amount.toLocaleString("en-MY", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+        opsNotifications = prependOps(
+          {
+            id: nid("ops-col-remind"),
+            portal: "outlet",
+            kind: "collection_reminder",
+            title: "Payment reminder · Atlas Agency",
+            body: `${event.outlet}: ${amountLabel} due ${event.dueDate} · ${event.collectionId}`,
+            at,
+            read: false,
+            href: "/outlet/billing",
+            outlet: event.outlet,
+          },
+          opsNotifications,
+        );
+      }
+      break;
+    }
     case "report_ready": {
       if (prefOn(prefs, "report_ready", event.portal)) {
         opsNotifications = prependOps(
@@ -584,6 +639,123 @@ export function applyPushEvent(
             href: event.portal === "agency" ? "/agency/reports" : "/outlet/billing",
           },
           opsNotifications,
+        );
+      }
+      break;
+    }
+    case "special_service_requested": {
+      if (event.notifyAgency && prefOn(prefs, "special_service_requested", "agency")) {
+        opsNotifications = prependOps(
+          {
+            id: nid("ops-ss-req-ag"),
+            portal: "agency",
+            kind: "special_service",
+            title: "Special service request",
+            body: `${event.serviceLabel} · ${event.prName} · ${event.outlet}`,
+            at,
+            read: false,
+            href: "/agency/special-service",
+            prName: event.prName,
+            outlet: event.outlet,
+          },
+          opsNotifications,
+        );
+      }
+      if (event.notifyOutlet && prefOn(prefs, "special_service_requested", "outlet")) {
+        opsNotifications = prependOps(
+          {
+            id: nid("ops-ss-req-out"),
+            portal: "outlet",
+            kind: "special_service",
+            title: "Agency service booking",
+            body: `${event.serviceLabel} for ${event.prName} — accept or decline`,
+            at,
+            read: false,
+            href: "/outlet/special-service",
+            prName: event.prName,
+            outlet: event.outlet,
+          },
+          opsNotifications,
+        );
+      }
+      if (event.notifyPr && event.prId && prefOn(prefs, "special_service_requested", "pr")) {
+        const prBody =
+          event.initiatedBy === "outlet"
+            ? `${event.outlet} requested ${event.serviceLabel} for you — accept or decline`
+            : event.initiatedBy === "agency"
+              ? `Agency booked ${event.serviceLabel} at ${event.outlet} — accept or decline`
+              : `${event.serviceLabel} at ${event.outlet} — accept or decline`;
+        prNotifications = prependPr(
+          {
+            id: nid("pr-ss-req"),
+            kind: "special_service",
+            title:
+              event.initiatedBy === "outlet" ? "Outlet service request" : "Agency service booking",
+            body: prBody,
+            at,
+            read: false,
+            prId: event.prId,
+            href: "/host/special-service",
+          },
+          prNotifications,
+        );
+      }
+      break;
+    }
+    case "special_service_update": {
+      const body =
+        event.status === "confirmed"
+          ? `${event.serviceLabel} confirmed for ${event.prName}`
+          : event.status === "accepted"
+            ? `${event.serviceLabel} accepted`
+            : `${event.serviceLabel} declined`;
+      if (event.notifyAgency && prefOn(prefs, "special_service_update", "agency")) {
+        opsNotifications = prependOps(
+          {
+            id: nid("ops-ss-up-ag"),
+            portal: "agency",
+            kind: "special_service",
+            title: "Special service update",
+            body,
+            at,
+            read: false,
+            href: "/agency/special-service",
+            prName: event.prName,
+            outlet: event.outlet,
+          },
+          opsNotifications,
+        );
+      }
+      if (event.notifyOutlet && prefOn(prefs, "special_service_update", "outlet")) {
+        opsNotifications = prependOps(
+          {
+            id: nid("ops-ss-up-out"),
+            portal: "outlet",
+            kind: "special_service",
+            title: "Special service update",
+            body,
+            at,
+            read: false,
+            href: "/outlet/special-service",
+            prName: event.prName,
+            outlet: event.outlet,
+          },
+          opsNotifications,
+        );
+      }
+      if (event.notifyPr && event.prId && prefOn(prefs, "special_service_update", "pr")) {
+        prNotifications = prependPr(
+          {
+            id: nid("pr-ss-up"),
+            kind: "special_service",
+            title: "Special service update",
+            body,
+            at,
+            read: false,
+            prId: event.prId,
+            href: "/host/special-service",
+          },
+          prNotifications,
         );
       }
       break;
@@ -606,6 +778,8 @@ export const OPS_KIND_LABEL: Record<OpsNotification["kind"], string> = {
   rating_prompt: "Rating",
   reconciliation_due: "Reconciliation",
   report_ready: "Report",
+  collection_reminder: "Invoice due",
+  special_service: "Special service",
 };
 
 export function isUrgentOpsKind(kind: OpsNotification["kind"]): boolean {

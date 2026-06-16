@@ -78,6 +78,25 @@ export function floorTipsForOutlet(outletName: string, roster: AgencyRosterSlot[
   return floorTipsForOutletFromRoster(roster, outletName);
 }
 
+export function roundRm(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Agency PNL — earned − spent = profit; gross = earned + outletNet */
+export function deriveAgencyPnlMetrics(row: OutletPnlRow) {
+  const spent = roundRm(row.prPayout + row.platformFee);
+  const profit = roundRm(row.agencyNet);
+  const outletNet = roundRm(row.grossRevenue - row.prPayout - row.platformFee - row.agencyNet);
+  const earned = roundRm(spent + profit);
+  return {
+    earned,
+    spent,
+    profit,
+    outletNet,
+    grossRevenue: row.grossRevenue,
+  };
+}
+
 export interface OutletPnlSynced extends OutletPnlRow {
   /** Tonight floor gross (before week rollup) */
   liveFloorGross: number;

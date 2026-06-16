@@ -18,7 +18,6 @@ import {
   getPrProfile,
   makeShiftSessionId,
   makeShiftPvId,
-  FINANCE_HEAD_SIGNER,
   FREELANCER_DEMO_PR_ID,
   formatPrDisplayName,
   DEFAULT_TIED_AGENCY_ID,
@@ -61,12 +60,16 @@ import {
   pendingPRToManagedPR,
   OUTLET_COMMISSION_RULES,
   SCALING_TIER_MULTIPLIERS,
+  languagesFromPr,
   type OutletCommissionRule,
 } from "@/lib/agency-demo";
 import {
   buildPvFromShiftHistoryRow,
   historyRowHasPv,
 } from "@/lib/agency-actions";
+import { financeHeadStampFromProfile, LEGACY_FINANCE_HEAD_SIGNER, buildDemoESignatureDataUrl } from "@/lib/finance-head-stamp";
+import { validateReceiptScan } from "@/lib/receipt-scan-utils";
+import { mergeAgencyCollections } from "@/lib/agency-payroll";
 import { getFreePrsWithDistances } from "@/lib/roster-availability";
 import type { AgencySubRole } from "@/lib/agency-rbac";
 import type { OutletSubRole } from "@/lib/outlet-rbac";
@@ -114,6 +117,21 @@ import {
   shiftHoursFromLabel,
 } from "@/lib/outlet-demo";
 import { buildDemoStoreReset, buildPrDemoReset } from "@/lib/demo-seed";
+import {
+  SEED_SPECIAL_SERVICES,
+  specialServiceTypeLabel,
+  type SpecialServiceRecord,
+} from "@/lib/special-service-demo";
+import {
+  acceptSpecialServiceByOutlet,
+  acceptSpecialServiceByPr,
+  approveSpecialServiceByAgency,
+  buildSpecialServiceOrder,
+  declineSpecialServiceByAgency,
+  declineSpecialServiceByOutlet,
+  declineSpecialServiceByPr,
+  type SubmitSpecialServiceInput,
+} from "@/lib/special-service-actions";
 import {
   applyPrShiftSession,
   defaultPrShiftSessionForRole,
@@ -371,9 +389,11 @@ interface StoreState {
 
   prReceiptScans: PrReceiptScan[];
   addReceiptScan: (draft: {
+    receiptRef: string;
     outlet: string;
     prCode: string;
     prName: string;
+    prId: string;
     items: PrReceiptScan["items"];
     totalLogged: number;
   }) => string;
@@ -408,6 +428,7 @@ interface StoreState {
 
   agencyRoster: AgencyRosterSlot[];
   editRosterSlot: (id: string, patch: Partial<AgencyRosterSlot>) => void;
+  cancelRosterShift: (rosterSlotId: string) => void;
   requestOutletSwap: (id: string, targetOutlet: string, agencyNote?: string) => void;
   cancelOutletSwap: (id: string) => void;
   approveOutletSwapByPr: (rosterSlotId: string) => void;
@@ -460,6 +481,16 @@ interface StoreState {
       >
     >,
   ) => void;
+
+  specialServiceOrders: SpecialServiceRecord[];
+  submitSpecialServiceOrder: (input: SubmitSpecialServiceInput) => string;
+  approveSpecialServiceByAgency: (orderId: string) => void;
+  declineSpecialServiceByAgency: (orderId: string, reason?: string) => void;
+  acceptSpecialServiceByPr: (orderId: string) => void;
+  declineSpecialServiceByPr: (orderId: string, reason?: string) => void;
+  acceptSpecialServiceByOutlet: (orderId: string) => void;
+  declineSpecialServiceByOutlet: (orderId: string, reason?: string) => void;
+
   outletCommissionRules: OutletCommissionRule[];
   scalingTierMultipliers: Record<string, number>;
   saveOutletCommissionRule: (outlet: string, patch: Partial<OutletCommissionRule>) => void;
@@ -547,7 +578,7 @@ function normalizeAgencyPrs(list: AgencyManagedPR[]): AgencyManagedPR[] {
   return list.map((pr) => ({
     ...pr,
     name: pr.name ?? "PR",
-    languages: Array.isArray(pr.languages) ? pr.languages : [],
+    languages: languagesFromPr(pr),
     rating: typeof pr.rating === "number" ? pr.rating : 0,
     age: typeof pr.age === "number" ? pr.age : 22,
     height: typeof pr.height === "number" ? pr.height : 165,
@@ -1187,10 +1218,13 @@ export const useStore = create<StoreState>()(
         }
         const closed: PrActiveShiftSession = { ...shift, timeOut: stamp, overtimeMinutes: 11 };
         const scans = (get().prReceiptScans ?? SEED_RECEIPT_SCANS).filter(
-          (r) => r.shiftSessionId === shift.id || (r.pvId === shift.pvId && r.status === "attached"),
+          (r) =>
+            r.prId === prId &&
+            (r.shiftSessionId === shift.id || (r.pvId === shift.pvId && r.status === "attached")),
         );
         const profile = getPrProfile(get().prSubRole);
-        const pv = buildPaymentVoucherFromShift(closed, scans, profile);
+        const fh = financeHeadStampFromProfile(get().agencyFinanceHead);
+        const pv = buildPaymentVoucherFromShift(closed, scans, profile, fh);
         const scanIds = new Set(scans.map((s) => s.id));
         const [y, m, d] = shift.date;
         const managedPr = get().agencyPRs.find((p) => p.id === prId);
@@ -1688,6 +1722,13 @@ export const useStore = create<StoreState>()(
           get().toast("No active shift session — check in again", "warn");
           return "";
         }
+        const scannerPrId = getPrRosterId(get().prSubRole);
+        const scans = get().prReceiptScans ?? SEED_RECEIPT_SCANS;
+        const check = validateReceiptScan(scans, draft, scannerPrId);
+        if (!check.ok) {
+          get().toast(check.message, "warn");
+          return "";
+        }
         const id = `rc-${Date.now().toString(36)}`;
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
@@ -1700,11 +1741,13 @@ export const useStore = create<StoreState>()(
         const outlet = draft.outlet.replace(/\s+KL$/i, "").trim() || draft.outlet;
         const scan: PrReceiptScan = {
           id,
+          receiptRef: draft.receiptRef.trim(),
           scannedAt: stamp,
           date: [...shift.date] as [number, number, number],
           outlet,
           prCode: draft.prCode,
           prName: draft.prName,
+          prId: draft.prId,
           items: draft.items,
           totalLogged: draft.totalLogged,
           ...comm,
@@ -1827,7 +1870,8 @@ export const useStore = create<StoreState>()(
           get().toast("PV already raised for this shift", "warn");
           return;
         }
-        const pv = buildPvFromShiftHistoryRow(row, pr);
+        const fh = financeHeadStampFromProfile(get().agencyFinanceHead);
+        const pv = buildPvFromShiftHistoryRow(row, pr, fh);
         set((st) => ({
           prPaymentVouchers: [pv, ...(st.prPaymentVouchers ?? SEED_PR_PVS)],
         }));
@@ -1922,12 +1966,24 @@ export const useStore = create<StoreState>()(
         get().toast("Invoice marked received · status SETTLED", "success");
       },
       sendCollectionReminder: (id) => {
+        const col = get().agencyCollections.find((c) => c.id === id);
+        if (!col) {
+          get().toast("Invoice not found", "warn");
+          return;
+        }
         set((st) => ({
           agencyCollections: st.agencyCollections.map((c) =>
             c.id === id ? { ...c, reminderSent: true } : c,
           ),
         }));
-        get().toast("Auto-reminder sent to outlet", "info");
+        get().pushNotify({
+          type: "collection_reminder",
+          collectionId: col.id,
+          outlet: col.outlet,
+          amount: col.amount,
+          dueDate: col.dueDate,
+        });
+        get().toast(`Reminder sent to ${col.counterparty ?? col.outlet} · check outlet bell`, "success");
       },
 
       agencyReconciliation: demoSnapshot.agencyReconciliation,
@@ -1972,6 +2028,49 @@ export const useStore = create<StoreState>()(
           }
         }
         get().toast("Roster updated", "success");
+      },
+      cancelRosterShift: (rosterSlotId) => {
+        const st = get();
+        const slot = st.agencyRoster.find((s) => s.id === rosterSlotId);
+        if (!slot) return;
+        if (slot.checkedOutAt) {
+          get().toast("Cannot cancel a completed shift", "warn");
+          return;
+        }
+        const isTonight = slot.dateIso === DEFAULT_ROSTER_DATE_ISO;
+        set((cur) => {
+          const prSwapRequests = cur.prSwapRequests.map((s) =>
+            s.rosterSlotId === rosterSlotId &&
+            (s.status === "pending_agency" || s.status === "pending_replacement")
+              ? { ...s, status: "declined" as const }
+              : s,
+          );
+          let next: typeof cur = {
+            ...cur,
+            agencyRoster: cur.agencyRoster.filter((s) => s.id !== rosterSlotId),
+            prSwapRequests,
+            shifts: cur.shifts.map((sh) => {
+              if (!outletMatches(sh.outletName, slot.outlet) || !sh.prs.includes(slot.prId)) return sh;
+              const prs = sh.prs.filter((id) => id !== slot.prId);
+              return { ...sh, prs, filled: prs.length };
+            }),
+          };
+          if (slot.prId === TIED_DEMO_ROSTER_PR_ID && isTonight) {
+            next = { ...next, ...patchPrSessionForRole(cur, "pr_tied", clearPrShiftSession()) };
+          }
+          if (isFreelancerPrId(slot.prId) && isTonight) {
+            next = { ...next, ...patchFreelancerPrSession(cur, clearPrShiftSession()) };
+          }
+          return next;
+        });
+        get().pushNotify({
+          type: "shift_edit",
+          prId: slot.prId,
+          prName: slot.prName,
+          outlet: slot.outlet,
+          detail: "shift cancelled by agency",
+        });
+        get().toast(`Shift cancelled — ${slot.prName} freed for ${slot.date}`, "info");
       },
       requestOutletSwap: (id, targetOutlet, agencyNote) => {
         const slot = get().agencyRoster.find((s) => s.id === id);
@@ -2562,6 +2661,7 @@ export const useStore = create<StoreState>()(
       },
 
       agencyPRs: demoSnapshot.agencyPRs,
+      specialServiceOrders: SEED_SPECIAL_SERVICES.map((r) => ({ ...r })),
       outletCommissionRules: [...OUTLET_COMMISSION_RULES],
       scalingTierMultipliers: { ...SCALING_TIER_MULTIPLIERS },
       suspendAgencyPr: (prId) => {
@@ -2649,6 +2749,218 @@ export const useStore = create<StoreState>()(
         }));
         get().toast(`${patch.name ?? pr.name} profile updated`, "success");
       },
+
+      submitSpecialServiceOrder: (input) => {
+        const st = get();
+        const id = `SS-2026-${String(st.specialServiceOrders.length + 18).padStart(3, "0")}`;
+        const order = buildSpecialServiceOrder(input, id);
+        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        set({ specialServiceOrders: [order, ...st.specialServiceOrders] });
+
+        if (input.initiatedBy === "agency") {
+          get().pushNotify({
+            type: "special_service_requested",
+            orderId: id,
+            serviceLabel,
+            initiatedBy: "agency",
+            prId: order.prId,
+            prName: order.prName,
+            outlet: order.outlet,
+            notifyPr: order.prAcceptance === "pending",
+            notifyOutlet: order.outletAcceptance === "pending",
+          });
+          get().toast(`${serviceLabel} booked — awaiting confirmation`, "info");
+        } else {
+          get().pushNotify({
+            type: "special_service_requested",
+            orderId: id,
+            serviceLabel,
+            initiatedBy: input.initiatedBy,
+            prId: order.prId,
+            prName: order.prName,
+            outlet: order.outlet,
+            notifyAgency: true,
+          });
+          get().toast(`${serviceLabel} submitted — agency will review`, "info");
+        }
+        return id;
+      },
+
+      approveSpecialServiceByAgency: (orderId) => {
+        const st = get();
+        const current = st.specialServiceOrders.find((r) => r.id === orderId);
+        if (!current || current.agencyAccepted !== "pending") return;
+        const order = approveSpecialServiceByAgency(current);
+        set({
+          specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
+        });
+        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        const isConfirmed = order.status === "confirmed";
+
+        if (order.prAcceptance === "pending") {
+          get().pushNotify({
+            type: "special_service_requested",
+            orderId,
+            serviceLabel,
+            initiatedBy: order.initiatedBy,
+            prId: order.prId,
+            prName: order.prName,
+            outlet: order.outlet,
+            notifyPr: true,
+          });
+        }
+
+        if (isConfirmed) {
+          get().pushNotify({
+            type: "special_service_update",
+            orderId,
+            serviceLabel,
+            status: "confirmed",
+            prId: order.prId,
+            prName: order.prName,
+            outlet: order.outlet,
+            by: "agency",
+            notifyPr: order.initiatedBy === "pr",
+            notifyOutlet: order.initiatedBy === "outlet",
+          });
+        }
+
+        get().toast(
+          order.prAcceptance === "pending"
+            ? `${serviceLabel} approved — awaiting PR`
+            : isConfirmed
+              ? `${serviceLabel} confirmed`
+              : `${serviceLabel} approved — awaiting acceptance`,
+          "success",
+        );
+      },
+
+      declineSpecialServiceByAgency: (orderId, reason) => {
+        const st = get();
+        const current = st.specialServiceOrders.find((r) => r.id === orderId);
+        if (!current || current.agencyAccepted !== "pending") return;
+        const order = declineSpecialServiceByAgency(current, reason);
+        set({
+          specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
+        });
+        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        get().pushNotify({
+          type: "special_service_update",
+          orderId,
+          serviceLabel,
+          status: "declined",
+          prId: order.prId,
+          prName: order.prName,
+          outlet: order.outlet,
+          by: "agency",
+          notifyPr: order.initiatedBy === "pr",
+          notifyOutlet: order.initiatedBy === "outlet",
+        });
+        get().toast("Special service request declined", "warn");
+      },
+
+      acceptSpecialServiceByPr: (orderId) => {
+        const st = get();
+        const current = st.specialServiceOrders.find((r) => r.id === orderId);
+        if (!current || current.prAcceptance !== "pending") return;
+        const order = acceptSpecialServiceByPr(current);
+        set({
+          specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
+        });
+        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        get().pushNotify({
+          type: "special_service_update",
+          orderId,
+          serviceLabel,
+          status: order.status === "confirmed" ? "confirmed" : "accepted",
+          prId: order.prId,
+          prName: order.prName,
+          outlet: order.outlet,
+          by: "pr",
+          notifyAgency: true,
+          notifyOutlet: order.initiatedBy === "outlet" || order.initiatedBy === "agency",
+        });
+        get().toast(
+          order.status === "confirmed" ? `${serviceLabel} confirmed` : "Accepted — awaiting outlet",
+          "success",
+        );
+      },
+
+      declineSpecialServiceByPr: (orderId, reason) => {
+        const st = get();
+        const current = st.specialServiceOrders.find((r) => r.id === orderId);
+        if (!current || current.prAcceptance !== "pending") return;
+        const order = declineSpecialServiceByPr(current, reason);
+        set({
+          specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
+        });
+        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        get().pushNotify({
+          type: "special_service_update",
+          orderId,
+          serviceLabel,
+          status: "declined",
+          prId: order.prId,
+          prName: order.prName,
+          outlet: order.outlet,
+          by: "pr",
+          notifyAgency: true,
+          notifyOutlet: order.initiatedBy === "outlet" || order.initiatedBy === "agency",
+        });
+        get().toast("Service declined", "warn");
+      },
+
+      acceptSpecialServiceByOutlet: (orderId) => {
+        const st = get();
+        const current = st.specialServiceOrders.find((r) => r.id === orderId);
+        if (!current || current.outletAcceptance !== "pending") return;
+        const order = acceptSpecialServiceByOutlet(current);
+        set({
+          specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
+        });
+        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        get().pushNotify({
+          type: "special_service_update",
+          orderId,
+          serviceLabel,
+          status: order.status === "confirmed" ? "confirmed" : "accepted",
+          prId: order.prId,
+          prName: order.prName,
+          outlet: order.outlet,
+          by: "outlet",
+          notifyAgency: true,
+          notifyPr: order.prAcceptance === "pending",
+        });
+        get().toast(
+          order.status === "confirmed" ? `${serviceLabel} confirmed` : "Accepted — awaiting PR",
+          "success",
+        );
+      },
+
+      declineSpecialServiceByOutlet: (orderId, reason) => {
+        const st = get();
+        const current = st.specialServiceOrders.find((r) => r.id === orderId);
+        if (!current || current.outletAcceptance !== "pending") return;
+        const order = declineSpecialServiceByOutlet(current, reason);
+        set({
+          specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
+        });
+        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        get().pushNotify({
+          type: "special_service_update",
+          orderId,
+          serviceLabel,
+          status: "declined",
+          prId: order.prId,
+          prName: order.prName,
+          outlet: order.outlet,
+          by: "outlet",
+          notifyAgency: true,
+          notifyPr: order.initiatedBy === "agency",
+        });
+        get().toast("Service declined", "warn");
+      },
+
       saveOutletCommissionRule: (outlet, patch) => {
         set((st) => {
           const nextRules = st.outletCommissionRules.map((r) =>
@@ -3484,6 +3796,7 @@ export const useStore = create<StoreState>()(
         agencyReconciliation: s.agencyReconciliation,
         agencyRoster: s.agencyRoster,
         agencyPRs: s.agencyPRs,
+        specialServiceOrders: s.specialServiceOrders,
         outletCommissionRules: s.outletCommissionRules,
         scalingTierMultipliers: s.scalingTierMultipliers,
         shiftHistory: s.shiftHistory,
@@ -3505,7 +3818,26 @@ export const useStore = create<StoreState>()(
           persistedPvs.length > 0
             ? persistedPvs.map((pv) => {
                 const seed = seedById[pv.id];
-                if (!seed) return pv;
+                if (!seed) {
+                  if (pv.financeHeadName === LEGACY_FINANCE_HEAD_SIGNER) {
+                    return { ...pv, ...financeHeadStampFromProfile(DEFAULT_FINANCE_HEAD, pv.financeHeadSignedAt) };
+                  }
+                  if (!pv.financeHeadSignatureDataUrl && pv.financeHeadName) {
+                    const stamp = financeHeadStampFromProfile(
+                      { ...DEFAULT_FINANCE_HEAD, name: pv.financeHeadName },
+                      pv.financeHeadSignedAt,
+                    );
+                    return { ...pv, financeHeadSignatureDataUrl: stamp.financeHeadSignatureDataUrl };
+                  }
+                  if (
+                    !pv.prSignatureDataUrl &&
+                    (pv.prSignedAt || pv.status === "PAID" || pv.status === "SIGNED") &&
+                    pv.prName
+                  ) {
+                    return { ...pv, prSignatureDataUrl: buildDemoESignatureDataUrl(pv.prName) };
+                  }
+                  return pv;
+                }
                 return {
                   ...seed,
                   ...pv,
@@ -3515,8 +3847,19 @@ export const useStore = create<StoreState>()(
                   issued: pv.issued ?? seed.issued,
                   due: pv.due ?? seed.due,
                   cycle: pv.cycle ?? seed.cycle,
-                  financeHeadName: pv.financeHeadName ?? seed.financeHeadName,
+                  financeHeadName:
+                    pv.financeHeadName === LEGACY_FINANCE_HEAD_SIGNER
+                      ? seed.financeHeadName
+                      : (pv.financeHeadName ?? seed.financeHeadName),
                   financeHeadSignedAt: pv.financeHeadSignedAt ?? seed.financeHeadSignedAt,
+                  financeHeadSignatureDataUrl:
+                    pv.financeHeadSignatureDataUrl ?? seed.financeHeadSignatureDataUrl,
+                  prSignatureDataUrl:
+                    pv.prSignatureDataUrl ??
+                    seed.prSignatureDataUrl ??
+                    (pv.prSignedAt || pv.status === "PAID" || pv.status === "SIGNED"
+                      ? buildDemoESignatureDataUrl(pv.prName ?? seed.prName)
+                      : undefined),
                   prDisputeReason: pv.prDisputeReason ?? seed.prDisputeReason,
                   disputedAt: pv.disputedAt ?? seed.disputedAt,
                   disputeUpdatedAt: pv.disputeUpdatedAt ?? seed.disputeUpdatedAt,
@@ -3540,12 +3883,24 @@ export const useStore = create<StoreState>()(
             : current.prPaymentVouchers;
         const seedScanById = Object.fromEntries(SEED_RECEIPT_SCANS.map((s) => [s.id, s]));
         const persistedScans = p?.prReceiptScans ?? [];
-        const userScans = persistedScans.filter((s) => !seedScanById[s.id]);
+        const userScans = persistedScans
+          .filter((s) => !seedScanById[s.id])
+          .map((s) => ({
+            ...s,
+            receiptRef: s.receiptRef ?? `LEGACY-${s.id}`,
+          }));
         const mergedScans = [
           ...userScans,
           ...SEED_RECEIPT_SCANS.map((seed) => {
             const saved = persistedScans.find((s) => s.id === seed.id);
-            return saved ? { ...seed, ...saved } : seed;
+            return saved
+              ? {
+                  ...seed,
+                  ...saved,
+                  receiptRef: saved.receiptRef ?? seed.receiptRef,
+                  prId: saved.prId ?? seed.prId,
+                }
+              : seed;
           }),
         ].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt));
         const merged = {
@@ -3593,6 +3948,12 @@ export const useStore = create<StoreState>()(
             current.pendingFreelancerPayrolls,
           ),
           agencyPRs: normalizeAgencyPrs(p?.agencyPRs?.length ? p.agencyPRs : current.agencyPRs),
+          specialServiceOrders: (() => {
+            const persisted = p?.specialServiceOrders ?? [];
+            if (!persisted.length) return current.specialServiceOrders;
+            const hasNewModel = persisted.some((r) => "initiatedBy" in r && "agencyAccepted" in r);
+            return hasNewModel ? persisted : current.specialServiceOrders;
+          })(),
           prs: marketplacePrsFromAgency(
             normalizeAgencyPrs(p?.agencyPRs?.length ? p.agencyPRs : current.agencyPRs),
           ),
@@ -3632,6 +3993,17 @@ export const useStore = create<StoreState>()(
           outletFinanceHead: p?.outletFinanceHead ?? current.outletFinanceHead ?? DEFAULT_OUTLET_FINANCE_HEAD,
           outletOpsHead: p?.outletOpsHead ?? current.outletOpsHead ?? DEFAULT_OUTLET_OPS_HEAD,
           shiftApplicants: p?.shiftApplicants ?? current.shiftApplicants ?? [],
+          agencyFinanceHead: (() => {
+            const saved = p?.agencyFinanceHead;
+            const base = current.agencyFinanceHead;
+            if (!saved) return base;
+            return {
+              ...base,
+              ...saved,
+              signatureDataUrl: saved.signatureDataUrl ?? base.signatureDataUrl,
+            };
+          })(),
+          agencyCollections: mergeAgencyCollections(p?.agencyCollections, current.agencyCollections),
           paymentCardLast4: p?.paymentCardLast4 ?? current.paymentCardLast4 ?? "4242",
           postSealRatePrompt: p?.postSealRatePrompt ?? null,
           prSessionByRole: p?.prSessionByRole ?? current.prSessionByRole ?? {},

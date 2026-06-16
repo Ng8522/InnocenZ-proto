@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { AgencyGpsPanel } from "@/components/agency/AgencyGpsPanel";
-import { PrAvailabilityPanel } from "@/components/iz/PrAvailabilityPanel";
+import { RosterTimetableFilters } from "@/components/agency/RosterTimetableFilters";
+import { RosterWeeklyTimetable } from "@/components/agency/RosterWeeklyTimetable";
 import { RosterPlanningDatePicker } from "@/components/agency/RosterPlanningDatePicker";
 import { RosterShiftFilters } from "@/components/agency/RosterShiftFilters";
 import { RosterShiftTable } from "@/components/agency/RosterShiftTable";
@@ -14,11 +15,17 @@ import { IzCard, IzPill, IzSelect, IzTimeInput, formatRM } from "@/components/iz
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import {
   EMPTY_ROSTER_SHIFT_FILTERS,
+  EMPTY_ROSTER_TIMETABLE_FILTERS,
+  countTimetableMatchingSlots,
   filterRosterShifts,
+  filterTimetablePrs,
   type RosterShiftFilterState,
+  type RosterTimetableFilterState,
 } from "@/lib/roster-shift-filters";
+import { getPrScheduleState } from "@/lib/roster-availability";
 import { agencyCan } from "@/lib/agency-rbac";
-import { ArrowLeftRight, Calendar, ChevronRight, MapPin, Users, X } from "lucide-react";
+import { mondayOfWeek, weekDayIsos, weekRangeLabel } from "@/lib/roster-week-plan";
+import { ArrowLeftRight, Calendar, ChevronRight, MapPin, Trash2, Users, X } from "lucide-react";
 
 export const Route = createFileRoute("/agency/roster")({
   component: AgencyRoster,
@@ -44,6 +51,7 @@ function AgencyRoster() {
   const prCheckInMeta = useStore((s) => s.prCheckInMeta);
   const prSubRole = useStore((s) => s.prSubRole);
   const editRosterSlot = useStore((s) => s.editRosterSlot);
+  const cancelRosterShift = useStore((s) => s.cancelRosterShift);
   const requestOutletSwap = useStore((s) => s.requestOutletSwap);
   const cancelOutletSwap = useStore((s) => s.cancelOutletSwap);
   const agencySubRole = useStore((s) => s.agencySubRole);
@@ -55,6 +63,9 @@ function AgencyRoster() {
   const { date, time } = nowAgencyDateTime();
   const [planningDate, setPlanningDate] = useState(DEFAULT_ROSTER_DATE_ISO);
   const [shiftFilters, setShiftFilters] = useState<RosterShiftFilterState>(EMPTY_ROSTER_SHIFT_FILTERS);
+  const [timetableFilters, setTimetableFilters] = useState<RosterTimetableFilterState>(
+    EMPTY_ROSTER_TIMETABLE_FILTERS,
+  );
   const [editId, setEditId] = useState<string | null>(null);
   const [approveSwapId, setApproveSwapId] = useState<string | null>(null);
   const [replacementPick, setReplacementPick] = useState("");
@@ -66,11 +77,13 @@ function AgencyRoster() {
     [agencyRoster],
   );
 
-  const dateIso = viewMode === "live" ? DEFAULT_ROSTER_DATE_ISO : planningDate;
+  const liveDateIso = DEFAULT_ROSTER_DATE_ISO;
+  const weekStartIso = mondayOfWeek(planningDate);
+  const weekDays = useMemo(() => weekDayIsos(weekStartIso), [weekStartIso]);
 
   const dateFiltered = useMemo(
-    () => agencyRoster.filter((s) => s.dateIso === dateIso),
-    [agencyRoster, dateIso],
+    () => agencyRoster.filter((s) => s.dateIso === liveDateIso),
+    [agencyRoster, liveDateIso],
   );
 
   const filtered = useMemo(
@@ -108,18 +121,44 @@ function AgencyRoster() {
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
   const workforce = useMemo(
-    () => deriveLiveWorkforce(agencyRoster, dateIso, outletCommissionRules, perDrinkRm),
-    [agencyRoster, dateIso, outletCommissionRules, perDrinkRm],
+    () => deriveLiveWorkforce(agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm),
+    [agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm],
   );
   const activeCount = workforce.filter((w) => w.status === "on-duty" || w.status === "en-route").length;
   const estPayoutLive = useMemo(() => workforce.reduce((s, w) => s + w.estPayout, 0), [workforce]);
-  const scheduled = useMemo(
-    () => agencyRoster.filter((s) => s.dateIso === dateIso && s.status !== "unavailable"),
-    [agencyRoster, dateIso],
+  const weekScheduled = useMemo(
+    () => agencyRoster.filter((s) => weekDays.includes(s.dateIso) && s.status !== "unavailable"),
+    [agencyRoster, weekDays],
   );
   const estLabour = useMemo(
-    () => scheduled.reduce((s, slot) => s + (slot.estPayout ?? 350), 0) * 1.08,
-    [scheduled],
+    () => weekScheduled.reduce((s, slot) => s + (slot.estPayout ?? 350), 0) * 1.08,
+    [weekScheduled],
+  );
+
+  const activePrs = useMemo(
+    () => agencyPRs.filter((p) => !p.suspended && !p.detached),
+    [agencyPRs],
+  );
+  const filteredTimetablePrs = useMemo(
+    () =>
+      filterTimetablePrs(activePrs, agencyRoster, weekDays, timetableFilters, (prId, dateIso) =>
+        getPrScheduleState(prId, agencyRoster, dateIso),
+      ),
+    [activePrs, agencyRoster, weekDays, timetableFilters],
+  );
+  const timetableShiftCount = useMemo(
+    () =>
+      countTimetableMatchingSlots(
+        agencyRoster,
+        weekDays,
+        new Set(filteredTimetablePrs.map((p) => p.id)),
+        timetableFilters,
+      ),
+    [agencyRoster, weekDays, filteredTimetablePrs, timetableFilters],
+  );
+  const weekShiftTotal = useMemo(
+    () => agencyRoster.filter((s) => weekDays.includes(s.dateIso)).length,
+    [agencyRoster, weekDays],
   );
 
   const openEdit = useCallback((id: string) => setEditId(id), []);
@@ -168,11 +207,15 @@ function AgencyRoster() {
               <span>Today</span>
             </div>
           ) : (
-            <RosterPlanningDatePicker
-              value={planningDate}
-              onChange={setPlanningDate}
-              rosterDates={dates}
-            />
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <RosterPlanningDatePicker
+                value={planningDate}
+                onChange={setPlanningDate}
+                rosterDates={dates}
+                hint="Pick any day — timetable shows that full week (Mon–Sun)."
+              />
+              <span className="iz-tiny iz-muted hidden sm:inline">{weekRangeLabel(weekStartIso)}</span>
+            </div>
           )}
         </div>
         {canAssign && (
@@ -199,8 +242,8 @@ function AgencyRoster() {
         ) : (
           <>
             <div className="iz-roster-kpi">
-              <span className="n">{scheduled.length}</span>
-              <span className="l">PRs scheduled</span>
+              <span className="n">{weekScheduled.length}</span>
+              <span className="l">Shifts this week</span>
             </div>
             <div className="iz-roster-kpi">
               <span className="n gold">{formatRM(estLabour)}</span>
@@ -215,30 +258,48 @@ function AgencyRoster() {
           <AgencyGpsPanel
             roster={agencyRoster}
             agencyPRs={agencyPRs}
-            dateIso={dateIso}
+            dateIso={liveDateIso}
             prCheckInMeta={prCheckInMeta}
             prSubRole={prSubRole}
           />
         </div>
       )}
 
-      {viewMode === "planning" && canAssign && (
+      {viewMode === "planning" && (
         <>
-          <IzCard flat className="iz-roster-planning-hint">
-            <p className="iz-tiny iz-muted">
-              Planning = projected wages + commission. Assign free PRs below — many PRs can share one outlet or
-              spread across venues.
-            </p>
-            <button
-              type="button"
-              className="iz-btn iz-btn-soft mt-2 !text-xs"
-              onClick={() => demoAutoAssignPr(dateIso)}
-            >
-              AI auto-assign next free PR
-            </button>
-          </IzCard>
-          <div className="iz-roster-assign mt-3">
-            <PrAvailabilityPanel dateIso={dateIso} sortByOutlet={shiftFilters.outlet} />
+          {canAssign && (
+            <IzCard flat className="iz-roster-planning-hint">
+              <p className="iz-tiny iz-muted">
+                Weekly planning — assign outlet &amp; shift per PR per day. Agency-tied and freelancer PRs
+                appear on the same timetable; each assignment awaits PR approval.
+              </p>
+              <button
+                type="button"
+                className="iz-btn iz-btn-soft mt-2 !text-xs"
+                onClick={() => demoAutoAssignPr(planningDate)}
+              >
+                AI auto-assign next free PR · {planningDate}
+              </button>
+            </IzCard>
+          )}
+          <div className="iz-roster-week mt-3">
+            <RosterTimetableFilters
+              filters={timetableFilters}
+              onChange={(patch) => setTimetableFilters((prev) => ({ ...prev, ...patch }))}
+              prCount={filteredTimetablePrs.length}
+              totalPrs={activePrs.length}
+              shiftCount={timetableShiftCount}
+              totalShifts={weekShiftTotal}
+            />
+            <RosterWeeklyTimetable
+              weekStartIso={weekStartIso}
+              roster={agencyRoster}
+              agencyPRs={agencyPRs}
+              filters={timetableFilters}
+              canAssign={canAssign}
+              onEditSlot={openEdit}
+              onWeekChange={setPlanningDate}
+            />
           </div>
         </>
       )}
@@ -295,9 +356,10 @@ function AgencyRoster() {
         </OutletSection>
       )}
 
+      {viewMode === "live" && (
       <OutletSection
         title="Shifts"
-        hint={viewMode === "live" ? "Editable roster · synced with outlet floor" : "Forecast · tap Edit to adjust"}
+        hint="Editable roster · synced with outlet floor"
         className="!mt-4"
       >
         <RosterShiftFilters
@@ -315,6 +377,7 @@ function AgencyRoster() {
           onCancelSwap={cancelOutletSwap}
         />
       </OutletSection>
+      )}
 
       {editSlot && (
         <EditRosterModal
@@ -326,6 +389,10 @@ function AgencyRoster() {
           }}
           onRequestOutletSwap={(targetOutlet, note) => {
             requestOutletSwap(editSlot.id, targetOutlet, note);
+            setEditId(null);
+          }}
+          onCancelShift={() => {
+            cancelRosterShift(editSlot.id);
             setEditId(null);
           }}
         />
@@ -384,11 +451,13 @@ function EditRosterModal({
   onClose,
   onSave,
   onRequestOutletSwap,
+  onCancelShift,
 }: {
   slot: AgencyRosterSlot;
   onClose: () => void;
   onSave: (patch: Partial<AgencyRosterSlot>) => void;
   onRequestOutletSwap: (targetOutlet: string, note: string) => void;
+  onCancelShift: () => void;
 }) {
   const initialStatus = EDITABLE_STATUSES.includes(slot.status) ? slot.status : "scheduled";
   const [status, setStatus] = useState<RosterSlotStatus>(initialStatus);
@@ -397,9 +466,11 @@ function EditRosterModal({
   const [swapOutlet, setSwapOutlet] = useState("");
   const [swapNote, setSwapNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const shiftPreview = `${shiftStart} — ${shiftEnd}`;
   const swapTargets = OUTLET_NAMES.filter((o) => o !== slot.outlet);
   const canRequestSwap = !slot.outletSwap || slot.outletSwap.status !== "pending_pr";
+  const canCancelShift = !slot.checkedOutAt;
 
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
@@ -517,15 +588,64 @@ function EditRosterModal({
           </div>
         )}
 
+        {canCancelShift && (
+          <div className="mt-4 rounded-xl border border-[rgba(255,117,117,.25)] bg-[rgba(255,117,117,.06)] p-3">
+            <div className="flex items-center gap-1.5 iz-tiny font-bold uppercase tracking-wide text-[var(--destructive)]">
+              <Trash2 className="h-3.5 w-3.5" />
+              Cancel shift
+            </div>
+            <p className="iz-tiny iz-muted mt-1">
+              Remove this assignment — {slot.prName} will be notified and freed for {slot.date}.
+            </p>
+            <button
+              type="button"
+              className="iz-btn iz-btn-danger mt-3 w-full !text-xs"
+              disabled={busy}
+              onClick={() => setCancelConfirmOpen(true)}
+            >
+              Cancel shift
+            </button>
+          </div>
+        )}
+
         <div className="iz-sheet-actions">
           <button type="button" className="iz-btn iz-btn-soft flex-1 !py-3" onClick={onClose} disabled={busy}>
-            Cancel
+            Close
           </button>
           <button type="submit" className="iz-btn iz-btn-primary flex-1 !py-3" disabled={busy}>
             {busy ? "Saving…" : "Save changes"}
           </button>
         </div>
       </form>
+
+      <IzSheet open={cancelConfirmOpen} onClose={() => !busy && setCancelConfirmOpen(false)}>
+        <div className="iz-cardttl">Cancel this shift?</div>
+        <p className="iz-tiny iz-muted mb-3">
+          {slot.prName} at <strong className="text-[var(--iz-txt)]">{slot.outlet}</strong> · {slot.date} ·{" "}
+          {slot.shift}. This cannot be undone.
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft flex-1"
+            disabled={busy}
+            onClick={() => setCancelConfirmOpen(false)}
+          >
+            Keep shift
+          </button>
+          <button
+            type="button"
+            className="iz-btn iz-btn-danger flex-1"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              onCancelShift();
+            }}
+          >
+            Cancel shift
+          </button>
+        </div>
+      </IzSheet>
     </IzSheet>
   );
 }

@@ -1,6 +1,7 @@
 /** Agency portal demo data — roster, commission rules, history, PR roster */
 
 import type { PendingFreelancerPayroll, PendingPR } from "@/lib/store";
+import { buildDemoESignatureDataUrl } from "@/lib/finance-head-stamp";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { DEFAULT_TIED_AGENCY_ID, FREELANCER_DEMO_PR_ID, fmtDateLabelFromIso } from "@/lib/pr-demo";
 
@@ -455,13 +456,48 @@ function parsePendingLanguages(raw: string): string[] {
     .split(/[·,|/]/)
     .map((s) => s.trim())
     .filter(Boolean)
-    .map((s) => {
-      const u = s.toUpperCase();
-      if (u === "EN") return "English";
-      if (u === "中文") return "Mandarin";
-      if (u === "MALAY") return "Malay";
-      return s.charAt(0).toUpperCase() + s.slice(1);
-    });
+    .map((s) => normalizeLanguageToken(s))
+    .filter(Boolean);
+}
+
+function normalizeLanguageToken(raw: string): string {
+  const t = raw.trim();
+  if (!t || t.toLowerCase() === "pending profile") return "";
+  const u = t.toUpperCase();
+  if (u === "EN") return "English";
+  if (t === "中文") return "Mandarin";
+  if (u === "MALAY") return "Malay";
+  if (u === "MANDARIN") return "Mandarin";
+  if (u === "CANTONESE") return "Cantonese";
+  if (u === "JAPANESE") return "Japanese";
+  if (u === "TAMIL") return "Tamil";
+  if (u === "HINDI") return "Hindi";
+  if (u === "ARABIC") return "Arabic";
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/** Flatten PR language fields into normalized tokens for filters and display */
+export function languagesFromPr(pr: Pick<AgencyManagedPR, "languages">): string[] {
+  const raw = pr.languages as string[] | string | undefined;
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map((l) => normalizeLanguageToken(String(l))).filter(Boolean))];
+  }
+  if (typeof raw === "string") return parsePendingLanguages(raw);
+  return [];
+}
+
+/** All distinct languages across agency PR personnel */
+export function collectAgencyPrLanguages(
+  prs: AgencyManagedPR[],
+  opts?: { includeDetached?: boolean },
+): string[] {
+  const includeDetached = opts?.includeDetached ?? false;
+  const set = new Set<string>();
+  for (const pr of prs) {
+    if (!includeDetached && pr.detached) continue;
+    for (const lang of languagesFromPr(pr)) set.add(lang);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
 }
 
 /** New sign-ups awaiting owner approval — not yet on agency roster */
@@ -618,6 +654,45 @@ export const SEED_OUTLET_PNL: OutletPnlRow[] = [
   { outlet: "Onyx KL", grossRevenue: 11200, prPayout: 1980, agencyNet: 3200, outletNet: 5640, platformFee: 560 },
 ];
 
+export type AgencySubscriptionPlanId = "starter" | "growth" | "enterprise";
+
+export interface AgencySubscriptionPlan {
+  id: AgencySubscriptionPlanId;
+  label: string;
+  monthlyRm: number;
+  /** Max PRs the agency can roster on this plan */
+  prLimit: number;
+  description: string;
+}
+
+export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
+  {
+    id: "starter",
+    label: "Starter",
+    monthlyRm: 499,
+    prLimit: 20,
+    description: "InnocenZ Agency · core portal access",
+  },
+  {
+    id: "growth",
+    label: "Growth",
+    monthlyRm: 1499,
+    prLimit: 75,
+    description: "Expanded roster · payroll & analytics",
+  },
+  {
+    id: "enterprise",
+    label: "Enterprise",
+    monthlyRm: 2499,
+    prLimit: 200,
+    description: "Maximum PR capacity · priority support",
+  },
+];
+
+export function getAgencySubscriptionPlan(id?: AgencySubscriptionPlanId | null): AgencySubscriptionPlan {
+  return AGENCY_SUBSCRIPTION_PLANS.find((p) => p.id === id) ?? AGENCY_SUBSCRIPTION_PLANS[0];
+}
+
 export interface AgencyOwnerSettings {
   ownerName: string;
   mobile: string;
@@ -627,6 +702,7 @@ export interface AgencyOwnerSettings {
   otpChannel: "email" | "phone";
   accountActivated: boolean;
   avatarPhoto?: string | null;
+  subscriptionPlanId?: AgencySubscriptionPlanId;
 }
 
 export const DEFAULT_AGENCY_OWNER: AgencyOwnerSettings = {
@@ -638,6 +714,7 @@ export const DEFAULT_AGENCY_OWNER: AgencyOwnerSettings = {
   otpChannel: "email",
   accountActivated: true,
   avatarPhoto: null,
+  subscriptionPlanId: "starter",
 };
 
 export interface AgencyFinanceHead {
@@ -645,6 +722,8 @@ export interface AgencyFinanceHead {
   ic: string;
   email: string;
   eSignatureStored: boolean;
+  /** Stored e-signature image — stamped on every PV (1st of 2 sigs) */
+  signatureDataUrl?: string;
 }
 
 export const DEFAULT_FINANCE_HEAD: AgencyFinanceHead = {
@@ -652,12 +731,22 @@ export const DEFAULT_FINANCE_HEAD: AgencyFinanceHead = {
   ic: "850622-08-4410",
   email: "finance@atlas-agency.my",
   eSignatureStored: true,
+  signatureDataUrl: buildDemoESignatureDataUrl("Sarah Tan"),
 };
 
 export type CollectionAging = "current" | "7d" | "14d" | "30d" | "60d+";
 export type CollectionStatus = "SETTLED" | "PENDING";
 
 export type CollectionInvoiceKind = "outlet" | "agency";
+
+export type CollectionLineGroup = "payroll" | "commissions" | "fees";
+
+export interface CollectionLineItem {
+  label: string;
+  detail?: string;
+  amount: number;
+  group?: CollectionLineGroup;
+}
 
 export interface AgencyCollectionInvoice {
   id: string;
@@ -671,6 +760,8 @@ export interface AgencyCollectionInvoice {
   status: CollectionStatus;
   aging: CollectionAging;
   linkedPvIds: string[];
+  /** What the outlet owes the agency — payroll passthrough, fees, etc. */
+  lines?: CollectionLineItem[];
   reminderSent?: boolean;
   kind?: CollectionInvoiceKind;
   counterparty?: string;
@@ -683,13 +774,128 @@ export const SCALING_TIER_MULTIPLIERS: Record<string, number> = {
 };
 
 export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
-  { id: "COL-2026-0610", outlet: "Velvet 23", amount: 4280, issueDate: "3 Jun 2026", issueTime: "09:30", dueDate: "10 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0610-A"], kind: "outlet" },
-  { id: "COL-2026-0608", outlet: "Mermate", amount: 3120, issueDate: "1 Jun 2026", issueTime: "11:00", dueDate: "8 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: ["PV-2026-0608-B"], kind: "outlet" },
-  { id: "COL-2026-0605", outlet: "Bear Lounge", amount: 2640, issueDate: "28 May 2026", issueTime: "14:15", dueDate: "5 Jun 2026", status: "PENDING", aging: "7d", linkedPvIds: ["PV-2026-0605-C"], reminderSent: true, kind: "outlet" },
-  { id: "COL-2026-0528", outlet: "Onyx KL", amount: 3890, issueDate: "21 May 2026", issueTime: "10:45", dueDate: "28 May 2026", status: "PENDING", aging: "14d", linkedPvIds: ["PV-2026-0528-D"], kind: "outlet" },
-  { id: "COL-2026-0515", outlet: "Urban Soul", amount: 1950, issueDate: "8 May 2026", issueTime: "16:00", dueDate: "15 May 2026", status: "PENDING", aging: "30d", linkedPvIds: ["PV-2026-0515-E"], reminderSent: true, kind: "outlet" },
-  { id: "AINV-2026-0601", outlet: "Platform fee", amount: 499, issueDate: "1 Jun 2026", issueTime: "08:00", dueDate: "1 Jun 2026", status: "SETTLED", aging: "current", linkedPvIds: [], kind: "agency", counterparty: "InnocenZ Platform" },
-  { id: "AINV-2026-0604", outlet: "InnocenZ escrow", amount: 1200, issueDate: "4 Jun 2026", issueTime: "09:15", dueDate: "4 Jun 2026", status: "PENDING", aging: "current", linkedPvIds: ["PV-2026-0604-A"], kind: "agency", counterparty: "InnocenZ Admin" },
+  {
+    id: "COL-2026-0610",
+    outlet: "Velvet 23",
+    amount: 4280,
+    issueDate: "3 Jun 2026",
+    issueTime: "09:30",
+    dueDate: "10 Jun 2026",
+    status: "SETTLED",
+    aging: "current",
+    linkedPvIds: ["PV-2026-0611-A"],
+    kind: "outlet",
+    lines: [
+      { label: "Daily wages", detail: "Luna · 4 Jun sealed shift", amount: 360, group: "payroll" },
+      { label: "Commission – Drinks", detail: "Velvet 23 floor · tap log", amount: 2940, group: "commissions" },
+      { label: "Commission – Tips", detail: "100% passthrough to PR payroll", amount: 680, group: "commissions" },
+      { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 300, group: "fees" },
+    ],
+  },
+  {
+    id: "COL-2026-0608",
+    outlet: "Mermate",
+    amount: 3120,
+    issueDate: "1 Jun 2026",
+    issueTime: "11:00",
+    dueDate: "8 Jun 2026",
+    status: "SETTLED",
+    aging: "current",
+    linkedPvIds: ["PV-2026-0498", "PV-2026-0548-J"],
+    kind: "outlet",
+    lines: [
+      { label: "Daily wages", detail: "Jaya Nair · 27 Apr + 20–22 May shifts", amount: 1050, group: "payroll" },
+      { label: "Commission – Drinks", detail: "Mermate POS reconciled", amount: 1620, group: "commissions" },
+      { label: "Commission – Tips", detail: "Receipt scans rc-seed-1…3", amount: 350, group: "commissions" },
+      { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 100, group: "fees" },
+    ],
+  },
+  {
+    id: "COL-2026-0605",
+    outlet: "Bear Lounge",
+    amount: 2640,
+    issueDate: "28 May 2026",
+    issueTime: "14:15",
+    dueDate: "5 Jun 2026",
+    status: "PENDING",
+    aging: "7d",
+    linkedPvIds: ["PV-2026-0521"],
+    reminderSent: true,
+    kind: "outlet",
+    lines: [
+      { label: "Daily wages", detail: "Jaya Nair · 9 May sealed shift", amount: 350, group: "payroll" },
+      { label: "Overtime (OT)", detail: "Check-out past shift end · 47 min", amount: 280, group: "payroll" },
+      { label: "Commission – Drinks", detail: "Disputed · rc-seed-4 · outlet reconciling", amount: 1890, group: "commissions" },
+      { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 120, group: "fees" },
+    ],
+  },
+  {
+    id: "COL-2026-0528",
+    outlet: "Onyx KL",
+    amount: 3890,
+    issueDate: "21 May 2026",
+    issueTime: "10:45",
+    dueDate: "28 May 2026",
+    status: "PENDING",
+    aging: "14d",
+    linkedPvIds: [],
+    kind: "outlet",
+    lines: [
+      { label: "Daily wages", detail: "Mia + guest PR · 2 shifts", amount: 1420, group: "payroll" },
+      { label: "Commission – Drinks", detail: "Onyx KL · weekend cycle", amount: 1980, group: "commissions" },
+      { label: "Commission – Tables", detail: "VIP tables · 3 units", amount: 360, group: "commissions" },
+      { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 130, group: "fees" },
+    ],
+  },
+  {
+    id: "COL-2026-0515",
+    outlet: "Urban Soul",
+    amount: 1950,
+    issueDate: "8 May 2026",
+    issueTime: "16:00",
+    dueDate: "15 May 2026",
+    status: "PENDING",
+    aging: "30d",
+    linkedPvIds: ["PV-2026-0535-J"],
+    reminderSent: true,
+    kind: "outlet",
+    lines: [
+      { label: "Daily wages", detail: "Jaya Nair · 14 May shift", amount: 350, group: "payroll" },
+      { label: "Commission – Drinks", detail: "Urban Soul tap log", amount: 1420, group: "commissions" },
+      { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 180, group: "fees" },
+    ],
+  },
+  {
+    id: "AINV-2026-0601",
+    outlet: "Platform fee",
+    amount: 499,
+    issueDate: "1 Jun 2026",
+    issueTime: "08:00",
+    dueDate: "1 Jun 2026",
+    status: "SETTLED",
+    aging: "current",
+    linkedPvIds: [],
+    kind: "agency",
+    counterparty: "InnocenZ Platform",
+    lines: [{ label: "Atlas Agency subscription", detail: "Jun 2026 · SaaS", amount: 499, group: "fees" }],
+  },
+  {
+    id: "AINV-2026-0604",
+    outlet: "InnocenZ escrow",
+    amount: 1200,
+    issueDate: "4 Jun 2026",
+    issueTime: "09:15",
+    dueDate: "4 Jun 2026",
+    status: "PENDING",
+    aging: "current",
+    linkedPvIds: ["PV-2026-0604-L"],
+    kind: "agency",
+    counterparty: "InnocenZ Admin",
+    lines: [
+      { label: "Dispute escrow hold", detail: "Luna · Bear Lounge PV", amount: 850, group: "fees" },
+      { label: "Admin processing fee", detail: "7-day dispute window", amount: 350, group: "fees" },
+    ],
+  },
 ];
 
 export interface AgencyReconciliationDay {

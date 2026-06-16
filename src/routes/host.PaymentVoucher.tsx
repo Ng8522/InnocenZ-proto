@@ -315,6 +315,7 @@ function PvDetail({
           name={pv.financeHeadName}
           signedAt={pv.financeHeadSignedAt}
           signed
+          signatureDataUrl={pv.financeHeadSignatureDataUrl}
         />
         <SignatureBlock
           role="PR Personnel"

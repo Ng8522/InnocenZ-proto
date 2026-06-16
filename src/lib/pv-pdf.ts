@@ -10,6 +10,7 @@ import {
   payeeFromProfile,
   type PvPayeeProfile,
 } from "@/lib/pv-template";
+import { FINANCE_HEAD_LABEL } from "@/lib/pr-demo";
 
 /** @deprecated Use PV_TEMPLATE_ISSUER */
 export const PV_PDF_AGENCY = {
@@ -32,6 +33,24 @@ function amt(n: number) {
   return n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function csvCell(value: string | number) {
+  const s = String(value ?? "");
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function csvRow(cells: (string | number)[]) {
+  return cells.map(csvCell).join(",");
+}
+
+function financeHeadSigned(pv: PrPaymentVoucher) {
+  return Boolean(pv.financeHeadSignedAt?.trim());
+}
+
+function prSigned(pv: PrPaymentVoucher) {
+  return Boolean(pv.prSignedAt || pv.status === "PAID" || pv.status === "SIGNED");
+}
+
 function fieldRow(label: string, value: string) {
   return `<div class="fld"><span class="fld-lbl">${escapeHtml(label)}</span><span class="fld-val">${escapeHtml(value || "-")}</span></div>`;
 }
@@ -49,7 +68,8 @@ export function buildPvBreakdownHtml(
 
   const templateLines = padPvTemplateLines(buildPvTemplateLines(pv), 5);
   const voucherDate = formatPvVoucherDate(pv.issued);
-  const prSigned = Boolean(pv.prSignedAt || pv.status === "PAID" || pv.status === "SIGNED");
+  const fhSigned = financeHeadSigned(pv);
+  const prOk = prSigned(pv);
 
   const rowHtml = templateLines
     .map((line) => {
@@ -266,17 +286,37 @@ export function buildPvBreakdownHtml(
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
     }
-    /* ── Signature ── */
-    .sig-wrap {
+    /* ── Signatures — Finance Head (left) + PR (right) ── */
+    .sig-row {
+      display: table;
+      width: 100%;
       margin-top: 0;
       padding: 12px 0 8px;
-      text-align: right;
     }
+    .sig-left,
+    .sig-right {
+      display: table-cell;
+      width: 50%;
+      vertical-align: top;
+    }
+    .sig-right { text-align: right; }
     .sig-inner {
       display: inline-block;
       width: 240px;
       text-align: left;
-      margin-right: 4px;
+    }
+    .sig-left .sig-inner { margin-left: 4px; }
+    .sig-right .sig-inner { margin-right: 4px; }
+    .sig-role {
+      font-size: 9px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #333;
+    }
+    .sig-wrap {
+      margin-top: 0;
+      padding: 0;
+      text-align: right;
     }
     .sig-line {
       border-bottom: 1px solid #000;
@@ -292,6 +332,12 @@ export function buildPvBreakdownHtml(
       max-width: 100%;
       object-fit: contain;
       object-position: right bottom;
+    }
+    .sig-line .esig {
+      font-family: "Segoe Script", "Brush Script MT", cursive;
+      font-size: 18px;
+      color: #1a1a6e;
+      padding-bottom: 2px;
     }
     .sig-fld {
       display: flex;
@@ -402,16 +448,45 @@ export function buildPvBreakdownHtml(
       </div>
     </div>
 
-    <div class="sig-wrap">
-      <div class="sig-inner">
-        <div class="sig-line">${pv.prSignatureDataUrl ? `<img src="${pv.prSignatureDataUrl}" alt="PR signature" />` : ""}</div>
-        <div class="sig-fld">
-          <span class="lbl">Name:</span>
-          <span class="val">${escapeHtml(prSigned ? payee.name : "")}</span>
+    <div class="sig-row">
+      <div class="sig-left">
+        <div class="sig-inner">
+          <div class="sig-role">${escapeHtml(FINANCE_HEAD_LABEL)}</div>
+          <div class="sig-line">${
+            fhSigned
+              ? pv.financeHeadSignatureDataUrl
+                ? `<img src="${pv.financeHeadSignatureDataUrl}" alt="Finance Head signature" />`
+                : `<span class="esig">${escapeHtml(pv.financeHeadName)}</span>`
+              : ""
+          }</div>
+          <div class="sig-fld">
+            <span class="lbl">Name:</span>
+            <span class="val">${escapeHtml(fhSigned ? pv.financeHeadName : "")}</span>
+          </div>
+          <div class="sig-fld">
+            <span class="lbl">Date:</span>
+            <span class="val">${escapeHtml(fhSigned ? (pv.financeHeadSignedAt ?? "") : "")}</span>
+          </div>
         </div>
-        <div class="sig-fld">
-          <span class="lbl">Date:</span>
-          <span class="val">${escapeHtml(prSigned ? (pv.prSignedAt ?? "") : "")}</span>
+      </div>
+      <div class="sig-right">
+        <div class="sig-inner">
+          <div class="sig-role">PR (Payee)</div>
+          <div class="sig-line">${
+            prOk
+              ? pv.prSignatureDataUrl
+                ? `<img src="${pv.prSignatureDataUrl}" alt="PR signature" />`
+                : `<span class="esig">${escapeHtml(payee.name)}</span>`
+              : ""
+          }</div>
+          <div class="sig-fld">
+            <span class="lbl">Name:</span>
+            <span class="val">${escapeHtml(prOk ? payee.name : "")}</span>
+          </div>
+          <div class="sig-fld">
+            <span class="lbl">Date:</span>
+            <span class="val">${escapeHtml(prOk ? (pv.prSignedAt ?? "") : "")}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -425,6 +500,88 @@ export function buildPvBreakdownHtml(
   </p>
 </body>
 </html>`;
+}
+
+/** CSV export — same sections and values as the official PV PDF */
+export function buildPvBreakdownCsv(pv: PrPaymentVoucher, payee: PvPayeeProfile): string {
+  const templateLines = padPvTemplateLines(buildPvTemplateLines(pv), 5);
+  const voucherDate = formatPvVoucherDate(pv.issued);
+  const fhSigned = financeHeadSigned(pv);
+  const prOk = prSigned(pv);
+  const lines: string[] = [];
+
+  const add = (...cells: (string | number)[]) => {
+    lines.push(csvRow(cells));
+  };
+
+  add("Payment Voucher");
+  add(PV_TEMPLATE_ISSUER.name, PV_TEMPLATE_ISSUER.regNo);
+  add(`Phone No: ${PV_TEMPLATE_ISSUER.phone}`, `Email Address: ${PV_TEMPLATE_ISSUER.email}`);
+  add(`Address: ${PV_TEMPLATE_ISSUER.address}`);
+  add("");
+
+  add("Payable to:");
+  add("Code:", payee.code);
+  add("Name:", payee.name);
+  add("Nickname:", payee.nickname);
+  add("IC/Passport No.:", payee.ic);
+  add("Phone No.:", payee.phone);
+  add("");
+
+  add("Voucher No.:", pv.id);
+  add("Voucher Date:", voucherDate);
+  add("");
+
+  add("#", "Description", "Unit", "Unit Price (RM)", "Amount (RM)");
+  for (const line of templateLines) {
+    add(
+      line.blank ? "" : line.seq,
+      line.blank ? "" : line.description,
+      line.blank ? "-" : line.unit || "-",
+      formatPvPdfDash(line.blank ? undefined : line.unitPrice, line.blank),
+      formatPvPdfDash(line.blank ? undefined : line.amount, line.blank),
+    );
+  }
+  add("");
+
+  add("Payment Details:");
+  add("Payment Method:", PV_TEMPLATE_ISSUER.paymentMethod);
+  add("Bank Name:", payee.bank);
+  add("Bank Account Name:", payee.accountName);
+  add("Bank Account No.:", payee.accountNo);
+  add("");
+
+  add("Total", `RM ${amt(pv.net)}`);
+  add("");
+
+  add(FINANCE_HEAD_LABEL);
+  add("Signature:", fhSigned ? pv.financeHeadName : "");
+  add("Name:", fhSigned ? pv.financeHeadName : "");
+  add("Date:", fhSigned ? (pv.financeHeadSignedAt ?? "") : "");
+  add("");
+
+  add("PR (Payee)");
+  add("Signature:", prOk ? payee.name : "");
+  add("Name:", prOk ? payee.name : "");
+  add("Date:", prOk ? (pv.prSignedAt ?? "") : "");
+  add("");
+
+  add(PV_TEMPLATE_DISCLAIMER);
+
+  return lines.join("\r\n");
+}
+
+export function downloadPvBreakdownCsv(pv: PrPaymentVoucher, payee: PvPayeeProfile) {
+  const csv = buildPvBreakdownCsv(pv, payee);
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${pv.id}-payment-voucher.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /** Open print-ready PV (Save as PDF) or download HTML fallback */

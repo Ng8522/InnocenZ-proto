@@ -39,7 +39,7 @@ export interface PrUpcomingShift {
   status: "confirmed" | "pending";
 }
 
-export type PrNotificationKind = "pv" | "assignment" | "application" | "swap" | "rating" | "sos";
+export type PrNotificationKind = "pv" | "assignment" | "application" | "swap" | "rating" | "sos" | "special_service";
 
 export interface PrNotification {
   id: string;

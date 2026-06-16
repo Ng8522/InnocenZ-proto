@@ -1,0 +1,161 @@
+import { OUTLET_NAMES } from "@/lib/agency-demo";
+import type { RosterTimetableFilterState } from "@/lib/roster-shift-filters";
+import { rosterTimetableFiltersActive } from "@/lib/roster-shift-filters";
+import { IzSelect, IzTimeInput } from "@/components/iz/ui";
+import { RotateCcw, Search } from "lucide-react";
+
+export function RosterTimetableFilters({
+  filters,
+  onChange,
+  prCount,
+  totalPrs,
+  shiftCount,
+  totalShifts,
+}: {
+  filters: RosterTimetableFilterState;
+  onChange: (patch: Partial<RosterTimetableFilterState>) => void;
+  prCount: number;
+  totalPrs: number;
+  shiftCount: number;
+  totalShifts: number;
+}) {
+  const active = rosterTimetableFiltersActive(filters);
+
+  return (
+    <div className="iz-roster-shift-filters iz-roster-timetable-filters">
+      <div className="iz-roster-shift-filters-head">
+        <span className="iz-tiny font-semibold uppercase tracking-wider text-[var(--iz-muted)]">
+          Filter timetable
+        </span>
+        <span className="iz-tiny iz-muted">
+          {prCount} PR{prCount === 1 ? "" : "s"} · {shiftCount} shift{shiftCount === 1 ? "" : "s"}
+          {active ? ` (of ${totalPrs} · ${totalShifts})` : ""}
+        </span>
+      </div>
+
+      <div className="iz-roster-shift-filters-grid">
+        <label className="iz-roster-filter-field iz-roster-filter-field--search">
+          <span className="iz-roster-filter-label">Name</span>
+          <span className="iz-roster-filter-input-wrap">
+            <Search className="h-3.5 w-3.5 shrink-0 text-[var(--iz-muted2)]" />
+            <input
+              type="search"
+              className="iz-roster-filter-input"
+              placeholder="Search PR…"
+              value={filters.nameQuery}
+              onChange={(e) => onChange({ nameQuery: e.target.value })}
+            />
+          </span>
+        </label>
+
+        <label className="iz-roster-filter-field">
+          <span className="iz-roster-filter-label">PR type</span>
+          <IzSelect
+            block
+            className="!text-sm"
+            value={filters.prType}
+            onChange={(e) => onChange({ prType: e.target.value as RosterTimetableFilterState["prType"] })}
+          >
+            <option value="">Agency &amp; freelancer</option>
+            <option value="agency">Agency-tied only</option>
+            <option value="freelancer">Freelancer only</option>
+          </IzSelect>
+        </label>
+
+        <label className="iz-roster-filter-field">
+          <span className="iz-roster-filter-label">Show PRs</span>
+          <IzSelect
+            block
+            className="!text-sm"
+            value={filters.showPrs}
+            onChange={(e) => onChange({ showPrs: e.target.value as RosterTimetableFilterState["showPrs"] })}
+          >
+            <option value="">Everyone on roster</option>
+            <option value="scheduled">With shifts this week</option>
+            <option value="free">Free on at least one day</option>
+          </IzSelect>
+        </label>
+
+        <label className="iz-roster-filter-field">
+          <span className="iz-roster-filter-label">Outlet</span>
+          <IzSelect
+            block
+            className="!text-sm"
+            value={filters.outlet}
+            onChange={(e) => onChange({ outlet: e.target.value })}
+          >
+            <option value="">All outlets</option>
+            {OUTLET_NAMES.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </IzSelect>
+        </label>
+
+        <label className="iz-roster-filter-field">
+          <span className="iz-roster-filter-label">Shift status</span>
+          <IzSelect
+            block
+            className="!text-sm"
+            value={filters.status}
+            onChange={(e) => onChange({ status: e.target.value as RosterTimetableFilterState["status"] })}
+          >
+            <option value="">Any status</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="assignment-pending">Awaiting PR</option>
+            <option value="en-route">En route</option>
+            <option value="on-duty">On duty</option>
+            <option value="swap-pending">Swap pending</option>
+            <option value="unavailable">Unavailable</option>
+          </IzSelect>
+        </label>
+
+        <label className="iz-roster-filter-field">
+          <span className="iz-roster-filter-label">Start from</span>
+          <IzTimeInput
+            value={filters.startTime}
+            onChange={(v) => onChange({ startTime: v })}
+            showIcon={false}
+            className="iz-roster-filter-time !min-h-0 !py-2 !text-sm"
+            aria-label="Shift start from"
+          />
+        </label>
+
+        <label className="iz-roster-filter-field">
+          <span className="iz-roster-filter-label">End by</span>
+          <IzTimeInput
+            value={filters.endTime}
+            onChange={(v) => onChange({ endTime: v })}
+            showIcon={false}
+            className="iz-roster-filter-time !min-h-0 !py-2 !text-sm"
+            aria-label="Shift end by"
+          />
+        </label>
+      </div>
+
+      {active && (
+        <button
+          type="button"
+          className="iz-roster-filter-clear"
+          onClick={() => onChange({ ...EMPTY_TIMETABLE_CLEAR })}
+        >
+          <RotateCcw className="h-3 w-3" />
+          Clear filters
+        </button>
+      )}
+    </div>
+  );
+}
+
+const EMPTY_TIMETABLE_CLEAR: RosterTimetableFilterState = {
+  nameQuery: "",
+  outlet: "",
+  status: "",
+  payoutMin: "",
+  payoutMax: "",
+  startTime: "",
+  endTime: "",
+  prType: "",
+  showPrs: "",
+};

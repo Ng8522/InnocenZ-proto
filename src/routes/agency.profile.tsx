@@ -3,10 +3,10 @@ import { useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
 import type { AgencyFinanceHead, AgencyOwnerSettings } from "@/lib/agency-demo";
-import { SCALING_TIER_MULTIPLIERS } from "@/lib/agency-demo";
+import { getAgencySubscriptionPlan, SCALING_TIER_MULTIPLIERS } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
-import { Building2, Camera, CreditCard, Mail, Pencil, Phone, Shield, User, X } from "lucide-react";
+import { Building2, Camera, Mail, Pencil, Phone, Shield, User, X } from "lucide-react";
 
 const SCALING_TIER_ORDER = ["Tier III", "Tier IV", "Tier V"] as const;
 
@@ -37,6 +37,7 @@ function AgencyProfile() {
   const owner = editing ? draft : agencyOwner;
   const finance = editing ? financeDraft : agencyFinanceHead;
   const scaling = editing ? scalingDraft : scalingTierMultipliers;
+  const subscriptionPlan = getAgencySubscriptionPlan(owner.subscriptionPlanId);
   const avatarLetter = owner.ownerName.trim()[0]?.toUpperCase() ?? owner.orgName.trim()[0]?.toUpperCase() ?? "A";
   const editCardClass = editing ? " border-[rgba(217,185,122,.25)]" : "";
 
@@ -147,7 +148,7 @@ function AgencyProfile() {
         {editing && <span className="iz-pill iz-pill-amber mt-2 !text-[10px]">Editing</span>}
         {isFinanceReadOnly && !editing && (
           <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
-            Finance view — read-only · cannot edit owner or subscription
+            Finance view — read-only · cannot edit owner settings
           </p>
         )}
       </header>
@@ -194,7 +195,9 @@ function AgencyProfile() {
         <p className="iz-tiny iz-muted mt-0.5">{owner.ownerName}</p>
         <div className="mt-1 flex items-center gap-1 iz-tiny text-[var(--iz-green)]">
           <Shield className="h-3 w-3" />
-          {owner.accountActivated ? "Verified · RM499/mo active" : "Pending OTP activation"}
+          {owner.accountActivated
+            ? `Verified · RM${subscriptionPlan.monthlyRm}/mo active`
+            : "Pending OTP activation"}
         </div>
         {editing && canEdit && (
           <p className="iz-tiny iz-muted2 mt-2 text-center">Tap the camera to upload your agency profile photo.</p>
@@ -316,22 +319,6 @@ function AgencyProfile() {
           </IzCard>
         </>
       )}
-
-      <IzSectionLabel>Subscription</IzSectionLabel>
-      <IzCard>
-        <div className="flex items-center gap-2">
-          <CreditCard className="h-4 w-4 text-[var(--iz-gold)]" />
-          <div>
-            <p className="iz-sm font-bold">RM499 / month</p>
-            <p className="iz-tiny iz-muted">Card on file · renewal 15 Jul 2026</p>
-          </div>
-        </div>
-        {editing && canEdit && (
-          <button type="button" className="iz-btn iz-btn-soft mt-2 w-full" onClick={() => toast("Plan management — demo", "info")}>
-            Change plan
-          </button>
-        )}
-      </IzCard>
 
       {canEdit && (
         <div className="iz-profile-actions mt-4">

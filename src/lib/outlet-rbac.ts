@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, History, Home, Plus, Zap } from "lucide-react";
+import { BarChart3, History, Home, Plus, Sparkles, Zap } from "lucide-react";
 
 /** Matches Module 10 outlet columns: Owner, Finance, Ops Head */
 export type OutletSubRole = "outlet_owner" | "outlet_finance" | "outlet_ops";
@@ -25,7 +25,8 @@ type Permission =
   | "viewWorkspace"
   | "manageWorkspace"
   | "viewSettings"
-  | "editSettings";
+  | "editSettings"
+  | "orderSpecialService";
 
 const ROLE_PERMISSIONS: Record<OutletSubRole, Permission[]> = {
   outlet_owner: [
@@ -44,6 +45,7 @@ const ROLE_PERMISSIONS: Record<OutletSubRole, Permission[]> = {
     "manageWorkspace",
     "viewSettings",
     "editSettings",
+    "orderSpecialService",
   ],
   outlet_finance: [
     "viewLiveDashboard",
@@ -53,6 +55,7 @@ const ROLE_PERMISSIONS: Record<OutletSubRole, Permission[]> = {
     "viewSalesDashboard",
     "viewWorkspace",
     "viewSettings",
+    "orderSpecialService",
   ],
   outlet_ops: [
     "postJob",
@@ -65,6 +68,7 @@ const ROLE_PERMISSIONS: Record<OutletSubRole, Permission[]> = {
     "viewWorkspace",
     "manageWorkspace",
     "viewSettings",
+    "orderSpecialService",
   ],
 };
 
@@ -78,6 +82,7 @@ export type OutletNavItem = { to: string; label: string; icon: LucideIcon; permi
 const ALL_NAV: OutletNavItem[] = [
   { to: "/outlet", label: "Home", icon: Home, permission: "viewLiveDashboard" },
   { to: "/outlet/bookings", label: "Post Job", icon: Plus, permission: "postJob" },
+  { to: "/outlet/special-service", label: "Services", icon: Sparkles, permission: "orderSpecialService" },
   { to: "/outlet/history", label: "History", icon: History, permission: "viewHistory" },
   { to: "/outlet/ratings", label: "Floor", icon: Zap, permission: "ratePrs" },
   { to: "/outlet/billing", label: "Reports", icon: BarChart3, permission: "viewBilling" },
@@ -100,6 +105,7 @@ export function canAccessOutletPath(role: OutletSubRole | null | undefined, path
     return outletCan(r, "viewLiveDashboard");
   }
   if (pathname.startsWith("/outlet/bookings")) return outletCan(r, "postJob");
+  if (pathname.startsWith("/outlet/special-service")) return outletCan(r, "orderSpecialService");
   if (pathname.startsWith("/outlet/history")) return outletCan(r, "viewHistory");
   if (pathname.startsWith("/outlet/ratings")) return outletCan(r, "ratePrs");
   if (pathname.startsWith("/outlet/billing")) {

@@ -8,8 +8,9 @@ import {
   nowAgencyDateTime,
 } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { formatSyncTime } from "@/lib/outlet-financial-sync";
+import { deriveAgencyPnlMetrics, formatSyncTime, roundRm } from "@/lib/outlet-financial-sync";
 import { computeAgencyNoShowRate, pnlForDateRange } from "@/lib/agency-actions";
+import { AgencyPnlChart } from "@/components/agency/AgencyPnlChart";
 import { IzCard, IzPill, IzSelect, formatRM } from "@/components/iz/ui";
 import { Download, Filter, RefreshCw } from "lucide-react";
 
@@ -45,19 +46,27 @@ function AgencyReports() {
   }, [outletPnl, outletFilter, shiftHistory, dateFrom, dateTo]);
 
   const totals = pnlRows.reduce(
-    (acc, r) => ({
-      gross: acc.gross + r.grossRevenue,
-      prPayout: acc.prPayout + r.prPayout,
-      agencyNet: acc.agencyNet + r.agencyNet,
-      outletNet: acc.outletNet + r.outletNet,
-    }),
-    { gross: 0, prPayout: 0, agencyNet: 0, outletNet: 0 },
+    (acc, r) => {
+      const m = deriveAgencyPnlMetrics(r);
+      return {
+        gross: acc.gross + m.grossRevenue,
+        earned: acc.earned + m.earned,
+        spent: acc.spent + m.spent,
+        profit: acc.profit + m.profit,
+        outletNet: acc.outletNet + m.outletNet,
+      };
+    },
+    { gross: 0, earned: 0, spent: 0, profit: 0, outletNet: 0 },
   );
 
   const liveShift = shifts.find((s) => s.date === "Tonight");
   const noShowRate = computeAgencyNoShowRate(agencyPRs);
   const canExport = agencyCan(agencySubRole, "exportReports");
-  const agencyNetDisplay = viewMode === "planning" ? totals.agencyNet * 1.12 : totals.agencyNet;
+  const forecast = viewMode === "planning" ? 1.12 : 1;
+  const earnedDisplay = roundRm(totals.earned * forecast);
+  const spentDisplay = roundRm(totals.spent * forecast);
+  const agencyNetDisplay = roundRm(earnedDisplay - spentDisplay);
+  const agencyProfited = agencyNetDisplay >= 0;
 
   return (
     <div className="iz-screen">
@@ -151,51 +160,105 @@ function AgencyReports() {
         </div>
       </IzCard>
 
-      <div className="iz-grid2 mt-3">
+      <div className="iz-grid3 mt-3">
         <div className="iz-stat-tile">
-          <div className="n text-[var(--iz-green)]">{formatRM(agencyNetDisplay)}</div>
-          <div className="l">Agency net (PNL) {viewMode === "planning" ? "· proj." : ""}</div>
+          <div className="n text-[var(--iz-green)]">{formatRM(earnedDisplay)}</div>
+          <div className="l">Earned income {viewMode === "planning" ? "· proj." : ""}</div>
         </div>
         <div className="iz-stat-tile">
-          <div className="n">{noShowRate}%</div>
-          <div className="l">No-show rate</div>
+          <div className="n text-[var(--iz-red)]">{formatRM(spentDisplay)}</div>
+          <div className="l">Spent income {viewMode === "planning" ? "· proj." : ""}</div>
+        </div>
+        <div className="iz-stat-tile">
+          <div
+            className={`n ${agencyProfited ? "text-[var(--iz-green)]" : "text-[var(--iz-red)]"}`}
+          >
+            {agencyProfited ? "" : "−"}
+            {formatRM(Math.abs(agencyNetDisplay))}
+          </div>
+          <div className="l">
+            {agencyProfited ? "Agency profit" : "Agency loss"}
+            {viewMode === "planning" ? " · proj." : ""}
+          </div>
         </div>
       </div>
 
+      {quickTab === "outlet" && (
+        <AgencyPnlChart
+          shiftHistory={shiftHistory}
+          pnlRows={pnlRows}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          outletFilter={outletFilter}
+          forecast={forecast}
+        />
+      )}
+
       {quickTab === "outlet" ? (
         <>
-          <OutletSection title="PNL" hint="Outlet ↔ agency ↔ PR">
+          <OutletSection title="PNL" hint="Earned · spent · profit / loss per outlet">
             <div className="space-y-2">
-            {pnlRows.map((r) => (
+            {pnlRows.map((r) => {
+              const rowForecast = viewMode === "planning" ? 1.12 : 1;
+              const m = deriveAgencyPnlMetrics(r);
+              const earned = roundRm(m.earned * rowForecast);
+              const spent = roundRm(m.spent * rowForecast);
+              const net = roundRm(earned - spent);
+              const profited = net >= 0;
+              const grossDisplay = roundRm(
+                m.grossRevenue * (viewMode === "planning" ? 1.1 : 1),
+              );
+              return (
               <IzCard key={r.outlet}>
                 <div className="iz-between">
                   <div className="font-sora text-sm font-bold">{r.outlet}</div>
-                  {viewMode === "live" && r.syncedFromOutlet && <IzPill variant="green">Live</IzPill>}
-                  {viewMode === "planning" && <IzPill variant="gold">Planning</IzPill>}
+                  <div className="flex items-center gap-1.5">
+                    {viewMode === "live" && r.syncedFromOutlet && <IzPill variant="green">Live</IzPill>}
+                    {viewMode === "planning" && <IzPill variant="gold">Planning</IzPill>}
+                    <IzPill variant={profited ? "green" : "red"}>{profited ? "Profit" : "Loss"}</IzPill>
+                  </div>
                 </div>
                 <div className="iz-v-sum mt-2">
-                  <span className="iz-muted">Gross revenue (outlet sales)</span>
-                  <b>{formatRM(viewMode === "planning" ? r.grossRevenue * 1.1 : r.grossRevenue)}</b>
+                  <span className="iz-muted">Earned income · collected from outlet</span>
+                  <b className="text-[var(--iz-green)]">{formatRM(earned)}</b>
                 </div>
                 <div className="iz-v-sum">
-                  <span className="iz-muted">PR payout · wages + commission</span>
-                  <b className="text-[var(--iz-red)]">−{formatRM(r.prPayout)}</b>
-                </div>
-                <div className="iz-v-sum">
-                  <span className="iz-muted">Agency net</span>
-                  <b className="text-[var(--iz-green)]">{formatRM(r.agencyNet)}</b>
+                  <span className="iz-muted">Spent income · PR payout + platform</span>
+                  <b className="text-[var(--iz-red)]">−{formatRM(spent)}</b>
                 </div>
                 <div className="iz-v-sum tot">
-                  <span>Outlet net</span>
-                  <b>{formatRM(r.outletNet)}</b>
+                  <span>{profited ? "Agency profit" : "Agency loss"}</span>
+                  <b className={profited ? "text-[var(--iz-green)]" : "text-[var(--iz-red)]"}>
+                    {profited ? "" : "−"}
+                    {formatRM(Math.abs(net))}
+                  </b>
+                </div>
+                <div className="iz-v-sum mt-1 border-t border-[var(--iz-line)] pt-2">
+                  <span className="iz-muted">Gross revenue (outlet sales)</span>
+                  <b>{formatRM(grossDisplay)}</b>
+                </div>
+                <div className="iz-v-sum">
+                  <span className="iz-muted">Outlet net</span>
+                  <b>{formatRM(roundRm(m.outletNet * rowForecast))}</b>
                 </div>
               </IzCard>
-            ))}
+            );
+            })}
             </div>
           </OutletSection>
         </>
       ) : (
         <>
+          <div className="iz-grid2 mt-1">
+            <div className="iz-stat-tile">
+              <div className="n">{noShowRate}%</div>
+              <div className="l">No-show rate</div>
+            </div>
+            <div className="iz-stat-tile">
+              <div className="n">{agencyPRs.length}</div>
+              <div className="l">PRs on roster</div>
+            </div>
+          </div>
           <OutletSection title="Per-PR performance" hint={`${Math.min(agencyPRs.length, 6)} listed`}>
             <div className="space-y-2">
             {agencyPRs.slice(0, 6).map((pr) => (

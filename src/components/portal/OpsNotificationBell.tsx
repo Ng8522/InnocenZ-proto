@@ -30,6 +30,7 @@ function kindIcon(kind: OpsNotificationKind) {
   if (kind.startsWith("pv")) return Wallet;
   if (kind === "report_ready") return FileText;
   if (kind === "reconciliation_due") return ClipboardList;
+  if (kind === "collection_reminder") return Wallet;
   return CalendarCheck;
 }
 

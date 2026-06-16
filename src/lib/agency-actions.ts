@@ -2,8 +2,8 @@
 
 import type { AgencyManagedPR } from "@/lib/agency-demo";
 import { calcShiftPayout, getOutletRule } from "@/lib/agency-demo";
+import type { FinanceHeadPvStamp } from "@/lib/finance-head-stamp";
 import {
-  FINANCE_HEAD_SIGNER,
   fmtDtable,
   dayName,
   makeShiftPvId,
@@ -11,7 +11,7 @@ import {
   type PrPvRow,
 } from "@/lib/pr-demo";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
-import type { OutletPnlSynced } from "@/lib/outlet-financial-sync";
+import { roundRm, type OutletPnlSynced } from "@/lib/outlet-financial-sync";
 
 export interface PvOverrideAudit {
   at: string;
@@ -42,6 +42,7 @@ export function historyRowHasPv(
 export function buildPvFromShiftHistoryRow(
   row: ShiftHistoryRow,
   pr: AgencyManagedPR,
+  financeHead: FinanceHeadPvStamp,
 ): PrPaymentVoucher {
   const [y, m, d] = row.dateIso.split("-").map(Number);
   const dateLabel = fmtDtable(y, m, d);
@@ -136,8 +137,7 @@ export function buildPvFromShiftHistoryRow(
     deduct: 0,
     net: subtotal,
     status: "PENDING_REVIEW",
-    financeHeadName: FINANCE_HEAD_SIGNER,
-    financeHeadSignedAt: issued,
+    ...financeHead,
     paidRefs: [shiftHistoryPvRef(row)],
   };
 }
@@ -169,15 +169,17 @@ export function pnlForDateRange(
     .filter((r) => byOutlet.has(r.outlet))
     .map((r) => {
       const agg = byOutlet.get(r.outlet)!;
-      const ratio = agg.prPayout / Math.max(r.prPayout, 1);
-      const prPayout = Math.round(agg.prPayout * 100) / 100;
-      const grossRevenue = Math.round(r.grossRevenue * Math.min(ratio, 1) * 100) / 100;
-      const agencyNet = Math.round(r.agencyNet * Math.min(ratio, 1) * 100) / 100;
-      const outletNet = Math.round((grossRevenue - prPayout - agencyNet) * 100) / 100;
+      const ratio = Math.min(agg.prPayout / Math.max(r.prPayout, 1), 1);
+      const prPayout = roundRm(agg.prPayout);
+      const grossRevenue = roundRm(r.grossRevenue * ratio);
+      const platformFee = roundRm(r.platformFee * ratio);
+      const agencyNet = roundRm(r.agencyNet * ratio);
+      const outletNet = roundRm(grossRevenue - prPayout - platformFee - agencyNet);
       return {
         ...r,
         grossRevenue,
         prPayout,
+        platformFee,
         agencyNet,
         outletNet,
         syncedFromOutlet: r.syncedFromOutlet,

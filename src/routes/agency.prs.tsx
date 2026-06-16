@@ -7,6 +7,7 @@ import { Comcard3dPreviewCard, Comcard3dPreviewVisual } from "@/components/agenc
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import type { AgencyManagedPR } from "@/lib/agency-demo";
+import { collectAgencyPrLanguages, languagesFromPr } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { IzCard, IzPill, IzSectionLabel, IzSelect, formatRM } from "@/components/iz/ui";
 import { ProfileLanguagePicker } from "@/components/iz/ProfileLanguagePicker";
@@ -50,10 +51,7 @@ function AgencyManagePRs() {
 
   const canManage = agencyCan(agencySubRole, "managePr");
 
-  const languages = useMemo(
-    () => [...new Set(agencyPRs.flatMap((p) => p.languages ?? []))].sort(),
-    [agencyPRs],
-  );
+  const languages = useMemo(() => collectAgencyPrLanguages(agencyPRs), [agencyPRs]);
   const races = useMemo(
     () => [...new Set(agencyPRs.map((p) => p.race).filter(Boolean))],
     [agencyPRs],
@@ -69,8 +67,8 @@ function AgencyManagePRs() {
         if (p.detached) return false;
         if (ageMin && (p.age ?? 0) < Number(ageMin)) return false;
         if (ratingMin && (p.rating ?? 0) < Number(ratingMin)) return false;
-        const langs = p.languages ?? [];
-        if (lang && !langs.some((l) => l.toLowerCase().includes(lang.toLowerCase()))) return false;
+        const langs = languagesFromPr(p);
+        if (lang && !langs.some((l) => l.toLowerCase() === lang.toLowerCase())) return false;
         if (race && p.race !== race) return false;
         if (place && p.place !== place) return false;
         if (expMin && (p.yearsExp ?? 0) < Number(expMin)) return false;
@@ -149,53 +147,71 @@ function AgencyManagePRs() {
         </p>
       </IzCard>
 
-      <IzCard flat>
-        <div className="flex items-center gap-2 iz-tiny iz-muted">
-          <Filter className="h-3.5 w-3.5" /> Age · language · race · height · place · years · rating · tier
+      <IzCard flat className="iz-pr-manage-filters-card">
+        <div className="flex items-center gap-2 iz-tiny iz-muted mb-2">
+          <Filter className="h-3.5 w-3.5" /> Filter PRs
         </div>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <input
-            type="number"
-            placeholder="Min age"
-            className="rounded-xl border border-[var(--iz-line)] bg-[var(--iz-bg2)] px-3 py-2 text-xs"
-            value={ageMin}
-            onChange={(e) => setAgeMin(e.target.value)}
-          />
-          <input
-            type="number"
-            min={0}
-            max={5}
-            step={0.1}
-            placeholder="Min rating ★"
-            className="rounded-xl border border-[var(--iz-line)] bg-[var(--iz-bg2)] px-3 py-2 text-xs"
-            value={ratingMin}
-            onChange={(e) => setRatingMin(e.target.value)}
-          />
-          <input
-            type="number"
-            placeholder="Min years exp."
-            className="col-span-2 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-bg2)] px-3 py-2 text-xs"
-            value={expMin}
-            onChange={(e) => setExpMin(e.target.value)}
-          />
-          <IzSelect value={lang} onChange={(e) => setLang(e.target.value)}>
-            <option value="">All languages</option>
-            {languages.map((l) => (
-              <option key={l} value={l}>{l}</option>
-            ))}
-          </IzSelect>
-          <IzSelect value={race} onChange={(e) => setRace(e.target.value)}>
-            <option value="">All races</option>
-            {races.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </IzSelect>
-          <IzSelect className="col-span-2" value={place} onChange={(e) => setPlace(e.target.value)}>
-            <option value="">All places</option>
-            {places.map((pl) => (
-              <option key={pl} value={pl}>{pl}</option>
-            ))}
-          </IzSelect>
+        <div className="iz-pr-manage-filters-grid">
+          <label className="iz-pr-manage-filter-field">
+            <span className="iz-roster-filter-label">Min age</span>
+            <input
+              type="number"
+              placeholder="e.g. 21"
+              className="iz-roster-filter-input iz-roster-filter-input--plain iz-pr-manage-filter-control"
+              value={ageMin}
+              onChange={(e) => setAgeMin(e.target.value)}
+            />
+          </label>
+          <label className="iz-pr-manage-filter-field">
+            <span className="iz-roster-filter-label">Min rating</span>
+            <input
+              type="number"
+              min={0}
+              max={5}
+              step={0.1}
+              placeholder="e.g. 4.0"
+              className="iz-roster-filter-input iz-roster-filter-input--plain iz-pr-manage-filter-control"
+              value={ratingMin}
+              onChange={(e) => setRatingMin(e.target.value)}
+            />
+          </label>
+          <label className="iz-pr-manage-filter-field">
+            <span className="iz-roster-filter-label">Min years</span>
+            <input
+              type="number"
+              placeholder="e.g. 2"
+              className="iz-roster-filter-input iz-roster-filter-input--plain iz-pr-manage-filter-control"
+              value={expMin}
+              onChange={(e) => setExpMin(e.target.value)}
+            />
+          </label>
+          <label className="iz-pr-manage-filter-field">
+            <span className="iz-roster-filter-label">Language</span>
+            <IzSelect block className="iz-pr-manage-filter-control" value={lang} onChange={(e) => setLang(e.target.value)}>
+              <option value="">All languages</option>
+              {languages.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </IzSelect>
+          </label>
+          <label className="iz-pr-manage-filter-field">
+            <span className="iz-roster-filter-label">Race</span>
+            <IzSelect block className="iz-pr-manage-filter-control" value={race} onChange={(e) => setRace(e.target.value)}>
+              <option value="">All races</option>
+              {races.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </IzSelect>
+          </label>
+          <label className="iz-pr-manage-filter-field">
+            <span className="iz-roster-filter-label">Place</span>
+            <IzSelect block className="iz-pr-manage-filter-control" value={place} onChange={(e) => setPlace(e.target.value)}>
+              <option value="">All places</option>
+              {places.map((pl) => (
+                <option key={pl} value={pl}>{pl}</option>
+              ))}
+            </IzSelect>
+          </label>
         </div>
       </IzCard>
 

@@ -2914,6 +2914,11 @@ button.iz-pr-offer-row:hover {
 }
 
 /* Agency roster page — streamlined layout */
+.iz-roster-page .iz-muted,
+.iz-roster-page .iz-muted2 {
+  color: #d8c8ec;
+}
+
 .iz-roster-page .iz-roster-head {
   display: flex;
   align-items: flex-start;
@@ -2950,7 +2955,7 @@ button.iz-pr-offer-row:hover {
   font-family: "Sora", sans-serif;
   font-size: 12px;
   font-weight: 600;
-  color: var(--iz-muted);
+  color: #d8c8ec;
   cursor: pointer;
   transition: 0.15s;
 }
@@ -3313,7 +3318,7 @@ button.iz-pr-offer-row:hover {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--iz-muted);
+  color: #d8c8ec;
 }
 
 .iz-roster-gps {
@@ -3344,9 +3349,9 @@ button.iz-pr-offer-row:hover {
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  border: 1px solid var(--iz-line);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--iz-muted);
+  border: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e8dff7;
   flex-shrink: 0;
 }
 
@@ -3372,7 +3377,7 @@ button.iz-pr-offer-row:hover {
 .iz-roster-week-table thead th {
   padding: 10px 6px;
   border-bottom: 1px solid var(--iz-line);
-  color: var(--iz-muted);
+  color: #e8dff7;
   font-weight: 600;
   text-align: center;
   vertical-align: bottom;
@@ -3434,7 +3439,7 @@ button.iz-pr-offer-row:hover {
 
 .iz-roster-week-pr .rating {
   font-size: 9px;
-  color: var(--iz-muted2);
+  color: #c4b5d6;
 }
 
 .iz-roster-week-td {
@@ -3495,7 +3500,7 @@ button.iz-pr-offer-row:hover {
 
 .iz-roster-week-cell--filled .shift {
   font-size: 10px;
-  color: var(--iz-muted);
+  color: #e0d4f2;
 }
 
 .iz-roster-week-cell--filled .status {
@@ -3556,7 +3561,15 @@ button.iz-pr-offer-row:hover {
   flex-wrap: wrap;
   gap: 8px 14px;
   font-size: 11px;
-  color: var(--iz-muted);
+  color: #f0eaf8;
+}
+
+.iz-roster-shift-filters-head .iz-tiny {
+  color: #e8dff7;
+}
+
+.iz-roster-shift-filters-head .iz-muted {
+  color: #d8c8ec;
 }
 
 .iz-roster-shift-filters {
@@ -3601,7 +3614,8 @@ button.iz-pr-offer-row:hover {
   width: 100%;
   border-radius: 10px;
   border: 1px solid var(--iz-line2);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--iz-txt);
 }
 
 .iz-roster-filter-field {
@@ -3616,7 +3630,7 @@ button.iz-pr-offer-row:hover {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--iz-muted2);
+  color: #e8dff7;
   font-family: "Sora", sans-serif;
 }
 
@@ -3626,8 +3640,8 @@ button.iz-pr-offer-row:hover {
   gap: 8px;
   padding: 0 10px;
   border-radius: 10px;
-  border: 1px solid var(--iz-line);
-  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.05);
   min-height: 38px;
 }
 
@@ -3643,15 +3657,19 @@ button.iz-pr-offer-row:hover {
 }
 
 .iz-roster-filter-input::placeholder {
-  color: var(--iz-muted2);
+  color: #b0a3c4;
+}
+
+.iz-roster-filter-field .iz-time-input-ph {
+  color: #b0a3c4;
 }
 
 .iz-roster-filter-input--plain {
   width: 100%;
   padding: 9px 10px;
   border-radius: 10px;
-  border: 1px solid var(--iz-line);
-  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--iz-txt);
   font-size: 13px;
   font-family: "Manrope", sans-serif;
@@ -3701,8 +3719,8 @@ button.iz-pr-offer-row:hover {
   font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--iz-muted2);
+  letter-spacing: 0.12em;
+  color: #e8dff7;
   font-family: "Sora", sans-serif;
   border-bottom: 1px solid var(--iz-line);
   background: rgba(0, 0, 0, 0.15);
@@ -3713,6 +3731,7 @@ button.iz-pr-offer-row:hover {
   padding: 12px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   vertical-align: middle;
+  color: var(--iz-txt);
 }
 
 .iz-roster-table tbody tr:hover {
@@ -3742,9 +3761,9 @@ button.iz-pr-offer-row:hover {
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  border: 1px solid var(--iz-line);
-  background: var(--iz-glass2);
-  color: var(--iz-muted);
+  border: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8dff7;
   cursor: pointer;
   transition: 0.15s;
 }
@@ -3757,11 +3776,11 @@ button.iz-pr-offer-row:hover {
 .iz-roster-mini-btn {
   padding: 5px 10px;
   border-radius: 8px;
-  border: 1px solid var(--iz-line);
-  background: transparent;
+  border: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.04);
   font-size: 10px;
   font-weight: 600;
-  color: var(--iz-muted);
+  color: #e8dff7;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -4926,8 +4945,8 @@ button.iz-agency-row:hover {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--iz-muted2);
+  letter-spacing: 0.12em;
+  color: #e8dff7;
   font-family: "Sora", sans-serif;
   border-bottom: 1px solid var(--iz-line);
 }
@@ -4936,6 +4955,105 @@ button.iz-agency-row:hover {
   padding: 12px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   vertical-align: middle;
+  color: var(--iz-txt);
+}
+
+.iz-portal-table td.iz-portal-table-meta {
+  color: #f0eaf8;
+  font-weight: 500;
+}
+
+.iz-portal-table-name {
+  font-family: "Sora", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--iz-txt);
+}
+
+.iz-portal-table-av {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(159, 122, 234, 0.28);
+  color: #f0e8ff;
+  font-family: "Sora", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(183, 157, 245, 0.35);
+}
+
+.iz-portal-table .iz-pill-violet {
+  background: rgba(159, 122, 234, 0.28);
+  color: #dcc8ff;
+  box-shadow: inset 0 0 0 1px rgba(183, 157, 245, 0.4);
+}
+
+.iz-portal-table .iz-pill-green {
+  background: rgba(57, 217, 138, 0.22);
+  color: #6ef0a8;
+  box-shadow: inset 0 0 0 1px rgba(57, 217, 138, 0.45);
+}
+
+.iz-portal-table .iz-pill-amber {
+  background: rgba(244, 183, 64, 0.2);
+  color: #ffd98a;
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.4);
+}
+
+.iz-portal-table .iz-pill-ink {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8dff7;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.iz-roster-table .iz-pill-violet,
+.iz-roster-card-meta .iz-pill-violet,
+.iz-portal-roster-row .iz-pill-violet {
+  background: rgba(159, 122, 234, 0.28);
+  color: #dcc8ff;
+  box-shadow: inset 0 0 0 1px rgba(183, 157, 245, 0.4);
+}
+
+.iz-roster-table .iz-pill-green,
+.iz-roster-card-meta .iz-pill-green,
+.iz-portal-roster-row .iz-pill-green {
+  background: rgba(57, 217, 138, 0.22);
+  color: #6ef0a8;
+  box-shadow: inset 0 0 0 1px rgba(57, 217, 138, 0.45);
+}
+
+.iz-roster-table .iz-pill-amber,
+.iz-roster-card-meta .iz-pill-amber,
+.iz-portal-roster-row .iz-pill-amber {
+  background: rgba(244, 183, 64, 0.2);
+  color: #ffd98a;
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.4);
+}
+
+.iz-roster-table .iz-pill-red,
+.iz-roster-card-meta .iz-pill-red,
+.iz-portal-roster-row .iz-pill-red {
+  background: rgba(255, 117, 117, 0.18);
+  color: #ff9f9f;
+  box-shadow: inset 0 0 0 1px rgba(255, 117, 117, 0.4);
+}
+
+.iz-roster-table .iz-pill-ink,
+.iz-roster-card-meta .iz-pill-ink,
+.iz-portal-roster-row .iz-pill-ink {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f0eaf8;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.iz-roster-swap-note {
+  font-size: 10px;
+  font-weight: 600;
+  color: #dcc8ff;
 }
 
 .iz-portal-table tbody tr:last-child td {
@@ -4946,20 +5064,6 @@ button.iz-agency-row:hover {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.iz-portal-table-av {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: var(--iz-violet-ink);
-  font-family: "Sora", sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
 }
 
 .iz-portal-table-shift {
@@ -4978,6 +5082,25 @@ button.iz-agency-row:hover {
   gap: 10px;
   padding: 12px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--iz-txt);
+}
+
+.iz-portal-roster-row .iz-pill-violet {
+  background: rgba(159, 122, 234, 0.28);
+  color: #dcc8ff;
+  box-shadow: inset 0 0 0 1px rgba(183, 157, 245, 0.4);
+}
+
+.iz-portal-roster-row .iz-pill-green {
+  background: rgba(57, 217, 138, 0.22);
+  color: #6ef0a8;
+  box-shadow: inset 0 0 0 1px rgba(57, 217, 138, 0.45);
+}
+
+.iz-portal-roster-row .iz-pill-amber {
+  background: rgba(244, 183, 64, 0.2);
+  color: #ffd98a;
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.4);
 }
 
 .iz-portal-roster-row:last-child {

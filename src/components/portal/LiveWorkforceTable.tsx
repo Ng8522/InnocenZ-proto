@@ -49,12 +49,12 @@ function WorkforceRow({
       <td>
         <div className="iz-portal-table-pr">
           <span className="iz-portal-table-av">{initials}</span>
-          <span className="font-sora text-sm font-semibold">{entry.prName}</span>
+          <span className="iz-portal-table-name">{entry.prName}</span>
         </div>
       </td>
-      <td className="iz-muted">{entry.outlet}</td>
-      <td className="iz-muted iz-portal-table-shift">{shift ?? "—"}</td>
-      <td>
+      <td className="iz-portal-table-meta">{entry.outlet}</td>
+      <td className="iz-portal-table-meta iz-portal-table-shift">{shift ?? "—"}</td>
+      <td className="iz-portal-table-status">
         <IzPill variant={statusVariant(entry.status)} className="!py-0.5 !text-[9px]">
           {statusLabel(entry.status)}
         </IzPill>
@@ -218,7 +218,7 @@ export function LiveWorkforceList({
         {rows.map((w) => (
           <li key={w.id} className="iz-portal-roster-row">
             <span className="iz-portal-table-av">{w.prName.trim()[0]}</span>
-            <span className="min-w-0 flex-1 truncate font-sora text-sm font-semibold">{w.prName}</span>
+            <span className="min-w-0 flex-1 truncate iz-portal-table-name">{w.prName}</span>
             <IzPill variant={statusVariant(w.status)} className="!py-0.5 !text-[9px]">
               {statusLabel(w.status)}
             </IzPill>

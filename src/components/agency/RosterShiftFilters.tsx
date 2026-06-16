@@ -20,7 +20,7 @@ export function RosterShiftFilters({
   return (
     <div className="iz-roster-shift-filters">
       <div className="iz-roster-shift-filters-head">
-        <span className="iz-tiny font-semibold uppercase tracking-wider text-[var(--iz-muted)]">Filter shifts</span>
+        <span className="iz-tiny font-semibold uppercase tracking-wider text-[#e8dff7]">Filter shifts</span>
         <span className="iz-tiny iz-muted">
           {resultCount} of {totalCount}
         </span>
@@ -30,7 +30,7 @@ export function RosterShiftFilters({
         <label className="iz-roster-filter-field iz-roster-filter-field--search">
           <span className="iz-roster-filter-label">Name</span>
           <span className="iz-roster-filter-input-wrap">
-            <Search className="h-3.5 w-3.5 shrink-0 text-[var(--iz-muted2)]" />
+            <Search className="h-3.5 w-3.5 shrink-0 text-[#b0a3c4]" />
             <input
               type="search"
               className="iz-roster-filter-input"

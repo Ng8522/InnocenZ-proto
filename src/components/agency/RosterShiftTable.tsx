@@ -135,24 +135,24 @@ function RosterTableRow({
       <td>
         <div className="iz-portal-table-pr">
           <span className="iz-portal-table-av">{initials}</span>
-          <span className="font-sora text-sm font-semibold">{slot.prName}</span>
+          <span className="iz-portal-table-name">{slot.prName}</span>
         </div>
         {slot.outletSwap?.status === "pending_pr" && (
-          <p className="iz-tiny text-[var(--iz-violet)] mt-1">
+          <p className="iz-roster-swap-note mt-1">
             Swap → {slot.outletSwap.targetOutlet}
           </p>
         )}
       </td>
-      <td className="iz-muted">{slot.outlet}</td>
-      <td className="iz-portal-table-shift iz-muted">
+      <td className="iz-portal-table-meta">{slot.outlet}</td>
+      <td className="iz-portal-table-meta iz-portal-table-shift">
         {slot.shiftStart} – {slot.shiftEnd}
       </td>
-      <td className="iz-muted">{slot.checkedInAt ?? "—"}</td>
-      <td>
+      <td className="iz-portal-table-meta">{slot.checkedInAt ?? "—"}</td>
+      <td className="iz-portal-table-status">
         <StatusPills slot={slot} />
       </td>
-      <td className="iz-muted">{slot.floorDrinks ?? 0}</td>
-      <td className="iz-muted">{slot.floorTips ? formatRM(slot.floorTips) : "—"}</td>
+      <td className="iz-portal-table-meta">{slot.floorDrinks ?? 0}</td>
+      <td className="iz-portal-table-meta">{slot.floorTips ? formatRM(slot.floorTips) : "—"}</td>
       <td className="text-[var(--iz-gold-l)] font-semibold">
         {formatRM(slot.estPayout ?? 0)}
       </td>
@@ -214,7 +214,7 @@ function RosterShiftCard({
       <div className="iz-between gap-2">
         <div className="min-w-0">
           <div className="font-sora text-[15px] font-bold">{slot.prName}</div>
-          <p className="iz-tiny iz-muted mt-0.5">{slot.outlet}</p>
+          <p className="iz-tiny iz-portal-table-meta mt-0.5">{slot.outlet}</p>
         </div>
         <StatusPills slot={slot} />
       </div>

@@ -24,7 +24,7 @@ export function RosterTimetableFilters({
   return (
     <div className="iz-roster-shift-filters iz-roster-timetable-filters">
       <div className="iz-roster-shift-filters-head">
-        <span className="iz-tiny font-semibold uppercase tracking-wider text-[var(--iz-muted)]">
+        <span className="iz-tiny font-semibold uppercase tracking-wider text-[#e8dff7]">
           Filter timetable
         </span>
         <span className="iz-tiny iz-muted">

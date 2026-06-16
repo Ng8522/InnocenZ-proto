@@ -103,6 +103,7 @@ import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import {
   buildAvailabilityOpsNotifications,
   canTogglePrDayAvailability,
+  isPrMarkedDayOff,
   prDayIsUnavailable,
 } from "@/lib/pr-availability-sync";
 import { evaluateShiftCancellation, CANCEL_RULES } from "@/lib/pr-schedule-cancellation";
@@ -404,7 +405,6 @@ interface StoreState {
     prId: string;
     items: PrReceiptScan["items"];
     totalLogged: number;
-    receiptRef?: string;
   }) => string;
   editAgencyPv: (id: string, patch: { rows?: PrPvRow[]; deduct?: number; disputeNote?: string }) => void;
   resendAgencyPv: (id: string) => void;
@@ -2212,6 +2212,13 @@ export const useStore = create<StoreState>()(
         const existing = get().agencyRoster.find(
           (s) => s.prId === prId && s.dateIso === dateIso,
         );
+        if (existing && isPrMarkedDayOff(existing)) {
+          get().toast(
+            `${pr.name} marked ${dateLabel} unavailable on their schedule — they must reopen the day first`,
+            "warn",
+          );
+          return;
+        }
         if (
           existing &&
           existing.status !== "unavailable" &&
@@ -2364,6 +2371,13 @@ export const useStore = create<StoreState>()(
             agencyRoster: cur.agencyRoster.filter((s) => s.id !== unavailableSlot.id),
             opsNotifications: [...syncNotes, ...cur.opsNotifications],
           }));
+          get().pushNotify({
+            type: "shift_edit",
+            prId,
+            prName: profile.name,
+            outlet: "—",
+            detail: `${dateLabel} open again on PR schedule`,
+          });
           get().toast(`${dateLabel} open again — Atlas & outlets synced`, "success");
           return;
         }
@@ -2403,6 +2417,13 @@ export const useStore = create<StoreState>()(
           ],
           opsNotifications: [...syncNotes, ...cur.opsNotifications],
         }));
+        get().pushNotify({
+          type: "shift_edit",
+          prId,
+          prName: profile.name,
+          outlet: "—",
+          detail: `${dateLabel} marked unavailable on PR schedule`,
+        });
         get().toast(`${dateLabel} blocked — synced to Atlas & outlets`, "success");
       },
       setPrDayUnavailable: (dateIso, note) => {

@@ -114,6 +114,12 @@ export function mergeAgencyCollections(
   const merged = persisted.map((row) => {
     const seed = seedById[row.id];
     if (!seed) return row;
+    const isAgencySubscription =
+      seed.kind === "agency" &&
+      seed.lines?.some((l) => l.label.toLowerCase().includes("subscription"));
+    if (isAgencySubscription) {
+      return { ...seed, ...row, amount: seed.amount, lines: seed.lines };
+    }
     return {
       ...seed,
       ...row,

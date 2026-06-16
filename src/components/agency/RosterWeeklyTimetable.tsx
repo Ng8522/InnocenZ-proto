@@ -4,11 +4,12 @@ import { OUTLET_NAMES } from "@/lib/agency-demo";
 import { isFreelancerPrId } from "@/lib/pr-demo";
 import {
   dayColumnLabel,
-  slotForPrOnDate,
+  primarySlotForPrOnDate,
   weekDayIsos,
   weekRangeLabel,
 } from "@/lib/roster-week-plan";
 import { getPrScheduleState } from "@/lib/roster-availability";
+import { isPrMarkedDayOff } from "@/lib/pr-availability-sync";
 import type { RosterTimetableFilterState } from "@/lib/roster-shift-filters";
 import {
   filterTimetablePrs,
@@ -31,7 +32,7 @@ const STATUS_CELL: Record<
   "on-duty": { className: "iz-roster-week-cell--live", label: "On duty" },
   "en-route": { className: "iz-roster-week-cell--live", label: "En route" },
   "swap-pending": { className: "iz-roster-week-cell--swap", label: "Swap" },
-  unavailable: { className: "iz-roster-week-cell--off", label: "Off" },
+  unavailable: { className: "iz-roster-week-cell--off", label: "Unavailable" },
 };
 
 type AssignTarget = { pr: AgencyManagedPR; dateIso: string };
@@ -142,10 +143,30 @@ export function RosterWeeklyTimetable({
                   </span>
                 </th>
                 {days.map((dateIso) => {
-                  const slot = slotForPrOnDate(roster, pr.id, dateIso);
                   const state = getPrScheduleState(pr.id, roster, dateIso);
+                  const slot = primarySlotForPrOnDate(roster, pr.id, dateIso);
                   const canAssignCell = canAssign && state === "free";
                   const slotHidden = slot && slotFiltersOn && !timetableSlotMatches(slot, filters);
+                  const prDayOff = slot?.status === "unavailable" && isPrMarkedDayOff(slot);
+
+                  if (state === "unavailable" && slot) {
+                    const tone = STATUS_CELL.unavailable;
+                    return (
+                      <td key={dateIso} className="iz-roster-week-td">
+                        <button
+                          type="button"
+                          className={`iz-roster-week-cell iz-roster-week-cell--filled ${tone.className}${slotHidden ? " iz-roster-week-cell--filtered" : ""}`}
+                          onClick={() => canAssign && onEditSlot(slot.id)}
+                          disabled={!canAssign}
+                          aria-label={`${pr.name} unavailable on ${dateIso}`}
+                        >
+                          <span className="outlet">{prDayOff ? "PR off" : slot.outlet}</span>
+                          <span className="shift">{prDayOff ? "Synced from PR" : `${slot.shiftStart}–${slot.shiftEnd}`}</span>
+                          <span className="status">{tone.label}</span>
+                        </button>
+                      </td>
+                    );
+                  }
 
                   if (!slot || slotHidden) {
                     return (

@@ -15,6 +15,14 @@ export function prDayIsUnavailable(slots: AgencyRosterSlot[]): boolean {
   return slots.some((s) => s.status === "unavailable");
 }
 
+/** PR blocked the day on their schedule (not agency cancel / shift edit) */
+export function isPrMarkedDayOff(slot: AgencyRosterSlot): boolean {
+  return (
+    slot.status === "unavailable" &&
+    (slot.outlet === "—" || slot.prUnavailableNote === "PR marked day off on schedule")
+  );
+}
+
 export function canTogglePrDayAvailability(slots: AgencyRosterSlot[]): boolean {
   if (prDayIsUnavailable(slots)) return true;
   return !slots.some((s) => BLOCKING_STATUSES.has(s.status));

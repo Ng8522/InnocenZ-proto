@@ -1,5 +1,6 @@
 import type { AgencyManagedPR, AgencyRosterSlot } from "@/lib/agency-demo";
 import { OUTLET_NAMES } from "@/lib/agency-demo";
+import { primarySlotForPrOnDate } from "@/lib/roster-week-plan";
 
 /** Demo “today” for roster availability filters */
 export const DEFAULT_ROSTER_DATE_ISO = "2026-06-04";
@@ -48,7 +49,7 @@ export function getPrSlotForDate(
   roster: AgencyRosterSlot[],
   dateIso: string,
 ): AgencyRosterSlot | undefined {
-  return roster.find((s) => s.prId === prId && s.dateIso === dateIso);
+  return primarySlotForPrOnDate(roster, prId, dateIso);
 }
 
 export interface RosterAvailabilityStats {

@@ -7,8 +7,10 @@ import {
   PR_SHIFT_OFFERS,
   SHIFT_TODAY,
   buildDemoReceiptDraft,
+  buildDemoReceiptRef,
   fmtHistDate,
   getPrProfile,
+  getPrRosterId,
   receiptBelongsToPvLabel,
   receiptPvCalcNote,
 } from "@/lib/pr-demo";
@@ -29,29 +31,39 @@ function ReceiptScanPage() {
   const addReceiptScan = useStore((s) => s.addReceiptScan);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
   const profile = getPrProfile(prSubRole);
+  const prId = getPrRosterId(prSubRole);
 
   const [phase, setPhase] = useState<ScanPhase>("idle");
   const [loggedId, setLoggedId] = useState<string | null>(null);
+  const [pendingReceiptRef, setPendingReceiptRef] = useState<string | null>(null);
 
   const outlet = prActiveShift?.outlet ?? PR_SHIFT_OFFERS[0].outlet;
-  const draft = useMemo(() => buildDemoReceiptDraft(profile, outlet), [profile, outlet]);
+  const shiftDate = prActiveShift?.date ?? SHIFT_TODAY;
+  const draft = useMemo(
+    () => buildDemoReceiptDraft(profile, outlet, prId, pendingReceiptRef ?? undefined, shiftDate),
+    [profile, outlet, prId, pendingReceiptRef, shiftDate],
+  );
 
   const canScan = checkedIn && !checkedOut && prActiveShift;
 
   const runScan = () => {
     setPhase("scanning");
     setLoggedId(null);
+    setPendingReceiptRef(buildDemoReceiptRef(outlet, shiftDate));
     setTimeout(() => setPhase("review"), 900);
   };
 
   const confirmLog = () => {
     const id = addReceiptScan({
+      receiptRef: draft.receiptRef,
       outlet: draft.outlet,
       prCode: draft.prCode,
       prName: draft.prName,
+      prId: draft.prId,
       items: draft.items,
       totalLogged: draft.totalLogged,
     });
+    if (!id) return;
     setLoggedId(id);
     setPhase("logged");
   };
@@ -62,6 +74,7 @@ function ReceiptScanPage() {
   const resetScan = () => {
     setPhase("idle");
     setLoggedId(null);
+    setPendingReceiptRef(null);
   };
 
   return (
@@ -113,9 +126,11 @@ function ReceiptScanPage() {
             <div className="font-sora w-full text-left text-[11px] leading-relaxed text-[var(--iz-txt)]">
               <b className="text-[var(--iz-violet-l)]">— OCR EXTRACTED —</b>
               <br />
+              Receipt ID: {draft.receiptRef}
+              <br />
               Outlet: {draft.outlet}
               <br />
-              PR #: {draft.prCode} ({draft.prName})
+              PR ID: {draft.prId} · {draft.prCode} ({draft.prName})
               <br />
               {draft.items.map((item) => (
                 <span key={item.label + item.qty}>

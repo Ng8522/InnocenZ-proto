@@ -18,6 +18,7 @@ import { Route as OutletIndexRouteImport } from './routes/outlet.index'
 import { Route as HostIndexRouteImport } from './routes/host.index'
 import { Route as AgencyIndexRouteImport } from './routes/agency.index'
 import { Route as OutletWorkspaceRouteImport } from './routes/outlet.workspace'
+import { Route as OutletSpecialServiceRouteImport } from './routes/outlet.special-service'
 import { Route as OutletSettingsRouteImport } from './routes/outlet.settings'
 import { Route as OutletSalesRouteImport } from './routes/outlet.sales'
 import { Route as OutletRatingsRouteImport } from './routes/outlet.ratings'
@@ -27,10 +28,13 @@ import { Route as OutletBookingsRouteImport } from './routes/outlet.bookings'
 import { Route as OutletBillingRouteImport } from './routes/outlet.billing'
 import { Route as HostWalletRouteImport } from './routes/host.wallet'
 import { Route as HostTonightRouteImport } from './routes/host.tonight'
+import { Route as HostSpecialServiceRouteImport } from './routes/host.special-service'
 import { Route as HostScanRouteImport } from './routes/host.scan'
 import { Route as HostProfileRouteImport } from './routes/host.profile'
 import { Route as HostHistoryRouteImport } from './routes/host.history'
 import { Route as HostPaymentVoucherRouteImport } from './routes/host.PaymentVoucher'
+import { Route as AgencySubscriptionRouteImport } from './routes/agency.subscription'
+import { Route as AgencySpecialServiceRouteImport } from './routes/agency.special-service'
 import { Route as AgencyRosterRouteImport } from './routes/agency.roster'
 import { Route as AgencyReportsRouteImport } from './routes/agency.reports'
 import { Route as AgencyPvRouteImport } from './routes/agency.pv'
@@ -87,6 +91,11 @@ const OutletWorkspaceRoute = OutletWorkspaceRouteImport.update({
   path: '/workspace',
   getParentRoute: () => OutletRoute,
 } as any)
+const OutletSpecialServiceRoute = OutletSpecialServiceRouteImport.update({
+  id: '/special-service',
+  path: '/special-service',
+  getParentRoute: () => OutletRoute,
+} as any)
 const OutletSettingsRoute = OutletSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -132,6 +141,11 @@ const HostTonightRoute = HostTonightRouteImport.update({
   path: '/tonight',
   getParentRoute: () => HostRoute,
 } as any)
+const HostSpecialServiceRoute = HostSpecialServiceRouteImport.update({
+  id: '/special-service',
+  path: '/special-service',
+  getParentRoute: () => HostRoute,
+} as any)
 const HostScanRoute = HostScanRouteImport.update({
   id: '/scan',
   path: '/scan',
@@ -151,6 +165,16 @@ const HostPaymentVoucherRoute = HostPaymentVoucherRouteImport.update({
   id: '/PaymentVoucher',
   path: '/PaymentVoucher',
   getParentRoute: () => HostRoute,
+} as any)
+const AgencySubscriptionRoute = AgencySubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
+  getParentRoute: () => AgencyRoute,
+} as any)
+const AgencySpecialServiceRoute = AgencySpecialServiceRouteImport.update({
+  id: '/special-service',
+  path: '/special-service',
+  getParentRoute: () => AgencyRoute,
 } as any)
 const AgencyRosterRoute = AgencyRosterRouteImport.update({
   id: '/roster',
@@ -219,10 +243,13 @@ export interface FileRoutesByFullPath {
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
   '/agency/roster': typeof AgencyRosterRoute
+  '/agency/special-service': typeof AgencySpecialServiceRoute
+  '/agency/subscription': typeof AgencySubscriptionRoute
   '/host/PaymentVoucher': typeof HostPaymentVoucherRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
+  '/host/special-service': typeof HostSpecialServiceRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
@@ -232,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/outlet/ratings': typeof OutletRatingsRoute
   '/outlet/sales': typeof OutletSalesRoute
   '/outlet/settings': typeof OutletSettingsRoute
+  '/outlet/special-service': typeof OutletSpecialServiceRoute
   '/outlet/workspace': typeof OutletWorkspaceRoute
   '/agency/': typeof AgencyIndexRoute
   '/host/': typeof HostIndexRoute
@@ -250,10 +278,13 @@ export interface FileRoutesByTo {
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
   '/agency/roster': typeof AgencyRosterRoute
+  '/agency/special-service': typeof AgencySpecialServiceRoute
+  '/agency/subscription': typeof AgencySubscriptionRoute
   '/host/PaymentVoucher': typeof HostPaymentVoucherRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
+  '/host/special-service': typeof HostSpecialServiceRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
@@ -263,6 +294,7 @@ export interface FileRoutesByTo {
   '/outlet/ratings': typeof OutletRatingsRoute
   '/outlet/sales': typeof OutletSalesRoute
   '/outlet/settings': typeof OutletSettingsRoute
+  '/outlet/special-service': typeof OutletSpecialServiceRoute
   '/outlet/workspace': typeof OutletWorkspaceRoute
   '/agency': typeof AgencyIndexRoute
   '/host': typeof HostIndexRoute
@@ -285,10 +317,13 @@ export interface FileRoutesById {
   '/agency/pv': typeof AgencyPvRoute
   '/agency/reports': typeof AgencyReportsRoute
   '/agency/roster': typeof AgencyRosterRoute
+  '/agency/special-service': typeof AgencySpecialServiceRoute
+  '/agency/subscription': typeof AgencySubscriptionRoute
   '/host/PaymentVoucher': typeof HostPaymentVoucherRoute
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
+  '/host/special-service': typeof HostSpecialServiceRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
   '/outlet/billing': typeof OutletBillingRoute
@@ -298,6 +333,7 @@ export interface FileRoutesById {
   '/outlet/ratings': typeof OutletRatingsRoute
   '/outlet/sales': typeof OutletSalesRoute
   '/outlet/settings': typeof OutletSettingsRoute
+  '/outlet/special-service': typeof OutletSpecialServiceRoute
   '/outlet/workspace': typeof OutletWorkspaceRoute
   '/agency/': typeof AgencyIndexRoute
   '/host/': typeof HostIndexRoute
@@ -321,10 +357,13 @@ export interface FileRouteTypes {
     | '/agency/pv'
     | '/agency/reports'
     | '/agency/roster'
+    | '/agency/special-service'
+    | '/agency/subscription'
     | '/host/PaymentVoucher'
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
+    | '/host/special-service'
     | '/host/tonight'
     | '/host/wallet'
     | '/outlet/billing'
@@ -334,6 +373,7 @@ export interface FileRouteTypes {
     | '/outlet/ratings'
     | '/outlet/sales'
     | '/outlet/settings'
+    | '/outlet/special-service'
     | '/outlet/workspace'
     | '/agency/'
     | '/host/'
@@ -352,10 +392,13 @@ export interface FileRouteTypes {
     | '/agency/pv'
     | '/agency/reports'
     | '/agency/roster'
+    | '/agency/special-service'
+    | '/agency/subscription'
     | '/host/PaymentVoucher'
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
+    | '/host/special-service'
     | '/host/tonight'
     | '/host/wallet'
     | '/outlet/billing'
@@ -365,6 +408,7 @@ export interface FileRouteTypes {
     | '/outlet/ratings'
     | '/outlet/sales'
     | '/outlet/settings'
+    | '/outlet/special-service'
     | '/outlet/workspace'
     | '/agency'
     | '/host'
@@ -386,10 +430,13 @@ export interface FileRouteTypes {
     | '/agency/pv'
     | '/agency/reports'
     | '/agency/roster'
+    | '/agency/special-service'
+    | '/agency/subscription'
     | '/host/PaymentVoucher'
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
+    | '/host/special-service'
     | '/host/tonight'
     | '/host/wallet'
     | '/outlet/billing'
@@ -399,6 +446,7 @@ export interface FileRouteTypes {
     | '/outlet/ratings'
     | '/outlet/sales'
     | '/outlet/settings'
+    | '/outlet/special-service'
     | '/outlet/workspace'
     | '/agency/'
     | '/host/'
@@ -478,6 +526,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutletWorkspaceRouteImport
       parentRoute: typeof OutletRoute
     }
+    '/outlet/special-service': {
+      id: '/outlet/special-service'
+      path: '/special-service'
+      fullPath: '/outlet/special-service'
+      preLoaderRoute: typeof OutletSpecialServiceRouteImport
+      parentRoute: typeof OutletRoute
+    }
     '/outlet/settings': {
       id: '/outlet/settings'
       path: '/settings'
@@ -541,6 +596,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HostTonightRouteImport
       parentRoute: typeof HostRoute
     }
+    '/host/special-service': {
+      id: '/host/special-service'
+      path: '/special-service'
+      fullPath: '/host/special-service'
+      preLoaderRoute: typeof HostSpecialServiceRouteImport
+      parentRoute: typeof HostRoute
+    }
     '/host/scan': {
       id: '/host/scan'
       path: '/scan'
@@ -568,6 +630,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/host/PaymentVoucher'
       preLoaderRoute: typeof HostPaymentVoucherRouteImport
       parentRoute: typeof HostRoute
+    }
+    '/agency/subscription': {
+      id: '/agency/subscription'
+      path: '/subscription'
+      fullPath: '/agency/subscription'
+      preLoaderRoute: typeof AgencySubscriptionRouteImport
+      parentRoute: typeof AgencyRoute
+    }
+    '/agency/special-service': {
+      id: '/agency/special-service'
+      path: '/special-service'
+      fullPath: '/agency/special-service'
+      preLoaderRoute: typeof AgencySpecialServiceRouteImport
+      parentRoute: typeof AgencyRoute
     }
     '/agency/roster': {
       id: '/agency/roster'
@@ -653,6 +729,8 @@ interface AgencyRouteChildren {
   AgencyPvRoute: typeof AgencyPvRoute
   AgencyReportsRoute: typeof AgencyReportsRoute
   AgencyRosterRoute: typeof AgencyRosterRoute
+  AgencySpecialServiceRoute: typeof AgencySpecialServiceRoute
+  AgencySubscriptionRoute: typeof AgencySubscriptionRoute
   AgencyIndexRoute: typeof AgencyIndexRoute
 }
 
@@ -667,6 +745,8 @@ const AgencyRouteChildren: AgencyRouteChildren = {
   AgencyPvRoute: AgencyPvRoute,
   AgencyReportsRoute: AgencyReportsRoute,
   AgencyRosterRoute: AgencyRosterRoute,
+  AgencySpecialServiceRoute: AgencySpecialServiceRoute,
+  AgencySubscriptionRoute: AgencySubscriptionRoute,
   AgencyIndexRoute: AgencyIndexRoute,
 }
 
@@ -678,6 +758,7 @@ interface HostRouteChildren {
   HostHistoryRoute: typeof HostHistoryRoute
   HostProfileRoute: typeof HostProfileRoute
   HostScanRoute: typeof HostScanRoute
+  HostSpecialServiceRoute: typeof HostSpecialServiceRoute
   HostTonightRoute: typeof HostTonightRoute
   HostWalletRoute: typeof HostWalletRoute
   HostIndexRoute: typeof HostIndexRoute
@@ -688,6 +769,7 @@ const HostRouteChildren: HostRouteChildren = {
   HostHistoryRoute: HostHistoryRoute,
   HostProfileRoute: HostProfileRoute,
   HostScanRoute: HostScanRoute,
+  HostSpecialServiceRoute: HostSpecialServiceRoute,
   HostTonightRoute: HostTonightRoute,
   HostWalletRoute: HostWalletRoute,
   HostIndexRoute: HostIndexRoute,
@@ -703,6 +785,7 @@ interface OutletRouteChildren {
   OutletRatingsRoute: typeof OutletRatingsRoute
   OutletSalesRoute: typeof OutletSalesRoute
   OutletSettingsRoute: typeof OutletSettingsRoute
+  OutletSpecialServiceRoute: typeof OutletSpecialServiceRoute
   OutletWorkspaceRoute: typeof OutletWorkspaceRoute
   OutletIndexRoute: typeof OutletIndexRoute
 }
@@ -715,6 +798,7 @@ const OutletRouteChildren: OutletRouteChildren = {
   OutletRatingsRoute: OutletRatingsRoute,
   OutletSalesRoute: OutletSalesRoute,
   OutletSettingsRoute: OutletSettingsRoute,
+  OutletSpecialServiceRoute: OutletSpecialServiceRoute,
   OutletWorkspaceRoute: OutletWorkspaceRoute,
   OutletIndexRoute: OutletIndexRoute,
 }

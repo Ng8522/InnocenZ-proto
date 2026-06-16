@@ -1,5 +1,7 @@
 /** PR Talent demo data — mirrors InnocenZ_Prototype.html */
 
+import { seedFinanceHeadStamp, buildDemoESignatureDataUrl, type FinanceHeadPvStamp } from "@/lib/finance-head-stamp";
+
 export type PrSubRole = "pr_tied" | "pr_free";
 
 export interface PrProfile {
@@ -243,11 +245,13 @@ export function filterReceiptScansForPrProfile(
 ): PrReceiptScan[] {
   const rosterId = getPrRosterId(role);
   const myPvIds = new Set((vouchers ?? []).map((p) => p.id));
-  return scans.filter(
-    (s) =>
+  return scans.filter((s) => {
+    if (s.prId) return s.prId === rosterId;
+    return (
       prProfileMatchesPayee({ prName: s.prName, prId: s.prId }, profile, rosterId) ||
-      Boolean(s.pvId && myPvIds.has(s.pvId)),
-  );
+      Boolean(s.pvId && myPvIds.has(s.pvId))
+    );
+  });
 }
 
 export type PrPvStatus = "PENDING_REVIEW" | "SENT" | "SIGNED" | "PAID" | "DISPUTED";
@@ -281,6 +285,8 @@ export interface PrPaymentVoucher {
   /** Agency Finance Head e-sign — always present before PR receives PV */
   financeHeadName: string;
   financeHeadSignedAt: string;
+  /** Finance Head stored e-signature (PNG/SVG data URL) */
+  financeHeadSignatureDataUrl?: string;
   prSignedAt?: string;
   /** PR manual digital signature (PNG data URL) */
   prSignatureDataUrl?: string;
@@ -339,6 +345,7 @@ export function buildPaymentVoucherFromShift(
   session: PrActiveShiftSession,
   receipts: PrReceiptScan[],
   profile: PrProfile,
+  financeHead?: FinanceHeadPvStamp,
 ): PrPaymentVoucher {
   const [y, m, d] = session.date;
   const day = dayName(y, m, d);
@@ -432,6 +439,7 @@ export function buildPaymentVoucherFromShift(
   }
   const subtotal = rows.reduce((s, r) => s + r.amt, 0);
   const issued = session.timeOut ?? session.timeIn;
+  const fh = financeHead ?? seedFinanceHeadStamp(issued);
   return {
     id: session.pvId,
     prName: profile.name,
@@ -445,8 +453,7 @@ export function buildPaymentVoucherFromShift(
     deduct: 0,
     net: subtotal,
     status: "PENDING_REVIEW",
-    financeHeadName: FINANCE_HEAD_SIGNER,
-    financeHeadSignedAt: issued,
+    ...fh,
     shiftSessionId: session.id,
     timeIn: session.timeIn,
     timeOut: session.timeOut,
@@ -538,7 +545,10 @@ export const PV_DISPUTE_PRESETS = [
 ] as const;
 
 export const FINANCE_HEAD_LABEL = "Finance Head · Atlas Agency";
-export const FINANCE_HEAD_SIGNER = "Dato' Lim Wei Khoon";
+
+function seedPrSignature(prName: string) {
+  return { prSignatureDataUrl: buildDemoESignatureDataUrl(prName) };
+}
 
 export const PAYROLL_CYCLE = {
   label: "Current payroll cycle",
@@ -566,8 +576,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     deduct: 200,
     net: 1630,
     status: "PENDING_REVIEW",
-    financeHeadName: FINANCE_HEAD_SIGNER,
-    financeHeadSignedAt: "10 May 2026 · 09:14",
+    ...seedFinanceHeadStamp("10 May 2026 · 09:14"),
   },
   {
     id: "PV-2026-0498",
@@ -587,9 +596,9 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     deduct: 0,
     net: 600,
     status: "PAID",
-    financeHeadName: FINANCE_HEAD_SIGNER,
-    financeHeadSignedAt: "3 May 2026 · 08:42",
+    ...seedFinanceHeadStamp("3 May 2026 · 08:42"),
     prSignedAt: "5 May 2026 · 14:22",
+    ...seedPrSignature("Jaya Nair"),
     paidAt: "5 May 2026 · 14:22",
     bankRef: "INZ-TRF-202605051422",
     shiftSessionId: "shift-2026-04-27-mermate",
@@ -618,8 +627,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     deduct: 0,
     net: 470,
     status: "DISPUTED",
-    financeHeadName: FINANCE_HEAD_SIGNER,
-    financeHeadSignedAt: "10 May 2026 · 09:14",
+    ...seedFinanceHeadStamp("10 May 2026 · 09:14"),
     shiftSessionId: "shift-2026-05-09-bearlounge",
     timeIn: "9 May 2026 · 21:00",
     timeOut: "10 May 2026 · 02:05",
@@ -642,8 +650,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     deduct: 0,
     net: 445,
     status: "PENDING_REVIEW",
-    financeHeadName: FINANCE_HEAD_SIGNER,
-    financeHeadSignedAt: "17 May 2026 · 09:02",
+    ...seedFinanceHeadStamp("17 May 2026 · 09:02"),
   },
   {
     id: "PV-2026-0548-J",
@@ -662,9 +669,9 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     deduct: 50,
     net: 500,
     status: "SIGNED",
-    financeHeadName: FINANCE_HEAD_SIGNER,
-    financeHeadSignedAt: "24 May 2026 · 08:55",
+    ...seedFinanceHeadStamp("24 May 2026 · 08:55"),
     prSignedAt: "26 May 2026 · 11:05",
+    ...seedPrSignature("Jaya Nair"),
   },
   {
     id: "PV-2026-0472-J",
@@ -683,9 +690,9 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     deduct: 0,
     net: 570,
     status: "PAID",
-    financeHeadName: FINANCE_HEAD_SIGNER,
-    financeHeadSignedAt: "19 Apr 2026 · 09:30",
+    ...seedFinanceHeadStamp("19 Apr 2026 · 09:30"),
     prSignedAt: "21 Apr 2026 · 15:40",
+    ...seedPrSignature("Jaya Nair"),
     paidAt: "21 Apr 2026 · 15:40",
     bankRef: "INZ-TRF-202604211540",
   },
@@ -705,8 +712,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     deduct: 0,
     net: 450,
     status: "SENT",
-    financeHeadName: FINANCE_HEAD_SIGNER,
-    financeHeadSignedAt: "10 May 2026 · 09:14",
+    ...seedFinanceHeadStamp("10 May 2026 · 09:14"),
     shiftSessionId: "shift-2026-06-04-velvet",
     shiftTime: "9:00 PM – 2:00 AM",
     timeIn: "4 Jun 2026 · 21:00",
@@ -732,8 +738,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     deduct: 0,
     net: 435,
     status: "DISPUTED",
-    financeHeadName: FINANCE_HEAD_SIGNER,
-    financeHeadSignedAt: "10 May 2026 · 09:14",
+    ...seedFinanceHeadStamp("10 May 2026 · 09:14"),
     receiptIds: ["rc-luna-2"],
     shiftSessionId: "shift-2026-06-03-bearlounge",
     shiftTime: "9:00 PM – 2:00 AM",
@@ -833,6 +838,8 @@ export type ReceiptScanStatus = "attached" | "pending" | "in_pv" | "paid";
 
 export interface PrReceiptScan {
   id: string;
+  /** Unique outlet POS receipt number — global duplicate guard */
+  receiptRef: string;
   scannedAt: string;
   date: [number, number, number];
   outlet: string;
@@ -879,17 +886,45 @@ export function calcReceiptCommissions(items: PrReceiptItem[]) {
   };
 }
 
-export function buildDemoReceiptDraft(profile: { name: string; first: string }, outlet = "Velvet 23") {
+export function buildDemoReceiptRef(outlet: string, date: [number, number, number] = SHIFT_TODAY): string {
+  const outletCode =
+    outlet
+      .replace(/\s+KL$/i, "")
+      .trim()
+      .split(/\s+/)
+      .map((w) => w.slice(0, 4).toUpperCase())
+      .join("")
+      .slice(0, 4) || "OUT";
+  const [y, m, d] = date;
+  const seq = Date.now().toString(36).slice(-5).toUpperCase();
+  return `${outletCode}-${y}${String(m).padStart(2, "0")}${String(d).padStart(2, "0")}-${seq}`;
+}
+
+export function buildDemoReceiptDraft(
+  profile: { name: string; first: string },
+  outlet = "Velvet 23",
+  prId: string,
+  receiptRef?: string,
+  date: [number, number, number] = SHIFT_TODAY,
+) {
   const items: PrReceiptItem[] = [
     { label: "Cocktail", qty: 2, unitPrice: 45, amount: 90, category: "drinks" },
     { label: "Tip", qty: 1, unitPrice: 60, amount: 60, category: "tips" },
   ];
   const totalLogged = items.reduce((s, i) => s + i.amount, 0);
   const comm = calcReceiptCommissions(items);
+  const prCode =
+    prId === FREELANCER_DEMO_PR_ID
+      ? "PR-0042"
+      : prId === TIED_DEMO_ROSTER_PR_ID
+        ? "PR-0001"
+        : `PR-${prId.replace(/\D/g, "").slice(0, 4).padStart(4, "0") || "0099"}`;
   return {
+    receiptRef: receiptRef ?? buildDemoReceiptRef(outlet, date),
     outlet: outlet.includes("KL") ? outlet : `${outlet} KL`,
-    prCode: "PR-0042",
+    prCode,
     prName: profile.first,
+    prId,
     items,
     totalLogged,
     ...comm,
@@ -946,6 +981,7 @@ export function receiptStatusLabel(status: ReceiptScanStatus) {
 export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   {
     id: "rc-seed-1",
+    receiptRef: "MER-20260427-084721",
     scannedAt: "27 Apr 2026 · 23:48",
     date: [2026, 4, 27],
     outlet: "Mermate",
@@ -968,6 +1004,7 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-seed-2",
+    receiptRef: "MER-20260427-091204",
     scannedAt: "27 Apr 2026 · 00:12",
     date: [2026, 4, 27],
     outlet: "Mermate",
@@ -987,6 +1024,7 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-seed-3",
+    receiptRef: "MER-20260427-091508",
     scannedAt: "27 Apr 2026 · 01:05",
     date: [2026, 4, 27],
     outlet: "Mermate",
@@ -1006,6 +1044,7 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-seed-4",
+    receiptRef: "BEAR-20260509-002218",
     scannedAt: "9 May 2026 · 00:44",
     date: [2026, 5, 9],
     outlet: "Bear Lounge",
@@ -1027,6 +1066,7 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-seed-5",
+    receiptRef: "MER-20260521-233042",
     scannedAt: "21 May 2026 · 23:30",
     date: [2026, 5, 21],
     outlet: "Mermate",
@@ -1048,6 +1088,7 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-luna-1",
+    receiptRef: "VEL-20260604-221547",
     scannedAt: "4 Jun 2026 · 22:15",
     date: [2026, 6, 4],
     outlet: "Velvet 23",
@@ -1069,7 +1110,28 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     status: "in_pv",
   },
   {
+    id: "rc-luna-2",
+    receiptRef: "BEAR-20260603-214208",
+    scannedAt: "3 Jun 2026 · 22:08",
+    date: [2026, 6, 3],
+    outlet: "Bear Lounge",
+    prCode: "PR-0001",
+    prName: "Luna",
+    prId: "p1",
+    shiftSessionId: "shift-2026-06-03-bearlounge",
+    pvId: "PV-2026-0604-L",
+    items: [{ label: "Cocktail", qty: 6, unitPrice: 45, amount: 270, category: "drinks" }],
+    totalLogged: 270,
+    drinkCommission: 85,
+    tipCommission: 0,
+    tableCommission: 0,
+    totalCommission: 85,
+    pvStatus: "DISPUTED",
+    status: "in_pv",
+  },
+  {
     id: "rc-mia-1",
+    receiptRef: "MER-20260603-234011",
     scannedAt: "3 Jun 2026 · 23:40",
     date: [2026, 6, 3],
     outlet: "Mermate",

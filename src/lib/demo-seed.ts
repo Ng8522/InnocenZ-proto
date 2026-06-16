@@ -107,7 +107,12 @@ const DEMO_COLLECTIONS: AgencyCollectionInvoice[] = [
     dueDate: "15 Jun 2026",
     status: "PENDING",
     aging: "current",
-    linkedPvIds: ["PV-2026-0615-A"],
+    linkedPvIds: ["PV-2026-0611-A"],
+    lines: [
+      { label: "Daily wages", detail: "Velvet 23 · current cycle", amount: 720, group: "payroll" },
+      { label: "Commission – Drinks", detail: "Floor sales passthrough", amount: 1240, group: "commissions" },
+      { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 200, group: "fees" },
+    ],
   },
 ];
 

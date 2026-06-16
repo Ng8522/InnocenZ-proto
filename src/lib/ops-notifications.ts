@@ -1,5 +1,7 @@
 /** Agency & outlet portal notifications (SOS, ops alerts) */
 
+import { outletMatches } from "@/lib/portal-sync";
+
 export type OpsPortal = "agency" | "outlet";
 
 export type OpsNotificationKind =
@@ -14,7 +16,9 @@ export type OpsNotificationKind =
   | "dispute_raised"
   | "rating_prompt"
   | "reconciliation_due"
-  | "report_ready";
+  | "report_ready"
+  | "collection_reminder"
+  | "special_service";
 
 export interface SosIncident {
   id: string;
@@ -61,7 +65,9 @@ export function opsNotificationsForPortal(
 ): OpsNotification[] {
   return notifications.filter((n) => {
     if (n.portal !== portal) return false;
-    if (portal === "outlet" && n.outlet && outletName && n.outlet !== outletName) return false;
+    if (portal === "outlet" && n.outlet && outletName && n.kind !== "collection_reminder") {
+      if (!outletMatches(n.outlet, outletName)) return false;
+    }
     return true;
   });
 }

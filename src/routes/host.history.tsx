@@ -337,6 +337,7 @@ function pvLineEventMs(
 function receiptSearchBlob(scan: PrReceiptScan) {
   const [y, m, d] = scan.date;
   return [
+    scan.receiptRef,
     scan.id,
     scan.pvId,
     scan.shiftSessionId,
@@ -1561,7 +1562,7 @@ function ReceiptScansSection({
                   <tr key={scan.id}>
                     <td>
                       <div className="font-semibold">{fmtHistDate(y, m, d)}</div>
-                      <div className="iz-tiny iz-muted2">{scan.id}</div>
+                      <div className="iz-tiny iz-muted2">{scan.receiptRef}</div>
                     </td>
                     <td>
                       <div className="flex items-center gap-1 font-semibold text-[var(--iz-gold-l)]">

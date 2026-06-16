@@ -1,4 +1,4 @@
-import type { AgencyRosterSlot, RosterSlotStatus } from "@/lib/agency-demo";
+import type { AgencyManagedPR, AgencyRosterSlot, RosterSlotStatus } from "@/lib/agency-demo";
 
 export type RosterShiftFilterState = {
   nameQuery: string;
@@ -10,6 +10,12 @@ export type RosterShiftFilterState = {
   endTime: string;
 };
 
+/** Extra filters for the weekly planning timetable */
+export type RosterTimetableFilterState = RosterShiftFilterState & {
+  prType: "" | "agency" | "freelancer";
+  showPrs: "" | "scheduled" | "free";
+};
+
 export const EMPTY_ROSTER_SHIFT_FILTERS: RosterShiftFilterState = {
   nameQuery: "",
   outlet: "",
@@ -18,6 +24,12 @@ export const EMPTY_ROSTER_SHIFT_FILTERS: RosterShiftFilterState = {
   payoutMax: "",
   startTime: "",
   endTime: "",
+};
+
+export const EMPTY_ROSTER_TIMETABLE_FILTERS: RosterTimetableFilterState = {
+  ...EMPTY_ROSTER_SHIFT_FILTERS,
+  prType: "",
+  showPrs: "",
 };
 
 function hhmmToMinutes(value: string): number | null {
@@ -32,6 +44,10 @@ export function rosterShiftFiltersActive(f: RosterShiftFilterState): boolean {
   return Boolean(
     f.nameQuery || f.outlet || f.status || f.payoutMin || f.payoutMax || f.startTime || f.endTime,
   );
+}
+
+export function rosterTimetableFiltersActive(f: RosterTimetableFilterState): boolean {
+  return rosterShiftFiltersActive(f) || Boolean(f.prType || f.showPrs);
 }
 
 export function filterRosterShifts(
@@ -63,4 +79,52 @@ export function filterRosterShifts(
     }
     return true;
   });
+}
+
+export function timetableSlotMatches(
+  slot: AgencyRosterSlot,
+  f: RosterShiftFilterState,
+): boolean {
+  return filterRosterShifts([slot], f).length > 0;
+}
+
+export function filterTimetablePrs(
+  agencyPRs: AgencyManagedPR[],
+  roster: AgencyRosterSlot[],
+  weekDays: string[],
+  f: RosterTimetableFilterState,
+  getScheduleState: (prId: string, dateIso: string) => "free" | "booked" | "unavailable",
+): AgencyManagedPR[] {
+  const q = f.nameQuery.trim().toLowerCase();
+
+  return agencyPRs.filter((pr) => {
+    if (pr.suspended || pr.detached) return false;
+    if (q && !pr.name.toLowerCase().includes(q)) return false;
+    if (f.prType === "agency" && pr.id.startsWith("freelancer-")) return false;
+    if (f.prType === "freelancer" && !pr.id.startsWith("freelancer-")) return false;
+
+    const weekSlots = roster.filter((s) => s.prId === pr.id && weekDays.includes(s.dateIso));
+    const matchingSlots = filterRosterShifts(weekSlots, f);
+    const hasFreeDay = weekDays.some((d) => getScheduleState(pr.id, d) === "free");
+
+    if (f.showPrs === "scheduled") return matchingSlots.length > 0;
+    if (f.showPrs === "free") return hasFreeDay;
+
+    if (rosterShiftFiltersActive(f)) {
+      return matchingSlots.length > 0 || hasFreeDay;
+    }
+    return true;
+  });
+}
+
+export function countTimetableMatchingSlots(
+  roster: AgencyRosterSlot[],
+  weekDays: string[],
+  prIds: Set<string>,
+  f: RosterTimetableFilterState,
+): number {
+  return filterRosterShifts(
+    roster.filter((s) => weekDays.includes(s.dateIso) && prIds.has(s.prId)),
+    f,
+  ).length;
 }

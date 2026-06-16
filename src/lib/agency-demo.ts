@@ -718,7 +718,7 @@ export const DEFAULT_AGENCY_OWNER: AgencyOwnerSettings = {
   otpChannel: "email",
   accountActivated: true,
   avatarPhoto: null,
-  subscriptionPlanId: "starter",
+  subscriptionPlanId: "growth",
 };
 
 export interface AgencyFinanceHead {
@@ -872,7 +872,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
   {
     id: "AINV-2026-0601",
     outlet: "Platform fee",
-    amount: 499,
+    amount: 1499,
     issueDate: "1 Jun 2026",
     issueTime: "08:00",
     dueDate: "1 Jun 2026",
@@ -881,7 +881,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     linkedPvIds: [],
     kind: "agency",
     counterparty: "InnocenZ Platform",
-    lines: [{ label: "Atlas Agency subscription", detail: "Jun 2026 · SaaS", amount: 499, group: "fees" }],
+    lines: [{ label: "Atlas Agency subscription", detail: "Jun 2026 · Growth · SaaS", amount: 1499, group: "fees" }],
   },
   {
     id: "AINV-2026-0604",

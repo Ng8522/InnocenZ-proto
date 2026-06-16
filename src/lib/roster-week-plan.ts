@@ -24,12 +24,43 @@ export function dayColumnLabel(dateIso: string): { dow: string; dom: string } {
   return { dow: format(d, "EEE"), dom: format(d, "d MMM") };
 }
 
+const SLOT_DISPLAY_PRIORITY: AgencyRosterSlot["status"][] = [
+  "on-duty",
+  "en-route",
+  "scheduled",
+  "assignment-pending",
+  "outlet-pending",
+  "swap-pending",
+  "unavailable",
+];
+
+export function slotsForPrOnDate(
+  roster: AgencyRosterSlot[],
+  prId: string,
+  dateIso: string,
+): AgencyRosterSlot[] {
+  return roster.filter((s) => s.prId === prId && s.dateIso === dateIso);
+}
+
+/** Prefer live / booked shifts over day-off markers when multiple slots exist */
+export function primarySlotForPrOnDate(
+  roster: AgencyRosterSlot[],
+  prId: string,
+  dateIso: string,
+): AgencyRosterSlot | undefined {
+  const slots = slotsForPrOnDate(roster, prId, dateIso);
+  if (slots.length === 0) return undefined;
+  return [...slots].sort(
+    (a, b) => SLOT_DISPLAY_PRIORITY.indexOf(a.status) - SLOT_DISPLAY_PRIORITY.indexOf(b.status),
+  )[0];
+}
+
 export function slotForPrOnDate(
   roster: AgencyRosterSlot[],
   prId: string,
   dateIso: string,
 ): AgencyRosterSlot | undefined {
-  return roster.find((s) => s.prId === prId && s.dateIso === dateIso);
+  return primarySlotForPrOnDate(roster, prId, dateIso);
 }
 
 export function shiftWeek(dateIso: string, deltaWeeks: number): string {

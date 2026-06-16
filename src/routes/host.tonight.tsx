@@ -7,10 +7,19 @@ import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { PrStatusPill } from "@/components/pr/PrOfferRow";
 import { useStore } from "@/lib/store";
 import { outletMatches } from "@/lib/portal-sync";
+import { findAgencyRosterTonight } from "@/lib/pr-session";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { evaluateShiftCancellation, CANCEL_RULES } from "@/lib/pr-schedule-cancellation";
 import { SHIFT_TODAY, addDay, fmtDFriendly, fmtDShort, getPrRosterId } from "@/lib/pr-demo";
-import { Calendar, Camera, Check, ExternalLink, MapPin } from "lucide-react";
+import { Calendar, Camera, Check, ExternalLink, MapPin, Navigation } from "lucide-react";
 import { formatRM } from "@/components/iz/ui";
+import {
+  GEOFENCE_METERS,
+  computePrCheckInGpsState,
+  formatDistanceMeters,
+  mapsDirectionsUrl,
+  prGpsPingOffset,
+} from "@/lib/gps-locations";
 
 export const Route = createFileRoute("/host/tonight")({
   component: AttendancePage,
@@ -37,6 +46,7 @@ function AttendancePage() {
   const simulatePrLate = useStore((s) => s.simulatePrLate);
   const toast = useStore((s) => s.toast);
   const prSubRole = useStore((s) => s.prSubRole);
+  const agencyPRs = useStore((s) => s.agencyPRs);
   const isFreelancer = prSubRole === "pr_free";
 
   const [holding, setHolding] = useState(false);
@@ -56,17 +66,48 @@ function AttendancePage() {
   const runningPayout = 350 + salesTotal;
   const mapsUrl = "https://www.google.com/maps?q=3.1478,101.7005";
 
+  const prId = getPrRosterId(prSubRole);
+  const prAgencyRow = agencyPRs.find((p) => p.id === prId);
+  const venueName = "Velvet 23";
+
   const gpsOutOfRange = !!prCheckInMeta.gpsFallback;
   const rosterSlot = useMemo(() => {
-    const prId = getPrRosterId(prSubRole);
     return agencyRoster.find(
       (s) =>
         s.prId === prId &&
         s.dateIso === DEFAULT_ROSTER_DATE_ISO &&
-        outletMatches(s.outlet, "Velvet 23"),
+        outletMatches(s.outlet, venueName),
     );
-  }, [agencyRoster, prSubRole]);
+  }, [agencyRoster, prId, venueName]);
   const enRoute = rosterSlot?.status === "en-route";
+
+  const cancelEval = useMemo(() => {
+    const slot = rosterSlot ?? findAgencyRosterTonight(agencyRoster, prId);
+    if (!slot) return null;
+    return evaluateShiftCancellation(
+      new Date(),
+      slot.dateIso,
+      slot.shiftStart,
+      slot.estPayout ?? CANCEL_RULES.defaultDailyWagesRm,
+    );
+  }, [agencyRoster, prId, rosterSlot]);
+
+  const gpsState = useMemo(
+    () =>
+      computePrCheckInGpsState({
+        prId,
+        outlet: venueName,
+        phase: enRoute ? "en-route" : "booked",
+        homePlace: prAgencyRow?.place ?? "KL",
+        gpsFallback: gpsOutOfRange,
+      }),
+    [prId, venueName, enRoute, prAgencyRow?.place, gpsOutOfRange],
+  );
+
+  const pingPos = prGpsPingOffset(gpsState.meters, gpsState.inRange, prId);
+  const directionsUrl = mapsDirectionsUrl(gpsState.prCoord, gpsState.outletCoord);
+  const rangePct = Math.min(100, (gpsState.meters / Math.max(gpsState.geofenceMeters * 4, 200)) * 100);
+  const fencePct = (gpsState.geofenceMeters / Math.max(gpsState.geofenceMeters * 4, 200)) * 100;
   const statusLabel = !shiftAccepted
     ? "No shift"
     : checkedIn && !checkedOut
@@ -159,8 +200,8 @@ function AttendancePage() {
         </div>
         <div className="iz-outlet-stat-cell">
           <div className="l">GPS</div>
-          <div className={`n ${gpsOutOfRange ? "text-[var(--iz-amber)]" : "text-[var(--iz-green)]"}`}>
-            {gpsOutOfRange ? "Fail" : "32 m"}
+          <div className={`n ${gpsState.inRange ? "text-[var(--iz-green)]" : "text-[var(--iz-amber)]"}`}>
+            {formatDistanceMeters(gpsState.meters)}
           </div>
         </div>
       </div>
@@ -182,14 +223,25 @@ function AttendancePage() {
         {shiftAccepted && !checkedIn && (
           <>
             <div className="iz-gps-map mb-3" style={{ height: 120 }}>
-              <span className="iz-ping" style={{ left: "50%", top: "50%" }} />
-              <span className="iz-tiny iz-muted absolute bottom-2 left-2.5">Geofence 50 m</span>
+              <span className="iz-gps-map-venue" aria-hidden />
+              <span className="iz-gps-map-geofence" aria-hidden />
+              <span
+                className={`iz-ping${gpsState.inRange ? " live" : enRoute ? " en-route" : ""}`}
+                style={{ left: pingPos.left, top: pingPos.top }}
+              />
+              <span className="iz-tiny iz-muted absolute bottom-2 left-2.5">Geofence {GEOFENCE_METERS} m</span>
+              <span className="iz-tiny absolute bottom-2 right-2.5 font-semibold text-[var(--iz-muted2)]">
+                {venueName}
+              </span>
             </div>
             {enRoute ? (
               <div className="mb-3 rounded-xl border border-[rgba(139,92,246,.35)] bg-[rgba(139,92,246,.08)] px-3 py-2.5">
-                <p className="text-xs font-semibold text-[var(--iz-violet-l)]">En route to venue</p>
+                <div className="flex items-center gap-2">
+                  <Navigation className="h-3.5 w-3.5 shrink-0 text-[var(--iz-violet-l)]" />
+                  <p className="text-xs font-semibold text-[var(--iz-violet-l)]">En route to {venueName}</p>
+                </div>
                 <p className="iz-tiny iz-muted mt-0.5">
-                  Outlet sees you on Live GPS. Check in when you arrive inside the geofence.
+                  Outlet sees you on Live GPS. Check in when you are within {GEOFENCE_METERS} m of the venue.
                 </p>
               </div>
             ) : (
@@ -201,10 +253,48 @@ function AttendancePage() {
                 <MapPin className="h-3.5 w-3.5" /> Head to venue
               </button>
             )}
-            <div className="iz-between mb-2">
-              <span className="iz-tiny iz-muted">Distance to venue</span>
-              <PrStatusPill variant={gpsOutOfRange ? "amber" : "green"}>{gpsOutOfRange ? "Out of range" : "In range"}</PrStatusPill>
+
+            <div className="iz-pr-gps-distance-card mb-2">
+              <div className="iz-between items-start gap-3">
+                <div className="min-w-0">
+                  <div className="iz-tiny iz-muted">Distance to venue</div>
+                  <div className="font-sora text-2xl font-extrabold leading-tight text-[var(--iz-gold-l)]">
+                    {formatDistanceMeters(gpsState.meters)}
+                  </div>
+                  <div className="iz-tiny iz-muted2 mt-1">
+                    {enRoute
+                      ? `Heading to ${venueName} · outlet tracking live`
+                      : `At home · tap Head to venue when you leave`}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <PrStatusPill variant={gpsState.inRange ? "green" : gpsOutOfRange || enRoute ? "amber" : "ink"}>
+                    {gpsState.inRange ? "In range" : gpsOutOfRange ? "Out of range" : enRoute ? "On route" : "Not departed"}
+                  </PrStatusPill>
+                  <div className="iz-tiny iz-muted2 mt-1.5">
+                    ≤ {GEOFENCE_METERS} m to check in
+                  </div>
+                </div>
+              </div>
+              <div className="iz-pr-gps-range-bar mt-3" aria-hidden>
+                <div className="iz-pr-gps-range-fill" style={{ width: `${rangePct}%` }} />
+                <div className="iz-pr-gps-range-fence" style={{ left: `${fencePct}%` }} title={`${GEOFENCE_METERS} m geofence`} />
+              </div>
+              <div className="iz-between iz-tiny iz-muted2 mt-1">
+                <span>You</span>
+                <span>{GEOFENCE_METERS} m zone</span>
+                <span>{venueName}</span>
+              </div>
             </div>
+
+            <a
+              href={directionsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="iz-outlet-quick-chip mb-2 inline-flex w-full justify-center"
+            >
+              <ExternalLink className="h-3 w-3" /> Open directions in Maps
+            </a>
             <button
               type="button"
               className="iz-tiny text-[var(--iz-blue)] underline-offset-2 hover:underline"
@@ -309,9 +399,18 @@ function AttendancePage() {
 
       <IzSheet open={cancelOpen} onClose={() => setCancelOpen(false)}>
         <div className="iz-cardttl">Cancel shift?</div>
-        <p className="iz-tiny iz-muted mb-3">Less than 2 hours before start incurs a penalty flag.</p>
+        {cancelEval ? (
+          <>
+            <p className="text-sm font-semibold mb-1">{cancelEval.headline}</p>
+            <p className="iz-tiny iz-muted mb-3">{cancelEval.detail}</p>
+          </>
+        ) : (
+          <p className="iz-tiny iz-muted mb-3">Less than 2 hours before start incurs a wage deduction.</p>
+        )}
         <button type="button" className="iz-btn iz-btn-danger" onClick={() => { cancelPrShift(); setCancelOpen(false); }}>
-          Cancel & accept penalty
+          {cancelEval && cancelEval.deductionRm > 0
+            ? `Cancel & accept −RM ${cancelEval.deductionRm}`
+            : "Cancel shift"}
         </button>
       </IzSheet>
 

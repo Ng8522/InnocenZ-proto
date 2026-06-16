@@ -287,6 +287,8 @@ export function AppTopbar({
     goToWelcome();
   };
 
+  const isPrPortal = pathname.startsWith("/host");
+
   return (
     <header className={`iz-topbar${isPortalShell ? " iz-topbar--minimal" : ""}`}>
       {showBack ? (
@@ -297,21 +299,41 @@ export function AppTopbar({
 
       {!isPortalShell && (
         <>
-          <div className="iz-topbar-identity">
-            <div
-              className={`iz-avatar iz-avatar--sm${prAvatarPhoto ? " iz-avatar-photo" : ""}`}
-              style={prAvatarPhoto ? undefined : { background: displayGradient }}
+          {isPrPortal ? (
+            <Link
+              to="/host/profile"
+              className="iz-topbar-identity iz-topbar-identity--link"
+              aria-label="Open profile"
+              title="Profile"
             >
-              {prAvatarPhoto ? <img src={prAvatarPhoto} alt="" /> : displayAv}
+              <div
+                className={`iz-avatar iz-avatar--sm${prAvatarPhoto ? " iz-avatar-photo" : ""}`}
+                style={prAvatarPhoto ? undefined : { background: displayGradient }}
+              >
+                {prAvatarPhoto ? <img src={prAvatarPhoto} alt="" /> : displayAv}
+              </div>
+              <div className="iz-topbar-meta">
+                <div className="iz-topbar-name">{displayName}</div>
+                <div className="iz-topbar-role">{displayLabel}</div>
+              </div>
+            </Link>
+          ) : (
+            <div className="iz-topbar-identity">
+              <div
+                className={`iz-avatar iz-avatar--sm${prAvatarPhoto ? " iz-avatar-photo" : ""}`}
+                style={prAvatarPhoto ? undefined : { background: displayGradient }}
+              >
+                {prAvatarPhoto ? <img src={prAvatarPhoto} alt="" /> : displayAv}
+              </div>
+              <div className="iz-topbar-meta">
+                <div className="iz-topbar-name">{displayName}</div>
+                <div className="iz-topbar-role">{displayLabel}</div>
+              </div>
             </div>
-            <div className="iz-topbar-meta">
-              <div className="iz-topbar-name">{displayName}</div>
-              <div className="iz-topbar-role">{displayLabel}</div>
-            </div>
-          </div>
+          )}
 
           <div className="iz-topbar-actions">
-            {pathname.startsWith("/host") && <PrNotificationBell />}
+            {isPrPortal && <PrNotificationBell />}
             <span className="iz-topbar-action iz-topbar-action--muted" title="Verified portal" aria-hidden>
               <Shield className="h-3.5 w-3.5" />
             </span>

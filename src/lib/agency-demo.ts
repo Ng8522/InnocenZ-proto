@@ -93,6 +93,10 @@ export interface AgencyRosterSlot {
   checkedOutAt?: string;
   lateFlag?: boolean;
   noShowFlag?: boolean;
+  /** PR cancelled shift — wage deduction logged for next PV */
+  payDeductionRm?: number;
+  cancelledAt?: string;
+  prUnavailableNote?: string;
   /** Live floor metrics — synced with outlet log sales & agency live view */
   floorDrinks?: number;
   floorTips?: number;

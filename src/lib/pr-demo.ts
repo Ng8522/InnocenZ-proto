@@ -903,14 +903,36 @@ export function buildDemoReceiptRef(outlet: string, date: [number, number, numbe
 export function buildDemoReceiptDraft(
   profile: { name: string; first: string },
   outlet = "Velvet 23",
-  prId: string,
+  variantIndex = 0,
+  prId: string = TIED_DEMO_ROSTER_PR_ID,
   receiptRef?: string,
-  date: [number, number, number] = SHIFT_TODAY,
 ) {
-  const items: PrReceiptItem[] = [
-    { label: "Cocktail", qty: 2, unitPrice: 45, amount: 90, category: "drinks" },
-    { label: "Tip", qty: 1, unitPrice: 60, amount: 60, category: "tips" },
+  const variants: {
+    receiptRef: string;
+    items: PrReceiptItem[];
+  }[] = [
+    {
+      receiptRef: "POS-88421",
+      items: [
+        { label: "Cocktail", qty: 2, unitPrice: 45, amount: 90, category: "drinks" },
+        { label: "Tip", qty: 1, unitPrice: 60, amount: 60, category: "tips" },
+      ],
+    },
+    {
+      receiptRef: "POS-88422",
+      items: [
+        { label: "Beer", qty: 3, unitPrice: 35, amount: 105, category: "drinks" },
+        { label: "VIP Table", qty: 1, unitPrice: 200, amount: 200, category: "tables" },
+      ],
+    },
+    {
+      receiptRef: "POS-88423",
+      items: [{ label: "Whisky", qty: 1, unitPrice: 180, amount: 180, category: "drinks" }],
+    },
   ];
+
+  const picked = variants[variantIndex % variants.length]!;
+  const items = picked.items;
   const totalLogged = items.reduce((s, i) => s + i.amount, 0);
   const comm = calcReceiptCommissions(items);
   const prCode =
@@ -920,7 +942,7 @@ export function buildDemoReceiptDraft(
         ? "PR-0001"
         : `PR-${prId.replace(/\D/g, "").slice(0, 4).padStart(4, "0") || "0099"}`;
   return {
-    receiptRef: receiptRef ?? buildDemoReceiptRef(outlet, date),
+    receiptRef: receiptRef ?? picked.receiptRef,
     outlet: outlet.includes("KL") ? outlet : `${outlet} KL`,
     prCode,
     prName: profile.first,
@@ -929,6 +951,41 @@ export function buildDemoReceiptDraft(
     totalLogged,
     ...comm,
   };
+}
+
+/** Unique key for duplicate receipt detection (POS ref preferred) */
+export function receiptScanFingerprint(input: {
+  outlet: string;
+  totalLogged: number;
+  items: PrReceiptItem[];
+  receiptRef?: string;
+}): string {
+  const ref = input.receiptRef?.trim();
+  if (ref) {
+    const normalizedOutlet = input.outlet.replace(/\s+KL$/i, "").trim().toLowerCase();
+    return `ref:${normalizedOutlet}|${ref.toUpperCase()}`;
+  }
+  const normalizedOutlet = input.outlet.replace(/\s+KL$/i, "").trim().toLowerCase();
+  const itemsKey = input.items
+    .map((i) => `${i.category}|${i.label}|${i.qty}|${i.amount}`)
+    .sort()
+    .join(";");
+  return `fp:${normalizedOutlet}|${input.totalLogged}|${itemsKey}`;
+}
+
+export function findDuplicateReceiptScan(
+  scans: PrReceiptScan[],
+  fingerprint: string,
+): PrReceiptScan | undefined {
+  return scans.find((s) => {
+    const fp = receiptScanFingerprint({
+      outlet: s.outlet,
+      totalLogged: s.totalLogged,
+      items: s.items,
+      receiptRef: s.receiptRef,
+    });
+    return fp === fingerprint;
+  });
 }
 
 export function receiptBelongsToPvLabel(scan: PrReceiptScan) {

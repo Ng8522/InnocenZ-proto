@@ -7,6 +7,7 @@ import {
   PR_SHIFT_OFFERS,
   SHIFT_TODAY,
   buildDemoReceiptDraft,
+  findDuplicateReceiptScan,
   buildDemoReceiptRef,
   fmtHistDate,
   getPrProfile,
@@ -40,8 +41,8 @@ function ReceiptScanPage() {
   const outlet = prActiveShift?.outlet ?? PR_SHIFT_OFFERS[0].outlet;
   const shiftDate = prActiveShift?.date ?? SHIFT_TODAY;
   const draft = useMemo(
-    () => buildDemoReceiptDraft(profile, outlet, prId, pendingReceiptRef ?? undefined, shiftDate),
-    [profile, outlet, prId, pendingReceiptRef, shiftDate],
+    () => buildDemoReceiptDraft(profile, outlet, 0, prId, pendingReceiptRef ?? undefined),
+    [profile, outlet, prId, pendingReceiptRef],
   );
 
   const canScan = checkedIn && !checkedOut && prActiveShift;

@@ -378,6 +378,62 @@
   background: var(--iz-green);
   box-shadow: 0 0 14px rgba(57, 217, 138, 0.7);
 }
+.iz-ping.en-route {
+  background: var(--iz-violet);
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.7);
+}
+.iz-gps-map-venue {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #ea4335;
+  box-shadow: 0 0 0 3px rgba(234, 67, 53, 0.25);
+}
+.iz-gps-map-geofence {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px dashed rgba(57, 217, 138, 0.45);
+  background: rgba(57, 217, 138, 0.07);
+  pointer-events: none;
+}
+.iz-pr-gps-distance-card {
+  border-radius: 14px;
+  border: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 12px 13px;
+}
+.iz-pr-gps-range-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: visible;
+}
+.iz-pr-gps-range-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(57, 217, 138, 0.5), rgba(244, 183, 64, 0.85));
+  transition: width 0.35s ease;
+}
+.iz-pr-gps-range-fence {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 12px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--iz-green);
+  box-shadow: 0 0 6px rgba(57, 217, 138, 0.6);
+}
 /* Google Maps–style road map (agency GPS) */
 .iz-gmaps-frame {
   position: relative;
@@ -1995,6 +2051,21 @@ button.iz-pr-offer-row:hover {
   min-width: 0;
   padding: 0 2px;
 }
+.iz-topbar-identity--link {
+  flex: 1;
+  min-width: 0;
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.iz-topbar-identity--link:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.iz-topbar-identity--link:active {
+  background: rgba(255, 255, 255, 0.07);
+}
 .iz-topbar-meta {
   min-width: 0;
   flex: 1;
@@ -2630,10 +2701,102 @@ button.iz-pr-offer-row:hover {
 .iz-field-input::placeholder {
   color: var(--iz-muted2);
 }
+.iz-time-picker {
+  position: relative;
+  width: 100%;
+}
+.iz-time-picker-btn {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 36px 0 11px;
+  border-radius: 13px;
+  border: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--iz-txt);
+  font-family: "Manrope", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.iz-time-picker-btn:hover:not(:disabled) {
+  border-color: rgba(217, 185, 122, 0.35);
+}
+.iz-time-picker-btn:focus-visible {
+  outline: none;
+  border-color: var(--iz-gold-d);
+  box-shadow: 0 0 0 3px rgba(217, 185, 122, 0.12);
+}
+.iz-time-picker-btn.has-value {
+  color: var(--iz-gold-l);
+}
+.iz-time-picker-btn.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.iz-time-picker-label {
+  min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.iz-time-picker-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--iz-muted2);
+  cursor: pointer;
+}
+.iz-time-picker-clear:hover {
+  color: var(--iz-txt);
+  background: rgba(255, 255, 255, 0.1);
+}
+.iz-time-picker-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
 .iz-time-input {
   color-scheme: dark;
   cursor: pointer;
   min-height: 48px;
+}
+.iz-time-input--empty {
+  color: transparent;
+}
+.iz-time-input-ph,
+.iz-time-input-val {
+  position: absolute;
+  left: 2.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: "Manrope", sans-serif;
+}
+.iz-time-input-ph {
+  color: var(--iz-muted2);
+  font-weight: 500;
+}
+.iz-time-input-val {
+  color: var(--iz-txt);
 }
 .iz-time-input::-webkit-calendar-picker-indicator {
   position: absolute;
@@ -3874,6 +4037,169 @@ button.iz-pr-offer-row:hover {
   min-width: 280px;
   box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.85);
 }
+
+/* PR agency schedule — big calendar + timetable */
+.iz-pr-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.iz-pr-schedule-rules {
+  border-radius: 14px;
+  border: 1px solid var(--iz-line);
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+.iz-pr-schedule-rules-hd {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+}
+.iz-pr-schedule-rules-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.iz-pr-schedule-rules-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--iz-line);
+  font-size: 11px;
+}
+.iz-pr-schedule-rules-list .rule-when {
+  font-weight: 700;
+  color: var(--iz-txt);
+}
+.iz-pr-schedule-rules-list .rule-out {
+  color: var(--iz-muted2);
+}
+.iz-pr-schedule-rules-list .tone-green {
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.06);
+}
+.iz-pr-schedule-rules-list .tone-amber {
+  border-color: rgba(244, 183, 64, 0.3);
+  background: rgba(244, 183, 64, 0.06);
+}
+.iz-pr-schedule-rules-list .tone-red {
+  border-color: rgba(255, 107, 107, 0.3);
+  background: rgba(255, 107, 107, 0.06);
+}
+.iz-pr-schedule-cal-wrap {
+  border-radius: 16px;
+  border: 1px solid var(--iz-line);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 12px 10px 10px;
+}
+.iz-pr-schedule-cal {
+  width: 100%;
+  --cell-size: 2.65rem;
+}
+.iz-pr-cal-weekdays {
+  opacity: 0.7;
+}
+.iz-pr-cal-day-btn {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 12px;
+}
+.iz-pr-cal-open .iz-pr-cal-day-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+.iz-pr-cal-assigned .iz-pr-cal-day-btn {
+  background: rgba(74, 222, 128, 0.15);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  color: var(--iz-green);
+}
+.iz-pr-cal-pending .iz-pr-cal-day-btn {
+  background: rgba(244, 183, 64, 0.12);
+  border: 1px solid rgba(244, 183, 64, 0.35);
+  color: var(--iz-amber);
+}
+.iz-pr-cal-unavailable .iz-pr-cal-day-btn {
+  background: rgba(255, 107, 107, 0.15);
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  color: var(--iz-red);
+}
+.iz-pr-cal-active .iz-pr-cal-day-btn {
+  background: rgba(217, 185, 122, 0.2);
+  border: 1px solid var(--iz-gold-d);
+  color: var(--iz-gold-l);
+}
+.iz-pr-cal-picked .iz-pr-cal-day-btn {
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.45);
+}
+.iz-pr-cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  justify-content: center;
+  margin-top: 10px;
+  font-size: 10px;
+  color: var(--iz-muted2);
+}
+.iz-pr-cal-legend .sw {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 4px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.iz-pr-cal-legend .sw.open {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+}
+.iz-pr-cal-legend .sw.assigned {
+  background: rgba(74, 222, 128, 0.35);
+}
+.iz-pr-cal-legend .sw.pending {
+  background: rgba(244, 183, 64, 0.4);
+}
+.iz-pr-cal-legend .sw.unavailable {
+  background: rgba(255, 107, 107, 0.45);
+}
+.iz-pr-schedule-timetable {
+  margin-top: 4px;
+}
+.iz-pr-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.iz-pr-source-badge.is-agency {
+  background: rgba(217, 185, 122, 0.12);
+  border: 1px solid rgba(217, 185, 122, 0.35);
+  color: var(--iz-gold-l);
+}
+.iz-pr-source-badge.is-outlet {
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  color: var(--iz-green);
+}
+
 .iz-hist-custom-select {
   position: relative;
 }
@@ -4094,58 +4420,108 @@ button.iz-agency-row:hover {
   box-shadow: inset 0 0 0 1px rgba(232, 194, 122, 0.15);
 }
 
-/* PR History — Shifts tab earnings banner & cards */
-.iz-hist-earn-banner {
-  position: relative;
-  border-radius: 16px;
+/* PR History — Shifts tab panel & cards */
+.iz-hist-shift-panel {
+  border-color: var(--iz-line2) !important;
+}
+.iz-hist-shift-earn-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: rgba(217, 185, 122, 0.2);
+  border-radius: 14px 14px 0 0;
   overflow: hidden;
-  border: 1px solid rgba(217, 185, 122, 0.28);
-  background: linear-gradient(145deg, rgba(217, 185, 122, 0.14), rgba(255, 255, 255, 0.02) 55%);
 }
-.iz-hist-earn-banner-glow {
-  position: absolute;
-  inset: -40% -20% auto;
-  height: 120px;
-  background: radial-gradient(ellipse at 50% 100%, rgba(232, 194, 122, 0.22), transparent 70%);
-  pointer-events: none;
+.iz-hist-outlet-sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  padding-right: 2px;
 }
-.iz-hist-earn-banner-inner {
-  position: relative;
-  padding: 14px 16px 16px;
-  text-align: center;
-}
-.iz-hist-earn-kicker {
-  color: var(--iz-muted);
+.iz-hist-outlet-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--iz-txt);
+  font-family: "Manrope", sans-serif;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 }
-.iz-hist-earn-date-pill {
-  display: inline-block;
-  margin-top: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(217, 185, 122, 0.25);
-  background: rgba(0, 0, 0, 0.2);
-  font-size: 12px;
-  font-weight: 600;
+.iz-hist-outlet-opt:hover {
+  border-color: rgba(217, 185, 122, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+}
+.iz-hist-outlet-opt.sel {
+  border-color: rgba(217, 185, 122, 0.45);
+  background: rgba(217, 185, 122, 0.12);
   color: var(--iz-gold-l);
 }
-.iz-hist-earn-total {
-  margin-top: 8px;
-  font-size: 2rem;
-  font-weight: 800;
-  line-height: 1.1;
-  color: var(--iz-gold-l);
-  letter-spacing: -0.02em;
-}
-.iz-hist-earn-meta {
-  margin-top: 6px;
+.iz-hist-outlet-opt .c {
+  flex-shrink: 0;
   font-size: 12px;
+  font-weight: 600;
   color: var(--iz-muted2);
 }
-.iz-hist-shift-filters {
-  border-color: var(--iz-line2) !important;
+.iz-hist-outlet-opt.sel .c {
+  color: var(--iz-gold-l);
+  opacity: 0.85;
+}
+.iz-hist-shift-earn-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 8px;
+  background: linear-gradient(180deg, rgba(28, 22, 16, 0.98), rgba(18, 14, 10, 0.98));
+  min-width: 0;
+}
+.iz-hist-shift-earn-cell.primary {
+  background: linear-gradient(145deg, rgba(217, 185, 122, 0.16), rgba(18, 14, 10, 0.98));
+}
+.iz-hist-shift-earn-cell .l {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--iz-muted2);
+  line-height: 1.25;
+}
+.iz-hist-shift-earn-cell .v {
+  font-family: "Sora", sans-serif;
+  font-size: clamp(11px, 3.2vw, 14px);
+  font-weight: 800;
+  color: var(--iz-txt);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+.iz-hist-shift-earn-cell.primary .v {
+  font-size: clamp(12px, 3.6vw, 15px);
+  color: var(--iz-gold-l);
+}
+.iz-hist-shift-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--iz-line);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--iz-muted);
+}
+.iz-hist-shift-filters-body {
+  padding: 12px;
 }
 .iz-hist-shift-list {
   padding-bottom: 4px;
@@ -4185,25 +4561,6 @@ button.iz-agency-row:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.iz-hist-shift-footer {
-  position: sticky;
-  bottom: calc(var(--iz-nav-h, 64px) + 8px);
-  z-index: 20;
-  margin-top: 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(217, 185, 122, 0.35);
-  background: linear-gradient(180deg, rgba(28, 22, 16, 0.96), rgba(18, 14, 10, 0.98));
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(217, 185, 122, 0.12);
-  backdrop-filter: blur(12px);
-}
-.iz-hist-shift-footer-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-}
-
 .iz-data-table-wrap {
   overflow-x: auto;
   border-radius: 14px;

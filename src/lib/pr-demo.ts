@@ -1397,6 +1397,7 @@ export interface PrAgency {
   id: string;
   name: string;
   city: string;
+  address: string;
   initials: string;
   gradient: string;
   activePrs: number;
@@ -1411,6 +1412,7 @@ export const PR_AGENCIES: PrAgency[] = [
     id: "atlas",
     name: "Atlas Agency",
     city: "Kuala Lumpur",
+    address: "18 Jalan Sultan Ismail, Bukit Bintang, 50250 Kuala Lumpur",
     initials: "A",
     gradient: "linear-gradient(135deg,#C99B4E,#8a5e22)",
     activePrs: 128,
@@ -1422,6 +1424,7 @@ export const PR_AGENCIES: PrAgency[] = [
     id: "starline",
     name: "Starline PR",
     city: "Petaling Jaya",
+    address: "42 Jalan SS15/4, Subang Jaya, 47500 Petaling Jaya",
     initials: "S",
     gradient: "linear-gradient(135deg,#5BA8FF,#2d63b8)",
     activePrs: 64,
@@ -1433,6 +1436,7 @@ export const PR_AGENCIES: PrAgency[] = [
     id: "velvet-roster",
     name: "Velvet Roster",
     city: "Bangsar",
+    address: "8 Jalan Telawi 3, Bangsar Baru, 59100 Kuala Lumpur",
     initials: "V",
     gradient: "linear-gradient(135deg,#E879A8,#9b3d6a)",
     activePrs: 41,
@@ -1444,6 +1448,7 @@ export const PR_AGENCIES: PrAgency[] = [
     id: "prestige",
     name: "Prestige Hostess",
     city: "Kuala Lumpur",
+    address: "55 Jalan Ampang, Kuala Lumpur City Centre, 50450 Kuala Lumpur",
     initials: "P",
     gradient: "linear-gradient(135deg,#7C6BFF,#4338a8)",
     activePrs: 55,
@@ -1455,6 +1460,7 @@ export const PR_AGENCIES: PrAgency[] = [
     id: "aurora",
     name: "Aurora Talent",
     city: "Mont Kiara",
+    address: "2 Jalan Kiara, Mont Kiara, 50480 Kuala Lumpur",
     initials: "Au",
     gradient: "linear-gradient(135deg,#34D399,#047857)",
     activePrs: 37,

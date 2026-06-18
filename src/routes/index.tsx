@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Building2, Users, Star, Shield, ArrowRight, RotateCcw } from "lucide-react";
+import { Building2, Users, Star, ArrowRight, RotateCcw } from "lucide-react";
 import { useStore, type Role } from "@/lib/store";
 import { getAgencyDefaultRoute, type AgencySubRole } from "@/lib/agency-rbac";
 import { getOutletDefaultRoute, type OutletSubRole } from "@/lib/outlet-rbac";
@@ -175,7 +175,7 @@ function Welcome() {
             <RoleCard
               key={r.side}
               role={r}
-              to={r.side === "pr" ? "/host" : undefined}
+              to={r.side === "pr" ? "/signin" : undefined}
               onPick={() => {
                 if (r.side === "pr") {
                   setRole("host");
@@ -193,9 +193,6 @@ function Welcome() {
         </div>
 
         <div className="mt-3.5 flex flex-col items-center gap-2">
-          <Link to="/signin" className="iz-chip inline-flex">
-            <Shield className="h-3 w-3" /> Forgot password / OTP recovery
-          </Link>
           <button
             type="button"
             className="iz-chip inline-flex !border-[var(--iz-red)]/35 !text-[var(--iz-red)]"
@@ -216,7 +213,7 @@ function RoleCard({
 }: {
   role: (typeof ROLES)[number];
   onPick: () => void;
-  to?: "/host";
+  to?: "/signin";
 }) {
   const body = (
     <>

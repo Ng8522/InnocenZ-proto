@@ -73,10 +73,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "theme-color", content: "#07040e" },
-      { title: "InnocenZ ??Nightlife, Powered by Trust" },
-      { name: "description", content: "InnocenZ is the nightlife operations platform connecting outlets, agencies, PR and guests in one tap." },
+      { title: "InnocenZ" },
+      {
+        name: "description",
+        content:
+          "InnocenZ is the nightlife operations platform connecting outlets, agencies, PR and guests in one tap.",
+      },
       { property: "og:title", content: "InnocenZ ??Connect. Engage. Entertain." },
-      { property: "og:description", content: "Outlet portal, host marketplace, payment vouchers and live ops ??all in one mobile app." },
+      {
+        property: "og:description",
+        content:
+          "Outlet portal, host marketplace, payment vouchers and live ops ??all in one mobile app.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

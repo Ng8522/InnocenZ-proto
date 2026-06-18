@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SigninRouteImport } from './routes/signin'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as OutletRouteImport } from './routes/outlet'
 import { Route as HostRouteImport } from './routes/host'
 import { Route as AgencyRouteImport } from './routes/agency'
@@ -49,6 +51,16 @@ import { Route as AgencyCommissionRulesRouteImport } from './routes/agency.commi
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
   path: '/signin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OutletRoute = OutletRouteImport.update({
@@ -232,6 +244,8 @@ export interface FileRoutesByFullPath {
   '/agency': typeof AgencyRouteWithChildren
   '/host': typeof HostRouteWithChildren
   '/outlet': typeof OutletRouteWithChildren
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
   '/agency/commission-rules': typeof AgencyCommissionRulesRoute
   '/agency/history': typeof AgencyHistoryRoute
@@ -267,6 +281,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
   '/agency/commission-rules': typeof AgencyCommissionRulesRoute
   '/agency/history': typeof AgencyHistoryRoute
@@ -306,6 +322,8 @@ export interface FileRoutesById {
   '/agency': typeof AgencyRouteWithChildren
   '/host': typeof HostRouteWithChildren
   '/outlet': typeof OutletRouteWithChildren
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
   '/agency/commission-rules': typeof AgencyCommissionRulesRoute
   '/agency/history': typeof AgencyHistoryRoute
@@ -346,6 +364,8 @@ export interface FileRouteTypes {
     | '/agency'
     | '/host'
     | '/outlet'
+    | '/register'
+    | '/reset-password'
     | '/signin'
     | '/agency/commission-rules'
     | '/agency/history'
@@ -381,6 +401,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/register'
+    | '/reset-password'
     | '/signin'
     | '/agency/commission-rules'
     | '/agency/history'
@@ -419,6 +441,8 @@ export interface FileRouteTypes {
     | '/agency'
     | '/host'
     | '/outlet'
+    | '/register'
+    | '/reset-password'
     | '/signin'
     | '/agency/commission-rules'
     | '/agency/history'
@@ -458,6 +482,8 @@ export interface RootRouteChildren {
   AgencyRoute: typeof AgencyRouteWithChildren
   HostRoute: typeof HostRouteWithChildren
   OutletRoute: typeof OutletRouteWithChildren
+  RegisterRoute: typeof RegisterRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SigninRoute: typeof SigninRoute
 }
 
@@ -468,6 +494,20 @@ declare module '@tanstack/react-router' {
       path: '/signin'
       fullPath: '/signin'
       preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/outlet': {
@@ -811,6 +851,8 @@ const rootRouteChildren: RootRouteChildren = {
   AgencyRoute: AgencyRouteWithChildren,
   HostRoute: HostRouteWithChildren,
   OutletRoute: OutletRouteWithChildren,
+  RegisterRoute: RegisterRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SigninRoute: SigninRoute,
 }
 export const routeTree = rootRouteImport

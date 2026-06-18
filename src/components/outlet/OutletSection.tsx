@@ -24,7 +24,7 @@ export function OutletSection({
   const header = (
     <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
       <div className="min-w-0">
-        <div className="font-sora text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--iz-muted)]">
+        <div className="iz-outlet-section-title font-sora text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--iz-muted)]">
           {title}
         </div>
         {hint && (!collapsible || !open) && (

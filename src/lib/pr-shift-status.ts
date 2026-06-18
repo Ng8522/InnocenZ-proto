@@ -2,6 +2,7 @@ import { getOutletRule } from "@/lib/agency-demo";
 import { shiftHoursFromLabel } from "@/lib/outlet-demo";
 import {
   calcReceiptCommissions,
+  RECEIPT_COMMISSION_RULES,
   type PrActiveShiftSession,
   type PrReceiptItem,
   type PrReceiptScan,
@@ -58,16 +59,17 @@ export type ShiftStatusRow = {
   id: string;
   label: string;
   detail: string;
-  drinks: string;
-  tips: string;
-  tables: string;
+  source: string;
   wagesRm: number;
   commissionRm: number;
   verified: boolean;
   verifyNote?: string;
 };
 
-export function receiptItemsForShift(session: PrActiveShiftSession | null | undefined, scans: PrReceiptScan[]) {
+export function receiptItemsForShift(
+  session: PrActiveShiftSession | null | undefined,
+  scans: PrReceiptScan[],
+) {
   if (!session) return [];
   return scans.filter(
     (r) =>
@@ -163,9 +165,7 @@ export function buildShiftStatusRows(
       id: "duty",
       label: "Duty time",
       detail: dutyDetail,
-      drinks: "—",
-      tips: "—",
-      tables: "—",
+      source: "Check-in",
       wagesRm: dutyWages,
       commissionRm: 0,
       verified: true,
@@ -174,16 +174,13 @@ export function buildShiftStatusRows(
   ];
 
   for (const scan of scans) {
-    const items = sumReceiptItems(scan.items);
     const verify = verifyReceiptScan(scan);
     rows.push({
       kind: "receipt",
       id: scan.id,
       label: scan.receiptRef || scan.id,
       detail: scan.scannedAt,
-      drinks: items.drinkUnits > 0 ? `${items.drinkUnits} u` : "—",
-      tips: items.tipRm > 0 ? `RM ${items.tipRm.toFixed(0)}` : "—",
-      tables: items.tableUnits > 0 ? `${items.tableUnits} u` : "—",
+      source: "Receipt scan",
       wagesRm: 0,
       commissionRm: scan.totalCommission,
       verified: verify.ok,
@@ -203,6 +200,27 @@ export function shiftPayoutTotal(baseWages: number, scans: PrReceiptScan[]) {
   return baseWages + sales.commissionTotal;
 }
 
-export function formatShiftSalesLine(targets: ShiftSalesTargets, actual: ReturnType<typeof aggregateShiftSales>) {
-  return `Drinks ${actual.drinkUnits}/${targets.drinkUnits} · Tips RM ${actual.tipRm}/${targets.tipRm} · Tables ${actual.tableUnits}/${targets.tableUnits}`;
+export function shiftSalesTargetRm(targets: ShiftSalesTargets = DEFAULT_SHIFT_SALES_TARGETS) {
+  return (
+    targets.drinkUnits * RECEIPT_COMMISSION_RULES.drinkPerUnit +
+    targets.tipRm * RECEIPT_COMMISSION_RULES.tipRate +
+    targets.tableUnits * RECEIPT_COMMISSION_RULES.tablePerUnit
+  );
+}
+
+export function shiftCommissionRemaining(
+  earned: number,
+  targets: ShiftSalesTargets = DEFAULT_SHIFT_SALES_TARGETS,
+) {
+  return Math.max(0, shiftSalesTargetRm(targets) - earned);
+}
+
+export function formatShiftSalesLine(
+  targets: ShiftSalesTargets,
+  actual: ReturnType<typeof aggregateShiftSales>,
+) {
+  const targetRm = shiftSalesTargetRm(targets);
+  const remaining = shiftCommissionRemaining(actual.commissionTotal, targets);
+  if (remaining <= 0) return `Target met · ${targetRm} commission`;
+  return `${remaining} left to reach ${targetRm} target`;
 }

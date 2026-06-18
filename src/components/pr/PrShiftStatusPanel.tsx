@@ -5,16 +5,24 @@ import { PrSection } from "@/components/pr/PrSection";
 import type { PrActiveShiftSession, PrReceiptScan } from "@/lib/pr-demo";
 import {
   DEFAULT_SHIFT_SALES_TARGETS,
-  aggregateShiftSales,
   buildShiftStatusRows,
-  formatShiftSalesLine,
   receiptItemsForShift,
   shiftCommissionTotal,
   shiftDurationLabel,
   shiftPayoutTotal,
+  shiftCommissionRemaining,
+  shiftSalesTargetRm,
 } from "@/lib/pr-shift-status";
 
-function VerifyBadge({ verified, kind, note }: { verified: boolean; kind: "duty" | "receipt"; note?: string }) {
+function VerifyBadge({
+  verified,
+  kind,
+  note,
+}: {
+  verified: boolean;
+  kind: "duty" | "receipt";
+  note?: string;
+}) {
   if (kind === "duty") {
     return (
       <span className="iz-pr-shift-verify iz-pr-shift-verify--sealed" title={note}>
@@ -48,7 +56,6 @@ export function PrShiftStatusPanel({
   checkedOut: boolean;
 }) {
   const shiftScans = useMemo(() => receiptItemsForShift(session, scans), [session, scans]);
-  const sales = useMemo(() => aggregateShiftSales(shiftScans), [shiftScans]);
   const rows = useMemo(
     () => (session ? buildShiftStatusRows(session, shiftScans, baseWages) : []),
     [session, shiftScans, baseWages],
@@ -56,6 +63,10 @@ export function PrShiftStatusPanel({
   const commissionTotal = shiftCommissionTotal(shiftScans);
   const payout = shiftPayoutTotal(baseWages, shiftScans);
   const targets = DEFAULT_SHIFT_SALES_TARGETS;
+  const targetRm = shiftSalesTargetRm(targets);
+  const remaining = shiftCommissionRemaining(commissionTotal, targets);
+  const targetMet = remaining <= 0;
+  const targetPct = Math.min(100, targetRm > 0 ? (commissionTotal / targetRm) * 100 : 0);
   const receiptRows = rows.filter((r) => r.kind === "receipt");
   const verifiedReceipts = receiptRows.filter((r) => r.verified).length;
   const pendingReceipts = receiptRows.length - verifiedReceipts;
@@ -88,49 +99,28 @@ export function PrShiftStatusPanel({
       </div>
 
       <div className="iz-pr-shift-status__targets">
-        <p className="iz-pr-shift-status__targets-label">Target sales (commission)</p>
-        <div className="iz-pr-shift-status__targets-grid">
-          <div>
-            <span className="k">Drinks</span>
-            <span className="v">
-              {sales.drinkUnits}
-              <span className="iz-muted"> / {targets.drinkUnits}</span>
-            </span>
-            <div className="iz-pr-shift-status__bar">
-              <div
-                className="iz-pr-shift-status__bar-fill drinks"
-                style={{ width: `${Math.min(100, (sales.drinkUnits / targets.drinkUnits) * 100)}%` }}
-              />
-            </div>
-          </div>
-          <div>
-            <span className="k">Tips</span>
-            <span className="v">
-              RM {sales.tipRm}
-              <span className="iz-muted"> / {targets.tipRm}</span>
-            </span>
-            <div className="iz-pr-shift-status__bar">
-              <div
-                className="iz-pr-shift-status__bar-fill tips"
-                style={{ width: `${Math.min(100, (sales.tipRm / targets.tipRm) * 100)}%` }}
-              />
-            </div>
-          </div>
-          <div>
-            <span className="k">Tables</span>
-            <span className="v">
-              {sales.tableUnits}
-              <span className="iz-muted"> / {targets.tableUnits}</span>
-            </span>
-            <div className="iz-pr-shift-status__bar">
-              <div
-                className="iz-pr-shift-status__bar-fill tables"
-                style={{ width: `${Math.min(100, (sales.tableUnits / targets.tableUnits) * 100)}%` }}
-              />
-            </div>
-          </div>
+        <p className="iz-pr-shift-status__targets-label">
+          {targetMet ? "Shift target" : "To target"}
+        </p>
+        <div className="iz-pr-shift-status__target-price">
+          {targetMet ? (
+            <>
+              <span className="v text-[var(--iz-green)]">Met</span>
+              <span className="t">{formatRM(targetRm)}</span>
+            </>
+          ) : (
+            <>
+              <span className="v">{formatRM(remaining)}</span>
+              <span className="t">left · target {formatRM(targetRm)}</span>
+            </>
+          )}
         </div>
-        <p className="iz-tiny iz-muted2 mt-2">{formatShiftSalesLine(targets, sales)}</p>
+        <div className="iz-pr-shift-status__bar iz-pr-shift-status__bar--single">
+          <div
+            className="iz-pr-shift-status__bar-fill commission"
+            style={{ width: `${targetPct}%` }}
+          />
+        </div>
       </div>
 
       <PrSection title="Status" hint={statusHint} collapsible defaultOpen className="!mt-3">
@@ -139,9 +129,7 @@ export function PrShiftStatusPanel({
             <thead>
               <tr>
                 <th>Item</th>
-                <th>Drinks</th>
-                <th>Tips</th>
-                <th>Tables</th>
+                <th>Source</th>
                 <th>Wages</th>
                 <th>Commission</th>
                 <th>Verify</th>
@@ -151,20 +139,24 @@ export function PrShiftStatusPanel({
               {rows.map((row) => (
                 <tr
                   key={row.id}
-                  className={row.kind === "receipt" && !row.verified ? "iz-pr-shift-status__row--warn" : undefined}
+                  className={
+                    row.kind === "receipt" && !row.verified
+                      ? "iz-pr-shift-status__row--warn"
+                      : undefined
+                  }
                 >
                   <td>
                     <div className="iz-pr-shift-status__item">
                       <span className="iz-pr-shift-status__item-label">{row.label}</span>
-                      <span className="iz-pr-shift-status__item-detail">{row.detail}</span>
+                      {row.detail && (
+                        <span className="iz-pr-shift-status__item-detail">{row.detail}</span>
+                      )}
                       {row.kind === "receipt" && row.verifyNote && !row.verified && (
                         <span className="iz-pr-shift-status__item-note">{row.verifyNote}</span>
                       )}
                     </div>
                   </td>
-                  <td>{row.drinks}</td>
-                  <td>{row.tips}</td>
-                  <td>{row.tables}</td>
+                  <td className="iz-pr-shift-status__source">{row.source}</td>
                   <td className="iz-pr-shift-status__money wages">
                     {row.wagesRm > 0 ? formatRM(row.wagesRm) : "—"}
                   </td>
@@ -179,7 +171,7 @@ export function PrShiftStatusPanel({
             </tbody>
             <tfoot>
               <tr className="iz-pr-shift-status__foot">
-                <td colSpan={4}>
+                <td colSpan={2}>
                   <span className="font-sora text-[10px] font-bold uppercase tracking-wide text-[var(--iz-muted)]">
                     Totals
                   </span>
@@ -187,7 +179,9 @@ export function PrShiftStatusPanel({
                     Payout {formatRM(payout)} · hourly wages + commission
                   </p>
                 </td>
-                <td className="iz-pr-shift-status__money wages font-sora font-bold">{formatRM(baseWages)}</td>
+                <td className="iz-pr-shift-status__money wages font-sora font-bold">
+                  {formatRM(baseWages)}
+                </td>
                 <td className="iz-pr-shift-status__money commission font-sora font-bold">
                   {formatRM(commissionTotal)}
                 </td>
@@ -199,8 +193,8 @@ export function PrShiftStatusPanel({
 
         {shiftScans.length === 0 && (
           <p className="iz-tiny iz-muted2 mt-2 text-center">
-            Duty time is sealed at the outlet hourly rate (wages column). Scan receipts to add rows — each receipt
-            is checked against drinks, tips & tables for commission.
+            Duty time is sealed at the outlet hourly rate (wages column). Scan receipts to add rows
+            — each receipt scan is verified for commission.
           </p>
         )}
         {receiptRows.length > 0 && (

@@ -110,7 +110,12 @@ const DEMO_COLLECTIONS: AgencyCollectionInvoice[] = [
     linkedPvIds: ["PV-2026-0611-A"],
     lines: [
       { label: "Daily wages", detail: "Velvet 23 · current cycle", amount: 720, group: "payroll" },
-      { label: "Commission – Drinks", detail: "Floor sales passthrough", amount: 1240, group: "commissions" },
+      {
+        label: "Commission – Drinks",
+        detail: "Floor sales passthrough",
+        amount: 1240,
+        group: "commissions",
+      },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 200, group: "fees" },
     ],
   },
@@ -205,7 +210,14 @@ function clonePaymentVoucher(pv: PrPaymentVoucher): PrPaymentVoucher {
 const DEMO_APPLICANTS: ShiftApplicant[] = [
   { id: "app-s2-p5", shiftId: "s2", prId: "p5", prName: "Nina", rating: 4.6, status: "pending" },
   { id: "app-s2-p6", shiftId: "s2", prId: "p6", prName: "Yuki", rating: 4.4, status: "pending" },
-  { id: "app-s2-p7", shiftId: "s2", prId: "p7", prName: "Chen Wei", rating: 4.2, status: "pending" },
+  {
+    id: "app-s2-p7",
+    shiftId: "s2",
+    prId: "p7",
+    prName: "Chen Wei",
+    rating: 4.2,
+    status: "pending",
+  },
 ];
 
 function buildDemoRoster(): AgencyRosterSlot[] {
@@ -281,10 +293,7 @@ function buildDemoReconciliation(shifts: ShiftRequest[], roster: AgencyRosterSlo
   });
 }
 
-import {
-  defaultPrShiftSessionForRole,
-  type PrShiftSessionState,
-} from "@/lib/pr-session";
+import { defaultPrShiftSessionForRole, type PrShiftSessionState } from "@/lib/pr-session";
 
 /** PR portal fields included in the full demo snapshot. */
 export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRoster()) {
@@ -316,7 +325,6 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     prDeclinedOfferIds: [] as string[],
     prMarketplaceApplication: null,
     prUpcomingShifts: [...SEED_UPCOMING_SHIFTS],
-    prSelfLogs: [],
     prSwapRequests: SEED_PR_SWAP_REQUESTS.map((s) => ({ ...s })),
     prAgencyTiedAt: DEMO_AGENCY_TIED_AT,
     prFreelancerPayrollLinks: [] as string[],

@@ -1,10 +1,7 @@
 /** Shared shift transaction log — agency & outlet read the same records */
 
 import { buildAllVelvetSeedShiftHistory } from "@/lib/velvet-week-demo";
-import {
-  mergeShiftHistory,
-  type ShiftHistoryRow,
-} from "@/lib/shift-history-utils";
+import { mergeShiftHistory, type ShiftHistoryRow } from "@/lib/shift-history-utils";
 
 export type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 export {

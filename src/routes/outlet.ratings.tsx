@@ -3,14 +3,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import type { PR } from "@/lib/store";
 import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
-import { OutletPrSelfLogs } from "@/components/outlet/OutletPrSelfLogs";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { PR_RATING_TAGS } from "@/lib/outlet-demo";
 import { outletCan } from "@/lib/outlet-rbac";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
 import { IzPill } from "@/components/iz/ui";
-import { workforceStatusLabel, workforceStatusVariant } from "@/components/portal/LiveWorkforceTable";
+import {
+  workforceStatusLabel,
+  workforceStatusVariant,
+} from "@/components/portal/LiveWorkforceTable";
 import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,8 +24,15 @@ type ViewMode = "live" | "planning";
 
 function FloorPage() {
   const outletSubRole = useStore((s) => s.outletSubRole);
-  const { prs, shifts, ratings, ratePr, agencyRoster, postSealRatePrompt, clearPostSealRatePrompt } =
-    useStore();
+  const {
+    prs,
+    shifts,
+    ratings,
+    ratePr,
+    agencyRoster,
+    postSealRatePrompt,
+    clearPostSealRatePrompt,
+  } = useStore();
   const canLogSales = outletCan(outletSubRole, "logSales");
   const [viewMode, setViewMode] = useState<ViewMode>("live");
   const [openPr, setOpenPr] = useState<string | null>(null);
@@ -58,10 +67,7 @@ function FloorPage() {
         .filter((p): p is PR => !!p);
     }
     const liveIds = rosterTonight
-      .filter(
-        (s) =>
-          s.status === "en-route" || (s.status === "on-duty" && !!s.checkedInAt),
-      )
+      .filter((s) => s.status === "en-route" || (s.status === "on-duty" && !!s.checkedInAt))
       .map((s) => s.prId);
     const ids = liveIds.length > 0 ? liveIds : (tonight?.prs ?? []);
     return ids
@@ -118,9 +124,14 @@ function FloorPage() {
       {postSealRatePrompt && (
         <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-[rgba(232,194,122,.3)] bg-[rgba(232,194,122,.06)] px-3 py-2">
           <p className="text-xs font-semibold">
-            Rate {postSealRatePrompt.prIds.length} PR{postSealRatePrompt.prIds.length !== 1 ? "s" : ""} {"\u00b7"} 24h
+            Rate {postSealRatePrompt.prIds.length} PR
+            {postSealRatePrompt.prIds.length !== 1 ? "s" : ""} {"\u00b7"} 24h
           </p>
-          <button type="button" className="iz-chip text-[10px]" onClick={() => clearPostSealRatePrompt()}>
+          <button
+            type="button"
+            className="iz-chip text-[10px]"
+            onClick={() => clearPostSealRatePrompt()}
+          >
             Dismiss
           </button>
         </div>
@@ -135,8 +146,6 @@ function FloorPage() {
           <OutletShiftSalesPanel shiftId={tonight.id} label="Log sales" collapsible />
         </div>
       )}
-
-      <OutletPrSelfLogs outletName={outletName} />
 
       <OutletSection
         title={viewMode === "live" ? "On duty" : "Planned"}
@@ -183,11 +192,18 @@ function FloorPage() {
                     </p>
                   </div>
                   {liveStatus && (
-                    <IzPill variant={workforceStatusVariant(liveStatus)} className="!py-0.5 !text-[9px] shrink-0">
+                    <IzPill
+                      variant={workforceStatusVariant(liveStatus)}
+                      className="!py-0.5 !text-[9px] shrink-0"
+                    >
                       {workforceStatusLabel(liveStatus)}
                     </IzPill>
                   )}
-                  <button type="button" onClick={() => setOpenPr(p.id)} className="iz-btn iz-btn-soft iz-btn-sm shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setOpenPr(p.id)}
+                    className="iz-btn iz-btn-soft iz-btn-sm shrink-0"
+                  >
                     Rate
                   </button>
                 </div>

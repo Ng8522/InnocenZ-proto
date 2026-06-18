@@ -1,5 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { AppTopbar } from "@/components/Nav";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
@@ -26,7 +34,17 @@ import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { payeeFromProfile } from "@/lib/pv-template";
 import { usePrPortalReady } from "@/lib/use-pr-sub-role";
-import { Calendar, ChevronDown, Clock, Download, Filter, Receipt, Search, Wallet, X } from "lucide-react";
+import {
+  Calendar,
+  ChevronDown,
+  Clock,
+  Download,
+  Filter,
+  Receipt,
+  Search,
+  Wallet,
+  X,
+} from "lucide-react";
 import { PrPaymentHistoryPanel } from "@/components/pr/PrPaymentHistoryPanel";
 import { buildPaymentHistoryRecords } from "@/lib/pr-payment-history";
 import { FreelancerPayrollNotice } from "@/components/iz/FreelancerPayrollNotice";
@@ -97,7 +115,10 @@ function keyFromDate(date: Date) {
 }
 
 function parseFilterNum(raw: string): number | null {
-  const t = raw.trim().replace(/,/g, "").replace(/^rm\s*/i, "");
+  const t = raw
+    .trim()
+    .replace(/,/g, "")
+    .replace(/^rm\s*/i, "");
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
@@ -140,7 +161,10 @@ function matchesFilters(row: HistRow, filters: HistFilters) {
 }
 
 function clock12To24(clock: string): string | null {
-  const m = clock.trim().replace(/\s*\(\+1\)\s*$/i, "").match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+  const m = clock
+    .trim()
+    .replace(/\s*\(\+1\)\s*$/i, "")
+    .match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
   if (!m) return null;
   let h = parseInt(m[1], 10);
   const min = m[2] ? parseInt(m[2], 10) : 0;
@@ -195,7 +219,11 @@ function activeFilterCount(filters: HistFilters) {
   return n;
 }
 
-function filterRowsByShiftPeriod(rows: HistRow[], period: HistFilters["period"], anchorKey: string) {
+function filterRowsByShiftPeriod(
+  rows: HistRow[],
+  period: HistFilters["period"],
+  anchorKey: string,
+) {
   if (period === "all") return rows;
   const days = parseInt(period, 10);
   const anchor = dateFromKey(anchorKey);
@@ -255,7 +283,9 @@ function inferNightShiftWindow(durationHours: number) {
     const period = hr >= 12 ? "PM" : "AM";
     const display = hr % 12 || 12;
     const mins = Math.round((h % 1) * 60);
-    return mins > 0 ? `${display}:${String(mins).padStart(2, "0")} ${period}` : `${display}:00 ${period}`;
+    return mins > 0
+      ? `${display}:${String(mins).padStart(2, "0")} ${period}`
+      : `${display}:00 ${period}`;
   };
   const crossesMidnight = endH >= 24;
   const endDisplay = fmt12(endH);
@@ -293,7 +323,20 @@ const EMPTY_RECEIPT_FILTERS: ReceiptFilters = {
 function formatShiftSessionLabel(id: string): string {
   const m = id.match(/^shift-(\d{4})-(\d{2})-(\d{2})-(.+)$/i);
   if (!m) return id;
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
   const mon = monthNames[parseInt(m[2], 10) - 1] ?? m[2];
   const venue = m[4]
     .split("-")
@@ -413,7 +456,8 @@ function receiptSearchBlob(scan: PrReceiptScan) {
 }
 
 function matchesReceiptFilters(scan: PrReceiptScan, filters: ReceiptFilters) {
-  if (filters.query.trim() && !receiptSearchBlob(scan).includes(filters.query.trim().toLowerCase())) return false;
+  if (filters.query.trim() && !receiptSearchBlob(scan).includes(filters.query.trim().toLowerCase()))
+    return false;
   if (filters.date && dateKey(scan.date) !== filters.date) return false;
   if (filters.date && (filters.timeFrom || filters.timeTo)) {
     const eventMs = parseScannedAtMs(scan.scannedAt);
@@ -467,7 +511,8 @@ function matchesPvFilters(
   filters: PvFilters,
   ctx: { pvById: Record<string, PrPaymentVoucher>; scansById: Record<string, PrReceiptScan> },
 ) {
-  if (filters.query.trim() && !pvSearchBlob(line).includes(filters.query.trim().toLowerCase())) return false;
+  if (filters.query.trim() && !pvSearchBlob(line).includes(filters.query.trim().toLowerCase()))
+    return false;
   if (filters.pvId && line.pvId !== filters.pvId) return false;
   const pv = ctx.pvById[line.pvId];
   if (filters.date) {
@@ -529,10 +574,7 @@ function HistoryPage() {
     [prReceiptScans, profile, prSubRole, myVouchers],
   );
 
-  const histRows = useMemo(
-    () => shiftHistoryToHistRows(shiftHistory, prId),
-    [shiftHistory, prId],
-  );
+  const histRows = useMemo(() => shiftHistoryToHistRows(shiftHistory, prId), [shiftHistory, prId]);
   const histDateOptions = useMemo(
     () =>
       [...new Map(histRows.map((r) => [dateKey(r.d), r.d])).entries()]
@@ -629,7 +671,8 @@ function HistoryPage() {
               return r.outlet === row.venue && rowKey === dateIso;
             })),
       );
-      const inferred = hist?.durationHours && !pv?.shiftTime ? inferNightShiftWindow(hist.durationHours) : null;
+      const inferred =
+        hist?.durationHours && !pv?.shiftTime ? inferNightShiftWindow(hist.durationHours) : null;
       return {
         durationHours: hist?.durationHours,
         shiftTime: pv?.shiftTime ?? inferred?.window ?? null,
@@ -717,12 +760,20 @@ function HistoryPage() {
       <PrPageHeader
         label="Earnings"
         title="History"
-        meta={isFreelancer ? "Shifts, receipts & payment history" : "Shifts, receipts & signed/paid weekly PVs"}
+        meta={
+          isFreelancer
+            ? "Shifts, receipts & payment history"
+            : "Shifts, receipts & signed/paid weekly PVs"
+        }
       />
 
-      {isFreelancer && <div className="mt-3"><FreelancerPayrollNotice compact /></div>}
+      {isFreelancer && (
+        <div className="mt-3">
+          <FreelancerPayrollNotice compact />
+        </div>
+      )}
 
-      <div className="iz-outlet-stat-strip mt-3">
+      <div className="iz-outlet-stat-strip iz-outlet-stat-strip--3 mt-3">
         <div className="iz-outlet-stat-cell">
           <div className="l">Lifetime</div>
           <div className="n text-[var(--iz-gold-l)]">{formatRM(lifetimeEarnings)}</div>
@@ -735,21 +786,29 @@ function HistoryPage() {
           <div className="l">Pending</div>
           <div className="n text-[var(--iz-amber)]">{formatRM(pendingPv)}</div>
         </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Shifts</div>
-          <div className="n">{histRows.length}</div>
-        </div>
       </div>
 
       <div className="iz-hist-tabs mt-4">
-        <button type="button" className={tab === "shifts" ? "active" : ""} onClick={() => setTab("shifts")}>
+        <button
+          type="button"
+          className={tab === "shifts" ? "active" : ""}
+          onClick={() => setTab("shifts")}
+        >
           Shifts
         </button>
-        <button type="button" className={tab === "receipts" ? "active" : ""} onClick={() => setTab("receipts")}>
+        <button
+          type="button"
+          className={tab === "receipts" ? "active" : ""}
+          onClick={() => setTab("receipts")}
+        >
           <Receipt className="mr-1 inline h-3.5 w-3.5" />
           Receipt scans
         </button>
-        <button type="button" className={tab === "payment" ? "active" : ""} onClick={() => setTab("payment")}>
+        <button
+          type="button"
+          className={tab === "payment" ? "active" : ""}
+          onClick={() => setTab("payment")}
+        >
           <Wallet className="mr-1 inline h-3.5 w-3.5" />
           Payment history
         </button>
@@ -757,234 +816,254 @@ function HistoryPage() {
 
       {tab === "shifts" && (
         <>
-      <IzCard flat className="iz-hist-shift-panel mt-4 !p-0">
-        <div className="iz-hist-shift-earn-strip">
-          <div className="iz-hist-shift-earn-cell primary">
-            <span className="l">Earned in range</span>
-            <span className="v">{formatRM(shiftPeriodEarnings)}</span>
-          </div>
-          <div className="iz-hist-shift-earn-cell">
-            <span className="l">Wages</span>
-            <span className="v">{formatRM(shiftPeriodWages)}</span>
-          </div>
-          <div className="iz-hist-shift-earn-cell">
-            <span className="l">Shifts</span>
-            <span className="v">{filteredRows.length}</span>
-          </div>
-        </div>
+          <IzCard flat className="iz-hist-shift-panel mt-4 !p-0">
+            <div className="iz-hist-shift-earn-strip">
+              <div className="iz-hist-shift-earn-cell primary">
+                <span className="l">Earned in range</span>
+                <span className="v">{formatRM(shiftPeriodEarnings)}</span>
+              </div>
+              <div className="iz-hist-shift-earn-cell">
+                <span className="l">Wages</span>
+                <span className="v">{formatRM(shiftPeriodWages)}</span>
+              </div>
+            </div>
 
-        <div className="iz-hist-shift-range">
-          <Calendar className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />
-          <span className="min-w-0 truncate">{shiftEarningsLabel}</span>
-        </div>
+            <div className="iz-hist-shift-range">
+              <Calendar className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />
+              <span className="min-w-0 truncate">{shiftEarningsLabel}</span>
+            </div>
 
-        <div className="iz-hist-shift-filters-body">
-        <div className="iz-between mb-2">
-          <div className="iz-sect-label !m-0">Shift history</div>
-          <button
-            type="button"
-            className="iz-btn iz-btn-soft iz-btn-sm relative"
-            onClick={openFilters}
-          >
-            <Filter className="h-3.5 w-3.5" />
-            More
-            {filterCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--iz-gold)] px-1 text-[10px] font-bold text-[#1f1208]">
-                {filterCount}
-              </span>
-            )}
-          </button>
-        </div>
+            <div className="iz-hist-shift-filters-body">
+              <div className="iz-between mb-2">
+                <div className="iz-sect-label !m-0">Shift history</div>
+                <button
+                  type="button"
+                  className="iz-btn iz-btn-soft iz-btn-sm relative"
+                  onClick={openFilters}
+                >
+                  <Filter className="h-3.5 w-3.5" />
+                  More
+                  {filterCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--iz-gold)] px-1 text-[10px] font-bold text-[#1f1208]">
+                      {filterCount}
+                    </span>
+                  )}
+                </button>
+              </div>
 
-        <div className="iz-hist-search mb-2.5">
-          <Search className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />
-          <input
-            type="search"
-            placeholder="Search wages, sales, tables, drinks?"
-            value={filters.query}
-            onChange={(e) => setFilters((prev) => ({ ...prev, query: e.target.value }))}
-            aria-label="Search shift history"
-          />
-          {filters.query && (
-            <button
-              type="button"
-              className="iz-hist-clear"
-              aria-label="Clear search"
-              onClick={() => setFilters((prev) => ({ ...prev, query: "" }))}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+              <div className="iz-hist-search mb-2.5">
+                <Search className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />
+                <input
+                  type="search"
+                  placeholder="Search wages, sales, tables, drinks?"
+                  value={filters.query}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, query: e.target.value }))}
+                  aria-label="Search shift history"
+                />
+                {filters.query && (
+                  <button
+                    type="button"
+                    className="iz-hist-clear"
+                    aria-label="Clear search"
+                    onClick={() => setFilters((prev) => ({ ...prev, query: "" }))}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {histOutletOptions.length > 1 ? (
+                <div className="iz-grid2 mb-2.5">
+                  <div className="min-w-0">
+                    <PvDateTimeFilter
+                      compact
+                      date={filters.date}
+                      timeFrom={filters.timeFrom}
+                      timeTo={filters.timeTo}
+                      onDateChange={(date) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          date,
+                          ...(!date ? { timeFrom: "", timeTo: "" } : {}),
+                        }))
+                      }
+                      onTimeFromChange={(timeFrom) => setFilters((prev) => ({ ...prev, timeFrom }))}
+                      onTimeToChange={(timeTo) => setFilters((prev) => ({ ...prev, timeTo }))}
+                      dateOptions={histDateOptions}
+                      defaultMonth={histDefaultMonth}
+                      timeHint="Filter by shift check-in time on the selected date."
+                    />
+                  </div>
+                  <OutletPickerField
+                    value={filters.venue}
+                    onChange={(venue) => setFilters((prev) => ({ ...prev, venue }))}
+                    compact
+                    outlets={histOutletOptions}
+                  />
+                </div>
+              ) : (
+                <div className="mb-2.5">
+                  <PvDateTimeFilter
+                    compact
+                    date={filters.date}
+                    timeFrom={filters.timeFrom}
+                    timeTo={filters.timeTo}
+                    onDateChange={(date) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        date,
+                        ...(!date ? { timeFrom: "", timeTo: "" } : {}),
+                      }))
+                    }
+                    onTimeFromChange={(timeFrom) => setFilters((prev) => ({ ...prev, timeFrom }))}
+                    onTimeToChange={(timeTo) => setFilters((prev) => ({ ...prev, timeTo }))}
+                    dateOptions={histDateOptions}
+                    defaultMonth={histDefaultMonth}
+                    timeHint="Filter by shift check-in time on the selected date."
+                  />
+                </div>
+              )}
+
+              <div>
+                <div className="iz-tiny iz-muted mb-1.5 font-semibold uppercase tracking-wide">
+                  Earn in period
+                </div>
+                <div className="iz-hist-period-row">
+                  {SHIFT_PERIOD_OPTIONS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`iz-hist-period-chip${filters.period === p.id ? " active" : ""}`}
+                      onClick={() => setFilters((prev) => ({ ...prev, period: p.id }))}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {filterCount > 0 && (
+                <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-[var(--iz-line)] pt-2.5">
+                  <FilterChips
+                    filters={filters}
+                    dateOptions={histDateOptions}
+                    onRemove={(key) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        [key]: key === "period" ? "all" : "",
+                        ...(key === "date" ? { timeFrom: "", timeTo: "" } : {}),
+                      }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="iz-tiny font-semibold text-[var(--iz-gold-l)]"
+                    onClick={clearFilters}
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
+            </div>
+          </IzCard>
+
+          {filteredRows.length === 0 ? (
+            <IzCard flat className="mt-3 py-8 text-center">
+              <p className="iz-sm iz-muted">No shifts match your filters.</p>
+              <button
+                type="button"
+                className="iz-btn iz-btn-soft iz-btn-sm mx-auto mt-3 w-auto"
+                onClick={clearFilters}
+              >
+                Reset filters
+              </button>
+            </IzCard>
+          ) : (
+            <div className="iz-hist-shift-list mt-3 space-y-2.5">
+              {filteredRows.map((row) => (
+                <HistShiftCard
+                  key={`${row.d.join("-")}-${row.venue}`}
+                  row={row}
+                  shiftMeta={shiftMetaForHistRow(row)}
+                />
+              ))}
+            </div>
           )}
-        </div>
 
-        {histOutletOptions.length > 1 ? (
-          <div className="iz-grid2 mb-2.5">
-            <div className="min-w-0">
+          <IzSheet open={filterOpen} onClose={() => setFilterOpen(false)}>
+            <div className="iz-cardttl">Filter shift history</div>
+            <p className="iz-tiny iz-muted mb-3">
+              Narrow by date, venue, or numeric fields. All filters combine (AND).
+            </p>
+
+            <div className="space-y-3">
               <PvDateTimeFilter
-                compact
-                date={filters.date}
-                timeFrom={filters.timeFrom}
-                timeTo={filters.timeTo}
+                date={draft.date}
+                timeFrom={draft.timeFrom}
+                timeTo={draft.timeTo}
                 onDateChange={(date) =>
-                  setFilters((prev) => ({ ...prev, date, ...(!date ? { timeFrom: "", timeTo: "" } : {}) }))
+                  setDraft((prev) => ({
+                    ...prev,
+                    date,
+                    ...(!date ? { timeFrom: "", timeTo: "" } : {}),
+                  }))
                 }
-                onTimeFromChange={(timeFrom) => setFilters((prev) => ({ ...prev, timeFrom }))}
-                onTimeToChange={(timeTo) => setFilters((prev) => ({ ...prev, timeTo }))}
+                onTimeFromChange={(timeFrom) => setDraft((prev) => ({ ...prev, timeFrom }))}
+                onTimeToChange={(timeTo) => setDraft((prev) => ({ ...prev, timeTo }))}
                 dateOptions={histDateOptions}
                 defaultMonth={histDefaultMonth}
                 timeHint="Filter by shift check-in time on the selected date."
               />
+              <OutletPickerField
+                value={draft.venue}
+                onChange={(venue) => setDraft((prev) => ({ ...prev, venue }))}
+                outlets={histOutletOptions}
+              />
+              <div className="iz-grid2">
+                <FilterNumberInput
+                  label="Daily wages"
+                  placeholder="e.g. 400"
+                  value={draft.wages}
+                  onChange={(v) => setDraft((prev) => ({ ...prev, wages: v }))}
+                />
+                <FilterNumberInput
+                  label="Total sales"
+                  placeholder="e.g. 710"
+                  value={draft.sales}
+                  onChange={(v) => setDraft((prev) => ({ ...prev, sales: v }))}
+                />
+              </div>
+              <div className="iz-grid2">
+                <FilterNumberInput
+                  label="Tables (RM)"
+                  placeholder="e.g. 180"
+                  value={draft.tables}
+                  onChange={(v) => setDraft((prev) => ({ ...prev, tables: v }))}
+                />
+                <FilterNumberInput
+                  label="Drinks"
+                  placeholder="e.g. 32"
+                  value={draft.drinks}
+                  onChange={(v) => setDraft((prev) => ({ ...prev, drinks: v }))}
+                />
+              </div>
             </div>
-            <OutletPickerField
-              value={filters.venue}
-              onChange={(venue) => setFilters((prev) => ({ ...prev, venue }))}
-              compact
-              outlets={histOutletOptions}
-            />
-          </div>
-        ) : (
-          <div className="mb-2.5">
-            <PvDateTimeFilter
-              compact
-              date={filters.date}
-              timeFrom={filters.timeFrom}
-              timeTo={filters.timeTo}
-              onDateChange={(date) =>
-                setFilters((prev) => ({ ...prev, date, ...(!date ? { timeFrom: "", timeTo: "" } : {}) }))
-              }
-              onTimeFromChange={(timeFrom) => setFilters((prev) => ({ ...prev, timeFrom }))}
-              onTimeToChange={(timeTo) => setFilters((prev) => ({ ...prev, timeTo }))}
-              dateOptions={histDateOptions}
-              defaultMonth={histDefaultMonth}
-              timeHint="Filter by shift check-in time on the selected date."
-            />
-          </div>
-        )}
 
-        <div>
-          <div className="iz-tiny iz-muted mb-1.5 font-semibold uppercase tracking-wide">Earn in period</div>
-          <div className="iz-hist-period-row">
-            {SHIFT_PERIOD_OPTIONS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className={`iz-hist-period-chip${filters.period === p.id ? " active" : ""}`}
-                onClick={() => setFilters((prev) => ({ ...prev, period: p.id }))}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {filterCount > 0 && (
-          <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-[var(--iz-line)] pt-2.5">
-            <FilterChips
-              filters={filters}
-              dateOptions={histDateOptions}
-              onRemove={(key) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  [key]: key === "period" ? "all" : "",
-                  ...(key === "date" ? { timeFrom: "", timeTo: "" } : {}),
-                }))
-              }
-            />
-            <button type="button" className="iz-tiny font-semibold text-[var(--iz-gold-l)]" onClick={clearFilters}>
-              Clear all
+            <button type="button" className="iz-btn iz-btn-primary mt-4" onClick={applyFilters}>
+              Apply filters
             </button>
-          </div>
-        )}
-        </div>
-      </IzCard>
-
-      {filteredRows.length === 0 ? (
-        <IzCard flat className="mt-3 py-8 text-center">
-          <p className="iz-sm iz-muted">No shifts match your filters.</p>
-          <button type="button" className="iz-btn iz-btn-soft iz-btn-sm mx-auto mt-3 w-auto" onClick={clearFilters}>
-            Reset filters
-          </button>
-        </IzCard>
-      ) : (
-        <div className="iz-hist-shift-list mt-3 space-y-2.5">
-          {filteredRows.map((row) => (
-            <HistShiftCard
-              key={`${row.d.join("-")}-${row.venue}`}
-              row={row}
-              shiftMeta={shiftMetaForHistRow(row)}
-            />
-          ))}
-        </div>
-      )}
-
-      <IzSheet open={filterOpen} onClose={() => setFilterOpen(false)}>
-        <div className="iz-cardttl">Filter shift history</div>
-        <p className="iz-tiny iz-muted mb-3">Narrow by date, venue, or numeric fields. All filters combine (AND).</p>
-
-        <div className="space-y-3">
-          <PvDateTimeFilter
-            date={draft.date}
-            timeFrom={draft.timeFrom}
-            timeTo={draft.timeTo}
-            onDateChange={(date) =>
-              setDraft((prev) => ({ ...prev, date, ...(!date ? { timeFrom: "", timeTo: "" } : {}) }))
-            }
-            onTimeFromChange={(timeFrom) => setDraft((prev) => ({ ...prev, timeFrom }))}
-            onTimeToChange={(timeTo) => setDraft((prev) => ({ ...prev, timeTo }))}
-            dateOptions={histDateOptions}
-            defaultMonth={histDefaultMonth}
-            timeHint="Filter by shift check-in time on the selected date."
-          />
-          <OutletPickerField
-            value={draft.venue}
-            onChange={(venue) => setDraft((prev) => ({ ...prev, venue }))}
-            outlets={histOutletOptions}
-          />
-          <div className="iz-grid2">
-            <FilterNumberInput
-              label="Daily wages"
-              placeholder="e.g. 400"
-              value={draft.wages}
-              onChange={(v) => setDraft((prev) => ({ ...prev, wages: v }))}
-            />
-            <FilterNumberInput
-              label="Total sales"
-              placeholder="e.g. 710"
-              value={draft.sales}
-              onChange={(v) => setDraft((prev) => ({ ...prev, sales: v }))}
-            />
-          </div>
-          <div className="iz-grid2">
-            <FilterNumberInput
-              label="Tables (RM)"
-              placeholder="e.g. 180"
-              value={draft.tables}
-              onChange={(v) => setDraft((prev) => ({ ...prev, tables: v }))}
-            />
-            <FilterNumberInput
-              label="Drinks"
-              placeholder="e.g. 32"
-              value={draft.drinks}
-              onChange={(v) => setDraft((prev) => ({ ...prev, drinks: v }))}
-            />
-          </div>
-        </div>
-
-        <button type="button" className="iz-btn iz-btn-primary mt-4" onClick={applyFilters}>
-          Apply filters
-        </button>
-        <button
-          type="button"
-          className="iz-btn iz-btn-soft mt-2.5"
-          onClick={() => {
-            setDraft(EMPTY_FILTERS);
-            setFilters(EMPTY_FILTERS);
-            setFilterOpen(false);
-          }}
-        >
-          Clear & close
-        </button>
-      </IzSheet>
+            <button
+              type="button"
+              className="iz-btn iz-btn-soft mt-2.5"
+              onClick={() => {
+                setDraft(EMPTY_FILTERS);
+                setFilters(EMPTY_FILTERS);
+                setFilterOpen(false);
+              }}
+            >
+              Clear & close
+            </button>
+          </IzSheet>
         </>
       )}
 
@@ -1044,7 +1123,10 @@ function DatePickerField({
   const selectedLabel = dateOptions.find((o) => o.key === value)?.label;
   const selected = dateFromKey(value);
   const allowedKeys = new Set(dateOptions.map((o) => o.key));
-  const navBounds = useMemo(() => calendarNavBounds(dateOptions, defaultMonth), [dateOptions, defaultMonth]);
+  const navBounds = useMemo(
+    () => calendarNavBounds(dateOptions, defaultMonth),
+    [dateOptions, defaultMonth],
+  );
   const [viewMonth, setViewMonth] = useState(selected ?? defaultMonth);
 
   useEffect(() => {
@@ -1063,7 +1145,7 @@ function DatePickerField({
       >
         <Calendar className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />
         <span className={`iz-hist-picker-label${value ? "" : " iz-muted2"}`}>
-          {value ? selectedLabel ?? value : compact ? "Any date" : "Tap to choose a date"}
+          {value ? (selectedLabel ?? value) : compact ? "Any date" : "Tap to choose a date"}
         </span>
         {value ? (
           <span
@@ -1088,7 +1170,9 @@ function DatePickerField({
             <X className="h-3.5 w-3.5" />
           </span>
         ) : (
-          <ChevronDown className={`h-4 w-4 shrink-0 text-[var(--iz-muted2)] transition-transform${open ? " rotate-180" : ""}`} />
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-[var(--iz-muted2)] transition-transform${open ? " rotate-180" : ""}`}
+          />
         )}
       </button>
       {open && (
@@ -1143,7 +1227,8 @@ function OutletPickerField({
       <IzSheet open={open} onClose={() => setOpen(false)}>
         <div className="iz-cardttl">Choose outlet</div>
         <p className="iz-tiny iz-muted mb-3">
-          {outlets.length} outlet{outlets.length === 1 ? "" : "s"} in your shift history · {totalShifts} shifts total
+          {outlets.length} outlet{outlets.length === 1 ? "" : "s"} in your shift history ·{" "}
+          {totalShifts} shifts total
         </p>
         <div className="iz-hist-outlet-sheet-list">
           <button
@@ -1270,7 +1355,14 @@ function HistShiftCard({
   };
 }) {
   const [y, m, d] = row.d;
-  const pillVariant = row.pill === "green" ? "green" : row.pill === "red" ? "red" : row.pill === "amber" ? "amber" : "ink";
+  const pillVariant =
+    row.pill === "green"
+      ? "green"
+      : row.pill === "red"
+        ? "red"
+        : row.pill === "amber"
+          ? "amber"
+          : "ink";
   const hasClock = shiftMeta?.clockIn || shiftMeta?.shiftTime;
 
   return (
@@ -1372,7 +1464,9 @@ function GenericSelectField({
         aria-haspopup="listbox"
       >
         <span className={value ? "" : "iz-muted2"}>{current}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-[var(--iz-muted2)] transition-transform${open ? " rotate-180" : ""}`} />
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-[var(--iz-muted2)] transition-transform${open ? " rotate-180" : ""}`}
+        />
       </button>
       {open && (
         <ul className="iz-hist-select-menu" role="listbox">
@@ -1430,7 +1524,8 @@ function ReceiptScansSection({
   onClear: () => void;
 }) {
   const receiptDefaultMonth =
-    dateFromKey(receiptDateOptions[receiptDateOptions.length - 1]?.key ?? "") ?? new Date(2026, 5, 1);
+    dateFromKey(receiptDateOptions[receiptDateOptions.length - 1]?.key ?? "") ??
+    new Date(2026, 5, 1);
 
   return (
     <>
@@ -1455,7 +1550,8 @@ function ReceiptScansSection({
       </div>
 
       <p className="iz-tiny iz-muted mx-0.5 mb-2">
-        Each receipt belongs to one shift PV (Time-In → scans → Time-Out). Many receipts can roll into a single PV.
+        Each receipt belongs to one shift PV (Time-In → scans → Time-Out). Many receipts can roll
+        into a single PV.
       </p>
 
       <div className="iz-hist-search mb-2.5">
@@ -1468,7 +1564,12 @@ function ReceiptScansSection({
           aria-label="Search receipt scans"
         />
         {filters.query && (
-          <button type="button" className="iz-hist-clear" aria-label="Clear search" onClick={() => setFilters((p) => ({ ...p, query: "" }))}>
+          <button
+            type="button"
+            className="iz-hist-clear"
+            aria-label="Clear search"
+            onClick={() => setFilters((p) => ({ ...p, query: "" }))}
+          >
             <X className="h-3.5 w-3.5" />
           </button>
         )}
@@ -1480,14 +1581,20 @@ function ReceiptScansSection({
           compact
           value={filters.outlet}
           onChange={(outlet) => setFilters((p) => ({ ...p, outlet }))}
-          options={[{ value: "", label: "Any outlet" }, ...receiptOutlets.map((v) => ({ value: v, label: v }))]}
+          options={[
+            { value: "", label: "Any outlet" },
+            ...receiptOutlets.map((v) => ({ value: v, label: v })),
+          ]}
         />
         <GenericSelectField
           label="Shift"
           compact
           value={filters.shiftSessionId}
           onChange={(shiftSessionId) => setFilters((p) => ({ ...p, shiftSessionId }))}
-          options={[{ value: "", label: "Any shift" }, ...receiptShiftOptions.map((o) => ({ value: o.value, label: o.label }))]}
+          options={[
+            { value: "", label: "Any shift" },
+            ...receiptShiftOptions.map((o) => ({ value: o.value, label: o.label })),
+          ]}
         />
       </div>
 
@@ -1521,13 +1628,21 @@ function ReceiptScansSection({
             </button>
           )}
           {filters.date && filters.timeFrom && (
-            <button type="button" className="iz-hist-chip" onClick={() => setFilters((p) => ({ ...p, timeFrom: "" }))}>
+            <button
+              type="button"
+              className="iz-hist-chip"
+              onClick={() => setFilters((p) => ({ ...p, timeFrom: "" }))}
+            >
               From {filters.timeFrom}
               <X className="h-3 w-3" />
             </button>
           )}
           {filters.date && filters.timeTo && (
-            <button type="button" className="iz-hist-chip" onClick={() => setFilters((p) => ({ ...p, timeTo: "" }))}>
+            <button
+              type="button"
+              className="iz-hist-chip"
+              onClick={() => setFilters((p) => ({ ...p, timeTo: "" }))}
+            >
               To {filters.timeTo}
               <X className="h-3 w-3" />
             </button>
@@ -1538,11 +1653,17 @@ function ReceiptScansSection({
               className="iz-hist-chip"
               onClick={() => setFilters((p) => ({ ...p, shiftSessionId: "" }))}
             >
-              Shift: {receiptShiftOptions.find((o) => o.value === filters.shiftSessionId)?.label ?? filters.shiftSessionId}
+              Shift:{" "}
+              {receiptShiftOptions.find((o) => o.value === filters.shiftSessionId)?.label ??
+                filters.shiftSessionId}
               <X className="h-3 w-3" />
             </button>
           )}
-          <button type="button" className="iz-tiny font-semibold text-[var(--iz-gold-l)]" onClick={onClear}>
+          <button
+            type="button"
+            className="iz-tiny font-semibold text-[var(--iz-gold-l)]"
+            onClick={onClear}
+          >
             Clear all filters
           </button>
         </div>
@@ -1622,7 +1743,9 @@ function ReceiptScansSection({
                       {formatRM(scan.totalCommission)}
                     </td>
                     <td>
-                      <IzPill variant={receiptStatusPill(scan.status)}>{receiptStatusLabel(scan.status)}</IzPill>
+                      <IzPill variant={receiptStatusPill(scan.status)}>
+                        {receiptStatusLabel(scan.status)}
+                      </IzPill>
                     </td>
                   </tr>
                 );
@@ -1644,7 +1767,11 @@ function ReceiptScansSection({
             timeFrom={receiptDraft.timeFrom}
             timeTo={receiptDraft.timeTo}
             onDateChange={(date) =>
-              setReceiptDraft((p) => ({ ...p, date, ...(!date ? { timeFrom: "", timeTo: "" } : {}) }))
+              setReceiptDraft((p) => ({
+                ...p,
+                date,
+                ...(!date ? { timeFrom: "", timeTo: "" } : {}),
+              }))
             }
             onTimeFromChange={(timeFrom) => setReceiptDraft((p) => ({ ...p, timeFrom }))}
             onTimeToChange={(timeTo) => setReceiptDraft((p) => ({ ...p, timeTo }))}
@@ -1656,18 +1783,26 @@ function ReceiptScansSection({
             label="Shift"
             value={receiptDraft.shiftSessionId}
             onChange={(shiftSessionId) => setReceiptDraft((p) => ({ ...p, shiftSessionId }))}
-            options={[{ value: "", label: "Any shift" }, ...receiptShiftOptions.map((o) => ({ value: o.value, label: o.label }))]}
+            options={[
+              { value: "", label: "Any shift" },
+              ...receiptShiftOptions.map((o) => ({ value: o.value, label: o.label })),
+            ]}
           />
           <GenericSelectField
             label="Outlet"
             value={receiptDraft.outlet}
             onChange={(outlet) => setReceiptDraft((p) => ({ ...p, outlet }))}
-            options={[{ value: "", label: "Any outlet" }, ...receiptOutlets.map((v) => ({ value: v, label: v }))]}
+            options={[
+              { value: "", label: "Any outlet" },
+              ...receiptOutlets.map((v) => ({ value: v, label: v })),
+            ]}
           />
           <GenericSelectField
             label="Item category"
             value={receiptDraft.category}
-            onChange={(category) => setReceiptDraft((p) => ({ ...p, category: category as ReceiptItemCategory | "" }))}
+            onChange={(category) =>
+              setReceiptDraft((p) => ({ ...p, category: category as ReceiptItemCategory | "" }))
+            }
             options={[
               { value: "", label: "Any category" },
               { value: "drinks", label: "Drinks" },
@@ -1678,7 +1813,9 @@ function ReceiptScansSection({
           <GenericSelectField
             label="PV status"
             value={receiptDraft.status}
-            onChange={(status) => setReceiptDraft((p) => ({ ...p, status: status as ReceiptScanStatus | "" }))}
+            onChange={(status) =>
+              setReceiptDraft((p) => ({ ...p, status: status as ReceiptScanStatus | "" }))
+            }
             options={[
               { value: "", label: "Any status" },
               { value: "pending", label: "Pending (not in PV)" },
@@ -1703,7 +1840,14 @@ function ReceiptScansSection({
         >
           Apply filters
         </button>
-        <button type="button" className="iz-btn iz-btn-soft mt-2.5" onClick={() => { onClear(); setReceiptFilterOpen(false); }}>
+        <button
+          type="button"
+          className="iz-btn iz-btn-soft mt-2.5"
+          onClick={() => {
+            onClear();
+            setReceiptFilterOpen(false);
+          }}
+        >
           Clear & close
         </button>
       </IzSheet>
@@ -1776,16 +1920,22 @@ function PvDateTimeFilter({
         </div>
       </div>
       {!date && (timeFrom || timeTo) ? (
-        <p className="iz-tiny iz-muted2">Pick a date first to narrow by time within that shift day.</p>
+        <p className="iz-tiny iz-muted2">
+          Pick a date first to narrow by time within that shift day.
+        </p>
       ) : !date ? (
-        <p className="iz-tiny iz-muted2">Select a date above — then tap From/To time to open the clock.</p>
+        <p className="iz-tiny iz-muted2">
+          Select a date above — then tap From/To time to open the clock.
+        </p>
       ) : date && (timeFrom || timeTo) ? (
         <p className="iz-tiny iz-muted2">
           {timeHint ??
             `Lines matched by receipt scan time or shift Time-In on ${dateOptions.find((o) => o.key === date)?.label ?? date}.`}
         </p>
       ) : date ? (
-        <p className="iz-tiny iz-muted2">Tap <b>From time</b> or <b>To time</b> to open the clock picker.</p>
+        <p className="iz-tiny iz-muted2">
+          Tap <b>From time</b> or <b>To time</b> to open the clock picker.
+        </p>
       ) : null}
     </div>
   );
@@ -1873,7 +2023,12 @@ function PvBreakdownSection({
           aria-label="Search PV lines"
         />
         {filters.query && (
-          <button type="button" className="iz-hist-clear" aria-label="Clear search" onClick={() => setFilters((p) => ({ ...p, query: "" }))}>
+          <button
+            type="button"
+            className="iz-hist-clear"
+            aria-label="Clear search"
+            onClick={() => setFilters((p) => ({ ...p, query: "" }))}
+          >
             <X className="h-3.5 w-3.5" />
           </button>
         )}
@@ -1885,14 +2040,20 @@ function PvBreakdownSection({
           compact
           value={filters.pvId}
           onChange={(pvId) => setFilters((p) => ({ ...p, pvId }))}
-          options={[{ value: "", label: "Any PV" }, ...pvIds.map((id) => ({ value: id, label: id }))]}
+          options={[
+            { value: "", label: "Any PV" },
+            ...pvIds.map((id) => ({ value: id, label: id })),
+          ]}
         />
         <GenericSelectField
           label="Outlet"
           compact
           value={filters.outlet}
           onChange={(outlet) => setFilters((p) => ({ ...p, outlet }))}
-          options={[{ value: "", label: "Any outlet" }, ...pvOutlets.map((v) => ({ value: v, label: v }))]}
+          options={[
+            { value: "", label: "Any outlet" },
+            ...pvOutlets.map((v) => ({ value: v, label: v })),
+          ]}
         />
       </div>
 
@@ -1902,7 +2063,9 @@ function PvBreakdownSection({
           date={filters.date}
           timeFrom={filters.timeFrom}
           timeTo={filters.timeTo}
-          onDateChange={(date) => setFilters((p) => ({ ...p, date, ...(!date ? { timeFrom: "", timeTo: "" } : {}) }))}
+          onDateChange={(date) =>
+            setFilters((p) => ({ ...p, date, ...(!date ? { timeFrom: "", timeTo: "" } : {}) }))
+          }
           onTimeFromChange={(timeFrom) => setFilters((p) => ({ ...p, timeFrom }))}
           onTimeToChange={(timeTo) => setFilters((p) => ({ ...p, timeTo }))}
           dateOptions={pvDateOptions}
@@ -1942,7 +2105,11 @@ function PvBreakdownSection({
               <X className="h-3 w-3" />
             </button>
           )}
-          <button type="button" className="iz-tiny font-semibold text-[var(--iz-gold-l)]" onClick={onClear}>
+          <button
+            type="button"
+            className="iz-tiny font-semibold text-[var(--iz-gold-l)]"
+            onClick={onClear}
+          >
             Clear all filters
           </button>
         </div>
@@ -1950,7 +2117,8 @@ function PvBreakdownSection({
 
       {!downloadPv && lines.length > 0 && (
         <p className="iz-tiny iz-muted mx-0.5 mb-2">
-          Pick a PV in the dropdown above, or tap <b className="text-[var(--iz-gold-l)]">PDF</b> on any row.
+          Pick a PV in the dropdown above, or tap <b className="text-[var(--iz-gold-l)]">PDF</b> on
+          any row.
         </p>
       )}
 
@@ -1987,7 +2155,10 @@ function PvBreakdownSection({
             </thead>
             <tbody>
               {lines.map((line) => (
-                <tr key={line.key} className={highlightPvId === line.pvId ? "bg-[rgba(232,194,122,.08)]" : undefined}>
+                <tr
+                  key={line.key}
+                  className={highlightPvId === line.pvId ? "bg-[rgba(232,194,122,.08)]" : undefined}
+                >
                   <td>
                     <div className="font-semibold">{line.pvId}</div>
                     <div className="iz-tiny iz-muted2">{line.cycle}</div>
@@ -1996,7 +2167,11 @@ function PvBreakdownSection({
                   <td>{line.outlet}</td>
                   <td>{line.desc}</td>
                   <td>
-                    <IzPill variant={line.ref === "Disputed" ? "red" : line.ref === "Tap log" ? "amber" : "ink"}>
+                    <IzPill
+                      variant={
+                        line.ref === "Disputed" ? "red" : line.ref === "Tap log" ? "amber" : "ink"
+                      }
+                    >
                       {line.ref}
                     </IzPill>
                   </td>
@@ -2008,7 +2183,12 @@ function PvBreakdownSection({
                     ) : (
                       line.receiptIds.map((rid) => {
                         const scan = scanById[rid];
-                        if (!scan) return <div key={rid} className="iz-tiny">{rid}</div>;
+                        if (!scan)
+                          return (
+                            <div key={rid} className="iz-tiny">
+                              {rid}
+                            </div>
+                          );
                         return (
                           <div key={rid} className="iz-tiny mb-1">
                             <b>{rid}</b> · {formatRM(scan.totalCommission)} comm.
@@ -2020,7 +2200,13 @@ function PvBreakdownSection({
                   <td>
                     <IzPill
                       variant={
-                        line.pvStatus === "PAID" ? "green" : line.pvStatus === "DISPUTED" ? "red" : line.pvStatus === "SENT" ? "amber" : "green"
+                        line.pvStatus === "PAID"
+                          ? "green"
+                          : line.pvStatus === "DISPUTED"
+                            ? "red"
+                            : line.pvStatus === "SENT"
+                              ? "amber"
+                              : "green"
                       }
                     >
                       {line.pvStatus}
@@ -2056,7 +2242,10 @@ function PvBreakdownSection({
             label="PV"
             value={pvDraft.pvId}
             onChange={(pvId) => setPvDraft((p) => ({ ...p, pvId }))}
-            options={[{ value: "", label: "Any PV" }, ...pvIds.map((id) => ({ value: id, label: id }))]}
+            options={[
+              { value: "", label: "Any PV" },
+              ...pvIds.map((id) => ({ value: id, label: id })),
+            ]}
           />
           <PvDateTimeFilter
             date={pvDraft.date}
@@ -2074,7 +2263,10 @@ function PvBreakdownSection({
             label="Outlet"
             value={pvDraft.outlet}
             onChange={(outlet) => setPvDraft((p) => ({ ...p, outlet }))}
-            options={[{ value: "", label: "Any outlet" }, ...pvOutlets.map((v) => ({ value: v, label: v }))]}
+            options={[
+              { value: "", label: "Any outlet" },
+              ...pvOutlets.map((v) => ({ value: v, label: v })),
+            ]}
           />
           <GenericSelectField
             label="PV status"
@@ -2093,7 +2285,10 @@ function PvBreakdownSection({
             label="Source ref"
             value={pvDraft.ref}
             onChange={(ref) => setPvDraft((p) => ({ ...p, ref }))}
-            options={[{ value: "", label: "Any ref" }, ...pvRefs.map((r) => ({ value: r, label: r }))]}
+            options={[
+              { value: "", label: "Any ref" },
+              ...pvRefs.map((r) => ({ value: r, label: r })),
+            ]}
           />
         </div>
         <button
@@ -2106,7 +2301,14 @@ function PvBreakdownSection({
         >
           Apply filters
         </button>
-        <button type="button" className="iz-btn iz-btn-soft mt-2.5" onClick={() => { onClear(); setPvFilterOpen(false); }}>
+        <button
+          type="button"
+          className="iz-btn iz-btn-soft mt-2.5"
+          onClick={() => {
+            onClear();
+            setPvFilterOpen(false);
+          }}
+        >
           Clear & close
         </button>
       </IzSheet>

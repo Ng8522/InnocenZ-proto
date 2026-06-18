@@ -14,7 +14,15 @@ import { findAgencyRosterTonight } from "@/lib/pr-session";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { evaluateShiftCancellation, CANCEL_RULES } from "@/lib/pr-schedule-cancellation";
 import { SHIFT_TODAY, fmtDFriendly, getPrRosterId, PR_SHIFT_OFFERS } from "@/lib/pr-demo";
-import { aggregateShiftSales, calcDutyWagesFromOutlet, receiptItemsForShift, shiftDurationLabel, shiftPayoutTotal } from "@/lib/pr-shift-status";
+import {
+  aggregateShiftSales,
+  calcDutyWagesFromOutlet,
+  receiptItemsForShift,
+  shiftCommissionRemaining,
+  shiftDurationLabel,
+  shiftPayoutTotal,
+  shiftSalesTargetRm,
+} from "@/lib/pr-shift-status";
 import { Calendar, Camera, Check, ExternalLink, MapPin, Navigation } from "lucide-react";
 import { formatRM } from "@/components/iz/ui";
 import {
@@ -65,14 +73,22 @@ function AttendancePage() {
   const shiftOffer = PR_SHIFT_OFFERS[acceptedShiftIndex ?? 0] ?? PR_SHIFT_OFFERS[0];
   const venueName = shiftOffer.outlet;
   const attendanceSession = prActiveShift ?? prCheckInMeta.closedShift ?? null;
-  const dutyEstimate = calcDutyWagesFromOutlet(venueName, shiftOffer.time, attendanceSession?.overtimeMinutes ?? 0);
-  const baseWages = prActiveShift?.baseWages ?? prCheckInMeta.closedShift?.baseWages ?? dutyEstimate.wages;
+  const dutyEstimate = calcDutyWagesFromOutlet(
+    venueName,
+    shiftOffer.time,
+    attendanceSession?.overtimeMinutes ?? 0,
+  );
+  const baseWages =
+    prActiveShift?.baseWages ?? prCheckInMeta.closedShift?.baseWages ?? dutyEstimate.wages;
   const shiftScans = useMemo(
     () => receiptItemsForShift(attendanceSession, prReceiptScans),
     [attendanceSession, prReceiptScans],
   );
   const shiftSales = useMemo(() => aggregateShiftSales(shiftScans), [shiftScans]);
   const runningCommission = shiftSales.commissionTotal;
+  const shiftTargetRm = shiftSalesTargetRm();
+  const toTargetRm = shiftCommissionRemaining(runningCommission);
+  const targetMet = toTargetRm <= 0;
   const runningPayout = shiftPayoutTotal(baseWages, shiftScans);
 
   const prId = getPrRosterId(prSubRole);
@@ -123,7 +139,10 @@ function AttendancePage() {
   );
 
   const pingPos = prGpsPingOffset(gpsState.meters, gpsState.inRange, prId);
-  const rangePct = Math.min(100, (gpsState.meters / Math.max(gpsState.geofenceMeters * 4, 200)) * 100);
+  const rangePct = Math.min(
+    100,
+    (gpsState.meters / Math.max(gpsState.geofenceMeters * 4, 200)) * 100,
+  );
   const fencePct = (gpsState.geofenceMeters / Math.max(gpsState.geofenceMeters * 4, 200)) * 100;
   const statusLabel = !shiftAccepted
     ? "No shift"
@@ -200,7 +219,11 @@ function AttendancePage() {
         backLabel={cancelOpen || checkPhase === "selfie" ? "Attendance" : undefined}
       />
 
-      <PrPageHeader label="Attendance" title={venueName} meta={`${todayFriendly} · ${shiftOffer.time}`} />
+      <PrPageHeader
+        label="Attendance"
+        title={venueName}
+        meta={`${todayFriendly} · ${shiftOffer.time}`}
+      />
 
       {shiftAccepted && (
         <div className="mt-3">
@@ -212,7 +235,9 @@ function AttendancePage() {
       )}
 
       {!shiftAccepted && (
-        <p className="iz-tiny iz-muted mt-3">Accept a shift to see your assigned outlet briefing.</p>
+        <p className="iz-tiny iz-muted mt-3">
+          Accept a shift to see your assigned outlet briefing.
+        </p>
       )}
 
       <div className="iz-outlet-stat-strip mt-3">
@@ -225,22 +250,24 @@ function AttendancePage() {
           <div className="n text-[var(--iz-violet-l)]">{formatRM(baseWages)}</div>
         </div>
         <div className="iz-outlet-stat-cell">
-          <div className="l">Commission</div>
-          <div className="n text-[var(--iz-gold-l)]">{formatRM(runningCommission)}</div>
+          <div className="l">To target</div>
+          <div className={`n ${targetMet ? "text-[var(--iz-green)]" : "text-[var(--iz-gold-l)]"}`}>
+            {targetMet ? "Met" : formatRM(toTargetRm)}
+          </div>
+        </div>
+        <div className="iz-outlet-stat-cell">
+          <div className="l">Target</div>
+          <div className="n text-[11px] leading-tight">{formatRM(shiftTargetRm)}</div>
         </div>
         <div className="iz-outlet-stat-cell">
           <div className="l">Payout</div>
           <div className="n text-[var(--iz-gold)]">{formatRM(runningPayout)}</div>
         </div>
         <div className="iz-outlet-stat-cell">
-          <div className="l">Sales</div>
-          <div className="n text-[11px] leading-tight">
-            D {shiftSales.drinkUnits} · T {shiftSales.tipRm}
-          </div>
-        </div>
-        <div className="iz-outlet-stat-cell">
           <div className="l">GPS</div>
-          <div className={`n ${gpsState.inRange ? "text-[var(--iz-green)]" : "text-[var(--iz-amber)]"}`}>
+          <div
+            className={`n ${gpsState.inRange ? "text-[var(--iz-green)]" : "text-[var(--iz-amber)]"}`}
+          >
             {formatDistanceMeters(gpsState.meters)}
           </div>
         </div>
@@ -252,8 +279,14 @@ function AttendancePage() {
             <Calendar className="mx-auto mb-2 h-5 w-5 text-[var(--iz-muted)]" />
             <p className="iz-sm iz-muted">Accept a shift to enable check-in.</p>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <Link to="/host" className="iz-btn iz-btn-soft iz-btn-sm w-auto">Browse shifts</Link>
-              <button type="button" className="iz-btn iz-btn-soft iz-btn-sm w-auto" onClick={demoPrShiftIn}>
+              <Link to="/host" className="iz-btn iz-btn-soft iz-btn-sm w-auto">
+                Browse shifts
+              </Link>
+              <button
+                type="button"
+                className="iz-btn iz-btn-soft iz-btn-sm w-auto"
+                onClick={demoPrShiftIn}
+              >
                 Demo shift in
               </button>
             </div>
@@ -269,7 +302,9 @@ function AttendancePage() {
                 className={`iz-ping${gpsState.inRange ? " live" : enRoute ? " en-route" : ""}`}
                 style={{ left: pingPos.left, top: pingPos.top }}
               />
-              <span className="iz-tiny iz-muted absolute bottom-2 left-2.5">Geofence {GEOFENCE_METERS} m</span>
+              <span className="iz-tiny iz-muted absolute bottom-2 left-2.5">
+                Geofence {GEOFENCE_METERS} m
+              </span>
               <span className="iz-tiny absolute bottom-2 right-2.5 font-semibold text-[var(--iz-muted2)]">
                 {venueName}
               </span>
@@ -278,10 +313,13 @@ function AttendancePage() {
               <div className="mb-3 rounded-xl border border-[rgba(139,92,246,.35)] bg-[rgba(139,92,246,.08)] px-3 py-2.5">
                 <div className="flex items-center gap-2">
                   <Navigation className="h-3.5 w-3.5 shrink-0 text-[var(--iz-violet-l)]" />
-                  <p className="text-xs font-semibold text-[var(--iz-violet-l)]">En route to {venueName}</p>
+                  <p className="text-xs font-semibold text-[var(--iz-violet-l)]">
+                    En route to {venueName}
+                  </p>
                 </div>
                 <p className="iz-tiny iz-muted mt-0.5">
-                  Outlet sees you on Live GPS. Check in when you are within {GEOFENCE_METERS} m of the venue.
+                  Outlet sees you on Live GPS. Check in when you are within {GEOFENCE_METERS} m of
+                  the venue.
                 </p>
               </div>
             ) : (
@@ -308,17 +346,29 @@ function AttendancePage() {
                   </div>
                 </div>
                 <div className="shrink-0 text-right">
-                  <PrStatusPill variant={gpsState.inRange ? "green" : gpsOutOfRange || enRoute ? "amber" : "ink"}>
-                    {gpsState.inRange ? "In range" : gpsOutOfRange ? "Out of range" : enRoute ? "On route" : "Not departed"}
+                  <PrStatusPill
+                    variant={
+                      gpsState.inRange ? "green" : gpsOutOfRange || enRoute ? "amber" : "ink"
+                    }
+                  >
+                    {gpsState.inRange
+                      ? "In range"
+                      : gpsOutOfRange
+                        ? "Out of range"
+                        : enRoute
+                          ? "On route"
+                          : "Not departed"}
                   </PrStatusPill>
-                  <div className="iz-tiny iz-muted2 mt-1.5">
-                    ≤ {GEOFENCE_METERS} m to check in
-                  </div>
+                  <div className="iz-tiny iz-muted2 mt-1.5">≤ {GEOFENCE_METERS} m to check in</div>
                 </div>
               </div>
               <div className="iz-pr-gps-range-bar mt-3" aria-hidden>
                 <div className="iz-pr-gps-range-fill" style={{ width: `${rangePct}%` }} />
-                <div className="iz-pr-gps-range-fence" style={{ left: `${fencePct}%` }} title={`${GEOFENCE_METERS} m geofence`} />
+                <div
+                  className="iz-pr-gps-range-fence"
+                  style={{ left: `${fencePct}%` }}
+                  title={`${GEOFENCE_METERS} m geofence`}
+                />
               </div>
               <div className="iz-between iz-tiny iz-muted2 mt-1">
                 <span>You</span>
@@ -343,13 +393,21 @@ function AttendancePage() {
                 useStore.setState((st) => ({
                   prCheckInMeta: { ...st.prCheckInMeta, gpsFallback: next },
                 }));
-                toast(next ? "GPS fail simulated — maps fallback required" : "GPS lock restored", next ? "warn" : "info");
+                toast(
+                  next ? "GPS fail simulated — maps fallback required" : "GPS lock restored",
+                  next ? "warn" : "info",
+                );
               }}
             >
               {gpsOutOfRange ? "Simulate GPS lock" : "Simulate GPS fail"}
             </button>
             {gpsOutOfRange && (
-              <a href={outletBrief.mapsUrl} target="_blank" rel="noreferrer" className="iz-outlet-quick-chip mt-2 inline-flex">
+              <a
+                href={outletBrief.mapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="iz-outlet-quick-chip mt-2 inline-flex"
+              >
                 <ExternalLink className="h-3 w-3" /> Maps fallback
               </a>
             )}
@@ -372,19 +430,41 @@ function AttendancePage() {
                 No-show risk flagged — +30 min past shift start without check-in
               </p>
             )}
-            <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm mt-2 w-full" onClick={simulatePrNoShow}>
+            <button
+              type="button"
+              className="iz-btn iz-btn-ghost iz-btn-sm mt-2 w-full"
+              onClick={simulatePrNoShow}
+            >
               Simulate no-show (+30 min)
             </button>
-            <HoldButton label="Check in" icon={<MapPin className="h-4 w-4" />} holding={holding} progress={progress} onPress={() => startHold(false)} />
+            <HoldButton
+              label="Check in"
+              icon={<MapPin className="h-4 w-4" />}
+              holding={holding}
+              progress={progress}
+              onPress={() => startHold(false)}
+            />
             <div className="mt-2 flex flex-wrap gap-2">
-              <button type="button" className="iz-btn iz-btn-soft iz-btn-sm flex-1" onClick={demoPrEnRoute}>
+              <button
+                type="button"
+                className="iz-btn iz-btn-soft iz-btn-sm flex-1"
+                onClick={demoPrEnRoute}
+              >
                 Demo: en route
               </button>
-              <button type="button" className="iz-btn iz-btn-soft iz-btn-sm flex-1" onClick={demoPrShiftIn}>
+              <button
+                type="button"
+                className="iz-btn iz-btn-soft iz-btn-sm flex-1"
+                onClick={demoPrShiftIn}
+              >
                 Demo: check in
               </button>
             </div>
-            <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm mt-2 w-full" onClick={() => setCancelOpen(true)}>
+            <button
+              type="button"
+              className="iz-btn iz-btn-ghost iz-btn-sm mt-2 w-full"
+              onClick={() => setCancelOpen(true)}
+            >
               Cancel shift
             </button>
           </>
@@ -399,14 +479,22 @@ function AttendancePage() {
               checkedOut={false}
             />
             <PrDuringShiftExtras />
-            <HoldButton label="Check out" icon={<MapPin className="h-4 w-4" />} holding={holding} progress={progress} onPress={() => startHold(true)} />
+            <HoldButton
+              label="Check out"
+              icon={<MapPin className="h-4 w-4" />}
+              holding={holding}
+              progress={progress}
+              onPress={() => startHold(true)}
+            />
           </>
         )}
 
         {shiftAccepted && checkedOut && attendanceSession && (
           <>
             <div className="iz-pr-hero mb-3 border-[rgba(57,217,138,.3)] bg-[var(--iz-green-bg)]">
-              <PrStatusPill variant="green"><Check className="h-3 w-3" /> Complete</PrStatusPill>
+              <PrStatusPill variant="green">
+                <Check className="h-3 w-3" /> Complete
+              </PrStatusPill>
             </div>
             <PrShiftStatusPanel
               session={attendanceSession}
@@ -417,13 +505,17 @@ function AttendancePage() {
             <div className="iz-pr-shift-status__summary mt-3 rounded-xl border border-[var(--iz-line)] bg-white/[0.02] p-3">
               <div className="iz-between iz-tiny">
                 <span className="iz-muted">Final payout</span>
-                <span className="font-sora font-bold text-[var(--iz-gold)]">{formatRM(runningPayout)}</span>
+                <span className="font-sora font-bold text-[var(--iz-gold)]">
+                  {formatRM(runningPayout)}
+                </span>
               </div>
-              {attendanceSession.overtimeMinutes != null && attendanceSession.overtimeMinutes > 0 && (
-                <p className="iz-tiny iz-muted2 mt-1">
-                  Duration {shiftDurationLabel(attendanceSession)} incl. +{attendanceSession.overtimeMinutes}m OT
-                </p>
-              )}
+              {attendanceSession.overtimeMinutes != null &&
+                attendanceSession.overtimeMinutes > 0 && (
+                  <p className="iz-tiny iz-muted2 mt-1">
+                    Duration {shiftDurationLabel(attendanceSession)} incl. +
+                    {attendanceSession.overtimeMinutes}m OT
+                  </p>
+                )}
             </div>
             <Link
               to="/host/PaymentVoucher"
@@ -441,12 +533,19 @@ function AttendancePage() {
         {shiftAccepted && checkedOut && !attendanceSession && (
           <>
             <div className="iz-pr-hero mb-3 border-[rgba(57,217,138,.3)] bg-[var(--iz-green-bg)]">
-              <PrStatusPill variant="green"><Check className="h-3 w-3" /> Complete</PrStatusPill>
+              <PrStatusPill variant="green">
+                <Check className="h-3 w-3" /> Complete
+              </PrStatusPill>
               <div className="mt-3 space-y-1.5">
-                <div className="iz-between iz-tiny"><span className="iz-muted">Final payout</span><b className="text-[var(--iz-gold)]">{formatRM(runningPayout)}</b></div>
+                <div className="iz-between iz-tiny">
+                  <span className="iz-muted">Final payout</span>
+                  <b className="text-[var(--iz-gold)]">{formatRM(runningPayout)}</b>
+                </div>
               </div>
             </div>
-            <Link to="/host/PaymentVoucher" className="iz-btn iz-btn-primary">Payment</Link>
+            <Link to="/host/PaymentVoucher" className="iz-btn iz-btn-primary">
+              Payment
+            </Link>
           </>
         )}
       </div>
@@ -459,9 +558,18 @@ function AttendancePage() {
             <p className="iz-tiny iz-muted mb-3">{cancelEval.detail}</p>
           </>
         ) : (
-          <p className="iz-tiny iz-muted mb-3">Less than 2 hours before start incurs a wage deduction.</p>
+          <p className="iz-tiny iz-muted mb-3">
+            Less than 2 hours before start incurs a wage deduction.
+          </p>
         )}
-        <button type="button" className="iz-btn iz-btn-danger" onClick={() => { cancelPrShift(); setCancelOpen(false); }}>
+        <button
+          type="button"
+          className="iz-btn iz-btn-danger"
+          onClick={() => {
+            cancelPrShift();
+            setCancelOpen(false);
+          }}
+        >
           {cancelEval && cancelEval.deductionRm > 0
             ? `Cancel & accept −RM ${cancelEval.deductionRm}`
             : "Cancel shift"}
@@ -470,16 +578,31 @@ function AttendancePage() {
 
       <IzSheet open={checkPhase === "selfie"} onClose={() => setCheckPhase("idle")}>
         <div className="iz-cardttl">Selfie required</div>
-        <input ref={selfieRef} type="file" accept="image/*" capture="user" className="sr-only" onChange={(e) => onSelfiePicked(e.target.files?.[0])} />
+        <input
+          ref={selfieRef}
+          type="file"
+          accept="image/*"
+          capture="user"
+          className="sr-only"
+          onChange={(e) => onSelfiePicked(e.target.files?.[0])}
+        />
         {selfieUrl ? (
           <img src={selfieUrl} alt="" className="mx-auto max-h-48 rounded-xl object-cover" />
         ) : (
-          <button type="button" className="iz-btn iz-btn-primary" onClick={() => selfieRef.current?.click()}>
+          <button
+            type="button"
+            className="iz-btn iz-btn-primary"
+            onClick={() => selfieRef.current?.click()}
+          >
             <Camera className="h-4 w-4" /> Capture selfie
           </button>
         )}
         {selfieUrl && (
-          <button type="button" className="iz-btn iz-btn-primary mt-3" onClick={() => startHold(pendingCheckOut)}>
+          <button
+            type="button"
+            className="iz-btn iz-btn-primary mt-3"
+            onClick={() => startHold(pendingCheckOut)}
+          >
             Continue to GPS hold
           </button>
         )}
@@ -502,8 +625,16 @@ function HoldButton({
   onPress: () => void;
 }) {
   return (
-    <button type="button" onPointerDown={onPress} disabled={holding} className="iz-btn iz-btn-primary relative mt-3 w-full overflow-hidden">
-      <span className="absolute inset-y-0 left-0 bg-white/20 transition-all" style={{ width: `${progress}%` }} />
+    <button
+      type="button"
+      onPointerDown={onPress}
+      disabled={holding}
+      className="iz-btn iz-btn-primary relative mt-3 w-full overflow-hidden"
+    >
+      <span
+        className="absolute inset-y-0 left-0 bg-white/20 transition-all"
+        style={{ width: `${progress}%` }}
+      />
       <span className="relative flex items-center justify-center gap-2">
         {icon} {holding ? `Holding ${progress}%` : label}
       </span>

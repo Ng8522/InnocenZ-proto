@@ -31,11 +31,7 @@ import {
   formatPvSignTimestamp,
 } from "@/lib/pr-demo";
 import { writePersistedPrSubRole } from "@/lib/use-pr-sub-role";
-import {
-  DEMO_SOS_LOCATION,
-  type OpsNotification,
-  type SosIncident,
-} from "@/lib/ops-notifications";
+import { DEMO_SOS_LOCATION, type OpsNotification, type SosIncident } from "@/lib/ops-notifications";
 import {
   applyPushEvent,
   DEFAULT_NOTIFICATION_PREFS,
@@ -65,11 +61,12 @@ import {
   languagesFromPr,
   type OutletCommissionRule,
 } from "@/lib/agency-demo";
+import { buildPvFromShiftHistoryRow, historyRowHasPv } from "@/lib/agency-actions";
 import {
-  buildPvFromShiftHistoryRow,
-  historyRowHasPv,
-} from "@/lib/agency-actions";
-import { financeHeadStampFromProfile, LEGACY_FINANCE_HEAD_SIGNER, buildDemoESignatureDataUrl } from "@/lib/finance-head-stamp";
+  financeHeadStampFromProfile,
+  LEGACY_FINANCE_HEAD_SIGNER,
+  buildDemoESignatureDataUrl,
+} from "@/lib/finance-head-stamp";
 import { validateReceiptScan } from "@/lib/receipt-scan-utils";
 import { mergeAgencyCollections } from "@/lib/agency-payroll";
 import { getFreePrsWithDistances } from "@/lib/roster-availability";
@@ -159,7 +156,6 @@ import {
 } from "@/lib/outlet-agency-sync";
 import {
   type PrNotification,
-  type PrSelfLog,
   type PrSwapRequest,
   type PrPendingRating,
   type PrRatingRecord,
@@ -289,7 +285,11 @@ export interface PendingFreelancerPayroll {
   requestedAt: string;
 }
 
-interface Toast { id: number; message: string; tone?: "success" | "info" | "warn" }
+interface Toast {
+  id: number;
+  message: string;
+  tone?: "success" | "info" | "warn";
+}
 
 interface StoreState {
   role: Role | null;
@@ -332,7 +332,11 @@ interface StoreState {
   demoPrEnRoute: () => void;
   /** PR started heading to venue — outlet roster shows EN-ROUTE until check-in */
   prMarkEnRoute: () => void;
-  prCheckIn: (opts?: { selfieDataUrl?: string; gpsFallback?: boolean; simulateLate?: boolean }) => void;
+  prCheckIn: (opts?: {
+    selfieDataUrl?: string;
+    gpsFallback?: boolean;
+    simulateLate?: boolean;
+  }) => void;
   simulatePrLate: (enabled: boolean) => void;
   simulatePrNoShow: () => void;
   prCheckOut: () => void;
@@ -352,22 +356,27 @@ interface StoreState {
     shiftId?: string;
   } | null;
   prUpcomingShifts: PrUpcomingShift[];
-  prSelfLogs: PrSelfLog[];
   prSwapRequests: PrSwapRequest[];
   prAgencyTiedAt: string;
   prFreelancerPayrollLinks: string[];
   prPendingRatings: PrPendingRating[];
   prRatingHistory: PrRatingRecord[];
   prFreelancerLowRatingStrikes: number;
-  prCheckInMeta: { late?: boolean; noShowRisk?: boolean; selfieDataUrl?: string | null; gpsFallback?: boolean; closedShift?: PrActiveShiftSession | null };
-  prLeaveRequest: { type: "leave" | "transfer"; note: string; newAgencyCode?: string; at: string } | null;
+  prCheckInMeta: {
+    late?: boolean;
+    noShowRisk?: boolean;
+    selfieDataUrl?: string | null;
+    gpsFallback?: boolean;
+    closedShift?: PrActiveShiftSession | null;
+  };
+  prLeaveRequest: {
+    type: "leave" | "transfer";
+    note: string;
+    newAgencyCode?: string;
+    at: string;
+  } | null;
   markPrNotificationRead: (id: string) => void;
   requestPrSwap: (targetId: string, reason: string) => void;
-  addPrSelfLog: (log: { category: "drinks" | "tips" | "tables"; qty: number; amount: number }) => void;
-  flagPrSelfLog: (id: string) => void;
-  confirmOutletPrSelfLog: (id: string) => void;
-  rejectOutletPrSelfLog: (id: string) => void;
-  outletScanPrQr: (prName: string) => void;
   linkPayrollByAgencyCode: (code: string) => void;
   detachFreelancerPayroll: (agencyId: string) => void;
   submitPrOutletRating: (pendingId: string, stars: number) => void;
@@ -407,7 +416,10 @@ interface StoreState {
     items: PrReceiptScan["items"];
     totalLogged: number;
   }) => string;
-  editAgencyPv: (id: string, patch: { rows?: PrPvRow[]; deduct?: number; disputeNote?: string }) => void;
+  editAgencyPv: (
+    id: string,
+    patch: { rows?: PrPvRow[]; deduct?: number; disputeNote?: string },
+  ) => void;
   resendAgencyPv: (id: string) => void;
   sendAgencyPvToPr: (id: string) => void;
   resolveAgencyPvDispute: (id: string) => void;
@@ -631,9 +643,18 @@ function applyOutletFinancialSync(
   reconciliation?: AgencyReconciliationDay,
   drinkMenu = DEFAULT_OUTLET_DRINK_MENU,
   commissionRules = OUTLET_COMMISSION_RULES,
-): Pick<StoreState, "shifts" | "outletPnl" | "outletPnlSyncAt" | "outletMoneyEditCount" | "agencyReconciliation"> {
+): Pick<
+  StoreState,
+  "shifts" | "outletPnl" | "outletPnlSyncAt" | "outletMoneyEditCount" | "agencyReconciliation"
+> {
   const normalized = shifts.map((sh) => withShiftFinancialDefaults(sh, drinkMenu));
-  const outletPnl = recomputeAllOutletPnl(normalized, undefined, roster, drinkMenu, commissionRules);
+  const outletPnl = recomputeAllOutletPnl(
+    normalized,
+    undefined,
+    roster,
+    drinkMenu,
+    commissionRules,
+  );
   const nextRecon =
     reconciliation ??
     recomputeReconciliation({
@@ -655,7 +676,9 @@ function applyOutletFinancialSync(
 
 function syncLedgerState(
   st: StoreState,
-  patch: Partial<Pick<StoreState, "shifts" | "agencyRoster" | "shiftHistory" | "prPaymentVouchers">>,
+  patch: Partial<
+    Pick<StoreState, "shifts" | "agencyRoster" | "shiftHistory" | "prPaymentVouchers">
+  >,
 ): Partial<StoreState> {
   const shifts = patch.shifts ?? st.shifts;
   const roster = patch.agencyRoster ?? st.agencyRoster;
@@ -678,7 +701,6 @@ function syncLedgerState(
     agencyReconciliation: reconciliation,
   };
 }
-
 
 function mergePendingPRs(persisted: PendingPR[] | undefined, current: PendingPR[]): PendingPR[] {
   const base = persisted && persisted.length > 0 ? persisted : current;
@@ -770,7 +792,10 @@ export const useStore = create<StoreState>()(
           return;
         }
         if (st.checkedOut) {
-          get().toast("Shift complete — use Reset all demo data on the welcome screen to start fresh", "warn");
+          get().toast(
+            "Shift complete — use Reset all demo data on the welcome screen to start fresh",
+            "warn",
+          );
           return;
         }
         if (!st.shiftAccepted) {
@@ -829,15 +854,11 @@ export const useStore = create<StoreState>()(
         });
         const before = st.agencyRoster.find(
           (s) =>
-            s.prId === prId &&
-            s.dateIso === ctx.dateIso &&
-            outletMatches(s.outlet, offer.outlet),
+            s.prId === prId && s.dateIso === ctx.dateIso && outletMatches(s.outlet, offer.outlet),
         );
         const after = next.find(
           (s) =>
-            s.prId === prId &&
-            s.dateIso === ctx.dateIso &&
-            outletMatches(s.outlet, offer.outlet),
+            s.prId === prId && s.dateIso === ctx.dateIso && outletMatches(s.outlet, offer.outlet),
         );
         if (after?.status === before?.status) {
           get().toast("Already en route", "info");
@@ -877,12 +898,13 @@ export const useStore = create<StoreState>()(
       },
       markOpsNotificationRead: (id) =>
         set((st) => ({
-          opsNotifications: st.opsNotifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
+          opsNotifications: st.opsNotifications.map((n) =>
+            n.id === id ? { ...n, read: true } : n,
+          ),
         })),
       prDeclinedOfferIds: [],
       prMarketplaceApplication: null,
       prUpcomingShifts: [...SEED_UPCOMING_SHIFTS],
-      prSelfLogs: [],
       prSwapRequests: [...SEED_PR_SWAP_REQUESTS],
       prAgencyTiedAt: DEMO_AGENCY_TIED_AT,
       prFreelancerPayrollLinks: [],
@@ -913,7 +935,10 @@ export const useStore = create<StoreState>()(
       },
       applyFreelancerListing: (listingId) => {
         if (get().prSubRole !== "pr_free") {
-          get().toast("Freelancer mode required — enter as Freelancer from the welcome screen", "warn");
+          get().toast(
+            "Freelancer mode required — enter as Freelancer from the welcome screen",
+            "warn",
+          );
           return false;
         }
         if (get().prFreelancerLowRatingStrikes >= 3) {
@@ -942,7 +967,9 @@ export const useStore = create<StoreState>()(
             s.status !== "sealed" &&
             s.filled < s.quantity,
         );
-        const applicantId = shift ? `app-${shift.id}-${prId}-${Date.now().toString(36)}` : undefined;
+        const applicantId = shift
+          ? `app-${shift.id}-${prId}-${Date.now().toString(36)}`
+          : undefined;
         set((cur) => ({
           prMarketplaceApplication: {
             listingId,
@@ -1207,7 +1234,10 @@ export const useStore = create<StoreState>()(
           outlet: offer.outlet,
           late,
         });
-        get().toast(`Checked in ✓ Time-In locked · PV ${session.pvId}${lateNote}${gpsNote}`, "success");
+        get().toast(
+          `Checked in ✓ Time-In locked · PV ${session.pvId}${lateNote}${gpsNote}`,
+          "success",
+        );
       },
       simulatePrLate: (enabled) => {
         if (!get().shiftAccepted || get().checkedIn) {
@@ -1230,7 +1260,9 @@ export const useStore = create<StoreState>()(
           },
         }));
         get().toast(
-          enabled ? "Late flag active (+15 min) — synced to agency roster" : "Late simulation cleared",
+          enabled
+            ? "Late flag active (+15 min) — synced to agency roster"
+            : "Late simulation cleared",
           enabled ? "warn" : "info",
         );
       },
@@ -1299,7 +1331,11 @@ export const useStore = create<StoreState>()(
           dateDisplay: stamp.split("·")[0]?.trim() ?? stamp,
           totalPayout: shiftPayout,
           totalDrinks: get().drinks,
-          totalTips: scans.reduce((s, r) => s + (r.items?.reduce((a, i) => a + (i.category === "tips" ? i.amount : 0), 0) ?? 0), 0),
+          totalTips: scans.reduce(
+            (s, r) =>
+              s + (r.items?.reduce((a, i) => a + (i.category === "tips" ? i.amount : 0), 0) ?? 0),
+            0,
+          ),
           durationHours: 6,
         });
         const checkOutTime = new Date().toLocaleTimeString("en-MY", {
@@ -1318,9 +1354,7 @@ export const useStore = create<StoreState>()(
             closedShift: closed,
           },
           prReceiptScans: (st.prReceiptScans ?? SEED_RECEIPT_SCANS).map((r) =>
-            scanIds.has(r.id)
-              ? { ...r, shiftSessionId: shift.id, status: "attached" as const }
-              : r,
+            scanIds.has(r.id) ? { ...r, shiftSessionId: shift.id, status: "attached" as const } : r,
           ),
         }));
         get().toast(
@@ -1341,92 +1375,6 @@ export const useStore = create<StoreState>()(
         set((st) => ({
           prNotifications: st.prNotifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
         })),
-      addPrSelfLog: (log) => {
-        const shift = get().prActiveShift;
-        if (!shift || !get().checkedIn || get().checkedOut) {
-          get().toast("Check in first to self-log sales", "warn");
-          return;
-        }
-        const stamp = new Date().toLocaleString("en-MY", {
-          day: "numeric",
-          month: "short",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        set((st) => ({
-          prSelfLogs: [
-            {
-              id: "sl-" + Date.now().toString(36),
-              outlet: shift.outlet,
-              category: log.category,
-              qty: log.qty,
-              amount: log.amount,
-              status: "pending_outlet",
-              loggedAt: stamp,
-              shiftSessionId: shift.id,
-            },
-            ...st.prSelfLogs,
-          ],
-        }));
-        get().toast("Self-logged — awaiting outlet confirmation", "info");
-      },
-      flagPrSelfLog: (id) => {
-        set((st) => ({
-          prSelfLogs: st.prSelfLogs.map((l) =>
-            l.id === id ? { ...l, status: "flagged" as const, note: "PR flagged for agency review" } : l,
-          ),
-        }));
-        get().toast("Entry flagged for review", "warn");
-      },
-      confirmOutletPrSelfLog: (id) => {
-        const log = get().prSelfLogs.find((l) => l.id === id);
-        if (!log || log.status !== "pending_outlet") return;
-        const drinksDelta = log.category === "drinks" ? log.qty : 0;
-        const tablesDelta = log.category === "tables" ? log.qty : 0;
-        const stamp = new Date().toLocaleString("en-MY", {
-          day: "numeric",
-          month: "short",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        set((st) => ({
-          prSelfLogs: st.prSelfLogs.map((l) => (l.id === id ? { ...l, status: "confirmed" as const } : l)),
-          drinks: st.drinks + drinksDelta,
-          tables: st.tables + tablesDelta,
-          prNotifications: [
-            {
-              id: "n-sl-" + Date.now().toString(36),
-              kind: "assignment",
-              title: "Sales confirmed",
-              body: `${log.outlet} confirmed ${log.qty}× ${log.category} · ${log.amount} RM`,
-              at: stamp,
-              read: false,
-            },
-            ...st.prNotifications,
-          ],
-        }));
-        get().toast(`Confirmed ${log.qty}× ${log.category} for PR`, "success");
-      },
-      rejectOutletPrSelfLog: (id) => {
-        const log = get().prSelfLogs.find((l) => l.id === id);
-        if (!log || log.status !== "pending_outlet") return;
-        set((st) => ({
-          prSelfLogs: st.prSelfLogs.filter((l) => l.id !== id),
-        }));
-        get().toast("Self-log rejected — PR notified on next refresh", "info");
-      },
-      outletScanPrQr: (prName) => {
-        const outlet = get().shifts.find((s) => s.date === "Tonight")?.outletName ?? "Velvet 23";
-        const pending = get().prSelfLogs.find(
-          (l) => l.outlet === outlet && l.status === "pending_outlet",
-        );
-        if (pending) {
-          get().confirmOutletPrSelfLog(pending.id);
-          get().toast(`Scanned ${prName} — confirmed pending self-log`, "success");
-        } else {
-          get().toast(`Scanned ${prName} — attributed to shift (no pending self-log)`, "success");
-        }
-      },
       linkPayrollByAgencyCode: (code) => {
         const agencyId = PR_AGENCY_CODES[code.trim().toUpperCase()];
         if (!agencyId) {
@@ -1440,7 +1388,8 @@ export const useStore = create<StoreState>()(
         const nextLinks = st.prFreelancerPayrollLinks.filter((id) => id !== agencyId);
         set({
           prFreelancerPayrollLinks: nextLinks,
-          prPayrollAgencyId: st.prPayrollAgencyId === agencyId ? (nextLinks[0] ?? null) : st.prPayrollAgencyId,
+          prPayrollAgencyId:
+            st.prPayrollAgencyId === agencyId ? (nextLinks[0] ?? null) : st.prPayrollAgencyId,
         });
         get().toast("Payroll unlinked — future PVs blocked until you link again", "warn");
       },
@@ -1448,14 +1397,24 @@ export const useStore = create<StoreState>()(
         const pending = get().prPendingRatings.find((p) => p.id === pendingId);
         if (!pending) return;
         if (stars < 1 || stars > 5) return;
-        const stamp = new Date().toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
+        const stamp = new Date().toLocaleDateString("en-MY", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
         set((st) => {
           let strikes = st.prFreelancerLowRatingStrikes;
           if (st.prSubRole === "pr_free" && stars < 3) strikes += 1;
           return {
             prPendingRatings: st.prPendingRatings.filter((p) => p.id !== pendingId),
             prRatingHistory: [
-              { id: "rh-" + Date.now().toString(36), outlet: pending.outlet, stars, direction: "pr_rates_outlet", date: stamp },
+              {
+                id: "rh-" + Date.now().toString(36),
+                outlet: pending.outlet,
+                stars,
+                direction: "pr_rates_outlet",
+                date: stamp,
+              },
               ...st.prRatingHistory,
             ],
             prFreelancerLowRatingStrikes: strikes,
@@ -1487,8 +1446,8 @@ export const useStore = create<StoreState>()(
         const outlet = st.prActiveShift?.outlet ?? offer?.outlet ?? "Velvet 23";
         const agencyName =
           st.prSubRole === "pr_free"
-            ? getPrAgencyById(st.prPayrollAgencyId)?.name ?? "Atlas Agency"
-            : getPrAgencyById(DEFAULT_TIED_AGENCY_ID)?.name ?? "Atlas Agency";
+            ? (getPrAgencyById(st.prPayrollAgencyId)?.name ?? "Atlas Agency")
+            : (getPrAgencyById(DEFAULT_TIED_AGENCY_ID)?.name ?? "Atlas Agency");
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -1516,12 +1475,20 @@ export const useStore = create<StoreState>()(
         get().toast("SOS alert sent · Agency, outlet, admin & emergency contacts notified", "warn");
       },
       requestLeaveAgency: (note) => {
-        const stamp = new Date().toLocaleString("en-MY", { day: "numeric", month: "short", year: "numeric" });
+        const stamp = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
         set({ prLeaveRequest: { type: "leave", note, at: stamp } });
         get().toast("Support ticket raised — agency will review early leave request", "info");
       },
       requestTransferAgency: (code, note) => {
-        const stamp = new Date().toLocaleString("en-MY", { day: "numeric", month: "short", year: "numeric" });
+        const stamp = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
         set({ prLeaveRequest: { type: "transfer", note, newAgencyCode: code, at: stamp } });
         get().toast("Transfer request sent to InnocenZ support", "info");
       },
@@ -1689,7 +1656,10 @@ export const useStore = create<StoreState>()(
           prName: pv.prName,
           outlet: pv.outlet,
         });
-        get().toast("Dispute submitted — agency has 7 days to resolve or escalates to Admin", "warn");
+        get().toast(
+          "Dispute submitted — agency has 7 days to resolve or escalates to Admin",
+          "warn",
+        );
       },
       updatePrPvDisputeReason: (id, reason) => {
         const trimmed = reason.trim();
@@ -1783,7 +1753,10 @@ export const useStore = create<StoreState>()(
           items: draft.items,
           receiptRef: draft.receiptRef,
         });
-        const existing = findDuplicateReceiptScan(get().prReceiptScans ?? SEED_RECEIPT_SCANS, fingerprint);
+        const existing = findDuplicateReceiptScan(
+          get().prReceiptScans ?? SEED_RECEIPT_SCANS,
+          fingerprint,
+        );
         if (existing) {
           get().toast(
             `Duplicate receipt — already logged as ${existing.id}${existing.receiptRef ? ` (${existing.receiptRef})` : ""}`,
@@ -1819,11 +1792,13 @@ export const useStore = create<StoreState>()(
         };
         set((st) => ({
           prReceiptScans: [scan, ...(st.prReceiptScans ?? SEED_RECEIPT_SCANS)],
-          prActiveShift: shift
-            ? { ...shift, receiptIds: [...shift.receiptIds, id] }
-            : null,
-          drinks: st.drinks + draft.items.filter((i) => i.category === "drinks").reduce((s, i) => s + i.qty, 0),
-          tables: st.tables + draft.items.filter((i) => i.category === "tables").reduce((s, i) => s + i.qty, 0),
+          prActiveShift: shift ? { ...shift, receiptIds: [...shift.receiptIds, id] } : null,
+          drinks:
+            st.drinks +
+            draft.items.filter((i) => i.category === "drinks").reduce((s, i) => s + i.qty, 0),
+          tables:
+            st.tables +
+            draft.items.filter((i) => i.category === "tables").reduce((s, i) => s + i.qty, 0),
         }));
         get().toast(
           `Receipt logged → ${shift.pvId} · receipt #${shift.receiptIds.length + 1} on this shift`,
@@ -1869,7 +1844,15 @@ export const useStore = create<StoreState>()(
         }
         set((st) => ({
           prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
-            p.id === id ? { ...p, status: "PENDING_REVIEW" as const, disputeNote: undefined, prDisputeReason: undefined, disputedAt: undefined } : p,
+            p.id === id
+              ? {
+                  ...p,
+                  status: "PENDING_REVIEW" as const,
+                  disputeNote: undefined,
+                  prDisputeReason: undefined,
+                  disputedAt: undefined,
+                }
+              : p,
           ),
         }));
         get().toast(`PV ${id} re-sent to ${pv.prName} for e-signature`, "info");
@@ -1911,7 +1894,15 @@ export const useStore = create<StoreState>()(
       resolveAgencyPvDispute: (id) => {
         set((st) => ({
           prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
-            p.id === id ? { ...p, status: "PENDING_REVIEW" as const, disputeNote: undefined, prDisputeReason: undefined, disputedAt: undefined } : p,
+            p.id === id
+              ? {
+                  ...p,
+                  status: "PENDING_REVIEW" as const,
+                  disputeNote: undefined,
+                  prDisputeReason: undefined,
+                  disputedAt: undefined,
+                }
+              : p,
           ),
         }));
         get().toast("Dispute resolved — PV re-sent to PR", "success");
@@ -2013,7 +2004,10 @@ export const useStore = create<StoreState>()(
           agencyFinanceHead: data.financeHead,
           scalingTierMultipliers: data.scalingTierMultipliers,
           outletCommissionRules: data.outletCommissionRules,
-          outletWorkspace: syncWorkspaceFromCommissionRules(st.outletWorkspace, data.outletCommissionRules),
+          outletWorkspace: syncWorkspaceFromCommissionRules(
+            st.outletWorkspace,
+            data.outletCommissionRules,
+          ),
         }));
         get().toast("Agency settings saved · outlet workspace synced", "success");
       },
@@ -2045,7 +2039,10 @@ export const useStore = create<StoreState>()(
           amount: col.amount,
           dueDate: col.dueDate,
         });
-        get().toast(`Reminder sent to ${col.counterparty ?? col.outlet} · check outlet bell`, "success");
+        get().toast(
+          `Reminder sent to ${col.counterparty ?? col.outlet} · check outlet bell`,
+          "success",
+        );
       },
 
       agencyReconciliation: demoSnapshot.agencyReconciliation,
@@ -2112,7 +2109,8 @@ export const useStore = create<StoreState>()(
             agencyRoster: cur.agencyRoster.filter((s) => s.id !== rosterSlotId),
             prSwapRequests,
             shifts: cur.shifts.map((sh) => {
-              if (!outletMatches(sh.outletName, slot.outlet) || !sh.prs.includes(slot.prId)) return sh;
+              if (!outletMatches(sh.outletName, slot.outlet) || !sh.prs.includes(slot.prId))
+                return sh;
               const prs = sh.prs.filter((id) => id !== slot.prId);
               return { ...sh, prs, filled: prs.length };
             }),
@@ -2214,9 +2212,7 @@ export const useStore = create<StoreState>()(
           get().toast(`${pr.name} is suspended or detached`, "warn");
           return;
         }
-        const existing = get().agencyRoster.find(
-          (s) => s.prId === prId && s.dateIso === dateIso,
-        );
+        const existing = get().agencyRoster.find((s) => s.prId === prId && s.dateIso === dateIso);
         if (existing && isPrMarkedDayOff(existing)) {
           get().toast(
             `${pr.name} marked ${dateLabel} unavailable on their schedule — they must reopen the day first`,
@@ -2262,7 +2258,10 @@ export const useStore = create<StoreState>()(
             : [slot, ...st.agencyRoster],
           shifts: addPrToOutletShift(st.shifts, outlet, prId),
         }));
-        get().toast(`Assignment sent to ${pr.name} — awaiting Approve or Reject on Shifts`, "success");
+        get().toast(
+          `Assignment sent to ${pr.name} — awaiting Approve or Reject on Shifts`,
+          "success",
+        );
         get().pushNotify({
           type: "shift_assigned",
           prId,
@@ -2473,7 +2472,9 @@ export const useStore = create<StoreState>()(
           new Date(),
           slot.dateIso,
           slot.shiftStart,
-          slot.estPayout ? Math.min(slot.estPayout, CANCEL_RULES.defaultDailyWagesRm) : CANCEL_RULES.defaultDailyWagesRm,
+          slot.estPayout
+            ? Math.min(slot.estPayout, CANCEL_RULES.defaultDailyWagesRm)
+            : CANCEL_RULES.defaultDailyWagesRm,
         );
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
@@ -2511,7 +2512,10 @@ export const useStore = create<StoreState>()(
           evalResult.deductionRm > 0
             ? ` · −RM ${evalResult.deductionRm} on next PV`
             : " · no deduction";
-        get().toast(`Shift cancelled at ${slot.outlet}${penalty}`, evalResult.tier === "safe" ? "info" : "warn");
+        get().toast(
+          `Shift cancelled at ${slot.outlet}${penalty}`,
+          evalResult.tier === "safe" ? "info" : "warn",
+        );
       },
       declineOutletSwapByPr: (rosterSlotId) => {
         const slot = get().agencyRoster.find((s) => s.id === rosterSlotId);
@@ -2658,7 +2662,9 @@ export const useStore = create<StoreState>()(
                   prId: swap.replacementPrId!,
                   prName: replacement.name,
                   status:
-                    s.status === "on-duty" || s.status === "en-route" ? ("scheduled" as const) : s.status,
+                    s.status === "on-duty" || s.status === "en-route"
+                      ? ("scheduled" as const)
+                      : s.status,
                   checkedInAt: undefined,
                   floorDrinks: 0,
                   floorTips: 0,
@@ -2692,7 +2698,10 @@ export const useStore = create<StoreState>()(
             );
           }
           const shiftsAfterSource = cur.shifts.map((sh) => {
-            if (shiftDateIso(sh.date) !== swap.dateIso || !outletMatches(sh.outletName, swap.outlet)) {
+            if (
+              shiftDateIso(sh.date) !== swap.dateIso ||
+              !outletMatches(sh.outletName, swap.outlet)
+            ) {
               return sh;
             }
             if (!sh.prs.includes(swap.requestingPrId)) return sh;
@@ -2823,7 +2832,11 @@ export const useStore = create<StoreState>()(
         get().toast("Swap request declined", "info");
       },
       demoAutoAssignPr: (dateIso) => {
-        const free = getFreePrsWithDistances(get().agencyPRs.filter((p) => !p.suspended && !p.detached), get().agencyRoster, dateIso);
+        const free = getFreePrsWithDistances(
+          get().agencyPRs.filter((p) => !p.suspended && !p.detached),
+          get().agencyRoster,
+          dateIso,
+        );
         const pick = free[0];
         if (!pick) {
           get().toast("No free PRs to auto-assign", "warn");
@@ -2886,7 +2899,9 @@ export const useStore = create<StoreState>()(
               agencyAdjustTips: adjTips,
               agencyAdjustReason: trimmed,
               pvTotal: st.agencyReconciliation.pvTotal + varianceDelta,
-              variance: st.agencyReconciliation.outletSalesTotal - (st.agencyReconciliation.pvTotal + varianceDelta),
+              variance:
+                st.agencyReconciliation.outletSalesTotal -
+                (st.agencyReconciliation.pvTotal + varianceDelta),
               agencyConfirmed: false,
             },
           };
@@ -2909,13 +2924,17 @@ export const useStore = create<StoreState>()(
       detachAgencyPr: (prId) => {
         const pr = get().agencyPRs.find((p) => p.id === prId);
         if (!pr) return;
-        const tiedSince = pr.tiedSince ? new Date(pr.tiedSince).getTime() : Date.now() - 400 * 86400000;
+        const tiedSince = pr.tiedSince
+          ? new Date(pr.tiedSince).getTime()
+          : Date.now() - 400 * 86400000;
         if (Date.now() - tiedSince < 365 * 86400000) {
           get().toast("Tied < 1 year — use Request admin detach", "warn");
           return;
         }
         set((st) => ({
-          agencyPRs: st.agencyPRs.map((p) => (p.id === prId ? { ...p, detached: true, suspended: true } : p)),
+          agencyPRs: st.agencyPRs.map((p) =>
+            p.id === prId ? { ...p, detached: true, suspended: true } : p,
+          ),
         }));
         get().toast(`${pr.name} detached from agency roster`, "info");
       },
@@ -2941,7 +2960,9 @@ export const useStore = create<StoreState>()(
           prNotifications: [
             ...prIds.map((id, i) => ({
               id: `n-bcast-${Date.now()}-${i}-${id}`,
-              kind: (payload.kind === "shift" ? "assignment" : "application") as PrNotification["kind"],
+              kind: (payload.kind === "shift"
+                ? "assignment"
+                : "application") as PrNotification["kind"],
               title: payload.title,
               body: payload.body,
               at: stamp,
@@ -3214,9 +3235,16 @@ export const useStore = create<StoreState>()(
       inviteFinanceHead: (email) => {
         if (!email.trim()) return;
         set((st) => ({
-          agencyFinanceHead: { ...st.agencyFinanceHead, email: email.trim(), eSignatureStored: false },
+          agencyFinanceHead: {
+            ...st.agencyFinanceHead,
+            email: email.trim(),
+            eSignatureStored: false,
+          },
         }));
-        get().toast(`Invite sent to ${email} — Finance Head must complete IC + e-signature`, "info");
+        get().toast(
+          `Invite sent to ${email} — Finance Head must complete IC + e-signature`,
+          "info",
+        );
       },
       shiftHistory: demoSnapshot.shiftHistory,
 
@@ -3252,13 +3280,9 @@ export const useStore = create<StoreState>()(
         const nextShifts = st.shifts.map((sh) => {
           if (sh.id !== shiftId) return sh;
           const drinkUnits =
-            kind === "drink"
-              ? Math.max(0, (sh.drinkUnits ?? 0) + delta)
-              : (sh.drinkUnits ?? 0);
+            kind === "drink" ? Math.max(0, (sh.drinkUnits ?? 0) + delta) : (sh.drinkUnits ?? 0);
           const tableUnits =
-            kind === "table"
-              ? Math.max(0, (sh.tableUnits ?? 0) + delta)
-              : (sh.tableUnits ?? 0);
+            kind === "table" ? Math.max(0, (sh.tableUnits ?? 0) + delta) : (sh.tableUnits ?? 0);
           const merged = withShiftFinancialDefaults({ ...sh, drinkUnits, tableUnits }, menu);
           return { ...merged, liveSales: computeShiftLiveSales(merged, menu) };
         });
@@ -3360,7 +3384,9 @@ export const useStore = create<StoreState>()(
           const alreadyOnRoster = st.agencyPRs.some((p) => p.id === managed.id);
           const nextAgencyPRs = alreadyOnRoster ? st.agencyPRs : [...st.agencyPRs, managed];
           return {
-            pendingPRs: st.pendingPRs.map((p) => (p.id === id ? { ...p, status: "approved" as const } : p)),
+            pendingPRs: st.pendingPRs.map((p) =>
+              p.id === id ? { ...p, status: "approved" as const } : p,
+            ),
             agencyPRs: nextAgencyPRs,
             prs: marketplacePrsFromAgency(nextAgencyPRs),
           };
@@ -3370,7 +3396,9 @@ export const useStore = create<StoreState>()(
       rejectPendingPR: (id, reason) => {
         set((st) => ({
           pendingPRs: st.pendingPRs.map((p) =>
-            p.id === id ? { ...p, status: "rejected", rejectReason: reason ?? "Did not meet agency criteria" } : p,
+            p.id === id
+              ? { ...p, status: "rejected", rejectReason: reason ?? "Did not meet agency criteria" }
+              : p,
           ),
         }));
         get().toast("PR rejected — notification sent", "warn");
@@ -3413,7 +3441,8 @@ export const useStore = create<StoreState>()(
               ? req.agencyId
               : st.prPayrollAgencyId,
           prFreelancerPayrollLinks:
-            req.prId === FREELANCER_DEMO_PR_ID && !st.prFreelancerPayrollLinks.includes(req.agencyId)
+            req.prId === FREELANCER_DEMO_PR_ID &&
+            !st.prFreelancerPayrollLinks.includes(req.agencyId)
               ? [...st.prFreelancerPayrollLinks, req.agencyId]
               : st.prFreelancerPayrollLinks,
         }));
@@ -3640,7 +3669,9 @@ export const useStore = create<StoreState>()(
                     : sh,
                 )
               : cur.shifts,
-            agencyRoster: accept ? ensureRosterSlot(cur.agencyRoster, rosterSeed, "scheduled") : cur.agencyRoster,
+            agencyRoster: accept
+              ? ensureRosterSlot(cur.agencyRoster, rosterSeed, "scheduled")
+              : cur.agencyRoster,
             prMarketplaceApplication: syncMarketplace,
             ...(accept && isFreelancerApplicant
               ? patchFreelancerPrSession(cur, {
@@ -3651,7 +3682,10 @@ export const useStore = create<StoreState>()(
               : {}),
           };
         });
-        get().toast(accept ? `${app.prName} added to shift` : `Declined ${app.prName}`, accept ? "success" : "info");
+        get().toast(
+          accept ? `${app.prName} added to shift` : `Declined ${app.prName}`,
+          accept ? "success" : "info",
+        );
         if (accept && shift) {
           get().pushNotify({
             type: "shift_assigned",
@@ -3737,7 +3771,7 @@ export const useStore = create<StoreState>()(
       confirmShift: (shiftId) => {
         const shift = get().shifts.find((sh) => sh.id === shiftId);
         set((st) => ({
-          shifts: st.shifts.map((sh) => sh.id === shiftId ? { ...sh, status: "confirmed" } : sh),
+          shifts: st.shifts.map((sh) => (sh.id === shiftId ? { ...sh, status: "confirmed" } : sh)),
         }));
         if (shift) {
           shift.prs.forEach((prId) => {
@@ -3765,7 +3799,8 @@ export const useStore = create<StoreState>()(
         });
         const newRows: ShiftHistoryRow[] = shift.prs.map((prId) => {
           const pr = st.agencyPRs.find((p) => p.id === prId);
-          const payout = Math.round((shift.estimatedCost / Math.max(shift.prs.length, 1)) * 100) / 100;
+          const payout =
+            Math.round((shift.estimatedCost / Math.max(shift.prs.length, 1)) * 100) / 100;
           return buildShiftHistoryRow({
             prId,
             prName: pr?.name ?? prId,
@@ -3803,7 +3838,9 @@ export const useStore = create<StoreState>()(
       },
 
       acceptBooking: (id) => {
-        set((st) => ({ bookings: st.bookings.map((b) => b.id === id ? { ...b, status: "accepted" } : b) }));
+        set((st) => ({
+          bookings: st.bookings.map((b) => (b.id === id ? { ...b, status: "accepted" } : b)),
+        }));
         get().toast("Shift accepted", "success");
       },
       checkIn: (id) => {
@@ -3830,13 +3867,13 @@ export const useStore = create<StoreState>()(
         if (!pv) return;
         const total = pv.wages + pv.drinkCommission + pv.tipCommission + pv.tableCommission;
         set((st) => ({
-          pvs: st.pvs.map((p) => p.id === id ? { ...p, status: "signed" } : p),
+          pvs: st.pvs.map((p) => (p.id === id ? { ...p, status: "signed" } : p)),
           walletBalance: st.walletBalance + total,
         }));
         get().toast(`PV signed · RM ${total} credited to wallet`, "success");
       },
       disputePv: (id, reason) => {
-        set((st) => ({ pvs: st.pvs.map((p) => p.id === id ? { ...p, status: "disputed" } : p) }));
+        set((st) => ({ pvs: st.pvs.map((p) => (p.id === id ? { ...p, status: "disputed" } : p)) }));
         get().toast(`Dispute raised: ${reason}`, "warn");
       },
       withdraw: (amount) => {
@@ -3885,8 +3922,7 @@ export const useStore = create<StoreState>()(
                 }
               : p,
           );
-          const syncDemoPr =
-            prId === FREELANCER_DEMO_PR_ID || prId === getPrRosterId("pr_tied");
+          const syncDemoPr = prId === FREELANCER_DEMO_PR_ID || prId === getPrRosterId("pr_tied");
           const pendingRating: PrPendingRating = {
             id: "pr-rate-" + Date.now().toString(36),
             outlet: outletName,
@@ -3976,72 +4012,71 @@ export const useStore = create<StoreState>()(
           ? { ...s.prSessionByRole, [role]: extractPrShiftSession(s) }
           : s.prSessionByRole;
         return {
-        role: s.role,
-        prSubRole: s.prSubRole,
-        outletSubRole: s.outletSubRole,
-        agencySubRole: s.agencySubRole,
-        user: s.user,
-        shifts: s.shifts,
-        outletPnl: s.outletPnl,
-        outletPnlSyncAt: s.outletPnlSyncAt,
-        outletMoneyEditCount: s.outletMoneyEditCount,
-        bookings: s.bookings,
-        pvs: s.pvs,
-        walletBalance: s.walletBalance,
-        ratings: s.ratings,
-        pendingPRs: s.pendingPRs,
-        pendingFreelancerPayrolls: s.pendingFreelancerPayrolls,
-        prSessionByRole,
-        shiftAccepted: s.shiftAccepted,
-        pendingApproval: s.pendingApproval,
-        acceptedShiftIndex: s.acceptedShiftIndex,
-        checkedIn: s.checkedIn,
-        checkedOut: s.checkedOut,
-        drinks: s.drinks,
-        tables: s.tables,
-        prPaymentVouchers: s.prPaymentVouchers,
-        prComcard: s.prComcard,
-        prPortfolio: s.prPortfolio,
-        prLanguages: s.prLanguages,
-        prDisplayName: s.prDisplayName,
-        prAvatarPhoto: s.prAvatarPhoto,
-        prPayrollAgencyId: s.prPayrollAgencyId,
-        prNotifications: s.prNotifications,
-        opsNotifications: s.opsNotifications,
-        sosIncidents: s.sosIncidents,
-        notificationPrefs: s.notificationPrefs,
-        prDeclinedOfferIds: s.prDeclinedOfferIds,
-        prMarketplaceApplication: s.prMarketplaceApplication,
-        prUpcomingShifts: s.prUpcomingShifts,
-        prSelfLogs: s.prSelfLogs,
-        prSwapRequests: s.prSwapRequests,
-        prAgencyTiedAt: s.prAgencyTiedAt,
-        prFreelancerPayrollLinks: s.prFreelancerPayrollLinks,
-        prPendingRatings: s.prPendingRatings,
-        prRatingHistory: s.prRatingHistory,
-        prFreelancerLowRatingStrikes: s.prFreelancerLowRatingStrikes,
-        prCheckInMeta: s.prCheckInMeta,
-        prLeaveRequest: s.prLeaveRequest,
-        prReceiptScans: s.prReceiptScans,
-        prActiveShift: s.prActiveShift,
-        agencyOwner: s.agencyOwner,
-        agencyFinanceHead: s.agencyFinanceHead,
-        agencyCollections: s.agencyCollections,
-        agencyReconciliation: s.agencyReconciliation,
-        agencyRoster: s.agencyRoster,
-        agencyPRs: s.agencyPRs,
-        specialServiceOrders: s.specialServiceOrders,
-        outletCommissionRules: s.outletCommissionRules,
-        scalingTierMultipliers: s.scalingTierMultipliers,
-        shiftHistory: s.shiftHistory,
-        outletWorkspace: s.outletWorkspace,
-        outletSettings: s.outletSettings,
-        outletOwner: s.outletOwner,
-        outletFinanceHead: s.outletFinanceHead,
-        outletOpsHead: s.outletOpsHead,
-        shiftApplicants: s.shiftApplicants,
-        paymentCardLast4: s.paymentCardLast4,
-        postSealRatePrompt: s.postSealRatePrompt,
+          role: s.role,
+          prSubRole: s.prSubRole,
+          outletSubRole: s.outletSubRole,
+          agencySubRole: s.agencySubRole,
+          user: s.user,
+          shifts: s.shifts,
+          outletPnl: s.outletPnl,
+          outletPnlSyncAt: s.outletPnlSyncAt,
+          outletMoneyEditCount: s.outletMoneyEditCount,
+          bookings: s.bookings,
+          pvs: s.pvs,
+          walletBalance: s.walletBalance,
+          ratings: s.ratings,
+          pendingPRs: s.pendingPRs,
+          pendingFreelancerPayrolls: s.pendingFreelancerPayrolls,
+          prSessionByRole,
+          shiftAccepted: s.shiftAccepted,
+          pendingApproval: s.pendingApproval,
+          acceptedShiftIndex: s.acceptedShiftIndex,
+          checkedIn: s.checkedIn,
+          checkedOut: s.checkedOut,
+          drinks: s.drinks,
+          tables: s.tables,
+          prPaymentVouchers: s.prPaymentVouchers,
+          prComcard: s.prComcard,
+          prPortfolio: s.prPortfolio,
+          prLanguages: s.prLanguages,
+          prDisplayName: s.prDisplayName,
+          prAvatarPhoto: s.prAvatarPhoto,
+          prPayrollAgencyId: s.prPayrollAgencyId,
+          prNotifications: s.prNotifications,
+          opsNotifications: s.opsNotifications,
+          sosIncidents: s.sosIncidents,
+          notificationPrefs: s.notificationPrefs,
+          prDeclinedOfferIds: s.prDeclinedOfferIds,
+          prMarketplaceApplication: s.prMarketplaceApplication,
+          prUpcomingShifts: s.prUpcomingShifts,
+          prSwapRequests: s.prSwapRequests,
+          prAgencyTiedAt: s.prAgencyTiedAt,
+          prFreelancerPayrollLinks: s.prFreelancerPayrollLinks,
+          prPendingRatings: s.prPendingRatings,
+          prRatingHistory: s.prRatingHistory,
+          prFreelancerLowRatingStrikes: s.prFreelancerLowRatingStrikes,
+          prCheckInMeta: s.prCheckInMeta,
+          prLeaveRequest: s.prLeaveRequest,
+          prReceiptScans: s.prReceiptScans,
+          prActiveShift: s.prActiveShift,
+          agencyOwner: s.agencyOwner,
+          agencyFinanceHead: s.agencyFinanceHead,
+          agencyCollections: s.agencyCollections,
+          agencyReconciliation: s.agencyReconciliation,
+          agencyRoster: s.agencyRoster,
+          agencyPRs: s.agencyPRs,
+          specialServiceOrders: s.specialServiceOrders,
+          outletCommissionRules: s.outletCommissionRules,
+          scalingTierMultipliers: s.scalingTierMultipliers,
+          shiftHistory: s.shiftHistory,
+          outletWorkspace: s.outletWorkspace,
+          outletSettings: s.outletSettings,
+          outletOwner: s.outletOwner,
+          outletFinanceHead: s.outletFinanceHead,
+          outletOpsHead: s.outletOpsHead,
+          shiftApplicants: s.shiftApplicants,
+          paymentCardLast4: s.paymentCardLast4,
+          postSealRatePrompt: s.postSealRatePrompt,
         };
       },
       merge: (persisted, current) => {
@@ -4054,14 +4089,20 @@ export const useStore = create<StoreState>()(
                 const seed = seedById[pv.id];
                 if (!seed) {
                   if (pv.financeHeadName === LEGACY_FINANCE_HEAD_SIGNER) {
-                    return { ...pv, ...financeHeadStampFromProfile(DEFAULT_FINANCE_HEAD, pv.financeHeadSignedAt) };
+                    return {
+                      ...pv,
+                      ...financeHeadStampFromProfile(DEFAULT_FINANCE_HEAD, pv.financeHeadSignedAt),
+                    };
                   }
                   if (!pv.financeHeadSignatureDataUrl && pv.financeHeadName) {
                     const stamp = financeHeadStampFromProfile(
                       { ...DEFAULT_FINANCE_HEAD, name: pv.financeHeadName },
                       pv.financeHeadSignedAt,
                     );
-                    return { ...pv, financeHeadSignatureDataUrl: stamp.financeHeadSignatureDataUrl };
+                    return {
+                      ...pv,
+                      financeHeadSignatureDataUrl: stamp.financeHeadSignatureDataUrl,
+                    };
                   }
                   if (
                     !pv.prSignatureDataUrl &&
@@ -4103,7 +4144,9 @@ export const useStore = create<StoreState>()(
                   disputedAt: pv.disputedAt ?? seed.disputedAt,
                   disputeUpdatedAt: pv.disputeUpdatedAt ?? seed.disputeUpdatedAt,
                   disputeNote: pv.disputeNote ?? seed.disputeNote,
-                  shiftSessionId: seed.weekStartIso ? seed.shiftSessionId : (pv.shiftSessionId ?? seed.shiftSessionId),
+                  shiftSessionId: seed.weekStartIso
+                    ? seed.shiftSessionId
+                    : (pv.shiftSessionId ?? seed.shiftSessionId),
                   timeIn: seed.weekStartIso ? undefined : (pv.timeIn ?? seed.timeIn),
                   timeOut: seed.weekStartIso ? undefined : (pv.timeOut ?? seed.timeOut),
                   shiftTime: seed.weekStartIso ? undefined : (pv.shiftTime ?? seed.shiftTime),
@@ -4169,8 +4212,9 @@ export const useStore = create<StoreState>()(
           notificationPrefs: p?.notificationPrefs ?? current.notificationPrefs,
           prDeclinedOfferIds: p?.prDeclinedOfferIds ?? current.prDeclinedOfferIds,
           prMarketplaceApplication: p?.prMarketplaceApplication ?? current.prMarketplaceApplication,
-          prUpcomingShifts: p?.prUpcomingShifts?.length ? p.prUpcomingShifts : current.prUpcomingShifts,
-          prSelfLogs: p?.prSelfLogs ?? current.prSelfLogs,
+          prUpcomingShifts: p?.prUpcomingShifts?.length
+            ? p.prUpcomingShifts
+            : current.prUpcomingShifts,
           prSwapRequests: mergePrSwapRequests(
             p?.prSwapRequests,
             current.prSwapRequests,
@@ -4178,9 +4222,12 @@ export const useStore = create<StoreState>()(
           ),
           prAgencyTiedAt: p?.prAgencyTiedAt ?? current.prAgencyTiedAt,
           prFreelancerPayrollLinks: p?.prFreelancerPayrollLinks ?? current.prFreelancerPayrollLinks,
-          prPendingRatings: p?.prPendingRatings?.length ? p.prPendingRatings : current.prPendingRatings,
+          prPendingRatings: p?.prPendingRatings?.length
+            ? p.prPendingRatings
+            : current.prPendingRatings,
           prRatingHistory: p?.prRatingHistory?.length ? p.prRatingHistory : current.prRatingHistory,
-          prFreelancerLowRatingStrikes: p?.prFreelancerLowRatingStrikes ?? current.prFreelancerLowRatingStrikes,
+          prFreelancerLowRatingStrikes:
+            p?.prFreelancerLowRatingStrikes ?? current.prFreelancerLowRatingStrikes,
           prCheckInMeta: p?.prCheckInMeta ?? current.prCheckInMeta,
           prLeaveRequest: p?.prLeaveRequest ?? current.prLeaveRequest,
           prAvatarPhoto: p?.prAvatarPhoto ?? current.prAvatarPhoto,
@@ -4213,7 +4260,9 @@ export const useStore = create<StoreState>()(
           scalingTierMultipliers: p?.scalingTierMultipliers ?? current.scalingTierMultipliers,
           outletWorkspace: normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace),
           shifts: (() => {
-            const menu = normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace).drinkMenu;
+            const menu = normalizeOutletWorkspace(
+              p?.outletWorkspace ?? current.outletWorkspace,
+            ).drinkMenu;
             return (p?.shifts ?? current.shifts).map((sh) => withShiftFinancialDefaults(sh, menu));
           })(),
           outletPnl: (() => {
@@ -4222,7 +4271,9 @@ export const useStore = create<StoreState>()(
             const rules = p?.outletCommissionRules?.length
               ? syncCommissionRulesFromWorkspace(ws, p.outletCommissionRules)
               : syncCommissionRulesFromWorkspace(ws, current.outletCommissionRules);
-            const shifts = (p?.shifts ?? current.shifts).map((sh) => withShiftFinancialDefaults(sh, menu));
+            const shifts = (p?.shifts ?? current.shifts).map((sh) =>
+              withShiftFinancialDefaults(sh, menu),
+            );
             return recomputeAllOutletPnl(
               shifts,
               undefined,
@@ -4235,7 +4286,8 @@ export const useStore = create<StoreState>()(
           outletMoneyEditCount: p?.outletMoneyEditCount ?? current.outletMoneyEditCount,
           outletSettings: p?.outletSettings ?? current.outletSettings ?? DEFAULT_OUTLET_SETTINGS,
           outletOwner: p?.outletOwner ?? current.outletOwner ?? DEFAULT_OUTLET_OWNER,
-          outletFinanceHead: p?.outletFinanceHead ?? current.outletFinanceHead ?? DEFAULT_OUTLET_FINANCE_HEAD,
+          outletFinanceHead:
+            p?.outletFinanceHead ?? current.outletFinanceHead ?? DEFAULT_OUTLET_FINANCE_HEAD,
           outletOpsHead: p?.outletOpsHead ?? current.outletOpsHead ?? DEFAULT_OUTLET_OPS_HEAD,
           shiftApplicants: p?.shiftApplicants ?? current.shiftApplicants ?? [],
           agencyFinanceHead: (() => {
@@ -4248,7 +4300,10 @@ export const useStore = create<StoreState>()(
               signatureDataUrl: saved.signatureDataUrl ?? base.signatureDataUrl,
             };
           })(),
-          agencyCollections: mergeAgencyCollections(p?.agencyCollections, current.agencyCollections),
+          agencyCollections: mergeAgencyCollections(
+            p?.agencyCollections,
+            current.agencyCollections,
+          ),
           paymentCardLast4: p?.paymentCardLast4 ?? current.paymentCardLast4 ?? "4242",
           postSealRatePrompt: p?.postSealRatePrompt ?? null,
           prSessionByRole: p?.prSessionByRole ?? current.prSessionByRole ?? {},
@@ -4266,6 +4321,6 @@ export const useStore = create<StoreState>()(
         }
         return merged;
       },
-    }
-  )
+    },
+  ),
 );

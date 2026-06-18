@@ -26,9 +26,11 @@ function HostLayout() {
           <PrSosFab />
         </>
       }
-      footer={<BottomNav items={items} />}
+      footer={<BottomNav items={items} className="iz-pr-tabbar" />}
     >
-      <Outlet />
+      <div className="iz-pr-app">
+        <Outlet />
+      </div>
     </PhoneFrame>
   );
 }

@@ -39,7 +39,14 @@ export interface PrUpcomingShift {
   status: "confirmed" | "pending";
 }
 
-export type PrNotificationKind = "pv" | "assignment" | "application" | "swap" | "rating" | "sos" | "special_service";
+export type PrNotificationKind =
+  | "pv"
+  | "assignment"
+  | "application"
+  | "swap"
+  | "rating"
+  | "sos"
+  | "special_service";
 
 export interface PrNotification {
   id: string;
@@ -60,18 +67,6 @@ export function prNotificationsForRecipient(
   prId: string,
 ): PrNotification[] {
   return notifications.filter((n) => !n.prId || n.prId === prId);
-}
-
-export interface PrSelfLog {
-  id: string;
-  outlet: string;
-  category: "drinks" | "tips" | "tables";
-  qty: number;
-  amount: number;
-  note?: string;
-  status: "pending_outlet" | "confirmed" | "flagged";
-  loggedAt: string;
-  shiftSessionId?: string;
 }
 
 export type PrSwapRequestStatus =
@@ -177,10 +172,7 @@ export function swapTargetOptionsForPr(
   const targets: PrSwapTargetOption[] = [];
 
   const add = (option: PrSwapTargetOption) => {
-    if (
-      outletMatches(option.outlet, sourceSlot.outlet) &&
-      option.dateIso === sourceSlot.dateIso
-    ) {
+    if (outletMatches(option.outlet, sourceSlot.outlet) && option.dateIso === sourceSlot.dateIso) {
       return;
     }
     const key = `${option.outlet}|${option.dateIso}`;
@@ -357,7 +349,12 @@ export const PR_MARKETPLACE_LISTINGS: MarketplaceListing[] = PR_SHIFT_OFFERS.map
   area: i === 0 ? "Changkat" : i === 1 ? "KLCC" : "Bukit Bintang",
   rate: s.base + s.comm,
   role: "PR Host",
-  languages: i === 0 ? ["English", "Mandarin"] : i === 1 ? ["English", "Cantonese"] : ["English", "Mandarin", "Cantonese"],
+  languages:
+    i === 0
+      ? ["English", "Mandarin"]
+      : i === 1
+        ? ["English", "Cantonese"]
+        : ["English", "Mandarin", "Cantonese"],
   tierMin: i === 0 ? 4 : 3,
   tierSlots: [
     { tier: "Tier IV", count: 2, hours: "22:00–01:00" },
@@ -365,7 +362,7 @@ export const PR_MARKETPLACE_LISTINGS: MarketplaceListing[] = PR_SHIFT_OFFERS.map
   ],
   briefing:
     i === 0
-      ? "Rooftop VIP. Smart casual. Outlet scans your QR or confirms self-logged sales."
+      ? "Rooftop VIP. Smart casual. Outlet scans your QR to attribute sales."
       : i === 1
         ? "Lounge floor. Heels required. Apply — outlet confirms within 2h."
         : "Launch party. High energy. Split blocks by tier shown below.",

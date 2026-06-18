@@ -20,19 +20,14 @@ import { useStore } from "@/lib/store";
 import { usePrPortalReady } from "@/lib/use-pr-sub-role";
 
 export interface NavItem {
-
   to: string;
 
   label: string;
 
   icon: LucideIcon;
-
 }
 
-
-
 export function navIsActive(pathname: string, to: string) {
-
   if (pathname === to || pathname === `${to}/`) return true;
 
   const hubs = ["/host", "/outlet", "/agency"];
@@ -40,70 +35,59 @@ export function navIsActive(pathname: string, to: string) {
   if (hubs.includes(to)) return false;
 
   return pathname.startsWith(`${to}/`);
-
 }
 
-
-
-export function BottomNav({ items }: { items: NavItem[] }) {
-
+export function BottomNav({ items, className }: { items: NavItem[]; className?: string }) {
   const { pathname } = useLocation();
 
   return (
-
-    <nav className="iz-tabbar">
-
+    <nav className={className ? `iz-tabbar ${className}` : "iz-tabbar"}>
       {items.map((i) => {
-
         const isActive = navIsActive(pathname, i.to);
 
         return (
-
           <Link
-
             key={i.to}
-
             to={i.to}
-
             className={isActive ? "on" : ""}
-
             data-active={isActive ? "true" : undefined}
-
           >
-
             <i.icon className="h-5 w-5" strokeWidth={1.8} />
 
             <span>{i.label}</span>
-
           </Link>
-
         );
-
       })}
-
     </nav>
-
   );
-
 }
 
-
-
 const ROLE_LABELS: Record<string, { name: string; label: string; av: string; gradient: string }> = {
-
   host: { name: "PR", label: "PR", av: "P", gradient: "linear-gradient(135deg,#6b7280,#374151)" },
 
-  host_tied: { name: "Luna", label: "PR \u00b7 Agency-Tied", av: "L", gradient: "linear-gradient(135deg,#C99B4E,#8a5e22)" },
+  host_tied: {
+    name: "Luna",
+    label: "PR \u00b7 Agency-Tied",
+    av: "L",
+    gradient: "linear-gradient(135deg,#C99B4E,#8a5e22)",
+  },
 
-  host_free: { name: "Jaya Nair", label: "PR \u00b7 Freelancer", av: "J", gradient: "linear-gradient(135deg,#5BA8FF,#2d63b8)" },
+  host_free: {
+    name: "Jaya Nair",
+    label: "PR \u00b7 Freelancer",
+    av: "J",
+    gradient: "linear-gradient(135deg,#5BA8FF,#2d63b8)",
+  },
 
   agency: { name: "Atlas Agency", label: "PR Agency", av: "A", gradient: "var(--iz-grad)" },
 
-  vendor: { name: "Velvet 23", label: "Outlet", av: "V", gradient: "linear-gradient(135deg,#39D98A,#1f8f5c)" },
-
+  vendor: {
+    name: "Velvet 23",
+    label: "Outlet",
+    av: "V",
+    gradient: "linear-gradient(135deg,#39D98A,#1f8f5c)",
+  },
 };
-
-
 
 function formatTopbarTime(d: Date) {
   return d.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -128,10 +112,7 @@ function PrTopbarDateTime() {
   );
 }
 
-
-
 export type AppTopbarProps = {
-
   backTo?: string;
 
   backLabel?: string;
@@ -141,11 +122,9 @@ export type AppTopbarProps = {
   onBack?: () => void | boolean;
 
   hideBack?: boolean;
-
 };
 
 export function PortalBackButton({
-
   backTo,
 
   backLabel,
@@ -153,9 +132,7 @@ export function PortalBackButton({
   onBack,
 
   className,
-
 }: {
-
   backTo?: string;
 
   backLabel?: string;
@@ -163,9 +140,7 @@ export function PortalBackButton({
   onBack?: () => void | boolean;
 
   className?: string;
-
 }) {
-
   const navigate = useNavigate();
 
   const { pathname } = useLocation();
@@ -177,61 +152,41 @@ export function PortalBackButton({
   const showBack = onBack != null || resolvedBackTo != null;
 
   if (!showBack) {
-
     return <span className="iz-topbar-spacer" aria-hidden />;
-
   }
 
   const handleBack = () => {
-
     if (onBack) {
-
       const fallThrough = onBack();
 
       if (fallThrough !== false) return;
-
     }
 
     if (resolvedBackTo === WELCOME_PATH) {
-
       goToWelcome();
 
       return;
-
     }
 
     if (resolvedBackTo) void navigate({ to: resolvedBackTo });
-
   };
 
   return (
-
     <button
-
       type="button"
-
       className={className ? `iz-topbar-back ${className}` : "iz-topbar-back"}
-
       onClick={handleBack}
-
       aria-label={resolvedLabel}
-
       title={resolvedLabel}
-
     >
-
       <ArrowLeft className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
 
       <span className="iz-topbar-back-label">{resolvedLabel}</span>
-
     </button>
-
   );
-
 }
 
 export function AppTopbar({
-
   backTo,
 
   backLabel,
@@ -239,12 +194,8 @@ export function AppTopbar({
   onBack,
 
   hideBack = false,
-
 }: AppTopbarProps) {
-
   const { pathname } = useLocation();
-
-
 
   const { role: prSubRole } = usePrPortalReady();
 
@@ -259,20 +210,12 @@ export function AppTopbar({
   let role: keyof typeof ROLE_LABELS = "host";
 
   if (pathname.startsWith("/outlet")) role = "vendor";
-
   else if (pathname.startsWith("/agency")) role = "agency";
-
   else if (pathname.startsWith("/host")) {
-
     if (prSubRole === "pr_free") role = "host_free";
-
     else if (prSubRole === "pr_tied") role = "host_tied";
-
     else role = "host";
-
   }
-
-
 
   const prProfile = prSubRole ? getPrProfile(prSubRole) : null;
 
@@ -285,18 +228,11 @@ export function AppTopbar({
   const displayGradient = prProfile?.avg ?? meta.gradient;
 
   const displayLabel =
-
     pathname.startsWith("/outlet") && outletSubRole
-
       ? OUTLET_SUB_ROLE_LABELS[outletSubRole]
-
       : pathname.startsWith("/agency") && agencySubRole
-
         ? AGENCY_SUB_ROLE_LABELS[agencySubRole]
-
         : meta.label;
-
-
 
   const resolvedBackTo = backTo ?? getAutoBackTo(pathname);
   const isPortalShell = pathname.startsWith("/outlet") || pathname.startsWith("/agency");
@@ -306,8 +242,7 @@ export function AppTopbar({
   }
 
   const showBack =
-    !hideBack &&
-    (isPortalShell ? onBack != null : onBack != null || resolvedBackTo != null);
+    !hideBack && (isPortalShell ? onBack != null : onBack != null || resolvedBackTo != null);
 
   const goWelcome = () => {
     goToWelcome();
@@ -379,64 +314,42 @@ export function AppTopbar({
   );
 }
 
-
-
 /** Standalone back row below topbar (detail overlays, sheets) */
 
 export function BackBar({
-
   label = "Back",
 
   onBack,
 
   to,
-
 }: {
-
   label?: string;
 
   onBack?: () => void;
 
   to?: string;
-
 }) {
-
   const navigate = useNavigate();
 
   return (
-
     <button
-
       type="button"
-
       className="iz-chip mb-2"
-
       onClick={() => {
-
         if (onBack) onBack();
-
         else if (to) navigate({ to });
-
       }}
-
     >
-
       <ArrowLeft className="h-3.5 w-3.5" />
 
       {label}
-
     </button>
-
   );
-
 }
-
-
 
 /** Screen shell: topbar + optional page title (wrap route content in `iz-screen`). */
 
 export function AppHeader({
-
   title,
 
   subtitle,
@@ -444,53 +357,34 @@ export function AppHeader({
   right,
 
   ...topbar
-
 }: AppTopbarProps & {
-
   title: string;
 
   subtitle?: string;
 
   right?: ReactNode;
-
 }) {
-
   return (
-
     <>
-
       <AppTopbar {...topbar} />
 
       {(subtitle || title || right) && (
-
         <div className="pb-2">
-
           {subtitle && <p className="iz-tiny iz-muted2 uppercase tracking-widest">{subtitle}</p>}
 
           <div className="flex items-start justify-between gap-2">
-
             {title ? (
-
-              <h1 className="font-sora text-[22px] font-extrabold tracking-tight text-[var(--iz-txt)]">{title}</h1>
-
+              <h1 className="font-sora text-[22px] font-extrabold tracking-tight text-[var(--iz-txt)]">
+                {title}
+              </h1>
             ) : (
-
               <span />
-
             )}
 
             {right}
-
           </div>
-
         </div>
-
       )}
-
     </>
-
   );
-
 }
-
-

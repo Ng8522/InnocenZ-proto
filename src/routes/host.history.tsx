@@ -12,7 +12,6 @@ import { AppTopbar } from "@/components/Nav";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import {
-  PAYROLL_CYCLE,
   filterPvsForPrProfile,
   filterReceiptScansForPrProfile,
   fmtHistDate,
@@ -46,12 +45,15 @@ import {
   X,
 } from "lucide-react";
 import { PrPaymentHistoryPanel } from "@/components/pr/PrPaymentHistoryPanel";
-import { buildPaymentHistoryRecords } from "@/lib/pr-payment-history";
-import { FreelancerPayrollNotice } from "@/components/iz/FreelancerPayrollNotice";
+import { buildPaymentHistoryRecords, shiftHistoryStatusLabel } from "@/lib/pr-payment-history";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
+import { HistPayrollWeekSection } from "@/components/pr/HistPayrollWeekSection";
 import { IzCard, IzPill, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCalendar";
 import { parseDateInputMs, parseScannedAtMs } from "@/lib/payroll-filters";
+import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { isReceiptFromPastShift } from "@/lib/receipt-scan-utils";
+import { mondayOfWeek, weekRangeLabel } from "@/lib/roster-week-plan";
 
 type HistTab = "shifts" | "receipts" | "payment";
 
@@ -71,7 +73,6 @@ type HistFilters = {
   timeFrom: string;
   timeTo: string;
   venue: string;
-  period: "all" | "7" | "14" | "30";
   wages: string;
   sales: string;
   tables: string;
@@ -84,19 +85,11 @@ const EMPTY_FILTERS: HistFilters = {
   timeFrom: "",
   timeTo: "",
   venue: "",
-  period: "all",
   wages: "",
   sales: "",
   tables: "",
   drinks: "",
 };
-
-const SHIFT_PERIOD_OPTIONS: { id: HistFilters["period"]; label: string }[] = [
-  { id: "7", label: "7 days" },
-  { id: "14", label: "14 days" },
-  { id: "30", label: "30 days" },
-  { id: "all", label: "All" },
-];
 
 function dateKey(d: [number, number, number]) {
   const [y, m, day] = d;
@@ -211,7 +204,6 @@ function activeFilterCount(filters: HistFilters) {
   if (filters.date && filters.timeFrom) n++;
   if (filters.date && filters.timeTo) n++;
   if (filters.venue) n++;
-  if (filters.period !== "all") n++;
   if (parseFilterNum(filters.wages) !== null) n++;
   if (parseFilterNum(filters.sales) !== null) n++;
   if (parseFilterNum(filters.tables) !== null) n++;
@@ -219,41 +211,8 @@ function activeFilterCount(filters: HistFilters) {
   return n;
 }
 
-function filterRowsByShiftPeriod(
-  rows: HistRow[],
-  period: HistFilters["period"],
-  anchorKey: string,
-) {
-  if (period === "all") return rows;
-  const days = parseInt(period, 10);
-  const anchor = dateFromKey(anchorKey);
-  if (!anchor || !days) return rows;
-  const end = new Date(anchor);
-  end.setHours(23, 59, 59, 999);
-  const start = new Date(anchor);
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - (days - 1));
-  return rows.filter((row) => {
-    const rowDate = dateFromKey(dateKey(row.d));
-    if (!rowDate) return false;
-    return rowDate >= start && rowDate <= end;
-  });
-}
-
-function shiftPeriodSummaryLabel(period: HistFilters["period"], anchorKey: string): string {
-  if (period === "all") return "All shifts";
-  const anchor = dateFromKey(anchorKey);
-  if (!anchor) return `Last ${period} days`;
-  const start = new Date(anchor);
-  start.setDate(start.getDate() - (parseInt(period, 10) - 1));
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
-  return `${fmt(start)} – ${fmt(anchor)}`;
-}
-
 function shiftEarningsContextLabel(
   filters: HistFilters,
-  anchorKey: string,
   dateOptions: { key: string; label: string }[],
 ): string {
   if (filters.date) {
@@ -265,7 +224,34 @@ function shiftEarningsContextLabel(
     }
     return base;
   }
-  return shiftPeriodSummaryLabel(filters.period, anchorKey);
+  return "All shifts";
+}
+
+type HistPayrollWeekGroup = {
+  weekStart: string;
+  label: string;
+  rows: HistRow[];
+  earnings: number;
+  wages: number;
+};
+
+function groupHistRowsByPayrollWeek(rows: HistRow[]): HistPayrollWeekGroup[] {
+  const groups = new Map<string, HistRow[]>();
+  for (const row of rows) {
+    const weekStart = mondayOfWeek(dateKey(row.d));
+    const bucket = groups.get(weekStart);
+    if (bucket) bucket.push(row);
+    else groups.set(weekStart, [row]);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([weekStart, weekRows]) => ({
+      weekStart,
+      label: weekRangeLabel(weekStart),
+      rows: weekRows,
+      earnings: weekRows.reduce((sum, row) => sum + row.sales, 0),
+      wages: weekRows.reduce((sum, row) => sum + row.wages, 0),
+    }));
 }
 
 function formatShiftClock(stamp?: string | null): string | null {
@@ -561,6 +547,9 @@ function HistoryPage() {
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
   const shiftHistory = useStore((s) => s.shiftHistory);
+  const checkedIn = useStore((s) => s.checkedIn);
+  const checkedOut = useStore((s) => s.checkedOut);
+  const prActiveShift = useStore((s) => s.prActiveShift);
   const toast = useStore((s) => s.toast);
   const profile = getPrProfile(prSubRole);
   const prId = getPrRosterId(prSubRole);
@@ -573,8 +562,23 @@ function HistoryPage() {
     () => filterReceiptScansForPrProfile(prReceiptScans, profile, prSubRole, myVouchers),
     [prReceiptScans, profile, prSubRole, myVouchers],
   );
+  const pastShiftReceipts = useMemo(
+    () =>
+      myReceiptScans.filter((s) =>
+        isReceiptFromPastShift(s, shiftHistory, prId, {
+          todayIso: DEFAULT_ROSTER_DATE_ISO,
+          checkedIn,
+          checkedOut,
+          activeOutlet: prActiveShift?.outlet ?? null,
+        }),
+      ),
+    [myReceiptScans, shiftHistory, prId, checkedIn, checkedOut, prActiveShift?.outlet],
+  );
 
-  const histRows = useMemo(() => shiftHistoryToHistRows(shiftHistory, prId), [shiftHistory, prId]);
+  const histRows = useMemo(
+    () => shiftHistoryToHistRows(shiftHistory, prId, myVouchers),
+    [shiftHistory, prId, myVouchers],
+  );
   const histDateOptions = useMemo(
     () =>
       [...new Map(histRows.map((r) => [dateKey(r.d), r.d])).entries()]
@@ -593,7 +597,6 @@ function HistoryPage() {
   }, [histRows]);
   const histDefaultMonth =
     dateFromKey(histDateOptions[histDateOptions.length - 1]?.key ?? "") ?? new Date(2026, 5, 1);
-  const histAnchorKey = histDateOptions[histDateOptions.length - 1]?.key ?? keyFromDate(new Date());
   const [filters, setFilters] = useState<HistFilters>(EMPTY_FILTERS);
   const [draft, setDraft] = useState<HistFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -603,15 +606,15 @@ function HistoryPage() {
   const [receiptFilterOpen, setReceiptFilterOpen] = useState(false);
 
   const receiptOutlets = useMemo(
-    () => [...new Set(myReceiptScans.map((s) => s.outlet))].sort(),
-    [myReceiptScans],
+    () => [...new Set(pastShiftReceipts.map((s) => s.outlet))].sort(),
+    [pastShiftReceipts],
   );
   const receiptDateOptions = useMemo(
     () =>
-      [...new Map(myReceiptScans.map((s) => [dateKey(s.date), s.date])).entries()]
+      [...new Map(pastShiftReceipts.map((s) => [dateKey(s.date), s.date])).entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([key, d]) => ({ key, label: fmtHistDate(d[0], d[1], d[2]) })),
-    [myReceiptScans],
+    [pastShiftReceipts],
   );
   const pvById = useMemo(() => Object.fromEntries(myVouchers.map((p) => [p.id, p])), [myVouchers]);
   const pvByShiftId = useMemo(() => {
@@ -623,10 +626,10 @@ function HistoryPage() {
   }, [myVouchers]);
   const receiptShiftOptions = useMemo(
     () =>
-      [...new Set(myReceiptScans.map((s) => s.shiftSessionId).filter(Boolean) as string[])]
+      [...new Set(pastShiftReceipts.map((s) => s.shiftSessionId).filter(Boolean) as string[])]
         .sort()
         .map((id) => ({ value: id, label: formatShiftSessionLabel(id) })),
-    [myReceiptScans],
+    [pastShiftReceipts],
   );
 
   const setTab = (next: HistTab) => navigate({ to: "/host/history", search: { tab: next } });
@@ -688,7 +691,6 @@ function HistoryPage() {
   const filteredRows = useMemo(() => {
     const matched = histRows
       .filter((row) => matchesFilters(row, filters))
-      .filter((row) => filterRowsByShiftPeriod([row], filters.period, histAnchorKey).length > 0)
       .filter((row) => {
         if (!filters.date || (!filters.timeFrom && !filters.timeTo)) return true;
         if (dateKey(row.d) !== filters.date) return true;
@@ -700,8 +702,10 @@ function HistoryPage() {
           filters.timeTo,
         );
       });
-    return matched.slice().reverse();
-  }, [histRows, filters, histAnchorKey, shiftMetaForHistRow]);
+    return matched
+      .slice()
+      .sort((a, b) => dateKey(b.d).localeCompare(dateKey(a.d)));
+  }, [histRows, filters, shiftMetaForHistRow]);
 
   const shiftPeriodEarnings = useMemo(
     () => filteredRows.reduce((sum, row) => sum + row.sales, 0),
@@ -713,11 +717,18 @@ function HistoryPage() {
     [filteredRows],
   );
 
-  const shiftEarningsLabel = shiftEarningsContextLabel(filters, histAnchorKey, histDateOptions);
+  const shiftEarningsLabel = shiftEarningsContextLabel(filters, histDateOptions);
+
+  const currentPayrollWeekStart = mondayOfWeek(DEFAULT_ROSTER_DATE_ISO);
+
+  const shiftRowsByCycle = useMemo(
+    () => groupHistRowsByPayrollWeek(filteredRows),
+    [filteredRows],
+  );
 
   const filteredReceipts = useMemo(
-    () => myReceiptScans.filter((s) => matchesReceiptFilters(s, receiptFilters)),
-    [myReceiptScans, receiptFilters],
+    () => pastShiftReceipts.filter((s) => matchesReceiptFilters(s, receiptFilters)),
+    [pastShiftReceipts, receiptFilters],
   );
 
   const filterCount = activeFilterCount(filters);
@@ -757,21 +768,7 @@ function HistoryPage() {
         backLabel={anyFilterOpen ? "History" : undefined}
       />
 
-      <PrPageHeader
-        label="Earnings"
-        title="History"
-        meta={
-          isFreelancer
-            ? "Shifts, receipts & payment history"
-            : "Shifts, receipts & signed/paid weekly PVs"
-        }
-      />
-
-      {isFreelancer && (
-        <div className="mt-3">
-          <FreelancerPayrollNotice compact />
-        </div>
-      )}
+      <PrPageHeader label="Earnings" title="History" />
 
       <div className="iz-outlet-stat-strip iz-outlet-stat-strip--3 mt-3">
         <div className="iz-outlet-stat-cell">
@@ -891,7 +888,6 @@ function HistoryPage() {
                       onTimeToChange={(timeTo) => setFilters((prev) => ({ ...prev, timeTo }))}
                       dateOptions={histDateOptions}
                       defaultMonth={histDefaultMonth}
-                      timeHint="Filter by shift check-in time on the selected date."
                     />
                   </div>
                   <OutletPickerField
@@ -919,28 +915,9 @@ function HistoryPage() {
                     onTimeToChange={(timeTo) => setFilters((prev) => ({ ...prev, timeTo }))}
                     dateOptions={histDateOptions}
                     defaultMonth={histDefaultMonth}
-                    timeHint="Filter by shift check-in time on the selected date."
                   />
                 </div>
               )}
-
-              <div>
-                <div className="iz-tiny iz-muted mb-1.5 font-semibold uppercase tracking-wide">
-                  Earn in period
-                </div>
-                <div className="iz-hist-period-row">
-                  {SHIFT_PERIOD_OPTIONS.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className={`iz-hist-period-chip${filters.period === p.id ? " active" : ""}`}
-                      onClick={() => setFilters((prev) => ({ ...prev, period: p.id }))}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               {filterCount > 0 && (
                 <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-[var(--iz-line)] pt-2.5">
@@ -950,7 +927,7 @@ function HistoryPage() {
                     onRemove={(key) =>
                       setFilters((prev) => ({
                         ...prev,
-                        [key]: key === "period" ? "all" : "",
+                        [key]: "",
                         ...(key === "date" ? { timeFrom: "", timeTo: "" } : {}),
                       }))
                     }
@@ -979,22 +956,35 @@ function HistoryPage() {
               </button>
             </IzCard>
           ) : (
-            <div className="iz-hist-shift-list mt-3 space-y-2.5">
-              {filteredRows.map((row) => (
-                <HistShiftCard
-                  key={`${row.d.join("-")}-${row.venue}`}
-                  row={row}
-                  shiftMeta={shiftMetaForHistRow(row)}
-                />
-              ))}
+            <div className="iz-hist-shift-list mt-3">
+              {shiftRowsByCycle.map((cycle) => {
+                const isCurrentWeek = cycle.weekStart === currentPayrollWeekStart;
+                return (
+                  <HistPayrollWeekSection
+                    key={cycle.weekStart}
+                    title={isCurrentWeek ? `Current week · ${cycle.label}` : `Payroll week · ${cycle.label}`}
+                    hint={`${formatRM(cycle.earnings)} earned · ${formatRM(cycle.wages)} wages`}
+                    shiftCount={cycle.rows.length}
+                    isCurrent={isCurrentWeek}
+                    defaultOpen={isCurrentWeek}
+                  >
+                    <div className="space-y-2.5 pt-3">
+                      {cycle.rows.map((row) => (
+                        <HistShiftCard
+                          key={`${row.d.join("-")}-${row.venue}`}
+                          row={row}
+                          shiftMeta={shiftMetaForHistRow(row)}
+                        />
+                      ))}
+                    </div>
+                  </HistPayrollWeekSection>
+                );
+              })}
             </div>
           )}
 
           <IzSheet open={filterOpen} onClose={() => setFilterOpen(false)}>
             <div className="iz-cardttl">Filter shift history</div>
-            <p className="iz-tiny iz-muted mb-3">
-              Narrow by date, venue, or numeric fields. All filters combine (AND).
-            </p>
 
             <div className="space-y-3">
               <PvDateTimeFilter
@@ -1012,7 +1002,6 @@ function HistoryPage() {
                 onTimeToChange={(timeTo) => setDraft((prev) => ({ ...prev, timeTo }))}
                 dateOptions={histDateOptions}
                 defaultMonth={histDefaultMonth}
-                timeHint="Filter by shift check-in time on the selected date."
               />
               <OutletPickerField
                 value={draft.venue}
@@ -1099,9 +1088,6 @@ function HistoryPage() {
         />
       )}
 
-      <p className="iz-tiny iz-muted2 mt-3 text-center">
-        Cycle {PAYROLL_CYCLE.range} · next transfer {PAYROLL_CYCLE.nextTransfer}
-      </p>
     </div>
   );
 }
@@ -1226,10 +1212,6 @@ function OutletPickerField({
 
       <IzSheet open={open} onClose={() => setOpen(false)}>
         <div className="iz-cardttl">Choose outlet</div>
-        <p className="iz-tiny iz-muted mb-3">
-          {outlets.length} outlet{outlets.length === 1 ? "" : "s"} in your shift history ·{" "}
-          {totalShifts} shifts total
-        </p>
         <div className="iz-hist-outlet-sheet-list">
           <button
             type="button"
@@ -1312,12 +1294,6 @@ function FilterChips({
     chips.push({ key: "timeTo", label: `To ${filters.timeTo}` });
   }
   if (filters.venue) chips.push({ key: "venue", label: `Outlet: ${filters.venue}` });
-  if (filters.period !== "all") {
-    chips.push({
-      key: "period",
-      label: `Period: ${SHIFT_PERIOD_OPTIONS.find((p) => p.id === filters.period)?.label ?? filters.period}`,
-    });
-  }
   const wages = parseFilterNum(filters.wages);
   if (wages !== null) chips.push({ key: "wages", label: `Wages: ${formatRM(wages)}` });
   const sales = parseFilterNum(filters.sales);
@@ -1396,7 +1372,7 @@ function HistShiftCard({
           )}
         </div>
         <div className="shrink-0 text-right">
-          <IzPill variant={pillVariant}>{row.st}</IzPill>
+          <IzPill variant={pillVariant}>{shiftHistoryStatusLabel(row.st)}</IzPill>
           <div className="font-sora iz-ledger mt-2 text-base font-extrabold text-[var(--iz-gold-l)]">
             {formatRM(row.sales)}
           </div>
@@ -1549,11 +1525,6 @@ function ReceiptScansSection({
         </button>
       </div>
 
-      <p className="iz-tiny iz-muted mx-0.5 mb-2">
-        Each receipt belongs to one shift PV (Time-In → scans → Time-Out). Many receipts can roll
-        into a single PV.
-      </p>
-
       <div className="iz-hist-search mb-2.5">
         <Search className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />
         <input
@@ -1611,7 +1582,6 @@ function ReceiptScansSection({
           onTimeToChange={(timeTo) => setFilters((p) => ({ ...p, timeTo }))}
           dateOptions={receiptDateOptions}
           defaultMonth={receiptDefaultMonth}
-          timeHint="Filtered by receipt scan time on the selected date."
         />
       </div>
 
@@ -1672,9 +1642,6 @@ function ReceiptScansSection({
       {scans.length === 0 ? (
         <IzCard flat className="py-8 text-center">
           <p className="iz-sm iz-muted">No receipt scans match your filters.</p>
-          <Link to="/host/scan" className="iz-btn iz-btn-primary iz-btn-sm mx-auto mt-3 w-auto">
-            Scan a receipt
-          </Link>
         </IzCard>
       ) : (
         <div className="iz-data-table-wrap">
@@ -1755,10 +1722,6 @@ function ReceiptScansSection({
         </div>
       )}
 
-      <Link to="/host/scan" className="iz-btn iz-btn-soft mt-3">
-        Scan another receipt
-      </Link>
-
       <IzSheet open={receiptFilterOpen} onClose={() => setReceiptFilterOpen(false)}>
         <div className="iz-cardttl">Filter receipt scans</div>
         <div className="space-y-3">
@@ -1777,7 +1740,6 @@ function ReceiptScansSection({
             onTimeToChange={(timeTo) => setReceiptDraft((p) => ({ ...p, timeTo }))}
             dateOptions={receiptDateOptions}
             defaultMonth={receiptDefaultMonth}
-            timeHint="Filtered by receipt scan time on the selected date."
           />
           <GenericSelectField
             label="Shift"
@@ -1865,7 +1827,6 @@ function PvDateTimeFilter({
   dateOptions,
   defaultMonth,
   compact,
-  timeHint,
 }: {
   date: string;
   timeFrom: string;
@@ -1876,7 +1837,6 @@ function PvDateTimeFilter({
   dateOptions: { key: string; label: string }[];
   defaultMonth: Date;
   compact?: boolean;
-  timeHint?: string;
 }) {
   const clearDate = () => {
     onDateChange("");
@@ -1919,24 +1879,6 @@ function PvDateTimeFilter({
           />
         </div>
       </div>
-      {!date && (timeFrom || timeTo) ? (
-        <p className="iz-tiny iz-muted2">
-          Pick a date first to narrow by time within that shift day.
-        </p>
-      ) : !date ? (
-        <p className="iz-tiny iz-muted2">
-          Select a date above — then tap From/To time to open the clock.
-        </p>
-      ) : date && (timeFrom || timeTo) ? (
-        <p className="iz-tiny iz-muted2">
-          {timeHint ??
-            `Lines matched by receipt scan time or shift Time-In on ${dateOptions.find((o) => o.key === date)?.label ?? date}.`}
-        </p>
-      ) : date ? (
-        <p className="iz-tiny iz-muted2">
-          Tap <b>From time</b> or <b>To time</b> to open the clock picker.
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -2008,10 +1950,6 @@ function PvBreakdownSection({
           )}
         </button>
       </div>
-
-      <p className="iz-tiny iz-muted mx-0.5 mb-2">
-        Each PV is one shift: Time-In, Time-Out, wages, and every receipt scanned before checkout.
-      </p>
 
       <div className="iz-hist-search mb-2.5">
         <Search className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />
@@ -2113,13 +2051,6 @@ function PvBreakdownSection({
             Clear all filters
           </button>
         </div>
-      )}
-
-      {!downloadPv && lines.length > 0 && (
-        <p className="iz-tiny iz-muted mx-0.5 mb-2">
-          Pick a PV in the dropdown above, or tap <b className="text-[var(--iz-gold-l)]">PDF</b> on
-          any row.
-        </p>
       )}
 
       {downloadPv && (

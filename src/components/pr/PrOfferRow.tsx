@@ -56,7 +56,7 @@ export function PrOfferRowActions({
   secondaryLabel?: string;
 }) {
   return (
-    <div className="flex gap-2 border-t border-[var(--iz-line)] px-3 py-2">
+    <div className="flex gap-2 iz-pr-inbox-card__actions">
       <button type="button" className="iz-btn iz-btn-soft iz-btn-sm flex-1 !py-2" onClick={onSecondary}>
         {secondaryLabel ?? "Decline"}
       </button>

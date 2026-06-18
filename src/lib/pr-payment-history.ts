@@ -1,4 +1,4 @@
-import type { PrPaymentVoucher, PrPvRow } from "@/lib/pr-demo";
+import type { HistRow, PrPaymentVoucher, PrPvRow } from "@/lib/pr-demo";
 import { buildWeeklyPaymentSummary, syncWeeklyPvWithSummary } from "@/lib/pr-weekly-payment";
 
 export type PaymentHistoryRecord = {
@@ -45,6 +45,49 @@ function countShiftDays(rows: PrPvRow[]) {
 
 export function isPaymentHistoryPv(pv: PrPaymentVoucher) {
   return pv.status === "PAID" || pv.status === "SIGNED";
+}
+
+/** Shift history badge — derived from the weekly PV covering that shift date. */
+export function deriveShiftHistoryStatus(
+  dateIso: string,
+  pvs: PrPaymentVoucher[],
+): Pick<HistRow, "st" | "pill"> {
+  const pv = pvs.find(
+    (p) => p.weekStartIso && p.weekEndIso && dateIso >= p.weekStartIso && dateIso <= p.weekEndIso,
+  );
+  if (!pv) {
+    return { st: "SEALED", pill: "ink" };
+  }
+  switch (pv.status) {
+    case "PAID":
+      return { st: "PAID", pill: "green" };
+    case "SIGNED":
+      return { st: "SIGNED", pill: "amber" };
+    case "DISPUTED":
+      return { st: "DISPUTED", pill: "red" };
+    case "SENT":
+    case "PENDING_REVIEW":
+      return { st: "SENT", pill: "ink" };
+    default:
+      return { st: "SEALED", pill: "ink" };
+  }
+}
+
+export function shiftHistoryStatusLabel(st: HistRow["st"]): string {
+  switch (st) {
+    case "PAID":
+      return "Paid";
+    case "SIGNED":
+      return "Signed";
+    case "SENT":
+      return "In PV";
+    case "DISPUTED":
+      return "Disputed";
+    case "SEALED":
+      return "Sealed";
+    default:
+      return st;
+  }
 }
 
 export function buildPaymentHistoryRecord(pv: PrPaymentVoucher): PaymentHistoryRecord {

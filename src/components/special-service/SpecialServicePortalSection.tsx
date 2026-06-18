@@ -226,6 +226,8 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
       <OutletSection
         title="Your service orders"
         hint={`${filtered.length} record${filtered.length !== 1 ? "s" : ""}`}
+        collapsible
+        defaultOpen={false}
         className="!mt-3"
       >
         {filtered.length === 0 ? (

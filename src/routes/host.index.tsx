@@ -7,7 +7,7 @@ import { PrOfferRow, PrOfferRowActions, PrStatusPill } from "@/components/pr/PrO
 import { PrAgencySchedulePanel } from "@/components/pr/PrAgencySchedulePanel";
 import { PrSection } from "@/components/pr/PrSection";
 import { useStore } from "@/lib/store";
-import { PR_SHIFT_OFFERS, DEFAULT_PR_AGENCY_NAME, SHIFT_TODAY, fmtDFriendly, fmtDShort, getPrProfile, getPrRosterId, filterPvsForPrProfile, filterReceiptScansForPrProfile, pvNeedsPrReview, receiptStatusLabel } from "@/lib/pr-demo";
+import { PR_SHIFT_OFFERS, fmtDFriendly, fmtDShort, getPrProfile, getPrRosterId, filterPvsForPrProfile, filterReceiptScansForPrProfile, pvNeedsPrReview, receiptStatusLabel } from "@/lib/pr-demo";
 import { findAgencyRosterTonight, shiftIndexForOutlet } from "@/lib/pr-session";
 import { DEFAULT_ROSTER_DATE_ISO, outletPendingShiftsForPr } from "@/lib/roster-availability";
 import {
@@ -68,7 +68,6 @@ function HostShifts() {
   const acceptSpecialServiceByPr = useStore((s) => s.acceptSpecialServiceByPr);
   const declineSpecialServiceByPr = useStore((s) => s.declineSpecialServiceByPr);
   const prDisplayName = useStore((s) => s.prDisplayName);
-  const prPayrollAgencyId = useStore((s) => s.prPayrollAgencyId);
   const demoPrShiftIn = useStore((s) => s.demoPrShiftIn);
 
   const [confirmMktId, setConfirmMktId] = useState<string | null>(null);
@@ -122,7 +121,6 @@ function HostShifts() {
     return null;
   }, [effectiveShiftAccepted, acceptedShiftIndex, agencyTonight]);
   const firstName = (prDisplayName ?? profile.first).split(" ")[0];
-  const todayLabel = fmtDFriendly(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2]);
 
   const myVouchers = useMemo(
     () => filterPvsForPrProfile(prPaymentVouchers, profile, prSubRole),
@@ -325,13 +323,8 @@ function HostShifts() {
         )}
       </div>
 
-      {!tied && !prPayrollAgencyId && (
-        <p className="iz-pr-note mt-3">Link payroll on Profile before PVs unlock.</p>
-      )}
-
       {!effectiveShiftAccepted && !pendingApproval && (!tied || !rosterBooked) && prMarketplaceApplication?.status !== "pending" && (
-        <div className="iz-pr-note mt-3 flex flex-wrap items-center justify-between gap-2">
-          <span className="iz-tiny iz-muted">Skip to on-duty flow</span>
+        <div className="mt-3 flex justify-end">
           <button
             type="button"
             className="iz-btn iz-btn-soft iz-btn-sm !py-1.5"
@@ -353,7 +346,7 @@ function HostShifts() {
         </div>
       )}
 
-      <PrSection title="Today" hint={todayLabel} collapsible defaultOpen className="mt-4">
+      <PrSection title="Today" collapsible defaultOpen={false} className="mt-4">
         {effectiveShiftAccepted && activeShift ? (
           <div className="iz-pr-hero">
             <p className="iz-tiny iz-muted2 uppercase tracking-wide">{checkedIn ? "On duty" : "Tonight"}</p>
@@ -383,7 +376,6 @@ function HostShifts() {
                 </PrStatusPill>
               }
             />
-            <p className="iz-tiny iz-muted mt-2 px-1">Rostered for today — confirm when the outlet finalises your slot.</p>
           </div>
         ) : (
           <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
@@ -394,14 +386,13 @@ function HostShifts() {
 
       <PrSection
         title="To-do"
-        hint={todoCount > 0 ? `${todoCount} need your action` : "All caught up"}
         collapsible
-        defaultOpen
+        defaultOpen={false}
         className="mt-4"
       >
         {todoCount === 0 ? (
           <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
-            Nothing needs your action right now.
+            Nothing to do
           </p>
         ) : (
           <div className="iz-pr-list">
@@ -456,10 +447,6 @@ function HostShifts() {
                   subtitle={`${slot.date} · ${slot.shift}`}
                   badge={<PrStatusPill variant="amber">Outlet pending</PrStatusPill>}
                 />
-                <p className="iz-tiny iz-muted mt-2 px-1">
-                  {slot.agencyAssignment?.agencyNote ??
-                    "Agency approved your swap — the outlet reviews before you can check in."}
-                </p>
                 <button
                   type="button"
                   className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-full"
@@ -473,7 +460,7 @@ function HostShifts() {
               <div className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
                 <PrOfferRow
                   title="Shift approval"
-                  subtitle="Agency must approve before you can check in"
+                  subtitle="Pending"
                   badge={<PrStatusPill variant="amber">Pending</PrStatusPill>}
                 />
                 <button
@@ -489,7 +476,7 @@ function HostShifts() {
               <div className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
                 <PrOfferRow
                   title="Marketplace application"
-                  subtitle="Outlet reviews on Bookings → Applicants"
+                  subtitle="Pending"
                   badge={<PrStatusPill variant="amber">Pending</PrStatusPill>}
                 />
               </div>
@@ -499,17 +486,13 @@ function HostShifts() {
       </PrSection>
 
       {prUpcomingShifts.length > 0 && (
-        <PrSection title="Upcoming" hint="Future shifts — outlet-confirmed & agency-proposed" collapsible defaultOpen className="mt-4">
+        <PrSection title="Upcoming" collapsible defaultOpen={false} className="mt-4">
           <div className="iz-pr-list">
             {prUpcomingShifts.map((u) => (
               <PrOfferRow
                 key={u.id}
                 title={u.outlet}
-                subtitle={
-                  u.status === "confirmed"
-                    ? `Outlet · ${u.outlet} confirmed · ${fmtDFriendly(u.date[0], u.date[1], u.date[2])} · ${u.time}`
-                    : `Agency · ${DEFAULT_PR_AGENCY_NAME} proposed · outlet reviewing · ${fmtDFriendly(u.date[0], u.date[1], u.date[2])} · ${u.time}`
-                }
+                subtitle={`${fmtDFriendly(u.date[0], u.date[1], u.date[2])} · ${u.time}`}
                 badge={<PrStatusPill variant={u.status === "confirmed" ? "green" : "amber"}>{u.status}</PrStatusPill>}
               />
             ))}
@@ -526,9 +509,8 @@ function HostShifts() {
       {tied && (
         <PrSection
           title="Agency schedule"
-          hint="Mark days you're not available · Atlas manages roster"
           collapsible
-          defaultOpen
+          defaultOpen={false}
           className="mt-4"
         >
           <PrAgencySchedulePanel
@@ -568,7 +550,6 @@ function HostShifts() {
       {!tied && (
       <PrSection
         title="Open shifts"
-        hint="Apply — outlet confirms"
         trailing={
           <button type="button" className="iz-outlet-quick-chip !py-1" onClick={() => setFiltersOpen(true)}>
             <Filter className="h-3 w-3" /> Filter

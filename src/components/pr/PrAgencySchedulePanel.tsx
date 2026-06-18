@@ -10,11 +10,9 @@ import {
   dayCanToggleAvailability,
   entryCanCancel,
   entryCanDecline,
-  type PrScheduleDay,
   type ShiftDataSource,
   type TimetableEntry,
 } from "@/lib/pr-agency-schedule";
-import { PAYROLL_CYCLE } from "@/lib/pr-demo";
 import type { PrUpcomingShift } from "@/lib/pr-features";
 import {
   CANCELLATION_RULE_SUMMARY,
@@ -30,24 +28,6 @@ const MONTH_LABELS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
-
-const KIND_LABEL: Record<PrScheduleDay["kind"], string> = {
-  past: "Past",
-  open: "Open",
-  unavailable: "Unavailable",
-  assigned: "Scheduled",
-  pending: "Pending",
-  active: "On duty",
-};
-
-const KIND_PILL: Record<PrScheduleDay["kind"], "green" | "amber" | "red" | "ink"> = {
-  past: "ink",
-  open: "ink",
-  unavailable: "red",
-  assigned: "green",
-  pending: "amber",
-  active: "green",
-};
 
 export function PrAgencySchedulePanel({
   prId,
@@ -101,7 +81,6 @@ export function PrAgencySchedulePanel({
     [prId, roster, upcoming, viewMonth],
   );
 
-  const selectedDay = selectedIso ? dayByIso.get(selectedIso) : undefined;
   const cancelSlot = cancelSlotId ? roster.find((s) => s.id === cancelSlotId) : undefined;
   const cancelEval =
     cancelSlot &&
@@ -141,7 +120,6 @@ export function PrAgencySchedulePanel({
             <span className="block text-xs font-bold uppercase tracking-wide text-[var(--iz-txt)]">
               Cancellation rules
             </span>
-            <span className="iz-tiny iz-muted2">Shift cancel &amp; lateness · Atlas payroll cycle</span>
           </span>
           <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", rulesOpen && "rotate-180")} />
         </button>
@@ -156,10 +134,6 @@ export function PrAgencySchedulePanel({
           </ul>
         )}
       </div>
-
-      <p className="iz-tiny iz-muted2 mb-2 px-0.5">
-        Agency schedule · {PAYROLL_CYCLE.range}. Tap <b>open</b> → not available (red). Tap <b>red</b> again → open. Syncs to Atlas &amp; outlets instantly.
-      </p>
 
       <div className="iz-pr-schedule-cal-wrap">
         <div className="iz-hist-cal-nav mb-2">
@@ -256,16 +230,13 @@ export function PrAgencySchedulePanel({
       </div>
 
       <div className="iz-pr-schedule-timetable">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-[var(--iz-muted2)]" />
-            <span className="text-xs font-bold uppercase tracking-wide text-[var(--iz-muted)]">Timetable</span>
-          </div>
-          <span className="iz-tiny iz-muted2">Source: Atlas Agency or outlet roster</span>
+        <div className="flex items-center gap-2 mb-2">
+          <Clock className="h-4 w-4 text-[var(--iz-muted2)]" />
+          <span className="text-xs font-bold uppercase tracking-wide text-[var(--iz-muted)]">Timetable</span>
         </div>
         {timetableEntries.length === 0 ? (
           <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-3 py-5 text-center">
-            No assigned shifts this month — mark open days you cannot work.
+            No shifts this month
           </p>
         ) : (
           <div className="iz-pr-list">
@@ -280,12 +251,6 @@ export function PrAgencySchedulePanel({
           </div>
         )}
       </div>
-
-      {selectedDay && selectedDay.kind !== "past" && !dayCanToggleAvailability(selectedDay) && (
-        <p className="iz-tiny iz-muted2 mt-2 text-center">
-          {selectedDay.label}: <b>{KIND_LABEL[selectedDay.kind]}</b> — cancel or decline shifts before marking unavailable
-        </p>
-      )}
 
       <IzSheet open={cancelSlotId !== null} onClose={() => setCancelSlotId(null)}>
         {cancelSlot && cancelEval && (
@@ -348,7 +313,7 @@ function TimetableRow({
   const slot = entry.slot;
 
   return (
-    <div className="iz-pr-inbox-card !py-3">
+    <div className="iz-pr-inbox-card">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <SourceBadge source={entry.source} label={entry.sourceLabel} />

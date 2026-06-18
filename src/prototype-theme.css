@@ -7289,7 +7289,7 @@ button.iz-agency-row:hover {
 }
 .iz-reg-ack-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   padding: 10px 0;
 }
@@ -7301,7 +7301,6 @@ button.iz-agency-row:hover {
   padding-bottom: 0;
 }
 .iz-reg-ack-row__check {
-  margin-top: 3px;
   flex-shrink: 0;
   accent-color: var(--iz-gold);
 }
@@ -7317,12 +7316,6 @@ button.iz-agency-row:hover {
 }
 .iz-reg-ack-link:hover {
   color: #7bb8ff;
-}
-.iz-reg-ack-hint {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--iz-muted2);
-  line-height: 1.35;
 }
 .iz-reg-terms-block {
   margin-top: 16px;

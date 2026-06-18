@@ -535,13 +535,11 @@ function AcknowledgementRow({
   checked,
   onCheckedChange,
   title,
-  hint,
   onTitleClick,
 }: {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   title: string;
-  hint: string;
   onTitleClick: () => void;
 }) {
   return (
@@ -553,12 +551,9 @@ function AcknowledgementRow({
         onChange={(e) => onCheckedChange(e.target.checked)}
         aria-label={title}
       />
-      <div className="min-w-0 flex-1">
-        <button type="button" className="iz-reg-ack-link" onClick={onTitleClick}>
-          {title}
-        </button>
-        <p className="iz-reg-ack-hint">{hint}</p>
-      </div>
+      <button type="button" className="iz-reg-ack-link" onClick={onTitleClick}>
+        {title}
+      </button>
     </div>
   );
 }
@@ -580,21 +575,18 @@ function RegistrationAcknowledgements({
           checked={draft.acceptPrivacy}
           onCheckedChange={(acceptPrivacy) => patch({ acceptPrivacy })}
           title="Personal Information Disclaimer"
-          hint="Tap title to read details"
           onTitleClick={() => setOpenDisclaimer("privacy")}
         />
         <AcknowledgementRow
           checked={draft.acceptTruth}
           onCheckedChange={(acceptTruth) => patch({ acceptTruth })}
           title="Declaration of Truth"
-          hint="Tap title to read details"
           onTitleClick={() => setOpenDisclaimer("truth")}
         />
         <AcknowledgementRow
           checked={draft.acceptAgencyShare}
           onCheckedChange={(acceptAgencyShare) => patch({ acceptAgencyShare })}
           title="Agency Information Sharing"
-          hint="Required — tap to read sharing notice"
           onTitleClick={() => setOpenDisclaimer("agency")}
         />
       </section>
@@ -1103,7 +1095,7 @@ function RegisterPage() {
                     <Camera className="h-3.5 w-3.5" />
                   </span>
                 </button>
-                <p className="iz-tiny iz-muted mt-2">Profile photo (optional)</p>
+                <p className="iz-tiny iz-muted mt-2">Profile Photo</p>
                 <input
                   ref={profilePhotoRef}
                   type="file"

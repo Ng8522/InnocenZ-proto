@@ -101,7 +101,6 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
   const signPrPv = useStore((s) => s.signPrPv);
   const disputePrPv = useStore((s) => s.disputePrPv);
   const updatePrPvDisputeReason = useStore((s) => s.updatePrPvDisputeReason);
-  const escalatePrPvDispute = useStore((s) => s.escalatePrPvDispute);
   const ensurePreviousWeekPv = useStore((s) => s.ensurePreviousWeekPv);
   const toast = useStore((s) => s.toast);
   const [detailId, setDetailId] = useState<string | null>(searchPvId ?? null);
@@ -221,7 +220,6 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
           onSign={(signatureDataUrl) => signPrPv(pv.id, signatureDataUrl)}
           onDispute={(reason, photos) => disputePrPv(pv.id, reason, photos)}
           onUpdateDispute={(reason, photos) => updatePrPvDisputeReason(pv.id, reason, photos)}
-          onEscalateDispute={() => escalatePrPvDispute(pv.id)}
           onViewPdf={() => {
             viewPvBreakdownPdf(pv, payeeFromProfile(profile), myReceiptScans);
             toast("Official PV opened — use Print → Save as PDF to download", "success");
@@ -411,7 +409,6 @@ function PvDetail({
   onSign,
   onDispute,
   onUpdateDispute,
-  onEscalateDispute,
   onViewPdf,
 }: {
   pv: PrPaymentVoucher;
@@ -424,7 +421,6 @@ function PvDetail({
   onSign: (signatureDataUrl: string) => void;
   onDispute: (reason: string, photoDataUrls?: string[]) => void;
   onUpdateDispute: (reason: string, photoDataUrls?: string[]) => void;
-  onEscalateDispute: () => void;
   onViewPdf: () => void;
 }) {
   const [signOpen, setSignOpen] = useState(false);
@@ -795,7 +791,7 @@ function PvDetail({
           <details className="iz-pv-dispute-details">
             <summary className="iz-pv-dispute-details-toggle iz-pv-dispute-details-toggle--alert">
               <span className="iz-sm font-bold text-[var(--iz-red)]">
-                Dispute open — payment held
+                Dispute open — agency reviewing
               </span>
               <ChevronDown className="iz-pv-dispute-details-chevron h-4 w-4 shrink-0" />
             </summary>
@@ -823,19 +819,6 @@ function PvDetail({
               >
                 Submit
               </button>
-              {pv.disputeEscalatedAt ? (
-                <p className="iz-tiny mt-3 text-[var(--iz-amber)]">
-                  Escalated to InnocenZ Admin · {pv.disputeEscalatedAt}
-                </p>
-              ) : (
-                <button
-                  type="button"
-                  className="iz-btn iz-btn-soft iz-btn-sm mt-3 w-auto"
-                  onClick={onEscalateDispute}
-                >
-                  Simulate 7-day escalation
-                </button>
-              )}
             </div>
           </details>
         </IzCard>

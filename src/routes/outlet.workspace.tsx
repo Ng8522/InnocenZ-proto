@@ -2,10 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { IzCard } from "@/components/iz/ui";
 import { OutletSection } from "@/components/outlet/OutletSection";
+import { TierRatesFields } from "@/components/outlet/TierRatesFields";
 import { useStore } from "@/lib/store";
 import { outletCan } from "@/lib/outlet-rbac";
 import type { OutletDrinkPrice } from "@/lib/outlet-demo";
 import { drinkMenuPriceRange } from "@/lib/outlet-demo";
+import {
+  OUTLET_BASE_TIER,
+  OUTLET_PR_TIERS,
+  buildDefaultTierRates,
+  formatTierWageRange,
+  snapTierWage,
+  type OutletPrTier,
+  type OutletTierRateSettings,
+} from "@/lib/agency-demo";
 import { Plus, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/outlet/workspace")({
@@ -51,6 +61,11 @@ function NumField({
   readOnly?: boolean;
 }) {
   const [text, setText] = useState(String(value));
+
+  useEffect(() => {
+    setText(String(value));
+  }, [value]);
+
   const commit = () => {
     if (!onChange) return;
     const n = parseFloat(text.replace(/,/g, ""));
@@ -201,9 +216,43 @@ function OutletWorkspacePage() {
   const { outletWorkspace, saveOutletWorkspace } = useStore();
   const canEdit = outletCan(outletSubRole, "manageWorkspace");
   const [draft, setDraft] = useState(outletWorkspace);
+  const [activeTier, setActiveTier] = useState<OutletPrTier>(OUTLET_BASE_TIER);
+
+  useEffect(() => {
+    setDraft(outletWorkspace);
+  }, [outletWorkspace]);
 
   const patch = (p: Partial<typeof draft>) => setDraft((d) => ({ ...d, ...p }));
+  const patchTier = (tier: OutletPrTier, tierPatch: Partial<OutletTierRateSettings>) => {
+    setDraft((d) => {
+      const patch = { ...tierPatch };
+      if (patch.wagePerHour != null) patch.wagePerHour = snapTierWage(patch.wagePerHour);
+      let nextTierRates = {
+        ...d.tierRates,
+        [tier]: { ...d.tierRates[tier], ...patch },
+      };
+      if (tier === OUTLET_BASE_TIER && patch.wagePerHour != null) {
+        const rebuilt = buildDefaultTierRates(nextTierRates[OUTLET_BASE_TIER]);
+        nextTierRates = { ...nextTierRates };
+        for (const t of OUTLET_PR_TIERS) {
+          nextTierRates[t] = { ...nextTierRates[t], wagePerHour: rebuilt[t].wagePerHour };
+        }
+      }
+      const baseTier = nextTierRates[OUTLET_BASE_TIER];
+      return {
+        ...d,
+        tierRates: nextTierRates,
+        basePayPerHour: baseTier.wagePerHour,
+        drinkPct: baseTier.drinkPct,
+        tipPct: baseTier.tipPct,
+        tablePct: baseTier.tablePct,
+        otAfterHours: baseTier.otAfterHours,
+      };
+    });
+  };
   const drinkRange = drinkMenuPriceRange(draft.drinkMenu ?? []);
+  const activeRates = draft.tierRates[activeTier];
+  const tierHint = `${activeRates.drinkPct}% drink · ${activeRates.tipPct}% tip · ${formatTierWageRange(draft.tierRates)} · synced to agency`;
 
   return (
     <div className="iz-screen">
@@ -217,58 +266,20 @@ function OutletWorkspacePage() {
         )}
       </header>
 
-      <OutletSection title="Base rates" hint={`RM ${draft.basePayPerHour}/hr · synced to agency`} className="!mt-4">
-      <IzCard className="!py-3">
-        <div className="flex gap-3">
-          <NumField
-            label="Pay / hour"
-            value={draft.basePayPerHour}
-            suffix="RM"
-            readOnly={!canEdit}
-            onChange={canEdit ? (n) => patch({ basePayPerHour: n }) : undefined}
-          />
-          <NumField
-            label="OT after"
-            value={draft.otAfterHours}
-            suffix="hrs"
-            readOnly={!canEdit}
-            onChange={canEdit ? (n) => patch({ otAfterHours: n }) : undefined}
-          />
-        </div>
-      </IzCard>
-      </OutletSection>
-
       <OutletSection
-        title="Commission"
-        hint={`${draft.drinkPct}% drink · ${draft.tipPct}% tip · synced to agency`}
-        collapsible
-        defaultOpen={false}
+        title="Rates by PR tier"
+        hint={`${activeTier} · ${tierHint}`}
+        className="!mt-4"
       >
-      <IzCard className="!py-3">
-        <div className="grid grid-cols-3 gap-2">
-          <NumField
-            label="Drink %"
-            value={draft.drinkPct}
-            suffix="%"
+        <IzCard className="!py-3">
+          <TierRatesFields
+            tierRates={draft.tierRates}
+            activeTier={activeTier}
+            onActiveTierChange={setActiveTier}
+            onPatchTier={patchTier}
             readOnly={!canEdit}
-            onChange={canEdit ? (n) => patch({ drinkPct: n }) : undefined}
           />
-          <NumField
-            label="Tip %"
-            value={draft.tipPct}
-            suffix="%"
-            readOnly={!canEdit}
-            onChange={canEdit ? (n) => patch({ tipPct: n }) : undefined}
-          />
-          <NumField
-            label="Table %"
-            value={draft.tablePct}
-            suffix="%"
-            readOnly={!canEdit}
-            onChange={canEdit ? (n) => patch({ tablePct: n }) : undefined}
-          />
-        </div>
-      </IzCard>
+        </IzCard>
       </OutletSection>
 
       <OutletSection

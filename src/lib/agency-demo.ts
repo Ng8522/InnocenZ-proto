@@ -17,14 +17,350 @@ export interface OutletCommissionRule {
   tablePct: number;
   otAfterHours: number;
   platformPct: number;
+  /** Per PR training tier — outlet workspace edits sync here */
+  tierRates?: Partial<Record<OutletPrTier, OutletTierRateSettings>>;
+  /** Payout multipliers by PR training tier (per outlet) */
+  tierMultipliers?: Record<OutletPrTier, number>;
+}
+
+export const OUTLET_PR_TIERS = ["Tier I", "Tier II", "Tier III", "Tier IV", "Tier V"] as const;
+export type OutletPrTier = (typeof OUTLET_PR_TIERS)[number];
+/** Canonical base tier — flat commission fields and 1× multiplier */
+export const OUTLET_BASE_TIER: OutletPrTier = "Tier I";
+
+export interface OutletTierRateSettings {
+  wagePerHour: number;
+  drinkPct: number;
+  tipPct: number;
+  tablePct: number;
+  otAfterHours: number;
+  /** Optional per-shift sales target (RM) — set on Post Job only */
+  targetSalesRm?: number;
+}
+
+const TIER_WAGE_MULTIPLIERS: Record<OutletPrTier, number> = {
+  "Tier I": 1,
+  "Tier II": 1.08,
+  "Tier III": 1.18,
+  "Tier IV": 1.29,
+  "Tier V": 1.59,
+};
+
+export function defaultTierWageMultipliers(): Record<OutletPrTier, number> {
+  return { ...TIER_WAGE_MULTIPLIERS };
+}
+
+export const TIER_WAGE_STEP = 5;
+export const TIER_WAGE_MIN = 40;
+export const TIER_WAGE_MAX = 120;
+
+export function snapTierWage(value: number): number {
+  const snapped = Math.round(value / TIER_WAGE_STEP) * TIER_WAGE_STEP;
+  return Math.min(TIER_WAGE_MAX, Math.max(TIER_WAGE_MIN, snapped));
+}
+
+export function tierWageFromMultiplier(baseWage: number, multiplier: number): number {
+  return snapTierWage(snapTierWage(baseWage) * multiplier);
+}
+
+/** Derive tier multipliers from actual per-tier wages (outlet workspace → agency rules). */
+export function deriveTierMultipliersFromRates(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+): Record<OutletPrTier, number> {
+  const baseWage = tierRates[OUTLET_BASE_TIER]?.wagePerHour ?? 0;
+  if (baseWage <= 0) return normalizeOutletTierMultipliers();
+  const partial = {} as Partial<Record<OutletPrTier, number>>;
+  for (const tier of OUTLET_PR_TIERS) {
+    partial[tier] =
+      tier === OUTLET_BASE_TIER
+        ? 1
+        : Math.round((tierRates[tier].wagePerHour / baseWage) * 100) / 100;
+  }
+  return normalizeOutletTierMultipliers(partial);
+}
+
+function snapTierRatesWages(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  const out = { ...tierRates };
+  for (const tier of OUTLET_PR_TIERS) {
+    out[tier] = { ...out[tier], wagePerHour: snapTierWage(out[tier].wagePerHour) };
+  }
+  return out;
+}
+
+export function buildDefaultTierRates(base: OutletTierRateSettings): Record<OutletPrTier, OutletTierRateSettings> {
+  const baseWage = snapTierWage(base.wagePerHour);
+  const out = {} as Record<OutletPrTier, OutletTierRateSettings>;
+  for (const tier of OUTLET_PR_TIERS) {
+    out[tier] = {
+      wagePerHour: tierWageFromMultiplier(baseWage, TIER_WAGE_MULTIPLIERS[tier]),
+      drinkPct: base.drinkPct,
+      tipPct: base.tipPct,
+      tablePct: base.tablePct,
+      otAfterHours: base.otAfterHours,
+    };
+  }
+  return out;
+}
+
+export function tierWagesAreDistinct(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+): boolean {
+  const wages = OUTLET_PR_TIERS.map((t) => tierRates[t].wagePerHour);
+  if (new Set(wages).size <= 1) return false;
+  for (let i = 1; i < OUTLET_PR_TIERS.length; i++) {
+    if (wages[i]! <= wages[i - 1]!) return false;
+  }
+  return true;
+}
+
+/** Rebuild wages from Tier I base when tiers share the same pay (legacy flat data). */
+export function ensureAscendingTierWages(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  if (tierWagesAreDistinct(tierRates)) return tierRates;
+  const base = tierRates[OUTLET_BASE_TIER];
+  const rebuilt = buildDefaultTierRates(base);
+  const out = { ...tierRates };
+  for (const tier of OUTLET_PR_TIERS) {
+    out[tier] = { ...out[tier], wagePerHour: rebuilt[tier].wagePerHour };
+  }
+  return out;
+}
+
+export function cloneTierRates(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  return OUTLET_PR_TIERS.reduce(
+    (acc, tier) => {
+      acc[tier] = { ...tierRates[tier] };
+      return acc;
+    },
+    {} as Record<OutletPrTier, OutletTierRateSettings>,
+  );
+}
+
+export function getTierWageFromRates(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  tier: OutletPrTier,
+): number {
+  const wage = tierRates[tier]?.wagePerHour ?? tierRates[OUTLET_BASE_TIER].wagePerHour;
+  return snapTierWage(wage);
+}
+
+export function averageTierWage(tierRates: Record<OutletPrTier, OutletTierRateSettings>): number {
+  const wages = OUTLET_PR_TIERS.map((t) => tierRates[t].wagePerHour);
+  return Math.round(wages.reduce((a, b) => a + b, 0) / wages.length);
+}
+
+export function estimateShiftLaborCost(opts: {
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>;
+  hours: number;
+  quantity: number;
+  prIds?: string[];
+  prTierById?: Record<string, string | undefined>;
+}): number {
+  const { tierRates, hours, quantity, prIds, prTierById } = opts;
+  if (prIds?.length) {
+    return Math.round(
+      prIds.reduce((sum, id) => {
+        const tier = (prTierById?.[id] ?? OUTLET_BASE_TIER) as OutletPrTier;
+        return sum + getTierWageFromRates(tierRates, tier) * hours;
+      }, 0),
+    );
+  }
+  return Math.round(averageTierWage(tierRates) * quantity * hours);
+}
+
+export function formatTierWageRange(tierRates: Record<OutletPrTier, OutletTierRateSettings>): string {
+  const wages = OUTLET_PR_TIERS.map((t) => tierRates[t].wagePerHour);
+  const min = Math.min(...wages);
+  const max = Math.max(...wages);
+  if (min === max) return `RM ${min}/hr`;
+  return `RM ${min}–${max}/hr`;
+}
+
+export function formatTierSalesTargets(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+): string | null {
+  const targets = OUTLET_PR_TIERS.map((t) => tierRates[t].targetSalesRm).filter(
+    (v): v is number => v != null && v > 0,
+  );
+  if (targets.length === 0) return null;
+  const min = Math.min(...targets);
+  const max = Math.max(...targets);
+  if (min === max) return `RM ${min.toLocaleString()} sales target`;
+  return `RM ${min.toLocaleString()}–${max.toLocaleString()} sales targets`;
+}
+
+export function normalizeTierRates(
+  base: OutletTierRateSettings,
+  partial?: Partial<Record<OutletPrTier, OutletTierRateSettings>>,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  const snappedBase = { ...base, wagePerHour: snapTierWage(base.wagePerHour) };
+  const defaults = buildDefaultTierRates(snappedBase);
+  if (!partial) return defaults;
+  const out = { ...defaults };
+  for (const tier of OUTLET_PR_TIERS) {
+    if (partial[tier]) {
+      out[tier] = {
+        ...defaults[tier],
+        ...partial[tier],
+        wagePerHour: snapTierWage(partial[tier].wagePerHour ?? defaults[tier].wagePerHour),
+      };
+    }
+  }
+  return ensureAscendingTierWages(snapTierRatesWages(out));
+}
+
+const DEFAULT_TIER_MULTIPLIERS: Record<OutletPrTier, number> = {
+  "Tier I": 1,
+  "Tier II": 1.08,
+  "Tier III": 1.18,
+  "Tier IV": 1.29,
+  "Tier V": 1.59,
+};
+
+export function usesLegacyTierIIIBaseMultipliers(
+  multipliers: Partial<Record<OutletPrTier, number>> | undefined,
+): boolean {
+  const m = { ...DEFAULT_TIER_MULTIPLIERS, ...multipliers };
+  return m["Tier III"] === 1 && m["Tier I"] < 1;
+}
+
+export function migrateTierMultipliersToTierIBase(
+  multipliers: Partial<Record<OutletPrTier, number>> | undefined,
+): Record<OutletPrTier, number> {
+  const m = normalizeOutletTierMultipliers(multipliers);
+  if (!usesLegacyTierIIIBaseMultipliers(m)) return m;
+  const scale = 1 / m["Tier I"];
+  const scaled = {} as Record<OutletPrTier, number>;
+  for (const tier of OUTLET_PR_TIERS) {
+    scaled[tier] = Math.round(m[tier] * scale * 100) / 100;
+  }
+  return normalizeOutletTierMultipliers(scaled);
+}
+
+export function migrateCommissionRuleToTierIBase(rule: OutletCommissionRule): OutletCommissionRule {
+  const tierMultipliers = migrateTierMultipliersToTierIBase(rule.tierMultipliers);
+  if (!usesLegacyTierIIIBaseMultipliers(rule.tierMultipliers)) {
+    return { ...rule, tierMultipliers };
+  }
+  const legacyMult = normalizeOutletTierMultipliers(rule.tierMultipliers);
+  const tierIBase = rule.tierRates?.[OUTLET_BASE_TIER] ?? {
+    wagePerHour: Math.round(rule.wagePerHour * legacyMult["Tier I"]),
+    drinkPct: rule.drinkPct,
+    tipPct: rule.tipPct,
+    tablePct: rule.tablePct,
+    otAfterHours: rule.otAfterHours,
+  };
+  return {
+    ...rule,
+    wagePerHour: tierIBase.wagePerHour,
+    drinkPct: tierIBase.drinkPct,
+    tipPct: tierIBase.tipPct,
+    tablePct: tierIBase.tablePct,
+    otAfterHours: tierIBase.otAfterHours,
+    tierMultipliers,
+    tierRates: rule.tierRates ?? buildDefaultTierRates(tierIBase),
+  };
+}
+
+export function normalizeOutletTierMultipliers(
+  partial?: Partial<Record<OutletPrTier, number>>,
+): Record<OutletPrTier, number> {
+  return { ...DEFAULT_TIER_MULTIPLIERS, ...partial };
+}
+
+export function getTierWageForRule(rule: OutletCommissionRule, tier: OutletPrTier): number {
+  const tierRate = rule.tierRates?.[tier];
+  if (tierRate?.wagePerHour != null) return snapTierWage(tierRate.wagePerHour);
+  const mult = normalizeOutletTierMultipliers(rule.tierMultipliers)[tier];
+  return tierWageFromMultiplier(rule.wagePerHour, mult);
+}
+
+export function getEffectiveOutletRule(
+  outlet: string,
+  prTier: string | undefined,
+  rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
+  shiftTierRates?: Record<OutletPrTier, OutletTierRateSettings>,
+): OutletCommissionRule {
+  const base = getOutletRule(outlet, rules);
+  const tier = prTier as OutletPrTier;
+  const shiftRate = tier && shiftTierRates?.[tier];
+  if (shiftRate) {
+    return {
+      ...base,
+      wagePerHour: snapTierWage(shiftRate.wagePerHour),
+      drinkPct: shiftRate.drinkPct,
+      tipPct: shiftRate.tipPct,
+      tablePct: shiftRate.tablePct,
+      otAfterHours: shiftRate.otAfterHours,
+    };
+  }
+  const tierRate = tier && base.tierRates?.[tier];
+  const mult = tier ? (base.tierMultipliers?.[tier] ?? 1) : 1;
+  if (tierRate) {
+    return {
+      ...base,
+      wagePerHour: snapTierWage(tierRate.wagePerHour),
+      drinkPct: tierRate.drinkPct,
+      tipPct: tierRate.tipPct,
+      tablePct: tierRate.tablePct,
+      otAfterHours: tierRate.otAfterHours,
+    };
+  }
+  if (tier && mult !== 1) {
+    return {
+      ...base,
+      wagePerHour: tierWageFromMultiplier(base.wagePerHour, mult),
+    };
+  }
+  return { ...base, wagePerHour: snapTierWage(base.wagePerHour) };
+}
+
+export const SCALING_TIER_MULTIPLIERS: Record<string, number> = {
+  ...DEFAULT_TIER_MULTIPLIERS,
+};
+
+function commissionRuleSeed(
+  rule: Omit<OutletCommissionRule, "tierRates" | "tierMultipliers"> & {
+    tierRates?: Partial<Record<OutletPrTier, OutletTierRateSettings>>;
+    tierMultipliers?: Partial<Record<OutletPrTier, number>>;
+  },
+): OutletCommissionRule {
+  const tierBase = {
+    wagePerHour: snapTierWage(rule.wagePerHour),
+    drinkPct: rule.drinkPct,
+    tipPct: rule.tipPct,
+    tablePct: rule.tablePct,
+    otAfterHours: rule.otAfterHours,
+  };
+  return {
+    ...rule,
+    wagePerHour: tierBase.wagePerHour,
+    tierMultipliers: normalizeOutletTierMultipliers(rule.tierMultipliers),
+    tierRates: rule.tierRates
+      ? snapTierRatesWages(normalizeTierRates(tierBase, rule.tierRates))
+      : buildDefaultTierRates(tierBase),
+  };
 }
 
 export const OUTLET_COMMISSION_RULES: OutletCommissionRule[] = [
-  { outlet: "Velvet 23", wagePerHour: 60, drinkPct: 8, tipPct: 15, tablePct: 10, otAfterHours: 6, platformPct: 5 },
-  { outlet: "Mermate", wagePerHour: 55, drinkPct: 10, tipPct: 12, tablePct: 8, otAfterHours: 6, platformPct: 5 },
-  { outlet: "Bear Lounge", wagePerHour: 58, drinkPct: 9, tipPct: 14, tablePct: 10, otAfterHours: 5, platformPct: 5 },
-  { outlet: "Onyx KL", wagePerHour: 62, drinkPct: 7, tipPct: 16, tablePct: 12, otAfterHours: 6, platformPct: 5 },
-  { outlet: "Urban Soul", wagePerHour: 52, drinkPct: 11, tipPct: 10, tablePct: 8, otAfterHours: 6, platformPct: 5 },
+  commissionRuleSeed({
+    outlet: "Velvet 23",
+    wagePerHour: 50,
+    drinkPct: 8,
+    tipPct: 15,
+    tablePct: 10,
+    otAfterHours: 6,
+    platformPct: 5,
+  }),
+  commissionRuleSeed({ outlet: "Mermate", wagePerHour: 45, drinkPct: 10, tipPct: 12, tablePct: 8, otAfterHours: 6, platformPct: 5 }),
+  commissionRuleSeed({ outlet: "Bear Lounge", wagePerHour: 50, drinkPct: 9, tipPct: 14, tablePct: 10, otAfterHours: 5, platformPct: 5 }),
+  commissionRuleSeed({ outlet: "Onyx KL", wagePerHour: 55, drinkPct: 7, tipPct: 16, tablePct: 12, otAfterHours: 6, platformPct: 5 }),
+  commissionRuleSeed({ outlet: "Urban Soul", wagePerHour: 45, drinkPct: 11, tipPct: 10, tablePct: 8, otAfterHours: 6, platformPct: 5 }),
 ];
 
 export function getOutletRule(
@@ -44,10 +380,14 @@ export function calcShiftPayout(
     tips: number;
     tableSales: number;
     checkOutAfterOt?: boolean;
+    /** PR training tier — uses tier-specific wage & commission when set */
+    prTier?: string;
+    /** Per-shift tier rate snapshot — overrides outlet commission rules */
+    shiftTierRates?: Record<OutletPrTier, OutletTierRateSettings>;
   },
   rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
 ) {
-  const rule = getOutletRule(input.outlet, rules);
+  const rule = getEffectiveOutletRule(input.outlet, input.prTier, rules, input.shiftTierRates);
   const baseHours = Math.min(input.hoursWorked, rule.otAfterHours);
   const otHours = Math.max(0, input.hoursWorked - rule.otAfterHours);
   const wages = baseHours * rule.wagePerHour + otHours * rule.wagePerHour * 1.5;
@@ -818,12 +1158,6 @@ export interface AgencyCollectionInvoice {
   counterparty?: string;
 }
 
-export const SCALING_TIER_MULTIPLIERS: Record<string, number> = {
-  "Tier III": 1.0,
-  "Tier IV": 1.1,
-  "Tier V": 1.35,
-};
-
 export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
   {
     id: "COL-2026-0610",
@@ -930,23 +1264,6 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     counterparty: "InnocenZ Platform",
     lines: [{ label: "Atlas Agency subscription", detail: "Jun 2026 · Growth · SaaS", amount: 1499, group: "fees" }],
   },
-  {
-    id: "AINV-2026-0604",
-    outlet: "InnocenZ escrow",
-    amount: 1200,
-    issueDate: "18 Jun 2026",
-    issueTime: "09:15",
-    dueDate: "18 Jun 2026",
-    status: "PENDING",
-    aging: "current",
-    linkedPvIds: ["PV-2026-0604-L"],
-    kind: "agency",
-    counterparty: "InnocenZ Admin",
-    lines: [
-      { label: "Dispute escrow hold", detail: "Luna · Bear Lounge PV", amount: 850, group: "fees" },
-      { label: "Admin processing fee", detail: "7-day dispute window", amount: 350, group: "fees" },
-    ],
-  },
 ];
 
 export interface AgencyReconciliationDay {
@@ -959,12 +1276,18 @@ export interface AgencyReconciliationDay {
   outletSalesTotal: number;
   pvTotal: number;
   variance: number;
+  /** Sum of sealed shift earnings for agency PRs this week (agency–PR reconcile). */
+  prIncomeTotal?: number;
+  /** PR earnings − PV net for the week. */
+  prVariance?: number;
   varianceReason?: string;
   agencyAdjustDrinks?: number;
   agencyAdjustTips?: number;
   agencyAdjustReason?: string;
   agencyConfirmed: boolean;
   outletConfirmed: boolean;
+  /** PR ids who confirmed weekly earnings in the PR portal. */
+  prConfirmedIds?: string[];
 }
 
 export const SEED_RECONCILIATION: AgencyReconciliationDay = {
@@ -973,8 +1296,11 @@ export const SEED_RECONCILIATION: AgencyReconciliationDay = {
   outletSalesTotal: 14820,
   pvTotal: 14760,
   variance: 60,
+  prIncomeTotal: 0,
+  prVariance: 0,
   agencyConfirmed: false,
   outletConfirmed: true,
+  prConfirmedIds: [],
 };
 
 export const OUTLET_NAMES = [...new Set(OUTLET_COMMISSION_RULES.map((r) => r.outlet))];

@@ -29,6 +29,7 @@ const AGENCY_EXTRAS: ExtraNavItem[] = [
 
 const OUTLET_EXTRAS: ExtraNavItem[] = [
   { to: "/outlet/workspace", label: "Workspace", icon: SlidersHorizontal, permission: "viewWorkspace" },
+  { to: "/outlet/subscription", label: "Subscription", icon: CreditCard, permission: "viewSettings" },
   { to: "/outlet/settings", label: "Settings", icon: Settings, permission: "viewSettings" },
 ];
 

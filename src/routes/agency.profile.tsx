@@ -3,12 +3,11 @@ import { useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
 import type { AgencyFinanceHead, AgencyOwnerSettings } from "@/lib/agency-demo";
-import { getAgencySubscriptionPlan, SCALING_TIER_MULTIPLIERS } from "@/lib/agency-demo";
+import { getAgencySubscriptionPlan } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { Building2, Camera, Mail, Pencil, Phone, Shield, User, X } from "lucide-react";
 
-const SCALING_TIER_ORDER = ["Tier III", "Tier IV", "Tier V"] as const;
 
 export const Route = createFileRoute("/agency/profile")({
   component: AgencyProfile,
@@ -29,14 +28,12 @@ function AgencyProfile() {
   const [otp, setOtp] = useState("");
   const [draft, setDraft] = useState(agencyOwner);
   const [financeDraft, setFinanceDraft] = useState(agencyFinanceHead);
-  const [scalingDraft, setScalingDraft] = useState(scalingTierMultipliers);
   const [inviteEmail, setInviteEmail] = useState(agencyFinanceHead.email);
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const canEdit = agencyCan(agencySubRole, "editSettings");
 
   const owner = editing ? draft : agencyOwner;
   const finance = editing ? financeDraft : agencyFinanceHead;
-  const scaling = editing ? scalingDraft : scalingTierMultipliers;
   const subscriptionPlan = getAgencySubscriptionPlan(owner.subscriptionPlanId);
   const avatarLetter = owner.ownerName.trim()[0]?.toUpperCase() ?? owner.orgName.trim()[0]?.toUpperCase() ?? "A";
   const editCardClass = editing ? " border-[rgba(217,185,122,.25)]" : "";
@@ -48,7 +45,6 @@ function AgencyProfile() {
   const startEdit = () => {
     setDraft({ ...agencyOwner });
     setFinanceDraft({ ...agencyFinanceHead });
-    setScalingDraft({ ...scalingTierMultipliers });
     setInviteEmail(agencyFinanceHead.email);
     setOtp("");
     setEditing(true);
@@ -57,7 +53,6 @@ function AgencyProfile() {
   const cancelEdit = () => {
     setDraft({ ...agencyOwner });
     setFinanceDraft({ ...agencyFinanceHead });
-    setScalingDraft({ ...scalingTierMultipliers });
     setInviteEmail(agencyFinanceHead.email);
     setOtp("");
     setEditing(false);
@@ -97,13 +92,6 @@ function AgencyProfile() {
       toast("Enter mobile number", "warn");
       return;
     }
-    for (const tier of SCALING_TIER_ORDER) {
-      const value = scalingDraft[tier];
-      if (!Number.isFinite(value) || value < 0.5 || value > 3) {
-        toast(`Enter a valid multiplier for ${tier} (0.5–3×)`, "warn");
-        return;
-      }
-    }
     const nextFinance = { ...financeDraft };
     const inviteChanged = inviteEmail.trim() !== agencyFinanceHead.email;
     if (inviteChanged && inviteEmail.trim()) {
@@ -113,7 +101,7 @@ function AgencyProfile() {
     saveAgencyProfileSettings({
       owner: { ...draft, ownerName: draft.ownerName.trim(), orgName: draft.orgName.trim() },
       financeHead: nextFinance,
-      scalingTierMultipliers: { ...scalingDraft },
+      scalingTierMultipliers,
       outletCommissionRules: outletCommissionRules.map((r) => ({ ...r })),
     });
     if (inviteChanged && inviteEmail.trim()) {
@@ -264,44 +252,6 @@ function AgencyProfile() {
         <Field icon={Mail} label="Email" value={finance.email} onChange={(v) => updateFinance({ email: v })} readOnly={fieldsLocked} />
         {finance.eSignatureStored && (
           <p className="iz-tiny text-[var(--iz-green)] mt-2">E-signature on file ✓</p>
-        )}
-      </IzCard>
-
-      <IzSectionLabel>Scaling rules · tier multipliers</IzSectionLabel>
-      <p className="iz-tiny iz-muted2 -mt-1 mb-2">Volume-band multipliers applied to PR tier payouts</p>
-      <IzCard flat className={editCardClass}>
-        {SCALING_TIER_ORDER.map((tier) => (
-          <div key={tier} className="flex items-center justify-between gap-3 border-b border-[var(--iz-line)] py-2.5 last:border-0">
-            <span className="iz-tiny font-semibold text-[var(--iz-txt)]">{tier}</span>
-            {editing && canEdit ? (
-              <label className="flex items-center gap-1.5 iz-tiny iz-muted">
-                <input
-                  type="number"
-                  min={0.5}
-                  max={3}
-                  step={0.05}
-                  className="w-20 rounded-lg border border-[var(--iz-line)] bg-[var(--iz-bg2)] px-2 py-1.5 text-right text-xs font-semibold text-[var(--iz-txt)] outline-none focus:border-[var(--iz-gold-d)]"
-                  value={scaling[tier] ?? ""}
-                  onChange={(e) => {
-                    const next = Number(e.target.value);
-                    setScalingDraft((d) => ({ ...d, [tier]: next }));
-                  }}
-                />
-                ×
-              </label>
-            ) : (
-              <span className="iz-tiny iz-muted">{scaling[tier] ?? "—"}×</span>
-            )}
-          </div>
-        ))}
-        {editing && canEdit && (
-          <button
-            type="button"
-            className="iz-chip mt-3 w-full"
-            onClick={() => setScalingDraft({ ...SCALING_TIER_MULTIPLIERS })}
-          >
-            Reset scaling to defaults
-          </button>
         )}
       </IzCard>
 

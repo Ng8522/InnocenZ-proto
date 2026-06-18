@@ -5,7 +5,9 @@ import { IzSheet } from "@/components/iz/Sheet";
 import { IzCard, IzPill } from "@/components/iz/ui";
 import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
 import { OutletSealReview } from "@/components/outlet/OutletSealReview";
-import { SHIFT_DESTINATION_LABELS } from "@/lib/outlet-demo";
+import { SHIFT_DESTINATION_LABELS, resolveShiftTierRates } from "@/lib/outlet-demo";
+import { formatTierSalesTargets, formatTierWageRange } from "@/lib/agency-demo";
+import { ShiftTierWagesStrip } from "@/components/outlet/ShiftTierWagesStrip";
 import { Check, CheckCircle2, ChevronDown, Clock, Lock, PlayCircle, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +20,7 @@ const STATUS_META = {
 
 export function OutletBookings() {
   const outletSubRole = useStore((s) => s.outletSubRole);
+  const outletWorkspace = useStore((s) => s.outletWorkspace);
   const { shifts, sealShift, confirmShift, deleteShift, shiftApplicants, respondToApplicant } =
     useStore();
   const canLogSales = outletCan(outletSubRole, "logSales");
@@ -47,6 +50,9 @@ export function OutletBookings() {
           const meta = STATUS_META[s.status] ?? STATUS_META.draft;
           const StatusIcon = meta.icon;
           const applicants = shiftApplicants.filter((a) => a.shiftId === s.id && a.status === "pending");
+          const tierRates = resolveShiftTierRates(s, outletWorkspace);
+          const targetPay = formatTierWageRange(tierRates);
+          const salesTargets = formatTierSalesTargets(tierRates);
           const summaryRight = `RM ${s.liveSales.toLocaleString()} sales`;
 
           return (
@@ -65,7 +71,8 @@ export function OutletBookings() {
                     </span>
                   </div>
                   <p className="iz-tiny iz-muted mt-0.5 truncate">
-                    {s.date} · {s.filled}/{s.quantity} PRs · {summaryRight}
+                    {s.date} · {s.filled}/{s.quantity} PRs · {targetPay}
+                    {salesTargets ? ` · ${salesTargets}` : ""} · {summaryRight}
                   </p>
                 </div>
                 <ChevronDown className="h-4 w-4 shrink-0 text-[var(--iz-muted)] transition-transform group-open:rotate-180" />
@@ -86,6 +93,8 @@ export function OutletBookings() {
                   <Metric label="Cost" value={`${(s.estimatedCost / 1000).toFixed(1)}k`} gold />
                   <Metric label="Sales" value={`${(s.liveSales / 1000).toFixed(1)}k`} green />
                 </div>
+
+                <ShiftTierWagesStrip tierRates={tierRates} compact />
 
                 {canStaff && applicants.length > 0 && s.status !== "sealed" && (
                   <div className="mt-2.5 space-y-1.5 rounded-xl bg-white/[0.02] p-2">

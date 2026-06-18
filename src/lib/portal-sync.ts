@@ -204,8 +204,8 @@ export function shiftHistoryToHistRows(
   });
 }
 
-export function shiftHistoryForOutlet(rows: ShiftHistoryRow[], outletName: string): ShiftHistoryRow[] {
-  return sortShiftHistoryDesc(rows.filter((r) => outletMatches(r.outlet, outletName)));
+export function shiftHistoryForOutlet(rows: ShiftHistoryRow[] | undefined, outletName: string): ShiftHistoryRow[] {
+  return sortShiftHistoryDesc((rows ?? []).filter((r) => outletMatches(r.outlet, outletName)));
 }
 
 /** Build a history row when a PR checks out or outlet seals a shift */
@@ -422,7 +422,8 @@ export function marketplacePrsFromAgency(
   }));
 }
 
-export function tonightShiftOutletName(shifts: ShiftRequest[]): string {
-  const tonight = shifts.find((s) => s.date === "Tonight") ?? shifts[0];
+export function tonightShiftOutletName(shifts: ShiftRequest[] | undefined): string {
+  const list = shifts ?? [];
+  const tonight = list.find((s) => s.date === "Tonight") ?? list[0];
   return tonight ? canonicalOutlet(tonight.outletName) : DEFAULT_OUTLET_CANONICAL;
 }

@@ -84,7 +84,7 @@ const ALL_NAV: OutletNavItem[] = [
   { to: "/outlet/bookings", label: "Post Job", icon: Plus, permission: "postJob" },
   { to: "/outlet/special-service", label: "Services", icon: Sparkles, permission: "orderSpecialService" },
   { to: "/outlet/history", label: "History", icon: History, permission: "viewHistory" },
-  { to: "/outlet/ratings", label: "Floor", icon: Zap, permission: "ratePrs" },
+  { to: "/outlet/ratings", label: "Today Operation", icon: Zap, permission: "ratePrs" },
   { to: "/outlet/billing", label: "Reports", icon: BarChart3, permission: "viewBilling" },
 ];
 
@@ -111,6 +111,7 @@ export function canAccessOutletPath(role: OutletSubRole | null | undefined, path
   if (pathname.startsWith("/outlet/billing")) {
     return outletCan(r, "viewBilling") || outletCan(r, "viewSalesDashboard");
   }
+  if (pathname.startsWith("/outlet/subscription")) return outletCan(r, "viewSettings");
   if (pathname.startsWith("/outlet/workspace")) return outletCan(r, "viewWorkspace");
   if (pathname.startsWith("/outlet/settings")) return outletCan(r, "viewSettings");
   if (pathname.startsWith("/outlet/profile")) return true;

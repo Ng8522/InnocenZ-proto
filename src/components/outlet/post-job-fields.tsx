@@ -5,13 +5,43 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { IzCard, IzSelect } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
+import { TierRatesFields } from "@/components/outlet/TierRatesFields";
+import { ShiftTierWagesStrip } from "@/components/outlet/ShiftTierWagesStrip";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import {
+  buildDefaultTierRates,
+  cloneTierRates,
+  estimateShiftLaborCost,
+  getOutletRule,
+  normalizeOutletTierMultipliers,
+  OUTLET_BASE_TIER,
+  OUTLET_PR_TIERS,
+  snapTierWage,
+  tierWageFromMultiplier,
+  type OutletPrTier,
+  type OutletTierRateSettings,
+} from "@/lib/agency-demo";
+import type { OutletWorkspaceSettings } from "@/lib/outlet-demo";
 import {
   DRESS_CODE_OPTIONS,
   SHIFT_DESTINATION_LABELS,
   type ShiftDestination,
 } from "@/lib/outlet-demo";
+
+const DEFAULT_DRAFT_TIER_BASE: OutletTierRateSettings = {
+  wagePerHour: 60,
+  drinkPct: 8,
+  tipPct: 15,
+  tablePct: 10,
+  otAfterHours: 6,
+};
+
+export function draftTierRatesFromWorkspace(
+  ws: Pick<OutletWorkspaceSettings, "tierRates">,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  return cloneTierRates(ws.tierRates);
+}
 
 export const LANG_OPTIONS = ["English", "Mandarin", "Cantonese", "Others"] as const;
 
@@ -46,11 +76,21 @@ export type DraftShift = {
   quantity: number;
   prIds: string[];
   payPerHour: number;
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>;
   dressCode: string;
   destination: ShiftDestination;
 };
 
-export function newDraftShift(partial?: Partial<Omit<DraftShift, "id">>): DraftShift {
+export function newDraftShift(
+  partial?: Partial<Omit<DraftShift, "id">>,
+  workspaceTierRates?: Record<OutletPrTier, OutletTierRateSettings>,
+): DraftShift {
+  const tierRates = partial?.tierRates
+    ? cloneTierRates(partial.tierRates)
+    : workspaceTierRates
+      ? cloneTierRates(workspaceTierRates)
+      : buildDefaultTierRates(DEFAULT_DRAFT_TIER_BASE);
+  const basePay = tierRates[OUTLET_BASE_TIER].wagePerHour;
   return {
     id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     jobDate: partial?.jobDate ?? startOfToday(),
@@ -61,10 +101,66 @@ export function newDraftShift(partial?: Partial<Omit<DraftShift, "id">>): DraftS
     shiftTime: partial?.shiftTime ?? "22:00 - 04:00",
     quantity: partial?.quantity ?? 6,
     prIds: partial?.prIds ? [...partial.prIds] : [],
-    payPerHour: partial?.payPerHour ?? 60,
+    tierRates,
+    payPerHour: snapPayPerHour(partial?.payPerHour ?? basePay),
     dressCode: partial?.dressCode ?? DRESS_CODE_OPTIONS[0],
     destination: partial?.destination ?? "both",
   };
+}
+
+export function patchDraftTierRates(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  tier: OutletPrTier,
+  tierPatch: Partial<OutletTierRateSettings>,
+  options?: { cascadeFromBase?: boolean; tierMultipliers?: Record<OutletPrTier, number> },
+): Record<OutletPrTier, OutletTierRateSettings> {
+  const patch = { ...tierPatch };
+  if (patch.wagePerHour != null) patch.wagePerHour = snapTierWage(patch.wagePerHour);
+  const next = {
+    ...tierRates,
+    [tier]: { ...tierRates[tier], ...patch },
+  };
+  const cascade = options?.cascadeFromBase !== false;
+  if (cascade && tier === OUTLET_BASE_TIER && patch.wagePerHour != null) {
+    const base = next[OUTLET_BASE_TIER];
+    const mults = options?.tierMultipliers;
+    if (mults) {
+      for (const t of OUTLET_PR_TIERS) {
+        next[t] = {
+          ...next[t],
+          wagePerHour: tierWageFromMultiplier(base.wagePerHour, mults[t]),
+          drinkPct: base.drinkPct,
+          tipPct: base.tipPct,
+          tablePct: base.tablePct,
+          otAfterHours: base.otAfterHours,
+        };
+      }
+    } else {
+      const rebuilt = buildDefaultTierRates(base);
+      for (const t of OUTLET_PR_TIERS) {
+        next[t] = { ...rebuilt[t], targetSalesRm: next[t].targetSalesRm };
+      }
+    }
+  }
+  return next;
+}
+
+export function estimateDraftShiftCost(
+  shift: Pick<DraftShift, "tierRates" | "quantity" | "shiftTime" | "prIds">,
+  prTierById?: Record<string, string | undefined>,
+): number {
+  const p = parseShiftTime(shift.shiftTime);
+  const start = p.startH * 60 + p.startM;
+  let end = p.endH * 60 + p.endM;
+  if (end <= start) end += 24 * 60;
+  const hours = Math.max(1, Math.round((end - start) / 60));
+  return estimateShiftLaborCost({
+    tierRates: shift.tierRates,
+    hours,
+    quantity: shift.quantity,
+    prIds: shift.prIds,
+    prTierById,
+  });
 }
 
 export function formatDraftPrNames(prIds: string[], prs: { id: string; name: string }[]): string {
@@ -98,6 +194,16 @@ export function buildLanguagesLabel(selected: string[], otherText: string): stri
 
 export function formatStarTiers(tiers: number[]): string {
   return tiers.map((t) => `${t}★`).join(", ");
+}
+
+/** Base rate on post-shift form — multiples of 5 only (40, 45, 50 …). */
+export const PAY_RATE_STEP = 5;
+export const PAY_RATE_MIN = 40;
+export const PAY_RATE_MAX = 120;
+
+/** @deprecated Use snapTierWage from agency-demo */
+export function snapPayPerHour(value: number): number {
+  return snapTierWage(value);
 }
 
 export type ShiftTimeParts = {
@@ -717,7 +823,10 @@ export function DraftShiftSummary({
       />
       <SummaryLine label="Languages" value={buildLanguagesLabel(shift.langs, shift.otherLang) || "—"} />
       <SummaryLine label="Preferred profile" value={formatStarTiers(shift.starTiers)} />
-      <SummaryLine label="Base rate" value={`RM ${shift.payPerHour}/hr`} />
+      <div className="border-b border-[var(--iz-line)] py-2.5 last:border-0">
+        <span className="text-xs text-[var(--iz-muted)]">Pay & sales targets by tier</span>
+        <ShiftTierWagesStrip tierRates={shift.tierRates} compact />
+      </div>
       <SummaryLine label="Dress code" value={shift.dressCode} />
       <SummaryLine label="Post to" value={SHIFT_DESTINATION_LABELS[shift.destination]} />
     </IzCard>
@@ -740,6 +849,25 @@ export function DraftShiftEditor({
   onDone?: () => void;
 }) {
   const prs = useStore((s) => s.prs);
+  const outletWorkspace = useStore((s) => s.outletWorkspace);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const [activeTier, setActiveTier] = useState<OutletPrTier>(OUTLET_BASE_TIER);
+
+  const tierMultipliers = useMemo(
+    () =>
+      normalizeOutletTierMultipliers(
+        getOutletRule(outletWorkspace.outletName, outletCommissionRules).tierMultipliers,
+      ),
+    [outletCommissionRules, outletWorkspace.outletName],
+  );
+
+  const patchTier = (tier: OutletPrTier, tierPatch: Partial<OutletTierRateSettings>) => {
+    const tierRates = patchDraftTierRates(shift.tierRates, tier, tierPatch, { tierMultipliers });
+    onChange({
+      tierRates,
+      payPerHour: tierRates[OUTLET_BASE_TIER].wagePerHour,
+    });
+  };
 
   return (
     <IzCard className="!mb-0">
@@ -799,15 +927,32 @@ export function DraftShiftEditor({
           }}
         />
       </FormRow>
-      <FormRow label="Base rate">
-        <QuantityStepper
-          value={shift.payPerHour}
-          min={40}
-          max={120}
-          step={5}
-          suffix="RM/hr"
-          onChange={(payPerHour) => onChange({ payPerHour })}
-        />
+      <FormRow label="Pay by PR tier" stacked alignTop last={false}>
+        <div className="w-full min-w-0">
+          <p className="mb-2 text-[10px] text-[var(--iz-muted)]">
+            Base pay scales by tier multiplier · optional sales target per tier · commission % from Workspace
+          </p>
+          <TierRatesFields
+            tierRates={shift.tierRates}
+            activeTier={activeTier}
+            onActiveTierChange={setActiveTier}
+            onPatchTier={patchTier}
+            postJob
+            tierMultipliers={tierMultipliers}
+          />
+          <button
+            type="button"
+            className="iz-chip mt-2.5 w-full text-[11px]"
+            onClick={() =>
+              onChange({
+                tierRates: draftTierRatesFromWorkspace(outletWorkspace),
+                payPerHour: outletWorkspace.tierRates[OUTLET_BASE_TIER].wagePerHour,
+              })
+            }
+          >
+            Reset to workspace rates
+          </button>
+        </div>
       </FormRow>
       <FormRow label="Dress code">
         <IzSelect

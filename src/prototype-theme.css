@@ -3856,6 +3856,16 @@ button.iz-pr-offer-row:hover {
 .iz-txn-card-metrics--sheet {
   margin-top: 10px;
 }
+.iz-sheet--wide .iz-txn-card-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.iz-sheet--wide .iz-txn-metric {
+  padding: 12px 10px;
+}
+.iz-sheet--wide .iz-txn-metric .value {
+  font-size: 15px;
+}
 .iz-txn-card-btn {
   display: block;
   width: 100%;
@@ -4550,6 +4560,11 @@ button.iz-pr-offer-row:hover {
     box-shadow:
       0 0 0 1px rgba(217, 185, 122, 0.08),
       0 32px 80px -24px rgba(0, 0, 0, 0.85);
+  }
+
+  .iz-sheet--dialog.iz-sheet--wide {
+    width: min(720px, calc(100vw - 40px));
+    padding: 24px 28px 28px;
   }
 
   .iz-sheet-wrap--overlay .iz-sheet-grab {

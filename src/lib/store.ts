@@ -69,8 +69,19 @@ import {
   pendingPRToManagedPR,
   OUTLET_COMMISSION_RULES,
   SCALING_TIER_MULTIPLIERS,
+  normalizeOutletTierMultipliers,
+  normalizeTierRates,
+  OUTLET_BASE_TIER,
+  OUTLET_PR_TIERS,
+  migrateCommissionRuleToTierIBase,
+  migrateTierMultipliersToTierIBase,
+  cloneTierRates,
+  estimateShiftLaborCost,
+  snapTierWage,
   languagesFromPr,
   type OutletCommissionRule,
+  type OutletPrTier,
+  type OutletTierRateSettings,
 } from "@/lib/agency-demo";
 import { buildPvFromShiftHistoryRow, historyRowHasPv } from "@/lib/agency-actions";
 import {
@@ -139,6 +150,7 @@ import {
   DEFAULT_OUTLET_DRINK_MENU,
   averageDrinkPrice,
   normalizeOutletWorkspace,
+  migrateShiftTierRates,
   shiftHoursFromLabel,
 } from "@/lib/outlet-demo";
 import { buildDemoStoreReset, buildPrDemoReset } from "@/lib/demo-seed";
@@ -235,6 +247,8 @@ export interface ShiftRequest {
   status: "draft" | "open" | "confirmed" | "sealed";
   prs: string[];
   payPerHour: number;
+  /** Per-shift wage & commission by PR training tier */
+  tierRates?: Record<OutletPrTier, OutletTierRateSettings>;
   dressCode?: string;
   destination?: ShiftDestination;
   preferredStarTiers?: number[];
@@ -425,7 +439,6 @@ interface StoreState {
   signPrPv: (id: string, signatureDataUrl: string) => void;
   disputePrPv: (id: string, reason: string, photoDataUrls?: string[]) => void;
   updatePrPvDisputeReason: (id: string, reason: string, photoDataUrls?: string[]) => void;
-  escalatePrPvDispute: (id: string) => void;
   demoFreelancerLowRatingStrike: () => void;
 
   prReceiptScans: PrReceiptScan[];
@@ -483,6 +496,7 @@ interface StoreState {
   agencyReconciliation: AgencyReconciliationDay;
   confirmAgencyReconciliation: () => void;
   confirmOutletReconciliation: () => void;
+  confirmPrReconciliation: (prId: string) => void;
   syncReconciliationFromLedger: () => void;
   adjustAgencyReconciliation: (patch: { drinks?: number; tips?: number; reason: string }) => void;
 
@@ -606,6 +620,7 @@ interface StoreState {
   sealShift: (shiftId: string) => void;
   saveOutletWorkspace: (patch: Partial<OutletWorkspaceSettings>) => void;
   saveOutletSettings: (patch: Partial<OutletSettings>) => void;
+  saveOutletOwner: (patch: Partial<OutletOwnerSettings>) => void;
   saveOutletProfileSettings: (data: {
     owner: OutletOwnerSettings;
     financeHead: OutletFinanceHead;
@@ -721,6 +736,42 @@ function applyOutletFinancialSync(
     outletMoneyEditCount: editCount,
     agencyReconciliation: nextRecon,
   };
+}
+
+function ensureOutletRuleTierMultipliers(
+  rules: OutletCommissionRule[],
+  legacyGlobal?: Record<string, number>,
+): OutletCommissionRule[] {
+  return rules.map((r) => {
+    const partial = { ...r.tierMultipliers };
+    if (legacyGlobal) {
+      for (const tier of OUTLET_PR_TIERS) {
+        if (partial[tier] == null && legacyGlobal[tier] != null) {
+          partial[tier] = legacyGlobal[tier];
+        }
+      }
+    }
+    const migrated = migrateCommissionRuleToTierIBase({
+      ...r,
+      tierMultipliers: migrateTierMultipliersToTierIBase(partial),
+    });
+    if (!migrated.tierRates) {
+      return { ...migrated, wagePerHour: snapTierWage(migrated.wagePerHour) };
+    }
+    const baseTier = migrated.tierRates[OUTLET_BASE_TIER] ?? {
+      wagePerHour: migrated.wagePerHour,
+      drinkPct: migrated.drinkPct,
+      tipPct: migrated.tipPct,
+      tablePct: migrated.tablePct,
+      otAfterHours: migrated.otAfterHours,
+    };
+    const tierRates = normalizeTierRates(baseTier, migrated.tierRates);
+    return {
+      ...migrated,
+      wagePerHour: snapTierWage(tierRates[OUTLET_BASE_TIER].wagePerHour),
+      tierRates,
+    };
+  });
 }
 
 function syncLedgerState(
@@ -1772,7 +1823,7 @@ export const useStore = create<StoreState>()(
           outlet: pv.outlet,
         });
         get().toast(
-          "Dispute submitted — agency has 7 days to resolve or escalates to Admin",
+          "Dispute submitted — your agency will review and adjust the PV",
           "warn",
         );
       },
@@ -1804,43 +1855,6 @@ export const useStore = create<StoreState>()(
           ),
         }));
         get().toast("Dispute reason updated — agency notified", "success");
-      },
-      escalatePrPvDispute: (id) => {
-        const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
-        if (!pv || pv.status !== "DISPUTED") {
-          get().toast("No open dispute on this PV", "warn");
-          return;
-        }
-        if (pv.disputeEscalatedAt) {
-          get().toast("Already escalated to InnocenZ Admin", "info");
-          return;
-        }
-        const stamp = new Date().toLocaleString("en-MY", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        set((st) => ({
-          prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
-            p.id === id ? { ...p, disputeEscalatedAt: stamp } : p,
-          ),
-          prNotifications: [
-            {
-              id: "n-esc-" + Date.now().toString(36),
-              kind: "pv",
-              title: "Dispute escalated",
-              body: `${id} — agency missed 7-day window · InnocenZ Admin reviewing`,
-              at: stamp,
-              read: false,
-              pvId: id,
-              href: "/host/history",
-            },
-            ...st.prNotifications,
-          ],
-        }));
-        get().toast("Escalated to InnocenZ Admin — payment remains held", "warn");
       },
       demoFreelancerLowRatingStrike: () => {
         if (get().prSubRole !== "pr_free") return;
@@ -2341,6 +2355,19 @@ export const useStore = create<StoreState>()(
           agencyReconciliation: { ...st.agencyReconciliation, outletConfirmed: true },
         }));
         get().toast("Outlet weekly reconciliation confirmed · synced to agency", "success");
+      },
+      confirmPrReconciliation: (prId) => {
+        set((st) => {
+          const ids = st.agencyReconciliation.prConfirmedIds ?? [];
+          if (ids.includes(prId)) return st;
+          return {
+            agencyReconciliation: {
+              ...st.agencyReconciliation,
+              prConfirmedIds: [...ids, prId],
+            },
+          };
+        });
+        get().toast("PR weekly earnings confirmed", "success");
       },
       syncReconciliationFromLedger: () => {
         set((st) => syncLedgerState(st, {}));
@@ -3770,14 +3797,27 @@ export const useStore = create<StoreState>()(
           const prs = s.prs ?? [];
           const hours = shiftHoursFromLabel(s.shift);
           const pay = s.payPerHour ?? ws.basePayPerHour;
+          const tierRates = s.tierRates ?? cloneTierRates(ws.tierRates);
+          const tierIPay = tierRates["Tier I"].wagePerHour;
           return withShiftFinancialDefaults({
             ...s,
             id: "s" + Math.random().toString(36).slice(2, 7),
             status: "open",
             filled: prs.length,
             prs,
-            payPerHour: pay,
-            estimatedCost: s.estimatedCost ?? Math.round(prs.length * pay * hours * 100) / 100,
+            payPerHour: tierIPay,
+            tierRates,
+            estimatedCost:
+              s.estimatedCost ??
+              estimateShiftLaborCost({
+                tierRates,
+                hours,
+                quantity: Math.max(prs.length, s.quantity),
+                prIds: prs,
+                prTierById: Object.fromEntries(
+                  st.agencyPRs.map((p) => [p.id, p.trainingLevel]),
+                ),
+              }),
             perDrinkRm: s.perDrinkRm ?? ws.perDrinkRm,
             perTableRm: s.perTableRm ?? ws.perTableRm,
           });
@@ -3828,7 +3868,6 @@ export const useStore = create<StoreState>()(
             const merged = withShiftFinancialDefaults(
               {
                 ...sh,
-                payPerHour: next.basePayPerHour,
                 perDrinkRm: next.perDrinkRm,
                 perTableRm: next.perTableRm,
               },
@@ -3862,6 +3901,9 @@ export const useStore = create<StoreState>()(
       saveOutletSettings: (patch) => {
         set((st) => ({ outletSettings: { ...st.outletSettings, ...patch } }));
         get().toast("Settings saved", "success");
+      },
+      saveOutletOwner: (patch) => {
+        set((st) => ({ outletOwner: { ...st.outletOwner, ...patch } }));
       },
       saveOutletProfileSettings: (data) => {
         const orgName = data.owner.orgName.trim();
@@ -4543,18 +4585,23 @@ export const useStore = create<StoreState>()(
           agencyRoster: mergeAgencyRoster(p?.agencyRoster, current.agencyRoster),
           outletCommissionRules: (() => {
             const ws = normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace);
-            const rules = p?.outletCommissionRules?.length
-              ? p.outletCommissionRules
-              : current.outletCommissionRules;
+            const legacyMult = p?.scalingTierMultipliers ?? current.scalingTierMultipliers;
+            const rules = ensureOutletRuleTierMultipliers(
+              p?.outletCommissionRules?.length
+                ? p.outletCommissionRules
+                : current.outletCommissionRules,
+              legacyMult,
+            );
             return syncCommissionRulesFromWorkspace(ws, rules);
           })(),
           scalingTierMultipliers: p?.scalingTierMultipliers ?? current.scalingTierMultipliers,
           outletWorkspace: normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace),
           shifts: (() => {
-            const menu = normalizeOutletWorkspace(
-              p?.outletWorkspace ?? current.outletWorkspace,
-            ).drinkMenu;
-            return (p?.shifts ?? current.shifts).map((sh) => withShiftFinancialDefaults(sh, menu));
+            const ws = normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace);
+            const menu = ws.drinkMenu;
+            return (p?.shifts ?? current.shifts).map((sh) =>
+              migrateShiftTierRates(withShiftFinancialDefaults(sh, menu), ws),
+            );
           })(),
           outletPnl: (() => {
             const ws = normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace);
@@ -4563,7 +4610,7 @@ export const useStore = create<StoreState>()(
               ? syncCommissionRulesFromWorkspace(ws, p.outletCommissionRules)
               : syncCommissionRulesFromWorkspace(ws, current.outletCommissionRules);
             const shifts = (p?.shifts ?? current.shifts).map((sh) =>
-              withShiftFinancialDefaults(sh, menu),
+              migrateShiftTierRates(withShiftFinancialDefaults(sh, menu), ws),
             );
             return recomputeAllOutletPnl(
               shifts,

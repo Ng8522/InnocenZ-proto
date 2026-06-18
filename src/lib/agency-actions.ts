@@ -56,6 +56,7 @@ export function buildPvFromShiftHistoryRow(
     tips: row.totalTips,
     tableSales: Math.round(row.totalTips * 0.5),
     checkOutAfterOt: row.durationHours > rule.otAfterHours,
+    prTier: pr.trainingLevel,
   });
   const otHours = Math.max(0, row.durationHours - rule.otAfterHours);
   const rows: PrPvRow[] = [

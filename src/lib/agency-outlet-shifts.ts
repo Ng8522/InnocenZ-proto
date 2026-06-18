@@ -3,11 +3,14 @@ import {
   getOutletRule,
   type AgencyRosterSlot,
   type OutletCommissionRule,
+  type OutletPrTier,
+  type OutletTierRateSettings,
 } from "@/lib/agency-demo";
 import { fmtDShort } from "@/lib/pr-demo";
+import { resolveOutletTierRates } from "@/lib/outlet-agency-sync";
 import { PR_AGENCY_TIED_OFFERS, type AgencyTiedOffer } from "@/lib/pr-features";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
-import { SHIFT_DESTINATION_LABELS, type ShiftDestination } from "@/lib/outlet-demo";
+import { SHIFT_DESTINATION_LABELS, type ShiftDestination, type OutletWorkspaceSettings } from "@/lib/outlet-demo";
 import type { ShiftRequest } from "@/lib/store";
 
 export type OutletShiftSource = "posted" | "tied-offer" | "assignment-pending";
@@ -26,6 +29,7 @@ export type AgencyOutletAvailableShift = {
   destination?: ShiftDestination;
   vip?: boolean;
   briefing?: string;
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>;
 };
 
 export type AgencyOutletSummary = {
@@ -65,7 +69,20 @@ function ymdToIso([y, m, d]: [number, number, number]) {
   return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-function shiftsFromPosted(outlet: string, posted: ShiftRequest[]): AgencyOutletAvailableShift[] {
+type TierRatesContext = {
+  commissionRules: OutletCommissionRule[];
+  workspace?: Pick<OutletWorkspaceSettings, "outletName" | "tierRates">;
+};
+
+function outletDefaultTierRates(outlet: string, ctx: TierRatesContext) {
+  return resolveOutletTierRates(outlet, ctx.commissionRules, ctx.workspace);
+}
+
+function shiftsFromPosted(
+  outlet: string,
+  posted: ShiftRequest[],
+  ctx: TierRatesContext,
+): AgencyOutletAvailableShift[] {
   return posted
     .filter(
       (s) =>
@@ -87,12 +104,13 @@ function shiftsFromPosted(outlet: string, posted: ShiftRequest[]): AgencyOutletA
         payEstimate: s.estimatedCost,
         languages: s.languages,
         destination: s.destination,
+        tierRates: s.tierRates ?? outletDefaultTierRates(outlet, ctx),
       };
     })
     .filter((s) => s.openSlots > 0);
 }
 
-function shiftsFromTied(outlet: string, tied: AgencyTiedOffer[]): AgencyOutletAvailableShift[] {
+function shiftsFromTied(outlet: string, tied: AgencyTiedOffer[], ctx: TierRatesContext): AgencyOutletAvailableShift[] {
   return tied
     .filter((o) => o.outlet === outlet)
     .map((o) => ({
@@ -107,10 +125,11 @@ function shiftsFromTied(outlet: string, tied: AgencyTiedOffer[]): AgencyOutletAv
       payEstimate: o.base + o.comm,
       vip: o.vip,
       briefing: o.briefing,
+      tierRates: outletDefaultTierRates(outlet, ctx),
     }));
 }
 
-function shiftsFromRoster(outlet: string, roster: AgencyRosterSlot[]): AgencyOutletAvailableShift[] {
+function shiftsFromRoster(outlet: string, roster: AgencyRosterSlot[], ctx: TierRatesContext): AgencyOutletAvailableShift[] {
   return roster
     .filter((s) => s.outlet === outlet && s.status === "assignment-pending")
     .map((s) => ({
@@ -123,6 +142,7 @@ function shiftsFromRoster(outlet: string, roster: AgencyRosterSlot[]): AgencyOut
       event: s.agencyAssignment?.agencyNote?.trim() || "Agency slot · awaiting PR",
       openSlots: 1,
       payEstimate: s.estPayout ?? 350,
+      tierRates: outletDefaultTierRates(outlet, ctx),
     }));
 }
 
@@ -132,17 +152,24 @@ export function buildAgencyOutletSummaries(input: {
   roster: AgencyRosterSlot[];
   tiedOffers?: AgencyTiedOffer[];
   todayIso?: string;
+  commissionRules?: OutletCommissionRule[];
+  outletWorkspace?: Pick<OutletWorkspaceSettings, "outletName" | "tierRates">;
 }): AgencyOutletSummary[] {
   const outlets = input.outlets ?? OUTLET_NAMES;
   const tied = input.tiedOffers ?? PR_AGENCY_TIED_OFFERS;
   const todayIso = input.todayIso ?? DEFAULT_ROSTER_DATE_ISO;
+  const commissionRules = input.commissionRules ?? [];
+  const tierCtx: TierRatesContext = {
+    commissionRules,
+    workspace: input.outletWorkspace,
+  };
 
   return outlets.map((outlet) => {
-    const rule = getOutletRule(outlet);
+    const rule = getOutletRule(outlet, commissionRules.length ? commissionRules : undefined);
     const shifts = [
-      ...shiftsFromPosted(outlet, input.shifts),
-      ...shiftsFromTied(outlet, tied),
-      ...shiftsFromRoster(outlet, input.roster),
+      ...shiftsFromPosted(outlet, input.shifts, tierCtx),
+      ...shiftsFromTied(outlet, tied, tierCtx),
+      ...shiftsFromRoster(outlet, input.roster, tierCtx),
     ];
     const scheduledTonight = input.roster.filter(
       (s) => s.outlet === outlet && s.dateIso === todayIso && s.status !== "unavailable",

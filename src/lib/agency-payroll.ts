@@ -116,7 +116,8 @@ export function mergeAgencyCollections(
 ): AgencyCollectionInvoice[] {
   if (!persisted?.length) return seeds;
   const seedById = Object.fromEntries(seeds.map((s) => [s.id, s]));
-  const merged = persisted.map((row) => {
+  const filtered = persisted.filter((row) => row.kind !== "agency" || seedById[row.id]);
+  const merged = filtered.map((row) => {
     const seed = seedById[row.id];
     if (!seed) return row;
     const isAgencySubscription =

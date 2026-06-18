@@ -302,6 +302,8 @@ function nightsToShiftHistory(nights: VelvetNightShift[]): ShiftHistoryRow[] {
 
 export interface OutletWeeklyDaySales {
   day: string;
+  dateIso: string;
+  dateDisplay: string;
   sales: number;
   manpowerCost: number;
   shifts: number;
@@ -316,7 +318,7 @@ export interface OutletWeeklyReport {
   shifts: number;
   avgTicket: number;
   wowGrowthPct: number;
-  topPrs: { name: string; sales: number }[];
+  topPrs: { prId: string; name: string; sales: number }[];
 }
 
 /**
@@ -348,6 +350,8 @@ export function getOutletWeeklyReport(outletName: string): OutletWeeklyReport | 
 
   const days: OutletWeeklyDaySales[] = VELVET_WEEKLY_NIGHTS.map((night) => ({
     day: night.day,
+    dateIso: night.dateIso,
+    dateDisplay: night.dateDisplay,
     sales: night.sales,
     manpowerCost: night.prs.reduce((a, pr) => a + pr.payout, 0),
     shifts: 1,
@@ -364,10 +368,10 @@ export function getOutletWeeklyReport(outletName: string): OutletWeeklyReport | 
     }
   }
 
-  const topPrs = [...prSales.values()]
+  const topPrs = [...prSales.entries()]
+    .map(([prId, p]) => ({ prId, name: p.name, sales: p.sales }))
     .sort((a, b) => b.sales - a.sales)
-    .slice(0, 3)
-    .map((p) => ({ name: p.name, sales: p.sales }));
+    .slice(0, 5);
 
   return {
     weekLabel: "2–8 Jun 2026",

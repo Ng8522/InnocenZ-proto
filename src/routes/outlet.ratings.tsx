@@ -2,27 +2,60 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import type { PR } from "@/lib/store";
+import type { AgencyRosterSlot } from "@/lib/agency-demo";
 import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { PR_RATING_TAGS } from "@/lib/outlet-demo";
 import { outletCan } from "@/lib/outlet-rbac";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
+import { rosterSlotAgencyName, languagesFromPr } from "@/lib/agency-demo";
+import {
+  comcardPreviewFromSlot,
+  toComcardPreview,
+} from "@/components/agency/PrComcardIdentity";
+import {
+  Comcard3dPreviewCard,
+  Comcard3dPreviewThumb,
+  Comcard3dPreviewVisual,
+} from "@/components/agency/Comcard3dPreview";
+import { IzSheet } from "@/components/iz/Sheet";
 import { IzPill } from "@/components/iz/ui";
 import {
   workforceStatusLabel,
   workforceStatusVariant,
 } from "@/components/portal/LiveWorkforceTable";
 import { Star } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/outlet/ratings")({
-  component: FloorPage,
+  component: TodayOperationPage,
 });
 
-type ViewMode = "live" | "planning";
+type FloorDisplayStatus = "on-duty" | "en-route" | "scheduled" | "out";
 
-function FloorPage() {
+function resolveFloorPrDisplayStatus(slot?: AgencyRosterSlot): FloorDisplayStatus {
+  if (!slot) return "scheduled";
+  if (slot.checkedOutAt) return "out";
+  if (slot.status === "on-duty" && slot.checkedInAt) return "on-duty";
+  if (slot.status === "en-route") return "en-route";
+  if (slot.status === "on-duty") return "en-route";
+  return "scheduled";
+}
+
+const STATUS_SORT: Record<FloorDisplayStatus, number> = {
+  "on-duty": 0,
+  "en-route": 1,
+  scheduled: 2,
+  out: 3,
+};
+
+type StaffEntry = {
+  pr: PR;
+  slot?: AgencyRosterSlot;
+  displayStatus: FloorDisplayStatus;
+};
+
+function TodayOperationPage() {
   const outletSubRole = useStore((s) => s.outletSubRole);
   const {
     prs,
@@ -30,12 +63,13 @@ function FloorPage() {
     ratings,
     ratePr,
     agencyRoster,
+    agencyPRs,
     postSealRatePrompt,
     clearPostSealRatePrompt,
   } = useStore();
   const canLogSales = outletCan(outletSubRole, "logSales");
-  const [viewMode, setViewMode] = useState<ViewMode>("live");
   const [openPr, setOpenPr] = useState<string | null>(null);
+  const [comcardPreviewId, setComcardPreviewId] = useState<string | null>(null);
   const [stars, setStars] = useState(5);
   const [note, setNote] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -60,66 +94,76 @@ function FloorPage() {
     [agencyRoster, outletName],
   );
 
-  const onFloor = useMemo(() => {
-    if (viewMode === "planning") {
-      return (tonight?.prs ?? [])
-        .map((id) => prs.find((p) => p.id === id))
-        .filter((p): p is PR => !!p);
+  const agencyPrById = useMemo(
+    () => new Map(agencyPRs.map((p) => [p.id, p])),
+    [agencyPRs],
+  );
+
+  const staffTonight = useMemo((): StaffEntry[] => {
+    const rosterByPr = new Map(rosterTonight.map((s) => [s.prId, s]));
+    return (tonight?.prs ?? [])
+      .map((id) => {
+        const pr = prs.find((p) => p.id === id);
+        if (!pr) return null;
+        const slot = rosterByPr.get(id);
+        const displayStatus = resolveFloorPrDisplayStatus(slot);
+        return { pr, slot, displayStatus };
+      })
+      .filter((entry): entry is StaffEntry => entry != null)
+      .sort(
+        (a, b) =>
+          STATUS_SORT[a.displayStatus] - STATUS_SORT[b.displayStatus] ||
+          a.pr.name.localeCompare(b.pr.name),
+      );
+  }, [tonight?.prs, prs, rosterTonight]);
+
+  const statusCounts = useMemo(() => {
+    const counts = { onDuty: 0, enRoute: 0, booked: 0, out: 0 };
+    for (const { displayStatus } of staffTonight) {
+      if (displayStatus === "on-duty") counts.onDuty += 1;
+      else if (displayStatus === "en-route") counts.enRoute += 1;
+      else if (displayStatus === "scheduled") counts.booked += 1;
+      else counts.out += 1;
     }
-    const liveIds = rosterTonight
-      .filter((s) => s.status === "en-route" || (s.status === "on-duty" && !!s.checkedInAt))
-      .map((s) => s.prId);
-    const ids = liveIds.length > 0 ? liveIds : (tonight?.prs ?? []);
-    return ids
-      .map((id) => prs.find((p) => p.id === id))
-      .filter((p): p is PR => !!p)
-      .sort((a, b) => {
-        const sa = rosterTonight.find((s) => s.prId === a.id)?.status;
-        const sb = rosterTonight.find((s) => s.prId === b.id)?.status;
-        if (sa === "on-duty" && sb !== "on-duty") return -1;
-        if (sa !== "on-duty" && sb === "on-duty") return 1;
-        return 0;
-      });
-  }, [viewMode, tonight?.prs, prs, rosterTonight]);
+    return counts;
+  }, [staffTonight]);
 
   const openPrData = openPr ? prs.find((p) => p.id === openPr) : null;
-
-  const statsFor = (prId: string) => rosterTonight.find((s) => s.prId === prId);
+  const comcardPreviewProfile = comcardPreviewId ? agencyPrById.get(comcardPreviewId) : null;
+  const comcardPreviewPr = comcardPreviewProfile
+    ? toComcardPreview(comcardPreviewProfile)
+    : comcardPreviewId
+      ? comcardPreviewFromSlot(
+          { prId: comcardPreviewId, prName: prs.find((p) => p.id === comcardPreviewId)?.name ?? "PR" },
+          null,
+        )
+      : null;
 
   const toggleTag = (tag: string) => {
     setTags((cur) => (cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag]));
   };
 
+  const staffHint =
+    staffTonight.length === 0
+      ? "No PRs yet"
+      : [
+          statusCounts.onDuty > 0 ? `${statusCounts.onDuty} on duty` : null,
+          statusCounts.enRoute > 0 ? `${statusCounts.enRoute} en route` : null,
+          statusCounts.booked > 0 ? `${statusCounts.booked} booked` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
   return (
     <div className="iz-screen">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Floor</h2>
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Today Operation</h2>
         {tonight && (
           <p className="iz-tiny iz-muted mt-0.5 truncate">
             {tonight.event} {"\u00b7"} {tonight.shift}
           </p>
         )}
       </header>
-
-      <div className="mt-3 flex gap-2">
-        {(["live", "planning"] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            className={cn(
-              "flex-1 rounded-full border py-2 text-xs font-semibold",
-              viewMode === mode
-                ? mode === "live"
-                  ? "border-[var(--iz-green)] bg-[rgba(57,217,138,.12)] text-[var(--iz-green)]"
-                  : "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]"
-                : "border-[var(--iz-line)] text-[var(--iz-muted)]",
-            )}
-            onClick={() => setViewMode(mode)}
-          >
-            {mode === "live" ? "Live" : "Planning"}
-          </button>
-        ))}
-      </div>
 
       {postSealRatePrompt && (
         <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-[rgba(232,194,122,.3)] bg-[rgba(232,194,122,.06)] px-3 py-2">
@@ -137,8 +181,23 @@ function FloorPage() {
         </div>
       )}
 
-      <div className="mt-3 flex items-center gap-2">
-        <IzPill variant={viewMode === "live" ? "green" : "gold"}>{onFloor.length} PRs</IzPill>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <IzPill variant="green">{staffTonight.length} PRs</IzPill>
+        {statusCounts.onDuty > 0 && (
+          <IzPill variant="green" className="!py-0.5 !text-[9px]">
+            {statusCounts.onDuty} on duty
+          </IzPill>
+        )}
+        {statusCounts.enRoute > 0 && (
+          <IzPill variant="violet" className="!py-0.5 !text-[9px]">
+            {statusCounts.enRoute} en route
+          </IzPill>
+        )}
+        {statusCounts.booked > 0 && (
+          <IzPill variant="amber" className="!py-0.5 !text-[9px]">
+            {statusCounts.booked} booked
+          </IzPill>
+        )}
       </div>
 
       {canLogSales && tonight?.status === "confirmed" && (
@@ -147,62 +206,63 @@ function FloorPage() {
         </div>
       )}
 
-      <OutletSection
-        title={viewMode === "live" ? "On duty" : "Planned"}
-        hint={onFloor.length === 0 ? "No PRs yet" : `${onFloor.length} listed`}
-        className="!mt-4"
-      >
-        {onFloor.length === 0 ? (
+      <OutletSection title="Staff tonight" hint={staffHint} className="!mt-4">
+        {staffTonight.length === 0 ? (
           <p className="iz-tiny iz-muted rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
-            No PRs {viewMode === "live" ? "on floor" : "assigned"} yet.
+            No PRs assigned for tonight yet.
           </p>
         ) : (
-          <div className="space-y-2">
-            {onFloor.map((p) => {
-              const slot = statsFor(p.id);
-              const liveStatus =
-                viewMode === "live" &&
-                slot &&
-                (slot.status === "en-route" || (slot.status === "on-duty" && slot.checkedInAt))
-                  ? slot.status === "on-duty" && slot.checkedInAt
-                    ? "on-duty"
-                    : "en-route"
-                  : null;
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {staffTonight.map(({ pr, slot, displayStatus }) => {
+              const agencyProfile = agencyPrById.get(pr.id);
+              const comcardPr = agencyProfile
+                ? toComcardPreview(agencyProfile)
+                : comcardPreviewFromSlot({ prId: pr.id, prName: pr.name });
+              const langs = agencyProfile ? languagesFromPr(agencyProfile) : pr.languages;
+              const opsLine = [
+                slot?.checkedInAt ? `In ${slot.checkedInAt}` : null,
+                (slot?.floorDrinks ?? 0) > 0 ? `${slot.floorDrinks} drinks` : null,
+                slot ? rosterSlotAgencyName(slot) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+
               return (
-                <div key={p.id} className="iz-outlet-floor-row">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--iz-violet-ink)] text-xl">
-                    {p.avatar}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-sora text-sm font-bold">{p.name}</span>
-                      <span className="inline-flex items-center gap-0.5 text-[10px] text-[var(--iz-gold)]">
-                        {p.rating}
-                        <Star className="h-2.5 w-2.5 fill-[var(--iz-gold)] text-[var(--iz-gold)]" />
-                      </span>
-                    </div>
-                    <p className="iz-tiny iz-muted truncate">
-                      {p.languages.join(" / ")}
-                      {slot && viewMode === "live" && slot.checkedInAt
-                        ? ` \u00b7 in ${slot.checkedInAt}`
-                        : ""}
-                      {slot && viewMode === "live" && (slot.floorDrinks ?? 0) > 0
-                        ? ` \u00b7 ${slot.floorDrinks} drinks`
-                        : ""}
-                    </p>
-                  </div>
-                  {liveStatus && (
-                    <IzPill
-                      variant={workforceStatusVariant(liveStatus)}
-                      className="!py-0.5 !text-[9px] shrink-0"
-                    >
-                      {workforceStatusLabel(liveStatus)}
-                    </IzPill>
-                  )}
+                <div
+                  key={pr.id}
+                  className="flex flex-col gap-1 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-2"
+                >
                   <button
                     type="button"
-                    onClick={() => setOpenPr(p.id)}
-                    className="iz-btn iz-btn-soft iz-btn-sm shrink-0"
+                    className="iz-comcard-3d-preview-btn relative w-full text-left"
+                    aria-label={`View comcard for ${pr.name}`}
+                    onClick={() => setComcardPreviewId(pr.id)}
+                  >
+                    <IzPill
+                      variant={workforceStatusVariant(displayStatus)}
+                      className="absolute right-1 top-1 z-10 !py-0 !text-[8px] shadow-sm"
+                    >
+                      {workforceStatusLabel(displayStatus)}
+                    </IzPill>
+                    <Comcard3dPreviewCard
+                      pr={comcardPr}
+                      trainingLevel={agencyProfile?.trainingLevel}
+                      rating={agencyProfile?.rating ?? pr.rating}
+                      languages={langs}
+                      place={agencyProfile?.place}
+                    />
+                  </button>
+
+                  {opsLine && (
+                    <p className="text-[10px] leading-tight text-[var(--iz-muted2)] line-clamp-2">
+                      {opsLine}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setOpenPr(pr.id)}
+                    className="iz-btn iz-btn-soft iz-btn-sm w-full !py-1.5 !text-[10px]"
                   >
                     Rate
                   </button>
@@ -241,6 +301,43 @@ function FloorPage() {
         </OutletSection>
       )}
 
+      <IzSheet open={!!comcardPreviewPr} onClose={() => setComcardPreviewId(null)}>
+        {comcardPreviewPr && (
+          <div className="px-1 pb-2">
+            <div className="iz-cardttl mb-1">{comcardPreviewPr.name}</div>
+            {(() => {
+              const slot = rosterTonight.find((s) => s.prId === comcardPreviewId);
+              return slot ? (
+                <p className="iz-tiny iz-muted mb-3">{rosterSlotAgencyName(slot)}</p>
+              ) : null;
+            })()}
+            <Comcard3dPreviewVisual pr={comcardPreviewPr} showName={false} />
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {comcardPreviewProfile?.trainingLevel && (
+                <IzPill variant="ink" className="!py-0.5 !text-[9px]">
+                  {comcardPreviewProfile.trainingLevel}
+                </IzPill>
+              )}
+              {comcardPreviewProfile?.rating != null && (
+                <IzPill variant="gold" className="!py-0.5 !text-[9px]">
+                  {comcardPreviewProfile.rating}★
+                </IzPill>
+              )}
+              {(comcardPreviewProfile
+                ? languagesFromPr(comcardPreviewProfile)
+                : []
+              )
+                .slice(0, 3)
+                .map((lang) => (
+                  <IzPill key={lang} variant="violet" className="!py-0.5 !text-[9px]">
+                    {lang}
+                  </IzPill>
+                ))}
+            </div>
+          </div>
+        )}
+      </IzSheet>
+
       {openPr && openPrData && (
         <div
           className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm"
@@ -251,9 +348,13 @@ function FloorPage() {
             className="iz-card mx-auto w-full max-w-[392px] rounded-b-none rounded-t-[28px] !mb-0"
           >
             <div className="mb-3 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--iz-violet-ink)] text-xl">
-                {openPrData.avatar}
-              </div>
+              <Comcard3dPreviewThumb
+                pr={
+                  agencyPrById.get(openPrData.id)
+                    ? toComcardPreview(agencyPrById.get(openPrData.id)!)
+                    : comcardPreviewFromSlot({ prId: openPrData.id, prName: openPrData.name })
+                }
+              />
               <h3 className="font-sora text-base font-bold">Rate {openPrData.name}</h3>
             </div>
             <div className="flex justify-center gap-1.5">

@@ -82,15 +82,17 @@ function AgencyHub() {
             <div className="min-w-0 flex-1">
               <p className="iz-sm font-bold">Confirm weekly reconciliation</p>
               <p className="iz-tiny iz-muted mt-0.5">
-                {reconciliation.dateLabel} · Outlet sales {formatRM(reconciliation.outletSalesTotal)} vs PV{" "}
+                {reconciliation.dateLabel} · PR earnings {formatRM(reconciliation.prIncomeTotal ?? 0)} vs PV{" "}
                 {formatRM(reconciliation.pvTotal)}
-                {reconciliation.variance !== 0 && (
-                  <span className="text-[var(--iz-amber)]"> · variance {formatRM(reconciliation.variance)}</span>
+                {(reconciliation.prVariance ?? 0) !== 0 && (
+                  <span className="text-[var(--iz-amber)]">
+                    {" "}
+                    · variance {formatRM(reconciliation.prVariance ?? 0)}
+                  </span>
                 )}
               </p>
               <p className="iz-tiny iz-muted2 mt-1">
-                Outlet {reconciliation.outletConfirmed ? "confirmed ✓" : "pending"} · Agency{" "}
-                {reconciliation.agencyConfirmed ? "confirmed ✓" : "awaiting"}
+                Agency–PR weekly reconcile · confirm in Payroll → Reconcile
               </p>
               <Link to="/agency/pv" className="iz-tiny mt-1 inline-block text-[var(--iz-gold-l)]">
                 Review in Payroll →

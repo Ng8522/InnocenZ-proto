@@ -1,12 +1,18 @@
 /** Shared shift transaction log — agency & outlet read the same records */
 
 import { buildAllVelvetSeedShiftHistory } from "@/lib/velvet-week-demo";
-import { mergeShiftHistory, type ShiftHistoryRow } from "@/lib/shift-history-utils";
+import { prepareShiftHistoryForDisplay, mergeShiftHistory, type ShiftHistoryRow } from "@/lib/shift-history-utils";
 
 export type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 export {
   compareShiftHistoryDesc,
+  dedupeShiftHistorySlots,
+  filterShiftHistoryThroughToday,
+  isCheckoutShiftHistoryRow,
+  isDateInCurrentPayrollWeek,
   mergeShiftHistory,
+  prepareShiftHistoryForDisplay,
+  shiftHistorySlotKey,
   sortShiftHistoryDesc,
 } from "@/lib/shift-history-utils";
 
@@ -82,12 +88,12 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     totalDrinks: 17,
     totalTips: 50,
     totalTables: 1,
+    durationHours: 6,
   },
 ];
 
-export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = mergeShiftHistory(
-  buildAllVelvetSeedShiftHistory(),
-  SEED_SHIFT_HISTORY_OTHER,
+export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = prepareShiftHistoryForDisplay(
+  mergeShiftHistory(buildAllVelvetSeedShiftHistory(), SEED_SHIFT_HISTORY_OTHER),
 );
 
 export function shiftHistorySubline(row: ShiftHistoryRow, portal: "agency" | "outlet") {

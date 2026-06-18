@@ -47,6 +47,11 @@ export function isPaymentHistoryPv(pv: PrPaymentVoucher) {
   return pv.status === "PAID" || pv.status === "SIGNED";
 }
 
+/** PR Payment tab — actionable inbox only (signed/paid live in History → Payment) */
+export function isPrPaymentInboxPv(pv: PrPaymentVoucher) {
+  return pv.status === "SENT" || pv.status === "DISPUTED";
+}
+
 /** Shift history badge — derived from the weekly PV covering that shift date. */
 export function deriveShiftHistoryStatus(
   dateIso: string,

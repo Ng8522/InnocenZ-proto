@@ -634,7 +634,7 @@ export function pvDisputePhotos(
 
 export const FINANCE_HEAD_LABEL = "Finance Head · Atlas Agency";
 
-function seedPrSignature(prName: string) {
+export function seedPrSignature(prName: string) {
   return { prSignatureDataUrl: buildDemoESignatureDataUrl(prName) };
 }
 
@@ -2076,6 +2076,26 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     tableCommission: 0,
     totalCommission: 125,
     status: "attached",
+  },
+  {
+    id: "rc-luna-w2-d",
+    receiptRef: "VEL-20260616-203412",
+    scannedAt: "16 Jun 2026 · 20:34",
+    date: [2026, 6, 16],
+    outlet: "Velvet 23",
+    prCode: "PR-0001",
+    prName: "Luna",
+    prId: "p1",
+    shiftSessionId: "shift-2026-06-16-velvet23",
+    pvId: "PV-2026-0611-A",
+    items: [{ label: "Cocktail", qty: 8, unitPrice: 45, amount: 360, category: "drinks" }],
+    totalLogged: 360,
+    drinkCommission: 96,
+    tipCommission: 0,
+    tableCommission: 0,
+    totalCommission: 96,
+    pvStatus: "SENT",
+    status: "in_pv",
   },
   {
     id: "rc-luna-1",

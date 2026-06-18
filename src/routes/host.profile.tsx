@@ -1,9 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
 import { PORTFOLIO_SLOT_COUNT, getPrProfile, getPrRosterId, type PrComcard } from "@/lib/pr-demo";
 import { Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
+import {
+  PortfolioComcardVisual,
+  canGeneratePortfolioComcard,
+  portfolioPhotosForComcard,
+} from "@/components/pr/PortfolioComcardVisual";
 import { ProfileLanguagePicker } from "@/components/iz/ProfileLanguagePicker";
 import { Camera, Pencil, Star, X } from "lucide-react";
 import { FreelancerAgencyPicker } from "@/components/iz/FreelancerAgencyPicker";
@@ -110,6 +115,10 @@ function ProfilePage() {
     age: comcard.age,
   };
 
+  const portfolioComcardPhotos = useMemo(() => portfolioPhotosForComcard(portfolio), [portfolio]);
+  const hasPhotoComcard = canGeneratePortfolioComcard(portfolio);
+  const photosNeededForComcard = Math.max(0, 4 - portfolioComcardPhotos.length);
+
   const openPortfolioUpload = (slot: number) => {
     if (!editing) return;
     uploadSlotRef.current = slot;
@@ -191,7 +200,9 @@ function ProfilePage() {
           <p className="iz-pr-account-hero__eyebrow">Account</p>
           <div className="iz-pr-account-hero__head-badges">
             {editing && <span className="iz-pr-account-hero__badge iz-pr-account-hero__badge--amber">Editing</span>}
-            <span className="iz-pr-account-hero__badge">3D Comcard · IC · v3</span>
+            <span className="iz-pr-account-hero__badge">
+              {hasPhotoComcard ? "Photo Comcard · IC · v3" : "3D Comcard · IC · v3"}
+            </span>
           </div>
         </div>
 
@@ -259,12 +270,26 @@ function ProfilePage() {
 
         <div className="iz-pr-account-hero__showcase">
           <div className="iz-pr-account-hero__showcase-glow" aria-hidden />
-          <Comcard3dPreviewVisual
-            pr={comcardPr}
-            className="iz-pr-account-hero__comcard-visual"
-            showName={!editing}
-            showStats={!editing}
-          />
+          {hasPhotoComcard ? (
+            <PortfolioComcardVisual
+              photos={portfolioComcardPhotos}
+              pr={comcardPr}
+              className="iz-pr-account-hero__comcard-visual"
+            />
+          ) : (
+            <Comcard3dPreviewVisual
+              pr={comcardPr}
+              className="iz-pr-account-hero__comcard-visual"
+              showName={!editing}
+              showStats={!editing}
+            />
+          )}
+          {editing && !hasPhotoComcard && photosNeededForComcard > 0 && (
+            <p className="iz-pr-account-hero__comcard-hint">
+              Upload <b>{photosNeededForComcard}</b> more portfolio photo
+              {photosNeededForComcard !== 1 ? "s" : ""} below to generate your photo comcard.
+            </p>
+          )}
           {editing && (
             <div className="iz-pr-account-hero__measure-edit">
               <p className="iz-pr-account-hero__measure-hint">Adjust measurements — preview updates live</p>
@@ -295,41 +320,13 @@ function ProfilePage() {
           )}
         </div>
 
-        <div className="iz-pr-account-hero__kpi">
-          <div className="iz-pr-account-hero__kpi-cell">
-            <span className="l">Rep</span>
-            <span className="n gold">{u.rep}%</span>
-          </div>
-          <div className="iz-pr-account-hero__kpi-cell">
-            <span className="l">Shifts</span>
-            <span className="n">{u.shifts}</span>
-          </div>
-          <div className="iz-pr-account-hero__kpi-cell">
-            <span className="l">No-shows</span>
-            <span className="n">{u.noshow}</span>
-          </div>
-          <div className="iz-pr-account-hero__kpi-cell">
-            <span className="l">Tier</span>
-            <span className="n gold">{u.tier}</span>
-          </div>
-        </div>
-
-        <div className="iz-pr-account-hero__lifecycle">
-          <div className="iz-pr-account-hero__lifecycle-head">
-            <span>Workforce lifecycle</span>
-            <b>{u.prog}%</b>
-          </div>
-          <div className="iz-bar-track iz-pr-account-hero__bar">
-            <div className="iz-bar-fill bg-[var(--iz-grad-gold)]" style={{ width: `${u.prog}%` }} />
-          </div>
-          <p className="iz-pr-account-hero__lifecycle-note">{u.next}</p>
-        </div>
-
         <div className="iz-pr-account-hero__section">
           <div className="iz-pr-account-hero__section-title">
             <span>Portfolio gallery · v3</span>
             {editing && (
-              <span className="iz-pr-account-hero__section-hint">Tap slot to upload</span>
+              <span className="iz-pr-account-hero__section-hint">
+                {hasPhotoComcard ? "Comcard live · tap to replace" : "4+ photos → photo comcard"}
+              </span>
             )}
           </div>
           <input ref={portfolioFileRef} type="file" accept="image/*" className="sr-only" onChange={onPortfolioFilePick} />

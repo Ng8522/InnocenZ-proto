@@ -13,7 +13,7 @@ import { DEFAULT_AGENCY_OWNER, OUTLET_COMMISSION_RULES } from "@/lib/agency-demo
 import type { HistRow, PrPaymentVoucher } from "@/lib/pr-demo";
 import { formatPrDisplayName } from "@/lib/pr-demo";
 import { deriveShiftHistoryStatus } from "@/lib/pr-payment-history";
-import { sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
+import { filterShiftHistoryThroughToday, prepareShiftHistoryForDisplay, sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
 import type { ShiftRequest } from "@/lib/store";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 
@@ -176,7 +176,7 @@ export function outletGrossFromPnl(
 
 /** PR history shifts tab — same log as agency/outlet */
 export function shiftHistoryForPr(rows: ShiftHistoryRow[], prId: string): ShiftHistoryRow[] {
-  return rows.filter((r) => r.prId === prId);
+  return prepareShiftHistoryForDisplay(rows).filter((r) => r.prId === prId);
 }
 
 /** PR History shifts tab — same records as agency/outlet transaction log */
@@ -185,7 +185,9 @@ export function shiftHistoryToHistRows(
   prId?: string,
   vouchers: PrPaymentVoucher[] = [],
 ): HistRow[] {
-  const list = prId ? rows.filter((r) => r.prId === prId) : rows;
+  const list = prId
+    ? prepareShiftHistoryForDisplay(rows).filter((r) => r.prId === prId)
+    : prepareShiftHistoryForDisplay(rows);
   return list.map((row) => {
     const [y, m, d] = row.dateIso.split("-").map(Number);
     const { st, pill } = deriveShiftHistoryStatus(row.dateIso, vouchers);
@@ -205,7 +207,9 @@ export function shiftHistoryToHistRows(
 }
 
 export function shiftHistoryForOutlet(rows: ShiftHistoryRow[], outletName: string): ShiftHistoryRow[] {
-  return sortShiftHistoryDesc(rows.filter((r) => outletMatches(r.outlet, outletName)));
+  return sortShiftHistoryDesc(
+    prepareShiftHistoryForDisplay(rows).filter((r) => outletMatches(r.outlet, outletName)),
+  );
 }
 
 /** Build a history row when a PR checks out or outlet seals a shift */

@@ -25,8 +25,8 @@ export function PvSummaryView({
   const weeklyNote =
     isWeekly && weekSummary ? (
       <p className="iz-tiny iz-muted2 px-4 pt-3">
-        Matches week summary · {weekSummary.verifiedDayCount} verified day
-        {weekSummary.verifiedDayCount !== 1 ? "s" : ""}
+        Week total {formatRM(weekSummary.totals.net)} · {weekSummary.verifiedDayCount} verified day
+        {weekSummary.verifiedDayCount !== 1 ? "s" : ""} · PV on {weekSummary.issueDayLabel} (Sun)
       </p>
     ) : null;
 

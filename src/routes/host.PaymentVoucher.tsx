@@ -23,6 +23,7 @@ import { PrWeeklyPaymentWeekCard } from "@/components/pr/PrWeeklyPaymentWeekCard
 import { PrWeeklyPaymentGrid } from "@/components/pr/PrWeeklyPaymentGrid";
 import { viewPvBreakdownPdf } from "@/lib/pv-pdf";
 import { payeeFromProfile } from "@/lib/pv-template";
+import { isPrPaymentInboxPv } from "@/lib/pr-payment-history";
 import {
   buildWeeklyPaymentSummary,
   buildWeeklyDisputeMessage,
@@ -107,6 +108,7 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
   const [detailId, setDetailId] = useState<string | null>(searchPvId ?? null);
   const [pvFilter, setPvFilter] = useState<PvDayTimeFilter>(EMPTY_PV_DAY_TIME_FILTER);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [weekTab, setWeekTab] = useState<"last" | "current">("current");
 
   const profile = getPrProfile(prSubRole);
   const prId = getPrRosterId(prSubRole);
@@ -115,6 +117,10 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
   const myVouchers = useMemo(
     () => filterPvsForPrProfile(prPaymentVouchers, profile, prSubRole),
     [prPaymentVouchers, profile, prSubRole],
+  );
+  const inboxVouchers = useMemo(
+    () => myVouchers.filter(isPrPaymentInboxPv),
+    [myVouchers],
   );
   const myReceiptScans = useMemo(
     () => filterReceiptScansForPrProfile(prReceiptScans, profile, prSubRole, myVouchers),
@@ -148,8 +154,6 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
     [prevWeekBounds.startIso, previousWeekPv, shiftHistory, myReceiptScans, prId],
   );
   const prevWeekIssued = isWeekPvIssued(prevWeekBounds.endIso);
-  const showLastWeekCard =
-    prevWeekIssued && (previousWeekSummary.totals.net > 0 || Boolean(previousWeekPv));
   const currentWeekSummary = useMemo(
     () =>
       buildWeeklyPaymentSummary({
@@ -175,18 +179,21 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
   }, [myVouchers, pvDateOptions]);
 
   const filteredVouchers = useMemo(() => {
-    const matched = myVouchers.filter((p) => matchesPvDayTimeFilter(p, pvFilter, myReceiptScans));
+    const matched = inboxVouchers.filter((p) => matchesPvDayTimeFilter(p, pvFilter, myReceiptScans));
     const withoutCurrentDraft =
-      !currentWeekSummary.pvReady && currentWeekPv
+      !currentWeekSummary.pvReady && currentWeekPv && isPrPaymentInboxPv(currentWeekPv)
         ? matched.filter((p) => p.id !== currentWeekPv.id)
         : matched;
     return [...withoutCurrentDraft].sort((a, b) => {
+      const aDispute = a.status === "DISPUTED" ? 1 : 0;
+      const bDispute = b.status === "DISPUTED" ? 1 : 0;
+      if (aDispute !== bDispute) return bDispute - aDispute;
       const aReview = pvNeedsPrReview(a.status) ? 1 : 0;
       const bReview = pvNeedsPrReview(b.status) ? 1 : 0;
       if (aReview !== bReview) return bReview - aReview;
       return parsePvIssuedMs(b.issued) - parsePvIssuedMs(a.issued);
     });
-  }, [myVouchers, pvFilter, myReceiptScans, currentWeekSummary.pvReady, currentWeekPv]);
+  }, [inboxVouchers, pvFilter, myReceiptScans, currentWeekSummary.pvReady, currentWeekPv]);
 
   const filterCount = pvDayTimeFilterCount(pvFilter);
 
@@ -206,7 +213,18 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
 
   const pv = myVouchers.find((p) => p.id === detailId);
 
-  if (pv) {
+  useEffect(() => {
+    if (!detailId || !pv) return;
+    if (!isPrPaymentInboxPv(pv)) {
+      void navigate({
+        to: "/host/history",
+        search: { tab: "payment", pvId: pv.id },
+        replace: true,
+      });
+    }
+  }, [detailId, pv, navigate]);
+
+  if (pv && isPrPaymentInboxPv(pv)) {
     return (
       <div className="iz-screen">
         <AppTopbar onBack={closeDetail} backLabel="Payment" />
@@ -219,8 +237,10 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
           prId={prId}
           onBack={closeDetail}
           onSign={(signatureDataUrl) => signPrPv(pv.id, signatureDataUrl)}
-          onDispute={(reason, photos) => disputePrPv(pv.id, reason, photos)}
-          onUpdateDispute={(reason, photos) => updatePrPvDisputeReason(pv.id, reason, photos)}
+          onDispute={(reason, photos, targets) => disputePrPv(pv.id, reason, photos, targets)}
+          onUpdateDispute={(reason, photos, targets) =>
+            updatePrPvDisputeReason(pv.id, reason, photos, targets)
+          }
           onEscalateDispute={() => escalatePrPvDispute(pv.id)}
           onViewPdf={() => {
             viewPvBreakdownPdf(pv, payeeFromProfile(profile), myReceiptScans);
@@ -231,11 +251,16 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
     );
   }
 
-  const pendingCount = filteredVouchers.filter((p) => pvNeedsPrReview(p.status)).length;
-  const signedCount = filteredVouchers.filter(
-    (p) => p.status === "SIGNED" || p.status === "PAID",
-  ).length;
+  const sentCount = filteredVouchers.filter((p) => p.status === "SENT").length;
+  const disputedCount = filteredVouchers.filter((p) => p.status === "DISPUTED").length;
   const totalNet = filteredVouchers.reduce((sum, p) => sum + p.net, 0);
+  const lastWeekInboxPv =
+    previousWeekPv && isPrPaymentInboxPv(previousWeekPv) ? previousWeekPv : null;
+  const currentWeekInboxPv =
+    currentWeekPv && isPrPaymentInboxPv(currentWeekPv) ? currentWeekPv : null;
+  const lastWeekNeedsReview = Boolean(
+    lastWeekInboxPv && pvNeedsPrReview(lastWeekInboxPv.status),
+  );
 
   return (
     <div className="iz-screen">
@@ -246,8 +271,8 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
         title="Payment"
         meta={
           isFreelancer
-            ? "Weekly PV · review & sign from your agency"
-            : "Weekly PV · agency pre-signed · you confirm"
+            ? "Inbox · SENT & DISPUTED only — signed/paid in History"
+            : "Review & dispute · signed/paid moved to History"
         }
       />
 
@@ -271,22 +296,54 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
         </p>
       )}
 
-      <PrWeeklyPaymentWeekCard
-        title="This week"
-        summary={currentWeekSummary}
-        weekPhase="open"
-        defaultOpen
-        pv={currentWeekPv}
-        onOpenPv={openDetail}
-      />
+      <div className="iz-hist-tabs mt-3" role="tablist" aria-label="Payroll week">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={weekTab === "last"}
+          className={weekTab === "last" ? "active" : ""}
+          onClick={() => setWeekTab("last")}
+        >
+          <span className="flex flex-col items-center gap-0.5">
+            <span className="inline-flex items-center gap-1.5">
+              Last week
+              {lastWeekNeedsReview && weekTab !== "last" ? (
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--iz-amber)]" aria-hidden />
+              ) : null}
+            </span>
+            <span className="iz-tiny iz-muted2 font-normal">{previousWeekSummary.weekLabel}</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={weekTab === "current"}
+          className={weekTab === "current" ? "active" : ""}
+          onClick={() => setWeekTab("current")}
+        >
+          <span className="flex flex-col items-center gap-0.5">
+            <span>This week</span>
+            <span className="iz-tiny iz-muted2 font-normal">{currentWeekSummary.weekLabel}</span>
+          </span>
+        </button>
+      </div>
 
-      {showLastWeekCard && (
+      {weekTab === "last" ? (
         <PrWeeklyPaymentWeekCard
           title="Last week"
           summary={previousWeekSummary}
-          weekPhase="issued"
-          defaultOpen={previousWeekPv ? pvNeedsPrReview(previousWeekPv.status) : false}
-          pv={previousWeekPv}
+          weekPhase={prevWeekIssued ? "issued" : "open"}
+          defaultOpen
+          pv={lastWeekInboxPv}
+          onOpenPv={openDetail}
+        />
+      ) : (
+        <PrWeeklyPaymentWeekCard
+          title="This week"
+          summary={currentWeekSummary}
+          weekPhase="open"
+          defaultOpen
+          pv={currentWeekInboxPv}
           onOpenPv={openDetail}
         />
       )}
@@ -297,12 +354,12 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
           <div className="n">{filteredVouchers.length}</div>
         </div>
         <div className="iz-outlet-stat-cell">
-          <div className="l">Review</div>
-          <div className="n text-[var(--iz-amber)]">{pendingCount}</div>
+          <div className="l">Sent</div>
+          <div className="n text-[var(--iz-amber)]">{sentCount}</div>
         </div>
         <div className="iz-outlet-stat-cell">
-          <div className="l">Signed</div>
-          <div className="n text-[var(--iz-green)]">{signedCount}</div>
+          <div className="l">Disputed</div>
+          <div className="n text-[var(--iz-red)]">{disputedCount}</div>
         </div>
         <div className="iz-outlet-stat-cell">
           <div className="l">Total</div>
@@ -357,17 +414,19 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
       </div>
 
       <p className="iz-tiny iz-muted2 mt-4 mb-1 tracking-wide">
-        WEEKLY PAYMENT VOUCHERS · {payrollCycle.range}
+        ACTION REQUIRED · {payrollCycle.range}
       </p>
       <div className="iz-pr-list">
         {filteredVouchers.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
             <Clock className="mx-auto mb-2 h-8 w-8 text-[var(--iz-muted2)]" />
-            <p className="text-sm font-semibold">No weekly PVs match this filter</p>
+            <p className="text-sm font-semibold">No PVs awaiting action</p>
             <p className="iz-tiny iz-muted2 mt-1">
-              {currentWeekSummary.pvReady
-                ? "Try another date or clear the time range."
-                : "Last week's PV appears here every Sunday — filter by date to find older weeks."}
+              SENT and DISPUTED vouchers appear here. Signed and paid records are in{" "}
+              <Link to="/host/history" search={{ tab: "payment" }} className="text-[var(--iz-gold-l)]">
+                History → Payment
+              </Link>
+              .
             </p>
             {pvDayTimeFilterActive(pvFilter) && (
               <button
@@ -422,8 +481,8 @@ function PvDetail({
   prId: string;
   onBack: () => void;
   onSign: (signatureDataUrl: string) => void;
-  onDispute: (reason: string, photoDataUrls?: string[]) => void;
-  onUpdateDispute: (reason: string, photoDataUrls?: string[]) => void;
+  onDispute: (reason: string, photoDataUrls?: string[], targets?: WeeklyDisputeTarget[]) => void;
+  onUpdateDispute: (reason: string, photoDataUrls?: string[], targets?: WeeklyDisputeTarget[]) => void;
   onEscalateDispute: () => void;
   onViewPdf: () => void;
 }) {
@@ -515,7 +574,11 @@ function PvDetail({
   };
 
   const submitDispute = () => {
-    onDispute(disputeReason, disputePhotos.length ? disputePhotos : undefined);
+    onDispute(
+      disputeReason,
+      disputePhotos.length ? disputePhotos : undefined,
+      disputeTargets.length ? disputeTargets : undefined,
+    );
     if (raiseDisputeRef.current) raiseDisputeRef.current.open = false;
     setDisputeReason("");
     setDisputePhotos([]);
@@ -524,7 +587,11 @@ function PvDetail({
   const saveDisputeEdits = () => {
     const trimmed = editDisputeReason.trim();
     if (!trimmed) return;
-    onUpdateDispute(trimmed, editDisputePhotos.length ? editDisputePhotos : undefined);
+    onUpdateDispute(
+      trimmed,
+      editDisputePhotos.length ? editDisputePhotos : undefined,
+      disputeTargets.length ? disputeTargets : undefined,
+    );
     setEditDisputeReason(trimmed);
   };
 
@@ -559,7 +626,7 @@ function PvDetail({
           <div className="iz-pr-week-pay-card__head">
             <div>
               <p className="iz-pr-week-pay-card__title">Week summary</p>
-              <p className="iz-tiny iz-muted2">{weekSummary.weekLabel} · verified days only</p>
+              <p className="iz-tiny iz-muted2">{weekSummary.weekLabel} · all sealed shifts</p>
             </div>
           </div>
           <PrWeeklyPaymentGrid

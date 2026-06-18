@@ -16,9 +16,9 @@ function statusClass(status: WeeklyDayStatus) {
 }
 
 function statusLabel(status: WeeklyDayStatus) {
-  if (status === "verified") return "Verified";
   if (status === "disputed") return "Disputed";
   if (status === "pending") return "Pending";
+  if (status === "verified") return "Verified";
   return "—";
 }
 
@@ -122,36 +122,7 @@ export function PrWeeklyPaymentGrid({
               <th className="iz-pr-week-pay__row-label">Status</th>
               {summary.dayStatus.map((status, idx) => (
                 <td key={`st-${summary.columns[idx].dateIso}`} className={statusClass(status)}>
-                  <div className="iz-pr-week-pay__status-cell">
-                    <span className="iz-pr-week-pay__status-pill">{statusLabel(status)}</span>
-                    {canDispute && status !== "empty" && status !== "disputed" && (
-                      <button
-                        type="button"
-                        className="iz-pr-week-pay__dispute-day"
-                        onClick={() => {
-                          if (!onDisputeDay) return;
-                          const targets = summary.rows
-                            .filter((r) => r.cells[idx] > 0)
-                            .map((r) => {
-                              const col = summary.columns[idx];
-                              const [y, m, d] = col.dateIso.split("-").map(Number);
-                              return {
-                                dateIso: col.dateIso,
-                                dateLabel: fmtDtable(y, m, d),
-                                dayLabel: col.dayLabel,
-                                incomeKey: r.key,
-                                incomeLabel: r.label,
-                                amount: r.cells[idx],
-                                outlet: summary.dayOutlets[idx],
-                              };
-                            });
-                          if (targets.length) onDisputeDay(targets);
-                        }}
-                      >
-                        Dispute
-                      </button>
-                    )}
-                  </div>
+                  <span className="iz-pr-week-pay__status-pill">{statusLabel(status)}</span>
                 </td>
               ))}
               <td className="iz-pr-week-pay__row-total iz-tiny">
@@ -163,11 +134,11 @@ export function PrWeeklyPaymentGrid({
             <tr>
               <td colSpan={summary.columns.length + 1}>
                 <span className="iz-pr-week-pay__foot-note">
-                  Verified days only · synced with PV line items
+                  All sealed shifts counted · synced with PV line items
                   {weekPhase === "open" ? (
                     <>
                       {" "}
-                      · issues <b>{summary.issueDayLabel} (Sun)</b>
+                      · PV issues <b>{summary.issueDayLabel} (Sun)</b>
                     </>
                   ) : (
                     <> · PV issued</>
@@ -175,7 +146,7 @@ export function PrWeeklyPaymentGrid({
                 </span>
               </td>
               <td className="iz-pr-week-pay__net font-sora font-extrabold text-[var(--iz-gold)]">
-                {formatRM(weekPhase === "open" ? summary.verifiedTotals.net : summary.totals.net)}
+                {formatRM(summary.totals.net)}
               </td>
             </tr>
           </tfoot>
@@ -183,8 +154,8 @@ export function PrWeeklyPaymentGrid({
       </div>
       {canDispute && (
         <p className="iz-pr-week-pay__hint">
-          Tap any amount or <b>Dispute</b> on a day to flag a wrong wage or commission line — sent to your agency with
-          date &amp; time.
+          Tap any amount to flag a wrong wage or commission line — sent to your agency with date &amp;
+          time.
         </p>
       )}
     </div>

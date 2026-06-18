@@ -1,5 +1,7 @@
 /** Shift history types + sort/merge helpers (no portal imports — avoids circular deps). */
 
+import { addDaysToIso, getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/demo-clock";
+
 export interface ShiftHistoryRow {
   id: string;
   prName: string;
@@ -14,6 +16,66 @@ export interface ShiftHistoryRow {
   /** VIP / table units logged on shift */
   totalTables?: number;
   durationHours: number;
+}
+
+/** Only shifts on or before today — future nights are not sealed history yet */
+export function filterShiftHistoryThroughToday(
+  rows: ShiftHistoryRow[],
+  todayIso = getLiveTodayIso(),
+): ShiftHistoryRow[] {
+  return (rows ?? []).filter((row) => row.dateIso <= todayIso);
+}
+
+/** Real checkout row — not Velvet demo seed (`vh-…`) */
+export function isCheckoutShiftHistoryRow(row: ShiftHistoryRow): boolean {
+  return row.id.startsWith("h") && !row.id.startsWith("vh-");
+}
+
+export function isDateInCurrentPayrollWeek(dateIso: string, todayIso = getLiveTodayIso()): boolean {
+  const weekSun = getPayrollWeekSundayIso(todayIso);
+  const weekEnd = addDaysToIso(weekSun, 6);
+  return dateIso >= weekSun && dateIso <= weekEnd;
+}
+
+export function shiftHistorySlotKey(row: ShiftHistoryRow): string {
+  return `${row.prId}|${row.dateIso}|${row.outlet.trim().toLowerCase()}`;
+}
+
+function shiftHistoryRowPriority(row: ShiftHistoryRow): number {
+  if (isCheckoutShiftHistoryRow(row)) return 2;
+  if (row.id.startsWith("vh-")) return 1;
+  return 0;
+}
+
+/** One card per PR × date × outlet — prefer live checkout over demo seed */
+export function dedupeShiftHistorySlots(rows: ShiftHistoryRow[]): ShiftHistoryRow[] {
+  const bySlot = new Map<string, ShiftHistoryRow>();
+  for (const row of rows) {
+    const key = shiftHistorySlotKey(row);
+    const existing = bySlot.get(key);
+    if (!existing || shiftHistoryRowPriority(row) > shiftHistoryRowPriority(existing)) {
+      bySlot.set(key, row);
+    }
+  }
+  return sortShiftHistoryDesc([...bySlot.values()]);
+}
+
+/**
+ * History tab display — no future nights; current payroll week is checkout-only;
+ * prior weeks keep demo examples (deduped).
+ */
+export function prepareShiftHistoryForDisplay(
+  rows: ShiftHistoryRow[],
+  todayIso = getLiveTodayIso(),
+): ShiftHistoryRow[] {
+  const throughToday = filterShiftHistoryThroughToday(rows, todayIso);
+  const scoped = throughToday.filter((row) => {
+    if (isDateInCurrentPayrollWeek(row.dateIso, todayIso)) {
+      return isCheckoutShiftHistoryRow(row);
+    }
+    return true;
+  });
+  return dedupeShiftHistorySlots(scoped);
 }
 
 /** Newest shift nights first; same-day rows sorted by PR name. */
@@ -39,7 +101,7 @@ export function mergeShiftHistory(
   for (const row of incoming ?? []) {
     if (row?.id && !byId.has(row.id)) byId.set(row.id, row);
   }
-  return sortShiftHistoryDesc([...byId.values()]);
+  return dedupeShiftHistorySlots(sortShiftHistoryDesc([...byId.values()]));
 }
 
 export type ShiftHistoryVenueRollup = {

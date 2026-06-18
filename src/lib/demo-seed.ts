@@ -25,6 +25,7 @@ import {
   DEFAULT_OUTLET_OPS_HEAD,
   type ShiftApplicant,
 } from "@/lib/outlet-demo";
+import { mergeHistoryDemoLedger } from "@/lib/history-demo-sync";
 import {
   computeShiftLiveSales,
   recomputeAllOutletPnl,
@@ -40,6 +41,7 @@ import {
   SEED_PR_PVS,
   LIVE_SEED_PR_PVS,
   LIVE_SEED_RECEIPT_SCANS,
+  getPrProfile,
   remapSeedPaymentVouchers,
   SEED_RECEIPT_SCANS,
   COMCARD,
@@ -304,6 +306,13 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     pr_free: defaultPrShiftSessionForRole("pr_free", { agencyRoster }),
   };
 
+  const historyLedger = mergeHistoryDemoLedger({
+    shiftHistory: SEED_SHIFT_HISTORY,
+    scans: [...LIVE_SEED_RECEIPT_SCANS],
+    pvs: remapSeedPaymentVouchers(SEED_PR_PVS).map(clonePaymentVoucher),
+    profile: getPrProfile("pr_tied"),
+  });
+
   return {
     prSessionByRole,
     shiftAccepted: false,
@@ -315,8 +324,8 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     tables: 0,
     outletRatingStars: 0,
     prActiveShift: null,
-    prPaymentVouchers: remapSeedPaymentVouchers(SEED_PR_PVS).map(clonePaymentVoucher),
-    prReceiptScans: [...LIVE_SEED_RECEIPT_SCANS],
+    prPaymentVouchers: historyLedger.pvs,
+    prReceiptScans: historyLedger.scans,
     prComcard: { ...COMCARD },
     prPortfolio: Array.from({ length: PORTFOLIO_SLOT_COUNT }, () => null) as (string | null)[],
     prLanguages: ["English", "Mandarin", "Cantonese"],

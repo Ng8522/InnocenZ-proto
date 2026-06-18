@@ -153,6 +153,80 @@ function parseRowDateIso(row: PrPvRow, year: number): string | null {
   return toDateIso(year, mi + 1, day);
 }
 
+function parseDisputeDateIsoFromText(
+  text: string,
+  year: number,
+  weekStartIso: string,
+  weekEndIso: string,
+): string | null {
+  const withDay = text.match(
+    /\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i,
+  );
+  const bare = text.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i);
+  const m = withDay ?? bare;
+  if (!m) return null;
+  const iso = parseRowDateIso({ date: `${m[1]} ${m[2]}` } as PrPvRow, year);
+  if (!iso || iso < weekStartIso || iso > weekEndIso) return null;
+  return iso;
+}
+
+/** ISO dates flagged in PV row refs or dispute reason text */
+export function disputedDateIsosFromPv(pv: PrPaymentVoucher): string[] {
+  if (!pv.weekStartIso || !pv.weekEndIso) return [];
+  const year = parseIsoDate(pv.weekStartIso).getFullYear();
+  const isos = new Set<string>();
+  for (const row of pv.rows) {
+    if (row.ref?.toLowerCase().includes("disput")) {
+      const iso = parseRowDateIso(row, year);
+      if (iso) isos.add(iso);
+    }
+  }
+  if (pv.prDisputeReason) {
+    for (const line of pv.prDisputeReason.split(/\n+/)) {
+      const iso = parseDisputeDateIsoFromText(line, year, pv.weekStartIso, pv.weekEndIso);
+      if (iso) isos.add(iso);
+    }
+  }
+  return [...isos];
+}
+
+function rowMatchesDisputeTarget(row: PrPvRow, target: WeeklyDisputeTarget, year: number): boolean {
+  const iso = parseRowDateIso(row, year);
+  if (iso !== target.dateIso) return false;
+  const desc = row.desc.toLowerCase();
+  switch (target.incomeKey) {
+    case "wages":
+      return desc.includes("daily wage");
+    case "drinks":
+      return desc.includes("drink");
+    case "tips":
+      return desc.includes("tip");
+    case "tables":
+      return desc.includes("table");
+    case "others":
+      return (
+        !desc.includes("daily wage") &&
+        !desc.includes("drink") &&
+        !desc.includes("tip") &&
+        !desc.includes("table")
+      );
+  }
+}
+
+/** Mark disputed line items on a PV after the PR flags amounts in the week grid */
+export function applyDisputeTargetsToRows(
+  rows: PrPvRow[],
+  targets: WeeklyDisputeTarget[],
+  year: number,
+): PrPvRow[] {
+  if (!targets.length) return rows;
+  return rows.map((row) =>
+    targets.some((t) => rowMatchesDisputeTarget(row, t, year))
+      ? { ...row, ref: "Disputed" }
+      : row,
+  );
+}
+
 function emptyWeekBreakdown(): WeeklyDayBreakdown {
   return { wages: 0, drinks: 0, tips: 0, tables: 0, others: 0, status: "empty" };
 }
@@ -165,7 +239,7 @@ function addRowToBreakdown(b: WeeklyDayBreakdown, row: PrPvRow) {
   else if (desc.includes("table")) b.tables += row.amt;
   else b.others += row.amt;
   b.outlet = row.outlet;
-  if (row.ref.toLowerCase().includes("disput")) b.status = "disputed";
+  if (row.ref?.toLowerCase().includes("disput")) b.status = "disputed";
   else if (b.status !== "disputed") b.status = "verified";
 }
 
@@ -247,13 +321,10 @@ function pickSealedHistoryRow(
   prId: string,
   dateIso: string,
 ): ShiftHistoryRow | undefined {
-  return rows.find(
-    (r) =>
-      r.prId === prId &&
-      r.dateIso === dateIso &&
-      r.id.startsWith("h") &&
-      !r.id.startsWith("vh-"),
-  );
+  const forSlot = rows.filter((r) => r.prId === prId && r.dateIso === dateIso);
+  const checkout = forSlot.find((r) => r.id.startsWith("h") && !r.id.startsWith("vh-"));
+  if (checkout) return checkout;
+  return forSlot.find((r) => r.id.startsWith("vh-"));
 }
 
 function computeVerifiedTotals(
@@ -372,7 +443,12 @@ export function buildWeeklyPaymentSummary(opts: {
   if (opts.shiftHistory?.length && opts.prId && !pvIsAuthoritative) {
     for (const col of columns) {
       if (col.isFuture) continue;
-      const row = pickSealedHistoryRow(opts.shiftHistory, opts.prId, col.dateIso);
+      let row = pickSealedHistoryRow(opts.shiftHistory, opts.prId, col.dateIso);
+      if (!row && !isCurrentWeek) {
+        row = opts.shiftHistory.find(
+          (r) => r.prId === opts.prId && r.dateIso === col.dateIso,
+        );
+      }
       if (!row) continue;
       dayMap.set(col.dateIso, breakdownFromHistoryRow(row, opts.scans ?? []));
     }
@@ -393,6 +469,13 @@ export function buildWeeklyPaymentSummary(opts: {
   for (const iso of opts.disputedDates ?? []) {
     const b = dayMap.get(iso);
     if (b) b.status = "disputed";
+  }
+
+  if (pvMatchesWeek && opts.pv) {
+    for (const iso of disputedDateIsosFromPv(opts.pv)) {
+      const b = dayMap.get(iso);
+      if (b) b.status = "disputed";
+    }
   }
 
   const dayStatus: WeeklyDayStatus[] = columns.map((col) => {
@@ -468,7 +551,16 @@ export function pvRowsFromWeeklySummary(
     const day = WEEKDAY_SHORT[idx];
     const ref = status === "disputed" ? "Disputed" : "Verified";
     if (wages > 0) {
-      rows.push({ i: i++, date: dateLabel, day, outlet, desc: "Daily Wages", qty: 1, amt: wages, ref: "Sealed" });
+      rows.push({
+        i: i++,
+        date: dateLabel,
+        day,
+        outlet,
+        desc: "Daily Wages",
+        qty: 1,
+        amt: wages,
+        ref: status === "disputed" ? "Disputed" : "Sealed",
+      });
     }
     if (drinks > 0) {
       rows.push({ i: i++, date: dateLabel, day, outlet, desc: "Commission – Drinks", qty: 1, amt: drinks, ref });

@@ -16,7 +16,6 @@ import {
   filterReceiptScansForPrProfile,
   fmtHistDate,
   getPrProfile,
-  pvNeedsPrReview,
   receiptPvCalcNote,
   receiptBelongsToPvLabel,
   receiptStatusLabel,
@@ -30,7 +29,7 @@ import {
 } from "@/lib/pr-demo";
 import { shiftHistoryToHistRows } from "@/lib/portal-sync";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
-import { downloadPvBreakdownPdf } from "@/lib/pv-pdf";
+import { downloadPvBreakdownCsv, downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { payeeFromProfile } from "@/lib/pv-template";
 import { usePrPortalReady } from "@/lib/use-pr-sub-role";
 import {
@@ -45,7 +44,7 @@ import {
   X,
 } from "lucide-react";
 import { PrPaymentHistoryPanel } from "@/components/pr/PrPaymentHistoryPanel";
-import { buildPaymentHistoryRecords, shiftHistoryStatusLabel } from "@/lib/pr-payment-history";
+import { shiftHistoryStatusLabel, isPaymentHistoryPv } from "@/lib/pr-payment-history";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { HistPayrollWeekSection } from "@/components/pr/HistPayrollWeekSection";
 import { IzCard, IzPill, IzTimeInput, formatRM } from "@/components/iz/ui";
@@ -53,6 +52,7 @@ import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCal
 import { parseDateInputMs, parseScannedAtMs } from "@/lib/payroll-filters";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { isReceiptFromPastShift } from "@/lib/receipt-scan-utils";
+import { isReceiptHiddenInHistory } from "@/lib/history-demo-sync";
 import { mondayOfWeek, weekRangeLabel } from "@/lib/roster-week-plan";
 
 type HistTab = "shifts" | "receipts" | "payment";
@@ -476,6 +476,199 @@ function receiptFilterCount(filters: ReceiptFilters) {
   return n;
 }
 
+type PaymentHistFilters = {
+  query: string;
+  date: string;
+  timeFrom: string;
+  timeTo: string;
+  shiftSessionId: string;
+  outlet: string;
+  status: "" | "PAID" | "SIGNED";
+  net: string;
+};
+
+const EMPTY_PAYMENT_HIST_FILTERS: PaymentHistFilters = {
+  query: "",
+  date: "",
+  timeFrom: "",
+  timeTo: "",
+  shiftSessionId: "",
+  outlet: "",
+  status: "",
+  net: "",
+};
+
+function outletSessionSlug(outlet: string): string {
+  const o = outlet.toLowerCase();
+  if (o.includes("velvet")) return "velvet";
+  if (o.includes("bear")) return "bearlounge";
+  if (o.includes("mermate")) return "mermate";
+  return o.replace(/\s+/g, "");
+}
+
+function shiftSessionIdForRow(dateIso: string, outlet: string): string {
+  return `shift-${dateIso}-${outletSessionSlug(outlet)}`;
+}
+
+function pvLinkedScans(
+  pv: PrPaymentVoucher,
+  scansById: Record<string, PrReceiptScan>,
+): PrReceiptScan[] {
+  const ids = new Set<string>([
+    ...(pv.receiptIds ?? []),
+    ...pv.rows.flatMap((r) => r.receiptIds ?? []),
+  ]);
+  return [...ids].map((id) => scansById[id]).filter((s): s is PrReceiptScan => Boolean(s));
+}
+
+function pvShiftSessionIds(pv: PrPaymentVoucher): string[] {
+  const ids = new Set<string>();
+  if (pv.shiftSessionId) ids.add(pv.shiftSessionId);
+  for (const row of pv.rows) {
+    if (!row.outlet || row.outlet === "—") continue;
+    const key = pvLineDateKey(
+      { date: row.date, cycle: pv.cycle } as PvLineRecord,
+      pv.issued,
+    );
+    if (key) ids.add(shiftSessionIdForRow(key, row.outlet));
+  }
+  return [...ids];
+}
+
+function pvDateKeys(pv: PrPaymentVoucher, scansById: Record<string, PrReceiptScan>): string[] {
+  const keys = new Set<string>();
+  for (const row of pv.rows) {
+    const key = pvLineDateKey(
+      { date: row.date, cycle: pv.cycle } as PvLineRecord,
+      pv.issued,
+    );
+    if (key) keys.add(key);
+  }
+  for (const scan of pvLinkedScans(pv, scansById)) {
+    keys.add(dateKey(scan.date));
+  }
+  const issuedMs = parseScannedAtMs(pv.issued);
+  if (issuedMs) {
+    const d = new Date(issuedMs);
+    keys.add(dateKey([d.getFullYear(), d.getMonth() + 1, d.getDate()]));
+  }
+  if (pv.paidAt) {
+    const paidMs = parseScannedAtMs(pv.paidAt);
+    if (paidMs) {
+      const d = new Date(paidMs);
+      keys.add(dateKey([d.getFullYear(), d.getMonth() + 1, d.getDate()]));
+    }
+  }
+  return [...keys];
+}
+
+function pvEventMsOnDate(
+  pv: PrPaymentVoucher,
+  dateIso: string,
+  scansById: Record<string, PrReceiptScan>,
+): number[] {
+  const times: number[] = [];
+  for (const scan of pvLinkedScans(pv, scansById)) {
+    if (dateKey(scan.date) !== dateIso) continue;
+    const ms = parseScannedAtMs(scan.scannedAt);
+    if (ms) times.push(ms);
+  }
+  for (const stamp of [pv.paidAt, pv.issued, pv.prSignedAt]) {
+    if (!stamp) continue;
+    const ms = parseScannedAtMs(stamp);
+    if (!ms) continue;
+    const d = new Date(ms);
+    if (dateKey([d.getFullYear(), d.getMonth() + 1, d.getDate()]) === dateIso) times.push(ms);
+  }
+  return times;
+}
+
+function paymentHistSearchBlob(
+  pv: PrPaymentVoucher,
+  scansById: Record<string, PrReceiptScan>,
+): string {
+  const scans = pvLinkedScans(pv, scansById);
+  return [
+    pv.id,
+    pv.cycle,
+    pv.outlet,
+    pv.status,
+    pv.issued,
+    pv.paidAt,
+    pv.bankRef,
+    pv.weekStartIso,
+    pv.weekEndIso,
+    ...pv.rows.flatMap((r) => [r.date, r.outlet, r.desc, r.ref, String(r.amt)]),
+    ...scans.flatMap((s) => [s.receiptRef, s.id, s.outlet, s.shiftSessionId]),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function pvOutlets(pv: PrPaymentVoucher): string[] {
+  const outlets = new Set<string>();
+  if (pv.outlet && !pv.outlet.startsWith("Multi")) outlets.add(pv.outlet);
+  for (const row of pv.rows) {
+    if (row.outlet && row.outlet !== "—") outlets.add(row.outlet);
+  }
+  return [...outlets];
+}
+
+function matchesPaymentHistFilters(
+  pv: PrPaymentVoucher,
+  filters: PaymentHistFilters,
+  scansById: Record<string, PrReceiptScan>,
+): boolean {
+  if (!isPaymentHistoryPv(pv)) return false;
+  if (filters.query.trim() && !paymentHistSearchBlob(pv, scansById).includes(filters.query.trim().toLowerCase())) {
+    return false;
+  }
+  if (filters.status && pv.status !== filters.status) return false;
+  const netFilter = parseFilterNum(filters.net);
+  if (netFilter !== null && pv.net !== netFilter) return false;
+  if (filters.outlet) {
+    const outlets = pvOutlets(pv);
+    if (!outlets.includes(filters.outlet) && !pv.outlet.includes(filters.outlet)) return false;
+  }
+  if (filters.shiftSessionId) {
+    const shifts = pvShiftSessionIds(pv);
+    const linked = pvLinkedScans(pv, scansById);
+    const scanShifts = linked.map((s) => s.shiftSessionId).filter(Boolean) as string[];
+    if (!shifts.includes(filters.shiftSessionId) && !scanShifts.includes(filters.shiftSessionId)) {
+      return false;
+    }
+  }
+  if (filters.date) {
+    if (!pvDateKeys(pv, scansById).includes(filters.date)) return false;
+    if (filters.timeFrom || filters.timeTo) {
+      const events = pvEventMsOnDate(pv, filters.date, scansById);
+      if (!events.length) return false;
+      const fromMs = parseDateInputMs(filters.date, filters.timeFrom || "00:00");
+      const toMs = parseDateInputMs(filters.date, filters.timeTo || "23:59");
+      const inWindow = events.some((eventMs) => {
+        if (fromMs != null && eventMs < fromMs) return false;
+        if (toMs != null && eventMs > toMs) return false;
+        return true;
+      });
+      if (!inWindow) return false;
+    }
+  }
+  return true;
+}
+
+function paymentHistFilterCount(filters: PaymentHistFilters) {
+  let n = 0;
+  if (filters.query.trim()) n++;
+  if (filters.date) n++;
+  if (filters.date && filters.timeFrom) n++;
+  if (filters.date && filters.timeTo) n++;
+  if (filters.shiftSessionId) n++;
+  if (filters.outlet) n++;
+  if (filters.status) n++;
+  if (parseFilterNum(filters.net) !== null) n++;
+  return n;
+}
+
 function pvSearchBlob(line: PvLineRecord) {
   return [
     line.pvId,
@@ -564,15 +757,17 @@ function HistoryPage() {
   );
   const pastShiftReceipts = useMemo(
     () =>
-      myReceiptScans.filter((s) =>
-        isReceiptFromPastShift(s, shiftHistory, prId, {
-          todayIso: DEFAULT_ROSTER_DATE_ISO,
-          checkedIn,
-          checkedOut,
-          activeOutlet: prActiveShift?.outlet ?? null,
-        }),
+      myReceiptScans.filter(
+        (s) =>
+          !isReceiptHiddenInHistory(s, myVouchers) &&
+          isReceiptFromPastShift(s, shiftHistory, prId, {
+            todayIso: DEFAULT_ROSTER_DATE_ISO,
+            checkedIn,
+            checkedOut,
+            activeOutlet: prActiveShift?.outlet ?? null,
+          }),
       ),
-    [myReceiptScans, shiftHistory, prId, checkedIn, checkedOut, prActiveShift?.outlet],
+    [myReceiptScans, myVouchers, shiftHistory, prId, checkedIn, checkedOut, prActiveShift?.outlet],
   );
 
   const histRows = useMemo(
@@ -604,6 +799,60 @@ function HistoryPage() {
   const [receiptFilters, setReceiptFilters] = useState<ReceiptFilters>(EMPTY_RECEIPT_FILTERS);
   const [receiptDraft, setReceiptDraft] = useState<ReceiptFilters>(EMPTY_RECEIPT_FILTERS);
   const [receiptFilterOpen, setReceiptFilterOpen] = useState(false);
+
+  const [paymentFilters, setPaymentFilters] = useState<PaymentHistFilters>(EMPTY_PAYMENT_HIST_FILTERS);
+  const [paymentDraft, setPaymentDraft] = useState<PaymentHistFilters>(EMPTY_PAYMENT_HIST_FILTERS);
+  const [paymentFilterOpen, setPaymentFilterOpen] = useState(false);
+
+  const paymentHistVouchers = useMemo(
+    () => myVouchers.filter(isPaymentHistoryPv),
+    [myVouchers],
+  );
+  const scanById = useMemo(() => Object.fromEntries(myReceiptScans.map((s) => [s.id, s])), [myReceiptScans]);
+
+  const paymentOutlets = useMemo(() => {
+    const set = new Set<string>();
+    for (const pv of paymentHistVouchers) {
+      for (const o of pvOutlets(pv)) set.add(o);
+    }
+    return [...set].sort();
+  }, [paymentHistVouchers]);
+
+  const paymentDateOptions = useMemo(() => {
+    const map = new Map<string, [number, number, number]>();
+    for (const pv of paymentHistVouchers) {
+      for (const key of pvDateKeys(pv, scanById)) {
+        const [y, m, d] = key.split("-").map(Number);
+        map.set(key, [y, m, d]);
+      }
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, d]) => ({ key, label: fmtHistDate(d[0], d[1], d[2]) }));
+  }, [paymentHistVouchers, scanById]);
+
+  const paymentShiftOptions = useMemo(() => {
+    const ids = new Set<string>();
+    for (const pv of paymentHistVouchers) {
+      for (const id of pvShiftSessionIds(pv)) ids.add(id);
+      for (const scan of pvLinkedScans(pv, scanById)) {
+        if (scan.shiftSessionId) ids.add(scan.shiftSessionId);
+      }
+    }
+    return [...ids]
+      .sort()
+      .map((id) => ({ value: id, label: formatShiftSessionLabel(id) }));
+  }, [paymentHistVouchers, scanById]);
+
+  const filteredPaymentVouchers = useMemo(
+    () =>
+      paymentHistVouchers.filter((pv) => matchesPaymentHistFilters(pv, paymentFilters, scanById)),
+    [paymentHistVouchers, paymentFilters, scanById],
+  );
+
+  const paymentDefaultMonth =
+    dateFromKey(paymentDateOptions[paymentDateOptions.length - 1]?.key ?? "") ??
+    new Date(2026, 5, 1);
 
   const receiptOutlets = useMemo(
     () => [...new Set(pastShiftReceipts.map((s) => s.outlet))].sort(),
@@ -639,15 +888,6 @@ function HistoryPage() {
       navigate({ to: "/host/history", search: { tab: "payment", pvId: searchPvId } });
     }
   }, [searchPvId, tab, navigate]);
-
-  const paymentHistory = useMemo(() => buildPaymentHistoryRecords(myVouchers), [myVouchers]);
-  const lifetimeEarnings = paymentHistory.reduce((sum, r) => sum + r.net, 0);
-  const paidThisCycle = paymentHistory
-    .filter((r) => r.status === "PAID")
-    .reduce((sum, r) => sum + r.net, 0);
-  const pendingPv = myVouchers
-    .filter((p) => pvNeedsPrReview(p.status))
-    .reduce((sum, p) => sum + p.net, 0);
 
   const histShiftByKey = useMemo(() => {
     const m = new Map<string, ShiftHistoryRow>();
@@ -733,6 +973,7 @@ function HistoryPage() {
 
   const filterCount = activeFilterCount(filters);
   const receiptFilterCountN = receiptFilterCount(receiptFilters);
+  const paymentFilterCountN = paymentHistFilterCount(paymentFilters);
 
   const openFilters = () => {
     setDraft(filters);
@@ -749,10 +990,11 @@ function HistoryPage() {
     setDraft(EMPTY_FILTERS);
   };
 
-  const anyFilterOpen = filterOpen || receiptFilterOpen;
+  const anyFilterOpen = filterOpen || receiptFilterOpen || paymentFilterOpen;
   const closeFilters = () => {
     setFilterOpen(false);
     setReceiptFilterOpen(false);
+    setPaymentFilterOpen(false);
   };
 
   return (
@@ -769,21 +1011,6 @@ function HistoryPage() {
       />
 
       <PrPageHeader label="Earnings" title="History" />
-
-      <div className="iz-outlet-stat-strip iz-outlet-stat-strip--3 mt-3">
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Lifetime</div>
-          <div className="n text-[var(--iz-gold-l)]">{formatRM(lifetimeEarnings)}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Paid</div>
-          <div className="n">{formatRM(paidThisCycle)}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Pending</div>
-          <div className="n text-[var(--iz-amber)]">{formatRM(pendingPv)}</div>
-        </div>
-      </div>
 
       <div className="iz-hist-tabs mt-4">
         <button
@@ -1079,11 +1306,31 @@ function HistoryPage() {
       )}
 
       {tab === "payment" && (
-        <PrPaymentHistoryPanel
-          vouchers={myVouchers}
+        <PaymentHistorySection
+          vouchers={filteredPaymentVouchers}
+          hasAnyPayments={paymentHistVouchers.length > 0}
+          filters={paymentFilters}
+          setFilters={setPaymentFilters}
+          filterCount={paymentFilterCountN}
+          paymentDraft={paymentDraft}
+          setPaymentDraft={setPaymentDraft}
+          paymentFilterOpen={paymentFilterOpen}
+          setPaymentFilterOpen={setPaymentFilterOpen}
+          paymentOutlets={paymentOutlets}
+          paymentDateOptions={paymentDateOptions}
+          paymentShiftOptions={paymentShiftOptions}
+          paymentDefaultMonth={paymentDefaultMonth}
+          onClear={() => {
+            setPaymentFilters(EMPTY_PAYMENT_HIST_FILTERS);
+            setPaymentDraft(EMPTY_PAYMENT_HIST_FILTERS);
+          }}
           onDownloadPdf={(pv) => {
             downloadPvBreakdownPdf(pv, payeeFromProfile(profile), myReceiptScans);
             toast("Payment voucher opened — use Print → Save as PDF", "success");
+          }}
+          onDownloadCsv={(pv) => {
+            downloadPvBreakdownCsv(pv, payeeFromProfile(profile));
+            toast("Payment voucher Excel downloaded", "success");
           }}
         />
       )}
@@ -1465,6 +1712,298 @@ function GenericSelectField({
         </ul>
       )}
     </div>
+  );
+}
+
+function PaymentHistorySection({
+  vouchers,
+  hasAnyPayments,
+  filters,
+  setFilters,
+  filterCount,
+  paymentDraft,
+  setPaymentDraft,
+  paymentFilterOpen,
+  setPaymentFilterOpen,
+  paymentOutlets,
+  paymentDateOptions,
+  paymentShiftOptions,
+  paymentDefaultMonth,
+  onClear,
+  onDownloadPdf,
+  onDownloadCsv,
+}: {
+  vouchers: PrPaymentVoucher[];
+  hasAnyPayments: boolean;
+  filters: PaymentHistFilters;
+  setFilters: Dispatch<SetStateAction<PaymentHistFilters>>;
+  filterCount: number;
+  paymentDraft: PaymentHistFilters;
+  setPaymentDraft: Dispatch<SetStateAction<PaymentHistFilters>>;
+  paymentFilterOpen: boolean;
+  setPaymentFilterOpen: (v: boolean) => void;
+  paymentOutlets: string[];
+  paymentDateOptions: { key: string; label: string }[];
+  paymentShiftOptions: { value: string; label: string }[];
+  paymentDefaultMonth: Date;
+  onClear: () => void;
+  onDownloadPdf: (pv: PrPaymentVoucher) => void;
+  onDownloadCsv: (pv: PrPaymentVoucher) => void;
+}) {
+  return (
+    <>
+      <div className="iz-between mb-2.5 mt-4">
+        <div className="iz-sect-label !m-0">Payment history</div>
+        <button
+          type="button"
+          className="iz-btn iz-btn-soft iz-btn-sm relative -mt-2"
+          onClick={() => {
+            setPaymentDraft(filters);
+            setPaymentFilterOpen(true);
+          }}
+        >
+          <Filter className="h-3.5 w-3.5" />
+          Filter
+          {filterCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--iz-gold)] px-1 text-[10px] font-bold text-[#1f1208]">
+              {filterCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      <div className="iz-hist-search mb-2.5">
+        <Search className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />
+        <input
+          type="search"
+          placeholder="Search PV ID, outlet, week, bank ref…"
+          value={filters.query}
+          onChange={(e) => setFilters((prev) => ({ ...prev, query: e.target.value }))}
+          aria-label="Search payment history"
+        />
+        {filters.query && (
+          <button
+            type="button"
+            className="iz-hist-clear"
+            aria-label="Clear search"
+            onClick={() => setFilters((p) => ({ ...p, query: "" }))}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      <div className="iz-grid2 mb-2.5">
+        <GenericSelectField
+          label="Outlet"
+          compact
+          value={filters.outlet}
+          onChange={(outlet) => setFilters((p) => ({ ...p, outlet }))}
+          options={[
+            { value: "", label: "Any outlet" },
+            ...paymentOutlets.map((v) => ({ value: v, label: v })),
+          ]}
+        />
+        <GenericSelectField
+          label="Shift"
+          compact
+          value={filters.shiftSessionId}
+          onChange={(shiftSessionId) => setFilters((p) => ({ ...p, shiftSessionId }))}
+          options={[
+            { value: "", label: "Any shift" },
+            ...paymentShiftOptions.map((o) => ({ value: o.value, label: o.label })),
+          ]}
+        />
+      </div>
+
+      <div className="mb-2.5">
+        <PvDateTimeFilter
+          compact
+          date={filters.date}
+          timeFrom={filters.timeFrom}
+          timeTo={filters.timeTo}
+          onDateChange={(date) =>
+            setFilters((p) => ({ ...p, date, ...(!date ? { timeFrom: "", timeTo: "" } : {}) }))
+          }
+          onTimeFromChange={(timeFrom) => setFilters((p) => ({ ...p, timeFrom }))}
+          onTimeToChange={(timeTo) => setFilters((p) => ({ ...p, timeTo }))}
+          dateOptions={paymentDateOptions}
+          defaultMonth={paymentDefaultMonth}
+        />
+      </div>
+
+      {filterCount > 0 && (
+        <div className="mb-2.5 flex flex-wrap items-center gap-2">
+          {filters.date && (
+            <button
+              type="button"
+              className="iz-hist-chip"
+              onClick={() => setFilters((p) => ({ ...p, date: "", timeFrom: "", timeTo: "" }))}
+            >
+              Date: {paymentDateOptions.find((o) => o.key === filters.date)?.label ?? filters.date}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          {filters.date && filters.timeFrom && (
+            <button
+              type="button"
+              className="iz-hist-chip"
+              onClick={() => setFilters((p) => ({ ...p, timeFrom: "" }))}
+            >
+              From {filters.timeFrom}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          {filters.date && filters.timeTo && (
+            <button
+              type="button"
+              className="iz-hist-chip"
+              onClick={() => setFilters((p) => ({ ...p, timeTo: "" }))}
+            >
+              To {filters.timeTo}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          {filters.outlet && (
+            <button
+              type="button"
+              className="iz-hist-chip"
+              onClick={() => setFilters((p) => ({ ...p, outlet: "" }))}
+            >
+              Outlet: {filters.outlet}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          {filters.shiftSessionId && (
+            <button
+              type="button"
+              className="iz-hist-chip"
+              onClick={() => setFilters((p) => ({ ...p, shiftSessionId: "" }))}
+            >
+              Shift:{" "}
+              {paymentShiftOptions.find((o) => o.value === filters.shiftSessionId)?.label ??
+                filters.shiftSessionId}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          {filters.status && (
+            <button
+              type="button"
+              className="iz-hist-chip"
+              onClick={() => setFilters((p) => ({ ...p, status: "" }))}
+            >
+              Status: {filters.status}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          <button
+            type="button"
+            className="iz-tiny font-semibold text-[var(--iz-gold-l)]"
+            onClick={onClear}
+          >
+            Clear all filters
+          </button>
+        </div>
+      )}
+
+      {vouchers.length === 0 ? (
+        <IzCard flat className="mt-4 px-4 py-8 text-center">
+          <p className="text-sm font-semibold">
+            {hasAnyPayments ? "No payments match your filters." : "No payments yet"}
+          </p>
+          {!hasAnyPayments && (
+            <Link to="/host/PaymentVoucher" className="iz-btn iz-btn-soft mt-3">
+              Open Payment
+            </Link>
+          )}
+        </IzCard>
+      ) : (
+        <PrPaymentHistoryPanel
+          vouchers={vouchers}
+          hideHeader
+          onDownloadPdf={onDownloadPdf}
+          onDownloadCsv={onDownloadCsv}
+        />
+      )}
+
+      <IzSheet open={paymentFilterOpen} onClose={() => setPaymentFilterOpen(false)}>
+        <div className="iz-cardttl">Filter payment history</div>
+        <div className="space-y-3">
+          <PvDateTimeFilter
+            date={paymentDraft.date}
+            timeFrom={paymentDraft.timeFrom}
+            timeTo={paymentDraft.timeTo}
+            onDateChange={(date) =>
+              setPaymentDraft((p) => ({
+                ...p,
+                date,
+                ...(!date ? { timeFrom: "", timeTo: "" } : {}),
+              }))
+            }
+            onTimeFromChange={(timeFrom) => setPaymentDraft((p) => ({ ...p, timeFrom }))}
+            onTimeToChange={(timeTo) => setPaymentDraft((p) => ({ ...p, timeTo }))}
+            dateOptions={paymentDateOptions}
+            defaultMonth={paymentDefaultMonth}
+          />
+          <GenericSelectField
+            label="Shift"
+            value={paymentDraft.shiftSessionId}
+            onChange={(shiftSessionId) => setPaymentDraft((p) => ({ ...p, shiftSessionId }))}
+            options={[
+              { value: "", label: "Any shift" },
+              ...paymentShiftOptions.map((o) => ({ value: o.value, label: o.label })),
+            ]}
+          />
+          <GenericSelectField
+            label="Outlet"
+            value={paymentDraft.outlet}
+            onChange={(outlet) => setPaymentDraft((p) => ({ ...p, outlet }))}
+            options={[
+              { value: "", label: "Any outlet" },
+              ...paymentOutlets.map((v) => ({ value: v, label: v })),
+            ]}
+          />
+          <GenericSelectField
+            label="Payment status"
+            value={paymentDraft.status}
+            onChange={(status) =>
+              setPaymentDraft((p) => ({ ...p, status: status as PaymentHistFilters["status"] }))
+            }
+            options={[
+              { value: "", label: "Any status" },
+              { value: "PAID", label: "Paid" },
+              { value: "SIGNED", label: "Signed" },
+            ]}
+          />
+          <FilterNumberInput
+            label="Net paid (RM)"
+            placeholder="e.g. 898"
+            value={paymentDraft.net}
+            onChange={(v) => setPaymentDraft((p) => ({ ...p, net: v }))}
+          />
+        </div>
+        <button
+          type="button"
+          className="iz-btn iz-btn-primary mt-4"
+          onClick={() => {
+            setFilters(paymentDraft);
+            setPaymentFilterOpen(false);
+          }}
+        >
+          Apply filters
+        </button>
+        <button
+          type="button"
+          className="iz-btn iz-btn-soft mt-2.5"
+          onClick={() => {
+            onClear();
+            setPaymentFilterOpen(false);
+          }}
+        >
+          Clear & close
+        </button>
+      </IzSheet>
+    </>
   );
 }
 

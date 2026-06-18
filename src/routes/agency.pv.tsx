@@ -1600,14 +1600,14 @@ function PvDetail({
           className="iz-btn iz-btn-soft min-w-0 flex-1 !py-2.5 !text-xs"
           onClick={() => {
             downloadPvBreakdownCsv(displayPv, payee);
-            toast("PV CSV downloaded", "success");
+            toast("Payment voucher Excel downloaded", "success");
           }}
         >
-          <Sheet className="h-4 w-4 shrink-0" /> CSV
+          <Sheet className="h-4 w-4 shrink-0" /> Excel
         </button>
       </div>
       <p className="iz-tiny iz-muted2 mt-1.5 text-center">
-        PDF and CSV match the official voucher layout · duplicate payment blocked on send.
+        PDF and Excel match the official voucher layout · duplicate payment blocked on send.
       </p>
 
       {pv.status === "PAID" && (

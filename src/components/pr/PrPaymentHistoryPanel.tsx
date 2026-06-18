@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, FileText } from "lucide-react";
+import { ChevronDown, FileText, Sheet } from "lucide-react";
 import { useState } from "react";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 import { PrWeeklyPaymentGrid } from "@/components/pr/PrWeeklyPaymentGrid";
@@ -15,10 +15,12 @@ function PaymentHistoryCard({
   record,
   pv,
   onDownloadPdf,
+  onDownloadCsv,
 }: {
   record: PaymentHistoryRecord;
   pv: PrPaymentVoucher;
   onDownloadPdf?: (pv: PrPaymentVoucher) => void;
+  onDownloadCsv?: (pv: PrPaymentVoucher) => void;
 }) {
   const [open, setOpen] = useState(false);
   const weekSummary = pv.weekStartIso
@@ -135,6 +137,11 @@ function PaymentHistoryCard({
                 <FileText className="h-3.5 w-3.5" /> PDF
               </button>
             )}
+            {onDownloadCsv && (
+              <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => onDownloadCsv(pv)}>
+                <Sheet className="h-3.5 w-3.5" /> Excel
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -145,9 +152,13 @@ function PaymentHistoryCard({
 export function PrPaymentHistoryPanel({
   vouchers,
   onDownloadPdf,
+  onDownloadCsv,
+  hideHeader = false,
 }: {
   vouchers: PrPaymentVoucher[];
   onDownloadPdf?: (pv: PrPaymentVoucher) => void;
+  onDownloadCsv?: (pv: PrPaymentVoucher) => void;
+  hideHeader?: boolean;
 }) {
   const records = buildPaymentHistoryRecords(vouchers);
   const pvById = Object.fromEntries(vouchers.map((p) => [p.id, p]));
@@ -156,14 +167,16 @@ export function PrPaymentHistoryPanel({
   const totalShifts = records.reduce((s, r) => s + r.shiftDays, 0);
 
   return (
-    <div className="mt-4">
-      <div className="iz-pay-hist-hero">
-        <div>
-          <p className="iz-pay-hist-hero__title">Payment history</p>
+    <div className={hideHeader ? "" : "mt-4"}>
+      {!hideHeader && (
+        <div className="iz-pay-hist-hero">
+          <div>
+            <p className="iz-pay-hist-hero__title">Payment history</p>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="iz-outlet-stat-strip mt-3">
+      <div className={`iz-outlet-stat-strip${hideHeader ? " mt-0" : " mt-3"}`}>
         <div className="iz-outlet-stat-cell">
           <div className="l">Paid</div>
           <div className="n text-[var(--iz-green)]">{formatRM(totalPaid)}</div>
@@ -182,14 +195,14 @@ export function PrPaymentHistoryPanel({
         </div>
       </div>
 
-      {records.length === 0 ? (
+      {records.length === 0 && !hideHeader ? (
         <IzCard flat className="mt-4 px-4 py-8 text-center">
           <p className="text-sm font-semibold">No payments yet</p>
           <Link to="/host/PaymentVoucher" className="iz-btn iz-btn-soft mt-3">
             Open Payment
           </Link>
         </IzCard>
-      ) : (
+      ) : records.length > 0 ? (
         <div className="iz-pay-hist-list mt-3">
           {records.map((record) => (
             <PaymentHistoryCard
@@ -197,10 +210,11 @@ export function PrPaymentHistoryPanel({
               record={record}
               pv={pvById[record.pvId]}
               onDownloadPdf={onDownloadPdf}
+              onDownloadCsv={onDownloadCsv}
             />
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

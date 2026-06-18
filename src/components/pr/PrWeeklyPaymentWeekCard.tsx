@@ -5,6 +5,7 @@ import { PrWeeklyPaymentGrid } from "@/components/pr/PrWeeklyPaymentGrid";
 import { PrStatusPill } from "@/components/pr/PrOfferRow";
 import { pvNeedsPrReview, pvStatusLabel, pvStatusPillVariant } from "@/lib/pr-demo";
 import type { PrPaymentVoucher } from "@/lib/pr-demo";
+import { isPrPaymentInboxPv } from "@/lib/pr-payment-history";
 import type { WeeklyPaymentSummary } from "@/lib/pr-weekly-payment";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ export function PrWeeklyPaymentWeekCard({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const needsReview = Boolean(pv && pvNeedsPrReview(pv.status));
+  const inboxPv = pv && isPrPaymentInboxPv(pv) ? pv : null;
 
   return (
     <section
@@ -44,8 +46,7 @@ export function PrWeeklyPaymentWeekCard({
           <span className="iz-collapsible-section__title">{title}</span>
           {!open && (
             <span className="iz-collapsible-section__hint">
-              {summary.weekLabel} · {formatRM(weekPhase === "open" ? summary.verifiedTotals.net : summary.totals.net)} · {summary.verifiedDayCount}/7
-              verified
+              {summary.weekLabel} · {formatRM(summary.totals.net)} · {summary.verifiedDayCount}/7 verified
             </span>
           )}
           <span className="iz-collapsible-section__action">{open ? "Tap to collapse" : "Tap to expand"}</span>
@@ -78,19 +79,19 @@ export function PrWeeklyPaymentWeekCard({
             <PrWeeklyPaymentGrid summary={summary} large weekPhase={weekPhase} />
             {weekPhase === "open" && !summary.pvReady ? (
               <p className="iz-tiny iz-muted2 mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-2">
-                Summary from <b>verified days only</b>. Amounts appear after you <b>check out</b> each shift.
-                Weekly PV auto-issues on{" "}
-                <b className="text-[var(--iz-gold-l)]">{summary.issueDayLabel} (Sun)</b> — dispute any wrong
-                line before then. Current week total so far:{" "}
-                <b className="text-[var(--iz-gold)]">{formatRM(summary.verifiedTotals.net)}</b>
+                Totals include every <b>checked-out</b> shift this week (pending lines still count). Your weekly
+                PV is issued on{" "}
+                <b className="text-[var(--iz-gold-l)]">{summary.issueDayLabel} (Sun)</b> — dispute any wrong line
+                before then. Week total so far:{" "}
+                <b className="text-[var(--iz-gold)]">{formatRM(summary.totals.net)}</b>
               </p>
-            ) : weekPhase === "open" && summary.pvReady && pv ? (
+            ) : weekPhase === "open" && summary.pvReady && inboxPv ? (
               <button
                 type="button"
                 className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-full"
-                onClick={() => onOpenPv?.(pv.id)}
+                onClick={() => onOpenPv?.(inboxPv.id)}
               >
-                Open this week&apos;s PV · {formatRM(pv.net)}
+                Open this week&apos;s PV · {formatRM(inboxPv.net)}
               </button>
             ) : weekPhase === "issued" ? (
               <p className="iz-tiny iz-muted2 mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-2">
@@ -105,22 +106,22 @@ export function PrWeeklyPaymentWeekCard({
                 )}
               </p>
             ) : null}
-            {weekPhase === "issued" && pv && needsReview && (
+            {weekPhase === "issued" && inboxPv && needsReview && (
               <button
                 type="button"
                 className="iz-btn iz-btn-primary iz-btn-sm mt-2 w-full"
-                onClick={() => onOpenPv?.(pv.id)}
+                onClick={() => onOpenPv?.(inboxPv.id)}
               >
-                Review &amp; sign · {formatRM(pv.net)}
+                Review &amp; sign · {formatRM(inboxPv.net)}
               </button>
             )}
-            {weekPhase === "issued" && pv && !needsReview && (
+            {weekPhase === "issued" && inboxPv && !needsReview && inboxPv.status === "DISPUTED" && (
               <button
                 type="button"
                 className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-full"
-                onClick={() => onOpenPv?.(pv.id)}
+                onClick={() => onOpenPv?.(inboxPv.id)}
               >
-                Open PV · {formatRM(pv.net)}
+                View dispute · {formatRM(inboxPv.net)}
               </button>
             )}
           </IzCard>

@@ -80,10 +80,12 @@ import {
 } from "@/lib/finance-head-stamp";
 import { validateReceiptScan } from "@/lib/receipt-scan-utils";
 import {
+  applyDisputeTargetsToRows,
   buildSentWeeklyPv,
   buildWeeklyPaymentSummary,
   getPreviousWeekBounds,
   isWeekPvIssued,
+  type WeeklyDisputeTarget,
 } from "@/lib/pr-weekly-payment";
 import { mergeAgencyCollections } from "@/lib/agency-payroll";
 import { getFreePrsWithDistances } from "@/lib/roster-availability";
@@ -96,7 +98,14 @@ import {
   withShiftFinancialDefaults,
   type OutletPnlSynced,
 } from "@/lib/outlet-financial-sync";
-import { mergeShiftHistory, type ShiftHistoryRow, SEED_SHIFT_HISTORY } from "@/lib/shift-history";
+import { mergeHistoryDemoLedger } from "@/lib/history-demo-sync";
+import {
+  mergeShiftHistory,
+  prepareShiftHistoryForDisplay,
+  shiftHistorySlotKey,
+  type ShiftHistoryRow,
+  SEED_SHIFT_HISTORY,
+} from "@/lib/shift-history";
 import {
   buildReconciliationFromLedger,
   isWeeklyReconciliationSunday,
@@ -423,8 +432,13 @@ interface StoreState {
   prPaymentVouchers: PrPaymentVoucher[];
   ensurePreviousWeekPv: () => void;
   signPrPv: (id: string, signatureDataUrl: string) => void;
-  disputePrPv: (id: string, reason: string, photoDataUrls?: string[]) => void;
-  updatePrPvDisputeReason: (id: string, reason: string, photoDataUrls?: string[]) => void;
+  disputePrPv: (id: string, reason: string, photoDataUrls?: string[], targets?: WeeklyDisputeTarget[]) => void;
+  updatePrPvDisputeReason: (
+    id: string,
+    reason: string,
+    photoDataUrls?: string[],
+    targets?: WeeklyDisputeTarget[],
+  ) => void;
   escalatePrPvDispute: (id: string) => void;
   demoFreelancerLowRatingStrike: () => void;
 
@@ -1392,12 +1406,7 @@ export const useStore = create<StoreState>()(
             agencyRoster: rosterCheckOut(st.agencyRoster, prId, shift.outlet, checkOutTime),
             shiftHistory: mergeShiftHistory(
               st.shiftHistory.filter(
-                (r) =>
-                  !(
-                    r.prId === prId &&
-                    r.dateIso === dateIso &&
-                    r.id.startsWith("vh-")
-                  ),
+                (r) => shiftHistorySlotKey(r) !== shiftHistorySlotKey(historyRow),
               ),
               [historyRow],
             ),
@@ -1634,7 +1643,7 @@ export const useStore = create<StoreState>()(
         get().toast("Profile saved — synced across agency roster & outlet", "success");
       },
 
-      prPaymentVouchers: LIVE_SEED_PR_PVS,
+      prPaymentVouchers: demoSnapshot.prPaymentVouchers,
       ensurePreviousWeekPv: () => {
         const st = get();
         const role = st.prSubRole;
@@ -1715,6 +1724,14 @@ export const useStore = create<StoreState>()(
                 }
               : p,
           ),
+          prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).map((s) => {
+            const linked =
+              pv.receiptIds?.includes(s.id) ||
+              s.pvId === id ||
+              pv.rows.some((r) => r.receiptIds?.includes(s.id));
+            if (!linked) return s;
+            return { ...s, pvId: id, pvStatus: "PAID" as const, status: "paid" as const };
+          }),
         }));
         const prId = prIdForPayeeName(pv.prName, pv.prIc, get().agencyPRs);
         get().pushNotify({
@@ -1735,7 +1752,7 @@ export const useStore = create<StoreState>()(
           "success",
         );
       },
-      disputePrPv: (id, reason, photoDataUrls) => {
+      disputePrPv: (id, reason, photoDataUrls, targets) => {
         const trimmed = reason.trim();
         if (!trimmed) {
           get().toast("Describe the issue so your agency can verify", "warn");
@@ -1744,6 +1761,10 @@ export const useStore = create<StoreState>()(
         const photos = photoDataUrls?.filter(Boolean) ?? [];
         const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
         if (!pv) return;
+        const year = pv.weekStartIso ? parseInt(pv.weekStartIso.slice(0, 4), 10) : new Date().getFullYear();
+        const rows = targets?.length
+          ? applyDisputeTargetsToRows(pv.rows, targets, year)
+          : pv.rows;
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -1761,6 +1782,7 @@ export const useStore = create<StoreState>()(
                   disputedAt: stamp,
                   prDisputePhotoDataUrls: photos.length ? photos : undefined,
                   prDisputePhotoDataUrl: photos[0],
+                  rows,
                 }
               : p,
           ),
@@ -1776,13 +1798,19 @@ export const useStore = create<StoreState>()(
           "warn",
         );
       },
-      updatePrPvDisputeReason: (id, reason, photoDataUrls) => {
+      updatePrPvDisputeReason: (id, reason, photoDataUrls, targets) => {
         const trimmed = reason.trim();
         if (!trimmed) {
           get().toast("Dispute reason cannot be empty", "warn");
           return;
         }
         const photos = photoDataUrls?.filter(Boolean) ?? [];
+        const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
+        if (!pv) return;
+        const year = pv.weekStartIso ? parseInt(pv.weekStartIso.slice(0, 4), 10) : new Date().getFullYear();
+        const rows = targets?.length
+          ? applyDisputeTargetsToRows(pv.rows, targets, year)
+          : pv.rows;
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -1799,6 +1827,7 @@ export const useStore = create<StoreState>()(
                   disputeUpdatedAt: stamp,
                   prDisputePhotoDataUrls: photos.length ? photos : undefined,
                   prDisputePhotoDataUrl: photos[0],
+                  rows,
                 }
               : p,
           ),
@@ -1854,7 +1883,7 @@ export const useStore = create<StoreState>()(
         );
       },
 
-      prReceiptScans: LIVE_SEED_RECEIPT_SCANS,
+      prReceiptScans: demoSnapshot.prReceiptScans,
       addReceiptScan: (draft) => {
         const shift = get().prActiveShift;
         if (!get().checkedIn || get().checkedOut) {
@@ -4398,7 +4427,10 @@ export const useStore = create<StoreState>()(
                   ...pv,
                   prName: seed.prName,
                   prIc: seed.prIc,
-                  status: pv.status ?? seed.status,
+                  status:
+                    seed.status === "PAID" || seed.status === "SIGNED"
+                      ? seed.status
+                      : (pv.status ?? seed.status),
                   issued: seed.weekStartIso ? seed.issued : (pv.issued ?? seed.issued),
                   due: pv.due ?? seed.due,
                   cycle: seed.weekStartIso ? seed.cycle : (pv.cycle ?? seed.cycle),
@@ -4445,10 +4477,10 @@ export const useStore = create<StoreState>()(
             : [];
         const persistedIds = new Set(mergedFromPersisted.map((pv) => pv.id));
         const missingSeedPvs = LIVE_SEED_PR_PVS.filter((s) => !persistedIds.has(s.id));
-        const mergedPvs = remapSeedPaymentVouchers(
+        const mergedPvsBase = remapSeedPaymentVouchers(
           persistedPvs.length > 0
             ? [...mergedFromPersisted, ...missingSeedPvs]
-            : current.prPaymentVouchers,
+            : LIVE_SEED_PR_PVS,
         );
         const seedScanById = Object.fromEntries(LIVE_SEED_RECEIPT_SCANS.map((s) => [s.id, s]));
         const persistedScans = p?.prReceiptScans ?? [];
@@ -4458,7 +4490,7 @@ export const useStore = create<StoreState>()(
             ...s,
             receiptRef: s.receiptRef ?? `LEGACY-${s.id}`,
           }));
-        const mergedScans = [
+        const mergedScansBase = [
           ...userScans,
           ...LIVE_SEED_RECEIPT_SCANS.map((seed) => {
             const saved = persistedScans.find((s) => s.id === seed.id);
@@ -4474,6 +4506,25 @@ export const useStore = create<StoreState>()(
             );
           }),
         ].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt));
+        const mergedShiftHistory = prepareShiftHistoryForDisplay(
+          mergeShiftHistory(
+            (p?.shiftHistory ?? []).map((row) => {
+              const dateIso = migrateDemoDateIso(row.dateIso);
+              return dateIso === row.dateIso
+                ? row
+                : { ...row, dateIso, dateDisplay: fmtDateLabelFromIso(dateIso) };
+            }),
+            current.shiftHistory,
+          ),
+        );
+        const demoLedger = mergeHistoryDemoLedger({
+          shiftHistory: mergedShiftHistory,
+          scans: mergedScansBase,
+          pvs: mergedPvsBase,
+          profile: getPrProfile("pr_tied"),
+        });
+        const mergedPvs = demoLedger.pvs;
+        const mergedScans = demoLedger.scans;
         const merged = {
           ...current,
           ...p,
@@ -4516,15 +4567,7 @@ export const useStore = create<StoreState>()(
           prAvatarPhoto: p?.prAvatarPhoto ?? current.prAvatarPhoto,
           prReceiptScans: mergedScans.length ? mergedScans : current.prReceiptScans,
           prActiveShift: p?.prActiveShift ?? current.prActiveShift,
-          shiftHistory: mergeShiftHistory(
-            (p?.shiftHistory ?? []).map((row) => {
-              const dateIso = migrateDemoDateIso(row.dateIso);
-              return dateIso === row.dateIso
-                ? row
-                : { ...row, dateIso, dateDisplay: fmtDateLabelFromIso(dateIso) };
-            }),
-            current.shiftHistory,
-          ),
+          shiftHistory: mergedShiftHistory,
           pendingPRs: mergePendingPRs(p?.pendingPRs, current.pendingPRs),
           pendingFreelancerPayrolls: mergePendingFreelancerPayrolls(
             p?.pendingFreelancerPayrolls,

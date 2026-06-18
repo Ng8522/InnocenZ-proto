@@ -2,7 +2,7 @@
  * Velvet 23 demo week — single source for Reports + History (slides with live payroll week).
  */
 
-import { DEMO_ANCHOR_WEEK_SUNDAY_ISO, remapIsoByWeekSlide } from "@/lib/demo-clock";
+import { addDaysToIso, getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/demo-clock";
 import { fmtDateLabelFromIso } from "@/lib/pr-demo";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 
@@ -279,25 +279,25 @@ function demoTablesForShift(night: VelvetNightShift, pr: VelvetPrNight): number 
   return 0;
 }
 
-function nightsToShiftHistory(nights: VelvetNightShift[]): ShiftHistoryRow[] {
-  return nights.flatMap((night) =>
-    night.prs.map((pr) => {
-      const dateIso = remapIsoByWeekSlide(night.dateIso, DEMO_ANCHOR_WEEK_SUNDAY_ISO);
-      return {
-        id: `vh-${dateIso}-${pr.prId}`,
-        prName: pr.prName,
-        prId: pr.prId,
-        outlet: VELVET_OUTLET_NAME,
-        agencyName: VELVET_AGENCY,
-        dateDisplay: fmtDateLabelFromIso(dateIso),
-        dateIso,
-        totalPayout: pr.payout,
-        totalDrinks: pr.drinks,
-        totalTips: pr.tips,
-        durationHours: pr.durationHours,
-      };
-    }),
-  );
+function nightsToShiftHistory(nights: VelvetNightShift[], weekSundayIso: string): ShiftHistoryRow[] {
+  const todayIso = getLiveTodayIso();
+  return nights.flatMap((night, index) => {
+    const dateIso = addDaysToIso(weekSundayIso, index);
+    if (dateIso > todayIso) return [];
+    return night.prs.map((pr) => ({
+      id: `vh-${dateIso}-${pr.prId}`,
+      prName: pr.prName,
+      prId: pr.prId,
+      outlet: VELVET_OUTLET_NAME,
+      agencyName: VELVET_AGENCY,
+      dateDisplay: fmtDateLabelFromIso(dateIso),
+      dateIso,
+      totalPayout: pr.payout,
+      totalDrinks: pr.drinks,
+      totalTips: pr.tips,
+      durationHours: pr.durationHours,
+    }));
+  });
 }
 
 export interface OutletWeeklyDaySales {
@@ -324,17 +324,17 @@ export interface OutletWeeklyReport {
  * To add a new week: implement `buildVelvetWeek2ShiftHistory()` and spread it here.
  * The store uses `mergeShiftHistory` so older rows are never removed on append.
  */
-/** All Velvet history seed rows (current + prior weeks). Reports uses current week only. */
+/** All Velvet history seed rows — prior weeks only (current week = live checkouts). */
 export function buildAllVelvetSeedShiftHistory(): ShiftHistoryRow[] {
+  const currentSun = getPayrollWeekSundayIso();
   return [
-    ...buildVelvetWeekShiftHistory(),
-    ...nightsToShiftHistory(VELVET_PRIOR_WEEK_NIGHTS),
-    ...nightsToShiftHistory(VELVET_OLDER_WEEK_NIGHTS),
+    ...nightsToShiftHistory(VELVET_PRIOR_WEEK_NIGHTS, addDaysToIso(currentSun, -7)),
+    ...nightsToShiftHistory(VELVET_OLDER_WEEK_NIGHTS, addDaysToIso(currentSun, -14)),
   ];
 }
 
 export function buildVelvetWeekShiftHistory(): ShiftHistoryRow[] {
-  return nightsToShiftHistory(VELVET_WEEKLY_NIGHTS);
+  return nightsToShiftHistory(VELVET_WEEKLY_NIGHTS, getPayrollWeekSundayIso());
 }
 
 function attributedPrSales(night: VelvetNightShift, pr: VelvetPrNight): number {

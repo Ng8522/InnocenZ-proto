@@ -63,10 +63,10 @@ function ShiftReceiptScanRows() {
           <Link
             to="/host/scan"
             search={{ category: row.category }}
-            className="iz-btn iz-btn-soft iz-btn-sm shrink-0"
+            className="iz-btn iz-btn-soft iz-btn-sm iz-pr-shift-scan-row__btn w-full"
           >
             <Camera className="h-3.5 w-3.5" />
-            Scan receipt
+            Scan
           </Link>
         </div>
       ))}

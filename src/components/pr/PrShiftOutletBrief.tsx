@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, ChevronDown, ExternalLink, MapPin, Shirt, Sparkles, Star } from "lucide-react";
+import { Building2, ExternalLink, MapPin, Shirt, Sparkles, Star } from "lucide-react";
 import { IzPill } from "@/components/iz/ui";
 import { cn } from "@/lib/utils";
 import type { PrShiftOutletBrief } from "@/lib/pr-shift-outlet";
@@ -34,9 +34,6 @@ export function PrShiftOutletBriefCard({
                 <Sparkles className="h-3 w-3" /> VIP night
               </IzPill>
             )}
-            <span className="iz-pr-outlet-brief__chev" aria-hidden>
-              <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} />
-            </span>
           </div>
         </div>
         <div className="iz-pr-outlet-brief__hero-mark">{initial}</div>

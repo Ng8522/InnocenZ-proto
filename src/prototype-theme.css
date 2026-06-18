@@ -2292,25 +2292,33 @@
 }
 .iz-pr-shift-scan-rows {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
   margin-top: 12px;
 }
 .iz-pr-shift-scan-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 8px;
   border-radius: 12px;
   border: 1px solid var(--iz-line2);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
 }
 .iz-pr-shift-scan-row__label {
   font-family: "Sora", sans-serif;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--iz-txt);
+  text-align: center;
+  line-height: 1.2;
+}
+.iz-pr-shift-scan-row__btn {
+  justify-content: center;
+  white-space: nowrap;
 }
 .iz-pr-shift-status__list {
   display: flex;

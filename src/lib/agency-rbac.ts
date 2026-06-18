@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, Calendar, FileText, History, Home, Sparkles, UserCheck } from "lucide-react";
+import { Calendar, FileText, History, Home, Sparkles, UserCheck } from "lucide-react";
 
 /** Module 9 · Agency Owner vs Agency Finance */
 export type AgencySubRole = "agency_owner" | "agency_finance";
@@ -21,8 +21,6 @@ type Permission =
   | "viewCollections"
   | "confirmReconciliation"
   | "viewHistory"
-  | "viewAnalytics"
-  | "exportReports"
   | "viewWorkforce"
   | "overrideSignedPv";
 
@@ -39,8 +37,6 @@ const ROLE_PERMISSIONS: Record<AgencySubRole, Permission[]> = {
     "viewCollections",
     "confirmReconciliation",
     "viewHistory",
-    "viewAnalytics",
-    "exportReports",
     "viewWorkforce",
     "overrideSignedPv",
   ],
@@ -53,8 +49,6 @@ const ROLE_PERMISSIONS: Record<AgencySubRole, Permission[]> = {
     "viewCollections",
     "confirmReconciliation",
     "viewHistory",
-    "viewAnalytics",
-    "exportReports",
     "viewWorkforce",
   ],
 };
@@ -75,9 +69,8 @@ const ALL_NAV: AgencyNavItem[] = [
   { to: "/agency/roster", label: "Roster", icon: Calendar, permission: "viewWorkforce" },
   { to: "/agency/pending", label: "Approvals", icon: UserCheck, permission: "approvePrSignups" },
   { to: "/agency/pv", label: "Payroll", icon: FileText, permission: "viewPv" },
-  { to: "/agency/special-service", label: "Special Service", icon: Sparkles, permission: "viewPv" },
+  { to: "/agency/special-service", label: "Job Posting", icon: Sparkles, permission: "viewPv" },
   { to: "/agency/history", label: "History", icon: History, permission: "viewHistory" },
-  { to: "/agency/reports", label: "Analytics", icon: BarChart3, permission: "viewAnalytics" },
 ];
 
 export function getAgencyNavItems(role: AgencySubRole | null | undefined): AgencyNavItem[] {
@@ -97,13 +90,11 @@ export function canAccessAgencyPath(role: AgencySubRole | null | undefined, path
   if (pathname.startsWith("/agency/pv")) return agencyCan(r, "viewPv");
   if (pathname.startsWith("/agency/special-service")) return agencyCan(r, "viewPv");
   if (pathname.startsWith("/agency/history")) return agencyCan(r, "viewHistory");
-  if (pathname.startsWith("/agency/reports")) return agencyCan(r, "viewAnalytics");
   if (pathname.startsWith("/agency/subscription")) return agencyCan(r, "viewSettings");
   if (pathname.startsWith("/agency/pending")) return agencyCan(r, "approvePrSignups");
   if (pathname.startsWith("/agency/prs")) return agencyCan(r, "managePr");
   if (pathname.startsWith("/agency/outlets")) return agencyCan(r, "managePr");
   if (pathname.startsWith("/agency/profile")) return agencyCan(r, "viewSettings");
-  if (pathname.startsWith("/agency/commission-rules")) return agencyCan(r, "viewSettings");
   if (pathname.startsWith("/agency/live")) return agencyCan(r, "viewWorkforce");
   return true;
 }

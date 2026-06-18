@@ -6,6 +6,7 @@ import { formatPrDisplayName } from "@/lib/pr-demo";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { useStore } from "@/lib/store";
 import { IzPill } from "@/components/iz/ui";
+import { PortalClickableTableRow } from "@/components/portal/PortalClickableTableRow";
 import { ChevronRight } from "lucide-react";
 
 export function workforceStatusVariant(status: LiveWorkforceEntry["status"] | "scheduled") {
@@ -33,9 +34,11 @@ function statusLabel(status: LiveWorkforceEntry["status"]) {
 function WorkforceRow({
   entry,
   shift,
+  prId,
 }: {
   entry: LiveWorkforceEntry;
   shift?: string;
+  prId?: string;
 }) {
   const initials = entry.prName
     .split(/\s+/)
@@ -45,7 +48,9 @@ function WorkforceRow({
     .toUpperCase();
 
   return (
-    <tr>
+    <PortalClickableTableRow
+      target={prId ? { to: "/agency/prs", search: { pr: prId } } : undefined}
+    >
       <td>
         <div className="iz-portal-table-pr">
           <span className="iz-portal-table-av">{initials}</span>
@@ -59,7 +64,7 @@ function WorkforceRow({
           {statusLabel(entry.status)}
         </IzPill>
       </td>
-    </tr>
+    </PortalClickableTableRow>
   );
 }
 
@@ -68,11 +73,17 @@ export function LiveWorkforceTable({
   rosterLink = "/agency/roster",
   title = "Live workforce",
   outletFilter,
+  linkPrProfiles = false,
+  hideHeaderLink = false,
+  className,
 }: {
   dateIso?: string;
   rosterLink?: string;
   title?: string;
   outletFilter?: string;
+  linkPrProfiles?: boolean;
+  hideHeaderLink?: boolean;
+  className?: string;
 }) {
   const agencyRoster = useStore((s) => s.agencyRoster);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
@@ -93,11 +104,26 @@ export function LiveWorkforceTable({
     return map;
   }, [agencyRoster]);
 
+  const prIdBySlotId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const slot of agencyRoster) {
+      if (slot.id && slot.prId) map.set(slot.id, slot.prId);
+    }
+    return map;
+  }, [agencyRoster]);
+
+  const panelClass = ["iz-portal-panel", className].filter(Boolean).join(" ");
+
   if (filtered.length === 0) {
     return (
-      <section className="iz-portal-panel">
+      <section className={panelClass}>
         <div className="iz-portal-panel-head">
           <h3 className="font-sora text-base font-bold">{title}</h3>
+          {!hideHeaderLink && (
+            <Link to={rosterLink} className="iz-tiny flex items-center gap-0.5 text-[var(--iz-gold-l)]">
+              Full roster <ChevronRight className="h-3 w-3" />
+            </Link>
+          )}
         </div>
         <p className="iz-tiny iz-muted px-4 py-6 text-center">No PRs on floor right now.</p>
       </section>
@@ -105,12 +131,14 @@ export function LiveWorkforceTable({
   }
 
   return (
-    <section className="iz-portal-panel">
+    <section className={panelClass}>
       <div className="iz-portal-panel-head">
         <h3 className="font-sora text-base font-bold">{title}</h3>
-        <Link to={rosterLink} className="iz-tiny flex items-center gap-0.5 text-[var(--iz-gold-l)]">
-          Full roster <ChevronRight className="h-3 w-3" />
-        </Link>
+        {!hideHeaderLink && (
+          <Link to={rosterLink} className="iz-tiny flex items-center gap-0.5 text-[var(--iz-gold-l)]">
+            Full roster <ChevronRight className="h-3 w-3" />
+          </Link>
+        )}
       </div>
       <div className="iz-portal-table-wrap">
         <table className="iz-portal-table">
@@ -124,7 +152,12 @@ export function LiveWorkforceTable({
           </thead>
           <tbody>
             {filtered.map((w) => (
-              <WorkforceRow key={w.id} entry={w} shift={shiftById.get(w.id)} />
+              <WorkforceRow
+                key={w.id}
+                entry={w}
+                shift={shiftById.get(w.id)}
+                prId={linkPrProfiles ? prIdBySlotId.get(w.id) : undefined}
+              />
             ))}
           </tbody>
         </table>

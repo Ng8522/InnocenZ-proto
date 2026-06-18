@@ -7,7 +7,7 @@ import {
   migrateDemoDateIso,
 } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
-import { DEFAULT_TIED_AGENCY_ID, FREELANCER_DEMO_PR_ID, fmtDateLabelFromIso } from "@/lib/pr-demo";
+import { DEFAULT_TIED_AGENCY_ID, FREELANCER_DEMO_PR_ID, fmtDateLabelFromIso, DEFAULT_PR_AGENCY_NAME, isFreelancerPrId } from "@/lib/pr-demo";
 
 export interface OutletCommissionRule {
   outlet: string;
@@ -121,6 +121,35 @@ export interface OutletSwapRequest {
   requestedAt: string;
   requestedAtMs?: number;
   respondedAt?: string;
+}
+
+/** Agency tied to this roster shift — assignment, swap request, or default tied agency. */
+export function rosterSlotAgencyName(
+  slot: AgencyRosterSlot,
+  fallback = DEFAULT_PR_AGENCY_NAME,
+): string {
+  return slot.agencyAssignment?.agencyName ?? slot.outletSwap?.agencyName ?? fallback;
+}
+
+/** Agency label for a managed PR row — roster assignment, payroll link, or default tied agency. */
+export function managedPrAgencyLabel(
+  prId: string,
+  roster: AgencyRosterSlot[],
+  options: {
+    agencyName?: string;
+    freelancerPayrollByPrId?: Map<string, string>;
+  } = {},
+): string {
+  const slotAgency = roster.find(
+    (s) => s.prId === prId && (s.agencyAssignment?.agencyName || s.outletSwap?.agencyName),
+  );
+  if (slotAgency) return rosterSlotAgencyName(slotAgency, options.agencyName);
+
+  if (isFreelancerPrId(prId)) {
+    return options.freelancerPayrollByPrId?.get(prId) ?? "—";
+  }
+
+  return options.agencyName ?? DEFAULT_PR_AGENCY_NAME;
 }
 
 function rosterDate(iso: string) {
@@ -411,6 +440,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     noShows: 0,
     kpiScore: 82,
     consecutiveLowRatings: 3,
+    suspended: true,
     tiedSince: "2023-01-15",
   },
   {
@@ -662,7 +692,7 @@ export const SEED_OUTLET_PNL: OutletPnlRow[] = [
   { outlet: "Onyx KL", grossRevenue: 11200, prPayout: 1980, agencyNet: 3200, outletNet: 5640, platformFee: 560 },
 ];
 
-export type AgencySubscriptionPlanId = "starter" | "growth" | "enterprise";
+export type AgencySubscriptionPlanId = "starter" | "plus" | "growth" | "enterprise";
 
 export interface AgencySubscriptionPlan {
   id: AgencySubscriptionPlanId;
@@ -670,6 +700,8 @@ export interface AgencySubscriptionPlan {
   monthlyRm: number;
   /** Max PRs the agency can roster on this plan */
   prLimit: number;
+  /** Shown on plan cards — e.g. "Below 25 PR" */
+  capacityLabel: string;
   description: string;
 }
 
@@ -678,22 +710,33 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
     id: "starter",
     label: "Starter",
     monthlyRm: 499,
-    prLimit: 20,
+    prLimit: 24,
+    capacityLabel: "Below 25 PR",
     description: "InnocenZ Agency · core portal access",
+  },
+  {
+    id: "plus",
+    label: "Plus",
+    monthlyRm: 999,
+    prLimit: 49,
+    capacityLabel: "Below 50 PR",
+    description: "Growing roster · payroll & history",
   },
   {
     id: "growth",
     label: "Growth",
     monthlyRm: 1499,
-    prLimit: 75,
-    description: "Expanded roster · payroll & analytics",
+    prLimit: 99,
+    capacityLabel: "Below 100 PR",
+    description: "Expanded roster · payroll & reporting",
   },
   {
     id: "enterprise",
     label: "Enterprise",
     monthlyRm: 2499,
-    prLimit: 200,
-    description: "Maximum PR capacity · priority support",
+    prLimit: 9999,
+    capacityLabel: "200+ PR",
+    description: "Large roster · priority support",
   },
 ];
 
@@ -909,6 +952,10 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
 export interface AgencyReconciliationDay {
   dateIso: string;
   dateLabel: string;
+  /** Sun–Sat week start (inclusive). */
+  weekStartIso?: string;
+  /** Sat week end (inclusive). */
+  weekEndIso?: string;
   outletSalesTotal: number;
   pvTotal: number;
   variance: number;

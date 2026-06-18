@@ -8,7 +8,6 @@ const AGENCY_MAIN_TABS = [
   "/agency/roster",
   "/agency/pv",
   "/agency/history",
-  "/agency/reports",
 ] as const;
 
 export type PortalHub = (typeof PORTAL_HUBS)[number];

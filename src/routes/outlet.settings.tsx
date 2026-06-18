@@ -247,7 +247,7 @@ function OutletSettingsPage() {
 
       <IzSectionLabel>Finance Head</IzSectionLabel>
       <IzCard className={editCardClass}>
-        <p className="iz-tiny iz-muted mb-2">Daily reconciliation · billing sign-off</p>
+        <p className="iz-tiny iz-muted mb-2">Weekly reconciliation · due Sundays · billing sign-off</p>
         <Field icon={User} label="Name" value={finance.name} onChange={(v) => updateFinance({ name: v })} readOnly={fieldsLocked} />
         <Field icon={Shield} label="IC" value={finance.ic} onChange={(v) => updateFinance({ ic: v })} readOnly={fieldsLocked} />
         <Field icon={Mail} label="Email" value={finance.email} onChange={(v) => updateFinance({ email: v })} readOnly={fieldsLocked} />

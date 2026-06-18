@@ -1,6 +1,10 @@
 /** PR Talent demo data — mirrors InnocenZ_Prototype.html */
 
-import { seedFinanceHeadStamp, buildDemoESignatureDataUrl, type FinanceHeadPvStamp } from "@/lib/finance-head-stamp";
+import {
+  seedFinanceHeadStamp,
+  buildDemoESignatureDataUrl,
+  type FinanceHeadPvStamp,
+} from "@/lib/finance-head-stamp";
 import {
   addDaysToIso,
   getPayrollWeekSundayIso,
@@ -142,7 +146,20 @@ export const PR_SHIFT_OFFERS: PrShiftOffer[] = [
 ];
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 export function dayName(y: number, m: number, d: number) {
   return DAY_NAMES[new Date(y, m - 1, d).getDay()];
@@ -249,7 +266,12 @@ export function prProfileMatchesPayee(
   const label = payee.prName.trim().toLowerCase();
   const full = profile.name.trim().toLowerCase();
   const first = profile.first.trim().toLowerCase();
-  return label === full || label === first || label.startsWith(`${first} `) || full.startsWith(`${label} `);
+  return (
+    label === full ||
+    label === first ||
+    label.startsWith(`${first} `) ||
+    full.startsWith(`${label} `)
+  );
 }
 
 /** PVs belonging to the logged-in PR only (freelancer vs agency-tied). */
@@ -260,7 +282,9 @@ export function filterPvsForPrProfile(
 ): PrPaymentVoucher[] {
   if (!role) return [];
   const rosterId = getPrRosterId(role);
-  return vouchers.filter((p) => prProfileMatchesPayee({ prName: p.prName, prIc: p.prIc }, profile, rosterId));
+  return vouchers.filter((p) =>
+    prProfileMatchesPayee({ prName: p.prName, prIc: p.prIc }, profile, rosterId),
+  );
 }
 
 export function filterReceiptScansForPrProfile(
@@ -364,13 +388,21 @@ export interface PrActiveShiftSession {
 }
 
 export function makeShiftSessionId(date: [number, number, number], outlet: string) {
-  const slug = outlet.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-]/g, "").toLowerCase().slice(0, 12);
+  const slug = outlet
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9-]/g, "")
+    .toLowerCase()
+    .slice(0, 12);
   const [y, m, d] = date;
   return `shift-${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}-${slug}`;
 }
 
 export function makeShiftPvId(date: [number, number, number], outlet: string) {
-  const slug = outlet.replace(/\s+/g, "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 6).toUpperCase();
+  const slug = outlet
+    .replace(/\s+/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(0, 6)
+    .toUpperCase();
   const [y, m, d] = date;
   return `PV-SHIFT-${y}-${String(m).padStart(2, "0")}${String(d).padStart(2, "0")}-${slug || "OUT"}`;
 }
@@ -593,7 +625,9 @@ export const PV_DISPUTE_PRESETS = [
   },
 ] as const;
 
-export function pvDisputePhotos(pv: Pick<PrPaymentVoucher, "prDisputePhotoDataUrl" | "prDisputePhotoDataUrls">) {
+export function pvDisputePhotos(
+  pv: Pick<PrPaymentVoucher, "prDisputePhotoDataUrl" | "prDisputePhotoDataUrls">,
+) {
   if (pv.prDisputePhotoDataUrls?.length) return pv.prDisputePhotoDataUrls;
   return pv.prDisputePhotoDataUrl ? [pv.prDisputePhotoDataUrl] : [];
 }
@@ -642,11 +676,56 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     issued: "10 May 2026",
     due: "17 May 2026",
     rows: [
-      { i: 1, date: "4 May", day: "Mon", outlet: "Mermate", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
-      { i: 2, date: "5 May", day: "Tue", outlet: "Mermate", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
-      { i: 3, date: "6 May", day: "Wed", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
-      { i: 4, date: "7 May", day: "Thu", outlet: "Urban Soul", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
-      { i: 5, date: "11 May", day: "Mon", outlet: "Mermate", desc: "Daily Wages", qty: 1, amt: 380, ref: "Sealed" },
+      {
+        i: 1,
+        date: "4 May",
+        day: "Mon",
+        outlet: "Mermate",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 350,
+        ref: "Sealed",
+      },
+      {
+        i: 2,
+        date: "5 May",
+        day: "Tue",
+        outlet: "Mermate",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 350,
+        ref: "Sealed",
+      },
+      {
+        i: 3,
+        date: "6 May",
+        day: "Wed",
+        outlet: "Bear Lounge",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 350,
+        ref: "Sealed",
+      },
+      {
+        i: 4,
+        date: "7 May",
+        day: "Thu",
+        outlet: "Urban Soul",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 350,
+        ref: "Sealed",
+      },
+      {
+        i: 5,
+        date: "11 May",
+        day: "Mon",
+        outlet: "Mermate",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 380,
+        ref: "Sealed",
+      },
     ],
     subtotal: 1830,
     deduct: 200,
@@ -664,9 +743,38 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     issued: "3 May 2026",
     due: "10 May 2026",
     rows: [
-      { i: 1, date: "27 Apr", day: "Sun", outlet: "Mermate", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
-      { i: 2, date: "27 Apr", day: "Sun", outlet: "Mermate", desc: "Commission – Drinks", qty: 1, amt: 170, ref: "Tap log", receiptIds: ["rc-seed-1", "rc-seed-2"] },
-      { i: 3, date: "27 Apr", day: "Sun", outlet: "Mermate", desc: "Commission – Tips", qty: 1, amt: 80, ref: "Tap log", receiptIds: ["rc-seed-3"] },
+      {
+        i: 1,
+        date: "27 Apr",
+        day: "Sun",
+        outlet: "Mermate",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 350,
+        ref: "Sealed",
+      },
+      {
+        i: 2,
+        date: "27 Apr",
+        day: "Sun",
+        outlet: "Mermate",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 170,
+        ref: "Tap log",
+        receiptIds: ["rc-seed-1", "rc-seed-2"],
+      },
+      {
+        i: 3,
+        date: "27 Apr",
+        day: "Sun",
+        outlet: "Mermate",
+        desc: "Commission – Tips",
+        qty: 1,
+        amt: 80,
+        ref: "Tap log",
+        receiptIds: ["rc-seed-3"],
+      },
     ],
     subtotal: 600,
     deduct: 0,
@@ -696,8 +804,27 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     issued: "10 May 2026",
     due: "17 May 2026",
     rows: [
-      { i: 1, date: "9 May", day: "Sat", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
-      { i: 2, date: "9 May", day: "Sat", outlet: "Bear Lounge", desc: "Commission – Drinks", qty: 1, amt: 120, ref: "Disputed", receiptIds: ["rc-seed-4"] },
+      {
+        i: 1,
+        date: "9 May",
+        day: "Sat",
+        outlet: "Bear Lounge",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 350,
+        ref: "Sealed",
+      },
+      {
+        i: 2,
+        date: "9 May",
+        day: "Sat",
+        outlet: "Bear Lounge",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 120,
+        ref: "Disputed",
+        receiptIds: ["rc-seed-4"],
+      },
     ],
     subtotal: 470,
     deduct: 0,
@@ -719,8 +846,26 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     issued: "17 May 2026",
     due: "24 May 2026",
     rows: [
-      { i: 1, date: "14 May", day: "Wed", outlet: "Urban Soul", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
-      { i: 2, date: "15 May", day: "Thu", outlet: "Urban Soul", desc: "Commission – Drinks", qty: 1, amt: 95, ref: "Tap log" },
+      {
+        i: 1,
+        date: "14 May",
+        day: "Wed",
+        outlet: "Urban Soul",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 350,
+        ref: "Sealed",
+      },
+      {
+        i: 2,
+        date: "15 May",
+        day: "Thu",
+        outlet: "Urban Soul",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 95,
+        ref: "Tap log",
+      },
     ],
     subtotal: 445,
     deduct: 0,
@@ -737,9 +882,36 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     issued: "24 May 2026",
     due: "31 May 2026",
     rows: [
-      { i: 1, date: "20 May", day: "Wed", outlet: "Mermate", desc: "Daily Wages", qty: 1, amt: 350, ref: "Sealed" },
-      { i: 2, date: "21 May", day: "Thu", outlet: "Mermate", desc: "Commission – Drinks", qty: 1, amt: 140, ref: "Tap log" },
-      { i: 3, date: "22 May", day: "Fri", outlet: "Mermate", desc: "Commission – Tips", qty: 1, amt: 60, ref: "Tap log" },
+      {
+        i: 1,
+        date: "20 May",
+        day: "Wed",
+        outlet: "Mermate",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 350,
+        ref: "Sealed",
+      },
+      {
+        i: 2,
+        date: "21 May",
+        day: "Thu",
+        outlet: "Mermate",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 140,
+        ref: "Tap log",
+      },
+      {
+        i: 3,
+        date: "22 May",
+        day: "Fri",
+        outlet: "Mermate",
+        desc: "Commission – Tips",
+        qty: 1,
+        amt: 60,
+        ref: "Tap log",
+      },
     ],
     subtotal: 550,
     deduct: 50,
@@ -759,8 +931,26 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     issued: "19 Apr 2026",
     due: "26 Apr 2026",
     rows: [
-      { i: 1, date: "18 Apr", day: "Sat", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 360, ref: "Sealed" },
-      { i: 2, date: "18 Apr", day: "Sat", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 210, ref: "Tap log" },
+      {
+        i: 1,
+        date: "18 Apr",
+        day: "Sat",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 360,
+        ref: "Sealed",
+      },
+      {
+        i: 2,
+        date: "18 Apr",
+        day: "Sat",
+        outlet: "Velvet 23",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 210,
+        ref: "Tap log",
+      },
     ],
     subtotal: 570,
     deduct: 0,
@@ -783,13 +973,76 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     issued: "17 May 2026",
     due: "24 May 2026",
     rows: [
-      { i: 1, date: "13 May", day: "Wed", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
-      { i: 2, date: "13 May", day: "Wed", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 112, ref: "Verified" },
-      { i: 3, date: "15 May", day: "Fri", outlet: "Mermate", desc: "Daily Wages", qty: 1, amt: 290, ref: "Sealed" },
-      { i: 4, date: "15 May", day: "Fri", outlet: "Mermate", desc: "Commission – Tips", qty: 1, amt: 78, ref: "Verified" },
-      { i: 5, date: "17 May", day: "Sun", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
-      { i: 6, date: "17 May", day: "Sun", outlet: "Velvet 23", desc: "Commission – Tables", qty: 2, amt: 120, ref: "Verified" },
-      { i: 7, date: "17 May", day: "Sun", outlet: "—", desc: "Early withdrawal", qty: 1, amt: 150, ref: "Advance · T+1" },
+      {
+        i: 1,
+        date: "13 May",
+        day: "Wed",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 300,
+        ref: "Sealed",
+      },
+      {
+        i: 2,
+        date: "13 May",
+        day: "Wed",
+        outlet: "Velvet 23",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 112,
+        ref: "Verified",
+      },
+      {
+        i: 3,
+        date: "15 May",
+        day: "Fri",
+        outlet: "Mermate",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 290,
+        ref: "Sealed",
+      },
+      {
+        i: 4,
+        date: "15 May",
+        day: "Fri",
+        outlet: "Mermate",
+        desc: "Commission – Tips",
+        qty: 1,
+        amt: 78,
+        ref: "Verified",
+      },
+      {
+        i: 5,
+        date: "17 May",
+        day: "Sun",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 300,
+        ref: "Sealed",
+      },
+      {
+        i: 6,
+        date: "17 May",
+        day: "Sun",
+        outlet: "Velvet 23",
+        desc: "Commission – Tables",
+        qty: 2,
+        amt: 120,
+        ref: "Verified",
+      },
+      {
+        i: 7,
+        date: "17 May",
+        day: "Sun",
+        outlet: "—",
+        desc: "Early withdrawal",
+        qty: 1,
+        amt: 150,
+        ref: "Advance · T+1",
+      },
     ],
     subtotal: 1048,
     deduct: 150,
@@ -812,12 +1065,66 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     issued: "10 May 2026",
     due: "17 May 2026",
     rows: [
-      { i: 1, date: "6 May", day: "Wed", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
-      { i: 2, date: "6 May", day: "Wed", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 95, ref: "Verified" },
-      { i: 3, date: "8 May", day: "Fri", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
-      { i: 4, date: "8 May", day: "Fri", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 88, ref: "Verified" },
-      { i: 5, date: "10 May", day: "Sun", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
-      { i: 6, date: "10 May", day: "Sun", outlet: "Velvet 23", desc: "Commission – Tables", qty: 1, amt: 65, ref: "Verified" },
+      {
+        i: 1,
+        date: "6 May",
+        day: "Wed",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 300,
+        ref: "Sealed",
+      },
+      {
+        i: 2,
+        date: "6 May",
+        day: "Wed",
+        outlet: "Velvet 23",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 95,
+        ref: "Verified",
+      },
+      {
+        i: 3,
+        date: "8 May",
+        day: "Fri",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 300,
+        ref: "Sealed",
+      },
+      {
+        i: 4,
+        date: "8 May",
+        day: "Fri",
+        outlet: "Velvet 23",
+        desc: "Commission – Tips",
+        qty: 1,
+        amt: 88,
+        ref: "Verified",
+      },
+      {
+        i: 5,
+        date: "10 May",
+        day: "Sun",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 300,
+        ref: "Sealed",
+      },
+      {
+        i: 6,
+        date: "10 May",
+        day: "Sun",
+        outlet: "Velvet 23",
+        desc: "Commission – Tables",
+        qty: 1,
+        amt: 65,
+        ref: "Verified",
+      },
     ],
     subtotal: 1148,
     deduct: 0,
@@ -838,27 +1145,219 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     issued: "20 Jun 2026",
     due: "27 Jun 2026",
     rows: [
-      { i: 1, date: "15 Jun", day: "Mon", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 280, ref: "Sealed" },
-      { i: 2, date: "15 Jun", day: "Mon", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 45, ref: "Verified" },
-      { i: 3, date: "16 Jun", day: "Tue", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
-      { i: 4, date: "16 Jun", day: "Tue", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 96, ref: "Verified", receiptIds: ["rc-luna-w2-d"] },
-      { i: 5, date: "16 Jun", day: "Tue", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 84, ref: "Verified" },
-      { i: 6, date: "17 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 290, ref: "Sealed" },
-      { i: 7, date: "17 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Commission – Drinks", qty: 1, amt: 85, ref: "Disputed", receiptIds: ["rc-luna-2"] },
-      { i: 8, date: "17 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Commission – Tips", qty: 1, amt: 60, ref: "Verified" },
-      { i: 9, date: "18 Jun", day: "Thu", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
-      { i: 10, date: "18 Jun", day: "Thu", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 90, ref: "Verified", receiptIds: ["rc-luna-1"] },
-      { i: 11, date: "18 Jun", day: "Thu", outlet: "Velvet 23", desc: "Commission – Tables", qty: 1, amt: 55, ref: "Verified" },
-      { i: 12, date: "19 Jun", day: "Fri", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 310, ref: "Sealed" },
-      { i: 13, date: "19 Jun", day: "Fri", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 88, ref: "Verified" },
-      { i: 14, date: "19 Jun", day: "Fri", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 72, ref: "Verified" },
-      { i: 15, date: "19 Jun", day: "Fri", outlet: "Velvet 23", desc: "Commission – Tables", qty: 1, amt: 40, ref: "Verified" },
-      { i: 16, date: "19 Jun", day: "Fri", outlet: "Velvet 23", desc: "Others", qty: 1, amt: 25, ref: "Verified" },
-      { i: 17, date: "20 Jun", day: "Sat", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
-      { i: 18, date: "20 Jun", day: "Sat", outlet: "Bear Lounge", desc: "Commission – Drinks", qty: 1, amt: 95, ref: "Verified" },
-      { i: 19, date: "21 Jun", day: "Sun", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 320, ref: "Sealed" },
-      { i: 20, date: "21 Jun", day: "Sun", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 90, ref: "Verified" },
-      { i: 21, date: "21 Jun", day: "Sun", outlet: "Velvet 23", desc: "Commission – Tables", qty: 1, amt: 65, ref: "Verified" },
+      {
+        i: 1,
+        date: "15 Jun",
+        day: "Mon",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 280,
+        ref: "Sealed",
+      },
+      {
+        i: 2,
+        date: "15 Jun",
+        day: "Mon",
+        outlet: "Velvet 23",
+        desc: "Commission – Tips",
+        qty: 1,
+        amt: 45,
+        ref: "Verified",
+      },
+      {
+        i: 3,
+        date: "16 Jun",
+        day: "Tue",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 300,
+        ref: "Sealed",
+      },
+      {
+        i: 4,
+        date: "16 Jun",
+        day: "Tue",
+        outlet: "Velvet 23",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 96,
+        ref: "Verified",
+        receiptIds: ["rc-luna-w2-d"],
+      },
+      {
+        i: 5,
+        date: "16 Jun",
+        day: "Tue",
+        outlet: "Velvet 23",
+        desc: "Commission – Tips",
+        qty: 1,
+        amt: 84,
+        ref: "Verified",
+      },
+      {
+        i: 6,
+        date: "17 Jun",
+        day: "Wed",
+        outlet: "Bear Lounge",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 290,
+        ref: "Sealed",
+      },
+      {
+        i: 7,
+        date: "17 Jun",
+        day: "Wed",
+        outlet: "Bear Lounge",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 85,
+        ref: "Disputed",
+        receiptIds: ["rc-luna-2"],
+      },
+      {
+        i: 8,
+        date: "17 Jun",
+        day: "Wed",
+        outlet: "Bear Lounge",
+        desc: "Commission – Tips",
+        qty: 1,
+        amt: 60,
+        ref: "Verified",
+      },
+      {
+        i: 9,
+        date: "18 Jun",
+        day: "Thu",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 300,
+        ref: "Sealed",
+      },
+      {
+        i: 10,
+        date: "18 Jun",
+        day: "Thu",
+        outlet: "Velvet 23",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 90,
+        ref: "Verified",
+        receiptIds: ["rc-luna-1"],
+      },
+      {
+        i: 11,
+        date: "18 Jun",
+        day: "Thu",
+        outlet: "Velvet 23",
+        desc: "Commission – Tables",
+        qty: 1,
+        amt: 55,
+        ref: "Verified",
+      },
+      {
+        i: 12,
+        date: "19 Jun",
+        day: "Fri",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 310,
+        ref: "Sealed",
+      },
+      {
+        i: 13,
+        date: "19 Jun",
+        day: "Fri",
+        outlet: "Velvet 23",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 88,
+        ref: "Verified",
+      },
+      {
+        i: 14,
+        date: "19 Jun",
+        day: "Fri",
+        outlet: "Velvet 23",
+        desc: "Commission – Tips",
+        qty: 1,
+        amt: 72,
+        ref: "Verified",
+      },
+      {
+        i: 15,
+        date: "19 Jun",
+        day: "Fri",
+        outlet: "Velvet 23",
+        desc: "Commission – Tables",
+        qty: 1,
+        amt: 40,
+        ref: "Verified",
+      },
+      {
+        i: 16,
+        date: "19 Jun",
+        day: "Fri",
+        outlet: "Velvet 23",
+        desc: "Others",
+        qty: 1,
+        amt: 25,
+        ref: "Verified",
+      },
+      {
+        i: 17,
+        date: "20 Jun",
+        day: "Sat",
+        outlet: "Bear Lounge",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 300,
+        ref: "Sealed",
+      },
+      {
+        i: 18,
+        date: "20 Jun",
+        day: "Sat",
+        outlet: "Bear Lounge",
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: 95,
+        ref: "Verified",
+      },
+      {
+        i: 19,
+        date: "21 Jun",
+        day: "Sun",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 320,
+        ref: "Sealed",
+      },
+      {
+        i: 20,
+        date: "21 Jun",
+        day: "Sun",
+        outlet: "Velvet 23",
+        desc: "Commission – Tips",
+        qty: 1,
+        amt: 90,
+        ref: "Verified",
+      },
+      {
+        i: 21,
+        date: "21 Jun",
+        day: "Sun",
+        outlet: "Velvet 23",
+        desc: "Commission – Tables",
+        qty: 1,
+        amt: 65,
+        ref: "Verified",
+      },
     ],
     subtotal: 3095,
     deduct: 0,
@@ -881,10 +1380,47 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     issued: "31 May 2026",
     due: "7 Jun 2026",
     rows: [
-      { i: 1, date: "28 May", day: "Thu", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 290, ref: "Sealed" },
-      { i: 2, date: "28 May", day: "Thu", outlet: "Bear Lounge", desc: "Commission – Drinks", qty: 6, amt: 85, ref: "Disputed", receiptIds: ["rc-luna-2"] },
-      { i: 3, date: "30 May", day: "Sat", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
-      { i: 4, date: "30 May", day: "Sat", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 72, ref: "Verified" },
+      {
+        i: 1,
+        date: "28 May",
+        day: "Thu",
+        outlet: "Bear Lounge",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 290,
+        ref: "Sealed",
+      },
+      {
+        i: 2,
+        date: "28 May",
+        day: "Thu",
+        outlet: "Bear Lounge",
+        desc: "Commission – Drinks",
+        qty: 6,
+        amt: 85,
+        ref: "Disputed",
+        receiptIds: ["rc-luna-2"],
+      },
+      {
+        i: 3,
+        date: "30 May",
+        day: "Sat",
+        outlet: "Velvet 23",
+        desc: "Daily Wages",
+        qty: 1,
+        amt: 300,
+        ref: "Sealed",
+      },
+      {
+        i: 4,
+        date: "30 May",
+        day: "Sat",
+        outlet: "Velvet 23",
+        desc: "Commission – Tips",
+        qty: 1,
+        amt: 72,
+        ref: "Verified",
+      },
     ],
     subtotal: 747,
     deduct: 0,
@@ -900,7 +1436,20 @@ function pvRowDateIso(row: PrPvRow, year: number): string | null {
   if (!m) return null;
   const day = parseInt(m[1], 10);
   const mon = m[2].slice(0, 3).toLowerCase();
-  const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const months = [
+    "jan",
+    "feb",
+    "mar",
+    "apr",
+    "may",
+    "jun",
+    "jul",
+    "aug",
+    "sep",
+    "oct",
+    "nov",
+    "dec",
+  ];
   const mi = months.findIndex((x) => x === mon);
   if (mi < 0) return null;
   return ymdToIso(year, mi + 1, day);
@@ -910,17 +1459,16 @@ export function remapSeedPaymentVoucher(pv: PrPaymentVoucher): PrPaymentVoucher 
   if (pv.id !== "PV-2026-0611-A" || !pv.weekStartIso) return pv;
   const prevSunday = getPreviousWeekSundayIso();
   const prevEnd = addDaysToIso(prevSunday, 6);
-  if (!isWeekPvIssuedOnCalendar(prevEnd)) return { ...pv, weekStartIso: prevSunday, weekEndIso: prevEnd };
+  if (!isWeekPvIssuedOnCalendar(prevEnd))
+    return { ...pv, weekStartIso: prevSunday, weekEndIso: prevEnd };
   const fromAnchor = pv.weekStartIso;
   const issueIso = addDaysToIso(prevEnd, 1);
   const [iy, im, id] = issueIso.split("-").map(Number);
   const issuedLabel = fmtDtable(iy, im, id);
   const dueIso = addDaysToIso(issueIso, 7);
   const [dy, dm, dd] = dueIso.split("-").map(Number);
-  const startLabel = fmtDtable(
-    ...prevSunday.split("-").map(Number) as [number, number, number],
-  );
-  const endLabel = fmtDtable(...prevEnd.split("-").map(Number) as [number, number, number]);
+  const startLabel = fmtDtable(...(prevSunday.split("-").map(Number) as [number, number, number]));
+  const endLabel = fmtDtable(...(prevEnd.split("-").map(Number) as [number, number, number]));
   const year = parseIsoYear(prevSunday);
   return {
     ...pv,
@@ -988,7 +1536,9 @@ export function downloadPvReceipt(
 ) {
   const rowLines =
     pv.rows.length > 0
-      ? pv.rows.map((r) => `  ${r.date} · ${r.outlet} · ${r.desc} · ${formatRMPlain(r.amt)}`).join("\n")
+      ? pv.rows
+          .map((r) => `  ${r.date} · ${r.outlet} · ${r.desc} · ${formatRMPlain(r.amt)}`)
+          .join("\n")
       : "  (Summary PV — line items in agency portal)";
 
   const body = [
@@ -1069,12 +1619,15 @@ export type ReceiptScanStatus = "attached" | "pending" | "in_pv" | "paid";
 
 export type ReceiptLogSource = "ocr" | "manual";
 export type ReceiptAgencyVerification = "pending" | "approved" | "rejected";
+export type ReceiptEntryMethod = "scan" | "manual";
 
 export interface PrReceiptScan {
   id: string;
   /** Unique outlet POS receipt number — global duplicate guard */
   receiptRef: string;
   scannedAt: string;
+  /** How the receipt was logged — camera OCR scan vs manual tap entry */
+  entryMethod?: ReceiptEntryMethod;
   date: [number, number, number];
   outlet: string;
   prCode: string;
@@ -1114,9 +1667,12 @@ export function calcReceiptCommissions(items: PrReceiptItem[]) {
   let tipCommission = 0;
   let tableCommission = 0;
   for (const item of items) {
-    if (item.category === "drinks") drinkCommission += item.qty * RECEIPT_COMMISSION_RULES.drinkPerUnit;
-    else if (item.category === "tips") tipCommission += item.amount * RECEIPT_COMMISSION_RULES.tipRate;
-    else if (item.category === "tables") tableCommission += item.qty * RECEIPT_COMMISSION_RULES.tablePerUnit;
+    if (item.category === "drinks")
+      drinkCommission += item.qty * RECEIPT_COMMISSION_RULES.drinkPerUnit;
+    else if (item.category === "tips")
+      tipCommission += item.amount * RECEIPT_COMMISSION_RULES.tipRate;
+    else if (item.category === "tables")
+      tableCommission += item.qty * RECEIPT_COMMISSION_RULES.tablePerUnit;
   }
   return {
     drinkCommission,
@@ -1126,7 +1682,10 @@ export function calcReceiptCommissions(items: PrReceiptItem[]) {
   };
 }
 
-export function buildDemoReceiptRef(outlet: string, date: [number, number, number] = SHIFT_TODAY): string {
+export function buildDemoReceiptRef(
+  outlet: string,
+  date: [number, number, number] = SHIFT_TODAY,
+): string {
   const outletCode =
     outlet
       .replace(/\s+KL$/i, "")
@@ -1239,10 +1798,16 @@ export function receiptScanFingerprint(input: {
 }): string {
   const ref = input.receiptRef?.trim();
   if (ref) {
-    const normalizedOutlet = input.outlet.replace(/\s+KL$/i, "").trim().toLowerCase();
+    const normalizedOutlet = input.outlet
+      .replace(/\s+KL$/i, "")
+      .trim()
+      .toLowerCase();
     return `ref:${normalizedOutlet}|${ref.toUpperCase()}`;
   }
-  const normalizedOutlet = input.outlet.replace(/\s+KL$/i, "").trim().toLowerCase();
+  const normalizedOutlet = input.outlet
+    .replace(/\s+KL$/i, "")
+    .trim()
+    .toLowerCase();
   const itemsKey = input.items
     .map((i) => `${i.category}|${i.label}|${i.qty}|${i.amount}`)
     .sort()
@@ -1285,13 +1850,30 @@ export function formatReceiptScannedTime(scannedAt: string): string {
   return m ? m[1] : scannedAt;
 }
 
+export function receiptEntryMethod(scan: PrReceiptScan): ReceiptEntryMethod {
+  if (scan.entryMethod) return scan.entryMethod;
+  if (scan.logSource === "manual") return "manual";
+  return "scan";
+}
+
+export function receiptEntryMethodLabel(entry: ReceiptEntryMethod): string {
+  return entry === "manual" ? "Manual" : "Scanned";
+}
+
+export function receiptEntryLoggedLabel(scan: PrReceiptScan): string {
+  const entry = receiptEntryMethod(scan);
+  if (entry === "manual") {
+    return scan.scannedAt ? `Keyed ${scan.scannedAt}` : "Manual self-log";
+  }
+  return `Scanned ${scan.scannedAt}`;
+}
+
 export function receiptShiftDetails(
   scan: PrReceiptScan,
   pv?: PrPaymentVoucher | null,
 ): { shiftTime: string; window: string } {
   if (pv?.shiftTime) {
-    const window =
-      pv.timeIn && pv.timeOut ? `${pv.timeIn} → ${pv.timeOut}` : pv.timeIn ?? "";
+    const window = pv.timeIn && pv.timeOut ? `${pv.timeIn} → ${pv.timeOut}` : (pv.timeIn ?? "");
     return { shiftTime: pv.shiftTime, window };
   }
   if (pv?.timeIn) {
@@ -1303,7 +1885,20 @@ export function receiptShiftDetails(
   if (scan.shiftSessionId) {
     const slug = scan.shiftSessionId.match(/^shift-(\d{4})-(\d{2})-(\d{2})-(.+)$/);
     if (slug) {
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const months = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
       const day = parseInt(slug[3], 10);
       const mon = months[parseInt(slug[2], 10) - 1] ?? slug[2];
       return { shiftTime: `${day} ${mon} ${slug[1]}`, window: scan.shiftSessionId };
@@ -1449,9 +2044,7 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     prName: "Jaya",
     prId: "freelancer-jaya",
     shiftSessionId: "shift-2026-05-09-bearlounge",
-    items: [
-      { label: "Cocktail", qty: 8, unitPrice: 45, amount: 360, category: "drinks" },
-    ],
+    items: [{ label: "Cocktail", qty: 8, unitPrice: 45, amount: 360, category: "drinks" }],
     totalLogged: 360,
     drinkCommission: 120,
     tipCommission: 0,
@@ -1463,8 +2056,9 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-seed-5",
-    receiptRef: "MER-20260521-233042",
+    receiptRef: "TAP-20260521-233042",
     scannedAt: "21 May 2026 · 23:30",
+    entryMethod: "manual",
     date: [2026, 5, 21],
     outlet: "Mermate",
     prCode: "PR-0042",
@@ -1508,8 +2102,9 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-luna-2",
-    receiptRef: "BEAR-20260603-214208",
+    receiptRef: "TAP-20260603-214208",
     scannedAt: "3 Jun 2026 · 22:08",
+    entryMethod: "manual",
     date: [2026, 6, 3],
     outlet: "Bear Lounge",
     prCode: "PR-0001",
@@ -1528,8 +2123,9 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-mia-1",
-    receiptRef: "MER-20260603-234011",
+    receiptRef: "TAP-20260603-234011",
     scannedAt: "3 Jun 2026 · 23:40",
+    entryMethod: "manual",
     date: [2026, 6, 3],
     outlet: "Mermate",
     prCode: "PR-0002",
@@ -1576,7 +2172,8 @@ export function flattenPvLines(pvs: PrPaymentVoucher[], scans: PrReceiptScan[]):
           .filter(
             (s) =>
               s.pvId === pv.id &&
-              (s.pvLineDesc === row.desc || row.desc.toLowerCase().includes(s.pvLineDesc?.toLowerCase() ?? "___")),
+              (s.pvLineDesc === row.desc ||
+                row.desc.toLowerCase().includes(s.pvLineDesc?.toLowerCase() ?? "___")),
           )
           .map((s) => s.id);
       lines.push({
@@ -1614,14 +2211,94 @@ export function receiptPvCalcNote(scan: PrReceiptScan) {
 
 /** @deprecated Use store.shiftHistory via shiftHistoryToHistRows — kept for type/export */
 export const HIST_ROWS: HistRow[] = [
-  { d: [2026, 5, 4], venue: "Mermate", wages: 350, sales: 510, table: 60, drinks: 24, tips: 40, st: "PAID", pill: "green" },
-  { d: [2026, 5, 5], venue: "Mermate", wages: 350, sales: 520, table: 60, drinks: 22, tips: 50, st: "PAID", pill: "green" },
-  { d: [2026, 5, 6], venue: "Bear Lounge", wages: 350, sales: 420, table: 120, drinks: 17, tips: 50, st: "PAID", pill: "green" },
-  { d: [2026, 5, 7], venue: "Urban Soul", wages: 350, sales: 480, table: 0, drinks: 19, tips: 60, st: "SIGNED", pill: "amber" },
-  { d: [2026, 5, 11], venue: "Mermate", wages: 380, sales: 620, table: 120, drinks: 28, tips: 65, st: "PAID", pill: "green" },
-  { d: [2026, 5, 14], venue: "Bear Lounge", wages: 350, sales: 380, table: 60, drinks: 15, tips: 30, st: "SIGNED", pill: "amber" },
-  { d: [2026, 5, 18], venue: "Urban Soul", wages: 350, sales: 550, table: 60, drinks: 21, tips: 55, st: "SENT", pill: "ink" },
-  { d: [2026, 5, 21], venue: "Mermate", wages: 400, sales: 710, table: 180, drinks: 32, tips: 80, st: "DISPUTED", pill: "red" },
+  {
+    d: [2026, 5, 4],
+    venue: "Mermate",
+    wages: 350,
+    sales: 510,
+    table: 60,
+    drinks: 24,
+    tips: 40,
+    st: "PAID",
+    pill: "green",
+  },
+  {
+    d: [2026, 5, 5],
+    venue: "Mermate",
+    wages: 350,
+    sales: 520,
+    table: 60,
+    drinks: 22,
+    tips: 50,
+    st: "PAID",
+    pill: "green",
+  },
+  {
+    d: [2026, 5, 6],
+    venue: "Bear Lounge",
+    wages: 350,
+    sales: 420,
+    table: 120,
+    drinks: 17,
+    tips: 50,
+    st: "PAID",
+    pill: "green",
+  },
+  {
+    d: [2026, 5, 7],
+    venue: "Urban Soul",
+    wages: 350,
+    sales: 480,
+    table: 0,
+    drinks: 19,
+    tips: 60,
+    st: "SIGNED",
+    pill: "amber",
+  },
+  {
+    d: [2026, 5, 11],
+    venue: "Mermate",
+    wages: 380,
+    sales: 620,
+    table: 120,
+    drinks: 28,
+    tips: 65,
+    st: "PAID",
+    pill: "green",
+  },
+  {
+    d: [2026, 5, 14],
+    venue: "Bear Lounge",
+    wages: 350,
+    sales: 380,
+    table: 60,
+    drinks: 15,
+    tips: 30,
+    st: "SIGNED",
+    pill: "amber",
+  },
+  {
+    d: [2026, 5, 18],
+    venue: "Urban Soul",
+    wages: 350,
+    sales: 550,
+    table: 60,
+    drinks: 21,
+    tips: 55,
+    st: "SENT",
+    pill: "ink",
+  },
+  {
+    d: [2026, 5, 21],
+    venue: "Mermate",
+    wages: 400,
+    sales: 710,
+    table: 180,
+    drinks: 32,
+    tips: 80,
+    st: "DISPUTED",
+    pill: "red",
+  },
 ];
 
 export const COMCARD = { height: 168, weight: 52, age: 25 };

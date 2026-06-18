@@ -1,4 +1,4 @@
-import { parsePvIssuedMs } from "@/lib/pr-demo";
+import { parsePvIssuedMs, type PrReceiptScan } from "@/lib/pr-demo";
 
 export type PayrollRangeFilter = {
   fromDate: string;
@@ -82,4 +82,36 @@ export function matchesPayrollIssueDate(
     return matchesPayrollRange(d.getTime(), range);
   }
   return matchesPayrollRange(baseMs, range);
+}
+
+export function receiptShiftDateIso(scan: PrReceiptScan): string {
+  const [y, m, d] = scan.date;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** Date range matches the PR's shift working day; optional times filter scan timestamp. */
+export function matchesReceiptShiftWorkRange(
+  scan: PrReceiptScan,
+  range: PayrollRangeFilter,
+): boolean {
+  if (!payrollRangeActive(range)) return true;
+
+  const shiftIso = receiptShiftDateIso(scan);
+  const shiftDayMs = parseDateInputMs(shiftIso, "12:00") ?? 0;
+  const fromDateMs = range.fromDate ? parseDateInputMs(range.fromDate, "00:00") : null;
+  const toDateMs = range.toDate ? parseDateInputMs(range.toDate, "23:59") : null;
+
+  if (fromDateMs != null && shiftDayMs < fromDateMs) return false;
+  if (toDateMs != null && shiftDayMs > toDateMs) return false;
+
+  if (range.fromTime || range.toTime) {
+    return matchesPayrollRange(parseScannedAtMs(scan.scannedAt), {
+      fromDate: range.fromDate || shiftIso,
+      toDate: range.toDate || shiftIso,
+      fromTime: range.fromTime,
+      toTime: range.toTime,
+    });
+  }
+
+  return true;
 }

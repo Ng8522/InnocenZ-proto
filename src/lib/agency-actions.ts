@@ -1,4 +1,4 @@
-/** Agency workflows — raise PV, analytics helpers */
+/** Agency workflows — raise PV, shift history helpers */
 
 import type { AgencyManagedPR } from "@/lib/agency-demo";
 import { calcShiftPayout, getOutletRule } from "@/lib/agency-demo";
@@ -11,7 +11,6 @@ import {
   type PrPvRow,
 } from "@/lib/pr-demo";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
-import { roundRm, type OutletPnlSynced } from "@/lib/outlet-financial-sync";
 
 export interface PvOverrideAudit {
   at: string;
@@ -140,49 +139,4 @@ export function buildPvFromShiftHistoryRow(
     ...financeHead,
     paidRefs: [shiftHistoryPvRef(row)],
   };
-}
-
-export function computeAgencyNoShowRate(agencyPRs: AgencyManagedPR[]): number {
-  const totalShifts = agencyPRs.reduce((s, p) => s + p.checkIns + p.noShows, 0);
-  const noShows = agencyPRs.reduce((s, p) => s + p.noShows, 0);
-  if (totalShifts === 0) return 0;
-  return Math.round((noShows / totalShifts) * 1000) / 10;
-}
-
-/** Filter PNL rows using shift history in date range (demo approximation). */
-export function pnlForDateRange(
-  basePnl: OutletPnlSynced[],
-  history: ShiftHistoryRow[],
-  dateFrom: string,
-  dateTo: string,
-): OutletPnlSynced[] {
-  const filtered = history.filter((h) => h.dateIso >= dateFrom && h.dateIso <= dateTo);
-  if (filtered.length === 0) return [];
-  const byOutlet = new Map<string, { prPayout: number; count: number }>();
-  for (const h of filtered) {
-    const cur = byOutlet.get(h.outlet) ?? { prPayout: 0, count: 0 };
-    cur.prPayout += h.totalPayout;
-    cur.count += 1;
-    byOutlet.set(h.outlet, cur);
-  }
-  return basePnl
-    .filter((r) => byOutlet.has(r.outlet))
-    .map((r) => {
-      const agg = byOutlet.get(r.outlet)!;
-      const ratio = Math.min(agg.prPayout / Math.max(r.prPayout, 1), 1);
-      const prPayout = roundRm(agg.prPayout);
-      const grossRevenue = roundRm(r.grossRevenue * ratio);
-      const platformFee = roundRm(r.platformFee * ratio);
-      const agencyNet = roundRm(r.agencyNet * ratio);
-      const outletNet = roundRm(grossRevenue - prPayout - platformFee - agencyNet);
-      return {
-        ...r,
-        grossRevenue,
-        prPayout,
-        platformFee,
-        agencyNet,
-        outletNet,
-        syncedFromOutlet: r.syncedFromOutlet,
-      };
-    });
 }

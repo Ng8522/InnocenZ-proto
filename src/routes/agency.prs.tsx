@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { AgencyBroadcastSheet } from "@/components/agency/AgencyBroadcastSheet";
@@ -17,6 +17,7 @@ import {
   RATING_SUSPEND_SHIFT_THRESHOLD,
   RATING_WARN_THRESHOLD,
   getAgencyPrFlags,
+  isAgencyPrActive,
   tiedMonthsLabel,
 } from "@/lib/agency-pr-flags";
 import { AlertTriangle, Check, Filter, Megaphone, Pencil, Star, UserMinus } from "lucide-react";
@@ -26,9 +27,13 @@ const TRAINING_TIER_OPTIONS = ["Tier I", "Tier II", "Tier III", "Tier IV", "Tier
 
 export const Route = createFileRoute("/agency/prs")({
   component: AgencyManagePRs,
+  validateSearch: (search: Record<string, unknown>): { pr?: string } => ({
+    pr: typeof search.pr === "string" && search.pr.trim() ? search.pr.trim() : undefined,
+  }),
 });
 
 function AgencyManagePRs() {
+  const { pr: prFromSearch } = Route.useSearch();
   const agencyPRs = useStore((s) => s.agencyPRs);
   const shiftHistory = useStore((s) => s.shiftHistory);
   const ratings = useStore((s) => s.ratings);
@@ -48,6 +53,10 @@ function AgencyManagePRs() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [comcardPreviewId, setComcardPreviewId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (prFromSearch) setDetailId(prFromSearch);
+  }, [prFromSearch]);
 
   const canManage = agencyCan(agencySubRole, "managePr");
 
@@ -79,6 +88,8 @@ function AgencyManagePRs() {
 
   const detail = agencyPRs.find((p) => p.id === detailId);
   const comcardPreview = agencyPRs.find((p) => p.id === comcardPreviewId);
+  const activeCount = useMemo(() => filtered.filter((p) => isAgencyPrActive(p)).length, [filtered]);
+  const inactiveCount = filtered.length - activeCount;
 
   if (!canManage) {
     return (
@@ -217,6 +228,7 @@ function AgencyManagePRs() {
 
       <OutletSection
         title={`${filtered.length} PR${filtered.length !== 1 ? "s" : ""}`}
+        hint={`${activeCount} active${inactiveCount ? ` · ${inactiveCount} inactive` : ""}`}
         trailing={
           <div className="flex gap-1.5">
             {selectMode && (
@@ -254,13 +266,14 @@ function AgencyManagePRs() {
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {filtered.map((p) => {
           const flags = getAgencyPrFlags(p);
+          const active = isAgencyPrActive(p);
           const picked = selectMode && selected.has(p.id);
           return (
             <div
               key={p.id}
               role="button"
               tabIndex={0}
-              className={`relative flex cursor-pointer flex-col gap-1 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-2 text-left transition-colors hover:border-[var(--iz-line2)]${picked ? " ring-1 ring-[var(--iz-gold)]" : ""}${flags.suspendStreak && !p.suspended ? " border-[var(--iz-red)]/40" : ""}`}
+              className={`relative flex cursor-pointer flex-col gap-1 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-2 text-left transition-colors hover:border-[var(--iz-line2)]${picked ? " ring-1 ring-[var(--iz-gold)]" : ""}${!active ? " opacity-75" : ""}${flags.suspendStreak && active ? " border-[var(--iz-red)]/40" : ""}`}
               onClick={() => {
                 if (selectMode) toggleSelect(p.id);
                 else setDetailId(p.id);
@@ -286,13 +299,19 @@ function AgencyManagePRs() {
 
               <button
                 type="button"
-                className="iz-comcard-3d-preview-btn w-full text-left"
+                className="iz-comcard-3d-preview-btn relative w-full text-left"
                 aria-label={`Preview 3D comcard for ${p.name}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   setComcardPreviewId(p.id);
                 }}
               >
+                <IzPill
+                  variant={active ? "green" : "ink"}
+                  className={`absolute right-1 top-1 z-10 !py-0 !text-[8px] shadow-sm${!active ? " !opacity-100" : ""}`}
+                >
+                  {active ? "Active" : "Inactive"}
+                </IzPill>
                 <Comcard3dPreviewCard
                   pr={{
                     id: p.id,
@@ -309,11 +328,13 @@ function AgencyManagePRs() {
               </button>
 
               <div className="flex flex-wrap gap-0.5">
-                {p.suspended && <IzPill variant="red" className="!py-0 !text-[8px]">Suspended</IzPill>}
-                {flags.warnLowAvg && !p.suspended && (
+                {!active && (
+                  <IzPill variant="ink" className="!py-0 !text-[8px]">Suspended</IzPill>
+                )}
+                {flags.warnLowAvg && active && (
                   <IzPill variant="amber" className="!py-0 !text-[8px]">Warn</IzPill>
                 )}
-                {flags.suspendStreak && !p.suspended && (
+                {flags.suspendStreak && active && (
                   <IzPill variant="red" className="!py-0 !text-[8px]">Suspend</IzPill>
                 )}
                 {flags.tiedUnderOneYear && (
@@ -508,7 +529,12 @@ function AgencyPrDetail({
       <header>
         <p className="iz-tiny iz-muted2 uppercase tracking-widest">Managed PR</p>
         <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">{display.name}</h2>
-        <p className="iz-tiny iz-muted mt-0.5">IC {detail.ic} · {detail.rating} ★ avg</p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <IzPill variant={isAgencyPrActive(detail) ? "green" : "ink"} className="!py-0.5 !text-[9px]">
+            {isAgencyPrActive(detail) ? "Active" : "Inactive"}
+          </IzPill>
+          <p className="iz-tiny iz-muted">IC {detail.ic} · {detail.rating} ★ avg</p>
+        </div>
       </header>
       {editing && <span className="iz-pill iz-pill-amber mt-2 !text-[10px]">Editing</span>}
 

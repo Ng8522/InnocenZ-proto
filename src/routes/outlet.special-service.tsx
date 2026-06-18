@@ -19,7 +19,7 @@ function OutletSpecialService() {
           <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
         </header>
         <IzCard className="text-center">
-          <p className="iz-sm iz-muted">Your outlet role cannot order special services.</p>
+          <p className="iz-sm iz-muted">Your outlet role cannot access job postings.</p>
         </IzCard>
       </div>
     );
@@ -28,7 +28,7 @@ function OutletSpecialService() {
   return (
     <div className="iz-screen">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Special Service</h2>
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Job Posting</h2>
         <p className="iz-tiny iz-muted mt-0.5">{outletName} · agency add-ons</p>
       </header>
       <SpecialServicePortalSection role="outlet" />

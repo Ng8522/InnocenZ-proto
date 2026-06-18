@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import type { AgencyManagedPR, AgencyRosterSlot, RosterSlotStatus } from "@/lib/agency-demo";
-import { OUTLET_NAMES } from "@/lib/agency-demo";
-import { isFreelancerPrId } from "@/lib/pr-demo";
+import { OUTLET_NAMES, managedPrAgencyLabel } from "@/lib/agency-demo";
+import { PrComcardIdentity, toComcardPreview } from "@/components/agency/PrComcardIdentity";
+import { isFreelancerPrId, DEFAULT_PR_AGENCY_NAME } from "@/lib/pr-demo";
 import {
   dayColumnLabel,
   primarySlotForPrOnDate,
@@ -57,9 +58,22 @@ export function RosterWeeklyTimetable({
   onWeekChange,
 }: RosterWeeklyTimetableProps) {
   const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null);
+  const agencyOwner = useStore((s) => s.agencyOwner);
+  const pendingFreelancerPayrolls = useStore((s) => s.pendingFreelancerPayrolls);
 
   const days = useMemo(() => weekDayIsos(weekStartIso), [weekStartIso]);
   const slotFiltersOn = rosterShiftFiltersActive(filters);
+
+  const freelancerPayrollByPrId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of pendingFreelancerPayrolls) {
+      if (row.status === "rejected") continue;
+      map.set(row.prId, row.agencyName);
+    }
+    return map;
+  }, [pendingFreelancerPayrolls]);
+
+  const agencyName = agencyOwner.orgName || DEFAULT_PR_AGENCY_NAME;
 
   const prRows = useMemo(
     () =>
@@ -89,7 +103,7 @@ export function RosterWeeklyTimetable({
         </button>
         <div className="min-w-0 text-center">
           <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">Week · {weekLabel}</p>
-          <p className="iz-tiny iz-muted">Tap a cell to assign · agency-tied &amp; freelancer PRs</p>
+          <p className="iz-tiny iz-muted">Tap comcard to identify PRs · tap a cell to assign</p>
         </div>
         <button
           type="button"
@@ -125,22 +139,40 @@ export function RosterWeeklyTimetable({
                 </td>
               </tr>
             ) : (
-            prRows.map((pr) => (
+            prRows.map((pr) => {
+              const tiedAgency = managedPrAgencyLabel(pr.id, roster, {
+                agencyName,
+                freelancerPayrollByPrId,
+              });
+              return (
               <tr key={pr.id}>
                 <th scope="row" className="iz-roster-week-pr">
-                  <span className="name">{pr.name}</span>
-                  <span className="meta">
-                    {isFreelancerPrId(pr.id) ? (
+                  <div className="iz-roster-week-pr-inner">
+                    <PrComcardIdentity
+                      pr={toComcardPreview(pr)}
+                      profile={pr}
+                      agencyName={tiedAgency}
+                      size="week"
+                    />
+                    <div className="min-w-0">
+                      <span className="name">{pr.name}</span>
+                      <span className="meta">
+                    {isFreelancerPrId(pr.id) && (
                       <IzPill variant="violet" className="!py-0 !text-[8px]">
                         Freelancer
                       </IzPill>
-                    ) : (
-                      <IzPill variant="ink" className="!py-0 !text-[8px]">
-                        Agency
-                      </IzPill>
                     )}
+                    <IzPill
+                      variant="ink"
+                      className="!py-0 !text-[8px] iz-roster-week-agency-pill"
+                      title={tiedAgency}
+                    >
+                      {tiedAgency}
+                    </IzPill>
                     <span className="rating">{pr.rating}★</span>
-                  </span>
+                      </span>
+                    </div>
+                  </div>
                 </th>
                 {days.map((dateIso) => {
                   const state = getPrScheduleState(pr.id, roster, dateIso);
@@ -202,7 +234,8 @@ export function RosterWeeklyTimetable({
                   );
                 })}
               </tr>
-            ))
+            );
+            })
             )}
           </tbody>
         </table>

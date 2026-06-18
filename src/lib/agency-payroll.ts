@@ -13,6 +13,11 @@ function prNameMatchesAgency(scanName: string, pr: AgencyManagedPR): boolean {
   return sn === full || sn === first || full.startsWith(sn);
 }
 
+export function receiptBelongsToAgencyPr(scan: PrReceiptScan, pr: AgencyManagedPR): boolean {
+  if (scan.prId && pr.id === scan.prId) return true;
+  return prNameMatchesAgency(scan.prName, pr);
+}
+
 /** Receipt scans belonging to PRs on the agency roster (or linked agency PVs). */
 export function getAgencyManagedReceiptScans(
   scans: PrReceiptScan[],

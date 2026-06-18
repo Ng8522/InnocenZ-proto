@@ -1,16 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { OutletCommissionRule } from "@/lib/agency-demo";
+import { getOutletRule } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { rulesMatchOutlet } from "@/lib/outlet-agency-sync";
 import { useStore } from "@/lib/store";
-import { IzCard, IzSectionLabel } from "@/components/iz/ui";
+import { IzCard } from "@/components/iz/ui";
 import { Pencil } from "lucide-react";
 
 function cloneCommissionRules(rules: OutletCommissionRule[]): OutletCommissionRule[] {
   return rules.map((r) => ({ ...r }));
 }
 
-export function AgencyCommissionRulesPanel() {
+function updateRule(
+  rules: OutletCommissionRule[],
+  outlet: string,
+  patch: Partial<OutletCommissionRule>,
+): OutletCommissionRule[] {
+  return rules.map((r) => (r.outlet === outlet ? { ...r, ...patch } : r));
+}
+
+export function AgencyCommissionRulesPanel({ outlet }: { outlet: string }) {
   const agencySubRole = useStore((s) => s.agencySubRole);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
@@ -23,7 +32,12 @@ export function AgencyCommissionRulesPanel() {
   const [editing, setEditing] = useState(false);
   const [commissionDraft, setCommissionDraft] = useState(() => cloneCommissionRules(outletCommissionRules));
 
+  useEffect(() => {
+    if (!editing) setCommissionDraft(cloneCommissionRules(outletCommissionRules));
+  }, [outletCommissionRules, editing]);
+
   const commissions = editing ? commissionDraft : outletCommissionRules;
+  const rule = commissions.find((r) => r.outlet === outlet) ?? getOutletRule(outlet, commissions);
 
   const startEdit = () => {
     setCommissionDraft(cloneCommissionRules(outletCommissionRules));
@@ -45,70 +59,91 @@ export function AgencyCommissionRulesPanel() {
     setEditing(false);
   };
 
+  const patchRule = (patch: Partial<OutletCommissionRule>) => {
+    setCommissionDraft((rows) => updateRule(rows, outlet, patch));
+  };
+
   return (
     <>
-      <IzSectionLabel>Commission rules · per outlet</IzSectionLabel>
-      <p className="iz-tiny iz-muted2 -mt-1 mb-2">Drink types · tables · tips · OT — synced with outlet workspace</p>
+      <p className="iz-tiny iz-muted2 mb-2">
+        Drink types · tables · tips · OT — synced with outlet workspace
+      </p>
 
-      {commissions.map((rule) => (
-        <IzCard key={rule.outlet} flat className={`!mb-2${editing ? " border-[rgba(217,185,122,.25)]" : ""}`}>
-          <div className="font-sora text-sm font-bold text-[var(--iz-violet-l)]">{rule.outlet}</div>
-          {editing && canEdit ? (
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="iz-tiny iz-muted">
-                Drink %
-                <input
-                  type="number"
-                  className="iz-field-input mt-1 !text-xs"
-                  value={rule.drinkPct}
-                  onChange={(e) => {
-                    const drinkPct = Number(e.target.value);
-                    setCommissionDraft((rows) =>
-                      rows.map((r) => (r.outlet === rule.outlet ? { ...r, drinkPct } : r)),
-                    );
-                  }}
-                />
-              </label>
-              <label className="iz-tiny iz-muted">
-                Tip %
-                <input
-                  type="number"
-                  className="iz-field-input mt-1 !text-xs"
-                  value={rule.tipPct}
-                  onChange={(e) => {
-                    const tipPct = Number(e.target.value);
-                    setCommissionDraft((rows) =>
-                      rows.map((r) => (r.outlet === rule.outlet ? { ...r, tipPct } : r)),
-                    );
-                  }}
-                />
-              </label>
+      <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : ""}>
+        {editing && canEdit ? (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="iz-tiny iz-muted">
+              Wage (RM/hr)
+              <input
+                type="number"
+                className="iz-field-input mt-1 !text-xs"
+                value={rule.wagePerHour}
+                onChange={(e) => patchRule({ wagePerHour: Number(e.target.value) })}
+              />
+            </label>
+            <label className="iz-tiny iz-muted">
+              OT after (hrs)
+              <input
+                type="number"
+                className="iz-field-input mt-1 !text-xs"
+                value={rule.otAfterHours}
+                onChange={(e) => patchRule({ otAfterHours: Number(e.target.value) })}
+              />
+            </label>
+            <label className="iz-tiny iz-muted">
+              Drink %
+              <input
+                type="number"
+                className="iz-field-input mt-1 !text-xs"
+                value={rule.drinkPct}
+                onChange={(e) => patchRule({ drinkPct: Number(e.target.value) })}
+              />
+            </label>
+            <label className="iz-tiny iz-muted">
+              Tip %
+              <input
+                type="number"
+                className="iz-field-input mt-1 !text-xs"
+                value={rule.tipPct}
+                onChange={(e) => patchRule({ tipPct: Number(e.target.value) })}
+              />
+            </label>
+            <label className="iz-tiny iz-muted">
+              Table %
+              <input
+                type="number"
+                className="iz-field-input mt-1 !text-xs"
+                value={rule.tablePct}
+                onChange={(e) => patchRule({ tablePct: Number(e.target.value) })}
+              />
+            </label>
+          </div>
+        ) : (
+          <p className="iz-tiny iz-muted2">
+            Wage RM{rule.wagePerHour}/hr · Drinks {rule.drinkPct}% · Tips {rule.tipPct}% · Table{" "}
+            {rule.tablePct}% · OT after {rule.otAfterHours}h
+          </p>
+        )}
+
+        {rulesMatchOutlet(rule, outletWorkspace.outletName) && outletWorkspace.drinkMenu.length > 0 && (
+          <div className="mt-2 border-t border-[var(--iz-line)] pt-2">
+            <p className="iz-tiny iz-muted2 mb-1.5">Drink menu · synced from outlet</p>
+            <div className="flex flex-wrap gap-1.5">
+              {outletWorkspace.drinkMenu.map((drink) => (
+                <span
+                  key={drink.id}
+                  className="iz-tiny rounded-md bg-white/[0.04] px-2 py-0.5 font-semibold text-[var(--iz-gold-l)]"
+                >
+                  {drink.name} RM{drink.priceRm}
+                </span>
+              ))}
             </div>
-          ) : (
-            <p className="iz-tiny iz-muted2 mt-1">
-              Wage RM{rule.wagePerHour}/hr · Drinks {rule.drinkPct}% · Tips {rule.tipPct}% · Table {rule.tablePct}% · OT after {rule.otAfterHours}h
-            </p>
-          )}
-          {rulesMatchOutlet(rule, outletWorkspace.outletName) && outletWorkspace.drinkMenu.length > 0 && (
-            <div className="mt-2 border-t border-[var(--iz-line)] pt-2">
-              <p className="iz-tiny iz-muted2 mb-1.5">Drink menu · synced from outlet</p>
-              <div className="flex flex-wrap gap-1.5">
-                {outletWorkspace.drinkMenu.map((drink) => (
-                  <span
-                    key={drink.id}
-                    className="iz-tiny rounded-md bg-white/[0.04] px-2 py-0.5 font-semibold text-[var(--iz-gold-l)]"
-                  >
-                    {drink.name} RM{drink.priceRm}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </IzCard>
-      ))}
+          </div>
+        )}
+      </IzCard>
 
       {canEdit && (
-        <div className="iz-profile-actions mt-4">
+        <div className="iz-profile-actions mt-3">
           {editing ? (
             <>
               <button type="button" className="iz-btn iz-btn-primary" onClick={saveEdit}>
@@ -119,7 +154,7 @@ export function AgencyCommissionRulesPanel() {
               </button>
             </>
           ) : (
-            <button type="button" className="iz-btn iz-btn-primary" onClick={startEdit}>
+            <button type="button" className="iz-btn iz-btn-soft w-full" onClick={startEdit}>
               <Pencil className="h-4 w-4" /> Edit commission rules
             </button>
           )}

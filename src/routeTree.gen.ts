@@ -38,7 +38,6 @@ import { Route as HostPaymentVoucherRouteImport } from './routes/host.PaymentVou
 import { Route as AgencySubscriptionRouteImport } from './routes/agency.subscription'
 import { Route as AgencySpecialServiceRouteImport } from './routes/agency.special-service'
 import { Route as AgencyRosterRouteImport } from './routes/agency.roster'
-import { Route as AgencyReportsRouteImport } from './routes/agency.reports'
 import { Route as AgencyPvRouteImport } from './routes/agency.pv'
 import { Route as AgencyPrsRouteImport } from './routes/agency.prs'
 import { Route as AgencyProfileRouteImport } from './routes/agency.profile'
@@ -46,7 +45,6 @@ import { Route as AgencyPendingRouteImport } from './routes/agency.pending'
 import { Route as AgencyOutletsRouteImport } from './routes/agency.outlets'
 import { Route as AgencyLiveRouteImport } from './routes/agency.live'
 import { Route as AgencyHistoryRouteImport } from './routes/agency.history'
-import { Route as AgencyCommissionRulesRouteImport } from './routes/agency.commission-rules'
 
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
@@ -193,11 +191,6 @@ const AgencyRosterRoute = AgencyRosterRouteImport.update({
   path: '/roster',
   getParentRoute: () => AgencyRoute,
 } as any)
-const AgencyReportsRoute = AgencyReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => AgencyRoute,
-} as any)
 const AgencyPvRoute = AgencyPvRouteImport.update({
   id: '/pv',
   path: '/pv',
@@ -233,11 +226,6 @@ const AgencyHistoryRoute = AgencyHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => AgencyRoute,
 } as any)
-const AgencyCommissionRulesRoute = AgencyCommissionRulesRouteImport.update({
-  id: '/commission-rules',
-  path: '/commission-rules',
-  getParentRoute: () => AgencyRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -247,7 +235,6 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
-  '/agency/commission-rules': typeof AgencyCommissionRulesRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
   '/agency/outlets': typeof AgencyOutletsRoute
@@ -255,7 +242,6 @@ export interface FileRoutesByFullPath {
   '/agency/profile': typeof AgencyProfileRoute
   '/agency/prs': typeof AgencyPrsRoute
   '/agency/pv': typeof AgencyPvRoute
-  '/agency/reports': typeof AgencyReportsRoute
   '/agency/roster': typeof AgencyRosterRoute
   '/agency/special-service': typeof AgencySpecialServiceRoute
   '/agency/subscription': typeof AgencySubscriptionRoute
@@ -284,7 +270,6 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
-  '/agency/commission-rules': typeof AgencyCommissionRulesRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
   '/agency/outlets': typeof AgencyOutletsRoute
@@ -292,7 +277,6 @@ export interface FileRoutesByTo {
   '/agency/profile': typeof AgencyProfileRoute
   '/agency/prs': typeof AgencyPrsRoute
   '/agency/pv': typeof AgencyPvRoute
-  '/agency/reports': typeof AgencyReportsRoute
   '/agency/roster': typeof AgencyRosterRoute
   '/agency/special-service': typeof AgencySpecialServiceRoute
   '/agency/subscription': typeof AgencySubscriptionRoute
@@ -325,7 +309,6 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
-  '/agency/commission-rules': typeof AgencyCommissionRulesRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
   '/agency/outlets': typeof AgencyOutletsRoute
@@ -333,7 +316,6 @@ export interface FileRoutesById {
   '/agency/profile': typeof AgencyProfileRoute
   '/agency/prs': typeof AgencyPrsRoute
   '/agency/pv': typeof AgencyPvRoute
-  '/agency/reports': typeof AgencyReportsRoute
   '/agency/roster': typeof AgencyRosterRoute
   '/agency/special-service': typeof AgencySpecialServiceRoute
   '/agency/subscription': typeof AgencySubscriptionRoute
@@ -367,7 +349,6 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/signin'
-    | '/agency/commission-rules'
     | '/agency/history'
     | '/agency/live'
     | '/agency/outlets'
@@ -375,7 +356,6 @@ export interface FileRouteTypes {
     | '/agency/profile'
     | '/agency/prs'
     | '/agency/pv'
-    | '/agency/reports'
     | '/agency/roster'
     | '/agency/special-service'
     | '/agency/subscription'
@@ -404,7 +384,6 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/signin'
-    | '/agency/commission-rules'
     | '/agency/history'
     | '/agency/live'
     | '/agency/outlets'
@@ -412,7 +391,6 @@ export interface FileRouteTypes {
     | '/agency/profile'
     | '/agency/prs'
     | '/agency/pv'
-    | '/agency/reports'
     | '/agency/roster'
     | '/agency/special-service'
     | '/agency/subscription'
@@ -444,7 +422,6 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/signin'
-    | '/agency/commission-rules'
     | '/agency/history'
     | '/agency/live'
     | '/agency/outlets'
@@ -452,7 +429,6 @@ export interface FileRouteTypes {
     | '/agency/profile'
     | '/agency/prs'
     | '/agency/pv'
-    | '/agency/reports'
     | '/agency/roster'
     | '/agency/special-service'
     | '/agency/subscription'
@@ -692,13 +668,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgencyRosterRouteImport
       parentRoute: typeof AgencyRoute
     }
-    '/agency/reports': {
-      id: '/agency/reports'
-      path: '/reports'
-      fullPath: '/agency/reports'
-      preLoaderRoute: typeof AgencyReportsRouteImport
-      parentRoute: typeof AgencyRoute
-    }
     '/agency/pv': {
       id: '/agency/pv'
       path: '/pv'
@@ -748,18 +717,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgencyHistoryRouteImport
       parentRoute: typeof AgencyRoute
     }
-    '/agency/commission-rules': {
-      id: '/agency/commission-rules'
-      path: '/commission-rules'
-      fullPath: '/agency/commission-rules'
-      preLoaderRoute: typeof AgencyCommissionRulesRouteImport
-      parentRoute: typeof AgencyRoute
-    }
   }
 }
 
 interface AgencyRouteChildren {
-  AgencyCommissionRulesRoute: typeof AgencyCommissionRulesRoute
   AgencyHistoryRoute: typeof AgencyHistoryRoute
   AgencyLiveRoute: typeof AgencyLiveRoute
   AgencyOutletsRoute: typeof AgencyOutletsRoute
@@ -767,7 +728,6 @@ interface AgencyRouteChildren {
   AgencyProfileRoute: typeof AgencyProfileRoute
   AgencyPrsRoute: typeof AgencyPrsRoute
   AgencyPvRoute: typeof AgencyPvRoute
-  AgencyReportsRoute: typeof AgencyReportsRoute
   AgencyRosterRoute: typeof AgencyRosterRoute
   AgencySpecialServiceRoute: typeof AgencySpecialServiceRoute
   AgencySubscriptionRoute: typeof AgencySubscriptionRoute
@@ -775,7 +735,6 @@ interface AgencyRouteChildren {
 }
 
 const AgencyRouteChildren: AgencyRouteChildren = {
-  AgencyCommissionRulesRoute: AgencyCommissionRulesRoute,
   AgencyHistoryRoute: AgencyHistoryRoute,
   AgencyLiveRoute: AgencyLiveRoute,
   AgencyOutletsRoute: AgencyOutletsRoute,
@@ -783,7 +742,6 @@ const AgencyRouteChildren: AgencyRouteChildren = {
   AgencyProfileRoute: AgencyProfileRoute,
   AgencyPrsRoute: AgencyPrsRoute,
   AgencyPvRoute: AgencyPvRoute,
-  AgencyReportsRoute: AgencyReportsRoute,
   AgencyRosterRoute: AgencyRosterRoute,
   AgencySpecialServiceRoute: AgencySpecialServiceRoute,
   AgencySubscriptionRoute: AgencySubscriptionRoute,

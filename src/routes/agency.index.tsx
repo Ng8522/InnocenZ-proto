@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { useStore } from "@/lib/store";
-import { nowAgencyDateTime } from "@/lib/agency-demo";
+import { nowAgencyDateTime, OUTLET_NAMES } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { DEFAULT_TIED_AGENCY_ID } from "@/lib/pr-demo";
+import { shouldShowWeeklyReconciliation } from "@/lib/reconciliation-weekly";
 import { AlertTriangle } from "lucide-react";
 import { AiSuggestionsPanel } from "@/components/portal/AiSuggestionsPanel";
-import { LiveWorkforceTable } from "@/components/portal/LiveWorkforceTable";
+import { AgencyHomeHubTabs } from "@/components/portal/AgencyHomeHubTabs";
 import { IzCard, formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/agency/")({
@@ -16,50 +17,38 @@ function AgencyHub() {
   const agencySubRole = useStore((s) => s.agencySubRole);
   const agencyOwner = useStore((s) => s.agencyOwner);
   const agencyPRs = useStore((s) => s.agencyPRs);
-  const pendingSignups = useStore((s) => s.pendingPRs.filter((p) => p.status === "pending").length);
-  const pendingFreelancers = useStore(
-    (s) =>
-      s.pendingFreelancerPayrolls.filter(
-        (p) => p.agencyId === DEFAULT_TIED_AGENCY_ID && p.status === "pending",
-      ).length,
-  );
-  const pendingTotal = pendingSignups + pendingFreelancers;
-  const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
-  const onDuty = useStore((s) => s.agencyRoster.filter((r) => r.status === "on-duty").length);
-  const disputed = prPaymentVouchers.filter((p) => p.status === "DISPUTED").length;
   const reconciliation = useStore((s) => s.agencyReconciliation);
   const confirmAgencyReconciliation = useStore((s) => s.confirmAgencyReconciliation);
-  const pendingCollections = useStore((s) => s.agencyCollections.filter((c) => c.status === "PENDING").length);
-  const agencyRoster = useStore((s) => s.agencyRoster);
+  const syncReconciliationFromLedger = useStore((s) => s.syncReconciliationFromLedger);
   const pendingPayoutTotal = useStore((s) =>
     s.agencyCollections.filter((c) => c.status === "PENDING").reduce((sum, c) => sum + c.amount, 0),
   );
-  const activeDemand = agencyRoster.filter(
-    (r) => r.status === "assignment-pending" || r.status === "scheduled",
-  ).length;
-  const noShowAlerts = agencyRoster.filter((r) => r.noShowFlag || r.lateFlag).length;
-  const availablePrs = agencyPRs.filter((p) => !p.detached).length;
+  const totalPrs = agencyPRs.filter((p) => !p.detached).length;
+  const totalOutlets = OUTLET_NAMES.length;
   const { date, time } = nowAgencyDateTime();
   const isFinance = agencySubRole === "agency_finance";
   const showWorkforce = agencyCan(agencySubRole, "viewWorkforce");
+
+  useEffect(() => {
+    syncReconciliationFromLedger();
+  }, [syncReconciliationFromLedger]);
+
+  const showWeeklyReconciliation =
+    shouldShowWeeklyReconciliation(reconciliation) &&
+    !reconciliation.agencyConfirmed &&
+    agencyCan(agencySubRole, "confirmReconciliation");
 
   return (
     <div className="iz-screen iz-portal-page">
 
       <div className="iz-portal-kpi-grid iz-portal-desktop-only">
         <div className="iz-portal-kpi">
-          <div className="l">Available PR</div>
-          <div className="n">{availablePrs}</div>
+          <div className="l">Total PR</div>
+          <div className="n">{totalPrs}</div>
         </div>
         <div className="iz-portal-kpi">
-          <div className="l">Active demand</div>
-          <div className="n">{activeDemand}</div>
-        </div>
-        <div className="iz-portal-kpi">
-          <div className="l">No-show alerts</div>
-          <div className={`n${noShowAlerts ? " text-[var(--iz-violet)]" : ""}`}>
-            {String(noShowAlerts).padStart(2, "0")}
-          </div>
+          <div className="l">Total outlets</div>
+          <div className="n">{totalOutlets}</div>
         </div>
         <div className="iz-portal-kpi">
           <div className="l">Pending payouts</div>
@@ -84,33 +73,14 @@ function AgencyHub() {
         )}
       </header>
 
-      <div className="iz-outlet-stat-strip mt-3">
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Pending</div>
-          <div className={`n${pendingTotal ? " text-[var(--iz-amber)]" : ""}`}>{pendingTotal}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">On duty</div>
-          <div className="n text-[var(--iz-green)]">{onDuty}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">{disputed ? "Disputes" : "Due"}</div>
-          <div className={`n${disputed ? " text-[var(--iz-red)]" : ""}`}>
-            {disputed || pendingCollections}
-          </div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">PRs</div>
-          <div className="n">{agencyPRs.filter((p) => !p.detached).length}</div>
-        </div>
-      </div>
+      <AgencyHomeHubTabs agencySubRole={agencySubRole} />
 
-      {!reconciliation.agencyConfirmed && agencyCan(agencySubRole, "confirmReconciliation") && (
+      {showWeeklyReconciliation && (
         <IzCard flat className="mt-3 border-[rgba(232,194,122,.4)] bg-[rgba(232,194,122,.06)]">
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--iz-amber)]" />
             <div className="min-w-0 flex-1">
-              <p className="iz-sm font-bold">Confirm today&apos;s reconciliation</p>
+              <p className="iz-sm font-bold">Confirm weekly reconciliation</p>
               <p className="iz-tiny iz-muted mt-0.5">
                 {reconciliation.dateLabel} · Outlet sales {formatRM(reconciliation.outletSalesTotal)} vs PV{" "}
                 {formatRM(reconciliation.pvTotal)}
@@ -135,12 +105,6 @@ function AgencyHub() {
             </div>
           </div>
         </IzCard>
-      )}
-
-      {showWorkforce && (
-        <div className="iz-portal-desktop-only mt-4">
-          <LiveWorkforceTable />
-        </div>
       )}
         </div>
 

@@ -98,16 +98,17 @@ import {
 } from "@/lib/outlet-financial-sync";
 import { mergeShiftHistory, type ShiftHistoryRow, SEED_SHIFT_HISTORY } from "@/lib/shift-history";
 import {
+  buildReconciliationFromLedger,
+  isWeeklyReconciliationSunday,
+} from "@/lib/reconciliation-weekly";
+import {
   buildShiftHistoryRow,
   marketplacePrsFromAgency,
-  recomputeReconciliation,
   rosterCheckIn,
   rosterCheckOut,
   rosterEnRoute,
   ensureRosterSlot,
   shiftDateIso,
-  sumPvNetForCycle,
-  outletGrossFromPnl,
   canonicalOutlet,
   outletMatches,
   addPrToOutletShift,
@@ -220,7 +221,7 @@ export interface ShiftRequest {
   preferredRating: number;
   estimatedCost: number;
   liveSales: number;
-  /** Outlet floor pricing — syncs to agency analytics */
+  /** Outlet floor pricing — syncs to agency PNL reconciliation */
   perDrinkRm?: number;
   perTableRm?: number;
   drinkUnits?: number;
@@ -564,7 +565,7 @@ interface StoreState {
 
   prs: PR[];
   shifts: ShiftRequest[];
-  /** Agency analytics PNL — recomputed when outlet edits floor money */
+  /** Agency outlet PNL — recomputed when outlet edits floor money */
   outletPnl: OutletPnlSynced[];
   outletPnlSyncAt: number;
   outletMoneyEditCount: number;
@@ -701,14 +702,18 @@ function applyOutletFinancialSync(
   );
   const nextRecon =
     reconciliation ??
-    recomputeReconciliation({
-      outletGross: outletGrossFromPnl(outletPnl, "Velvet 23"),
-      pvTotal: 0,
-      dateIso: DEFAULT_ROSTER_DATE_ISO,
-      dateLabel: fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO),
-      agencyConfirmed: false,
-      outletConfirmed: false,
-    });
+    buildReconciliationFromLedger(
+      {
+        agencyReconciliation: {
+          ...SEED_RECONCILIATION,
+          dateIso: DEFAULT_ROSTER_DATE_ISO,
+          dateLabel: fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO),
+        },
+        shiftHistory: [],
+        prPaymentVouchers: [],
+      },
+      {},
+    );
   return {
     shifts: normalized,
     outletPnl,
@@ -730,14 +735,7 @@ function syncLedgerState(
   const drinkMenu = st.outletWorkspace.drinkMenu ?? DEFAULT_OUTLET_DRINK_MENU;
   const commissionRules = st.outletCommissionRules;
   const outletPnl = recomputeAllOutletPnl(shifts, undefined, roster, drinkMenu, commissionRules);
-  const reconciliation = recomputeReconciliation({
-    outletGross: outletGrossFromPnl(outletPnl, "Velvet 23"),
-    pvTotal: sumPvNetForCycle(pvs),
-    dateIso: st.agencyReconciliation.dateIso,
-    dateLabel: st.agencyReconciliation.dateLabel,
-    agencyConfirmed: st.agencyReconciliation.agencyConfirmed,
-    outletConfirmed: st.agencyReconciliation.outletConfirmed,
-  });
+  const reconciliation = buildReconciliationFromLedger(st, patch);
   return {
     ...patch,
     outletPnl,
@@ -1918,6 +1916,7 @@ export const useStore = create<StoreState>()(
           id,
           receiptRef: draft.receiptRef.trim(),
           scannedAt: stamp,
+          entryMethod: draft.entryMethod ?? "scan",
           date: [...shift.date] as [number, number, number],
           outlet,
           prCode: draft.prCode,
@@ -2335,13 +2334,13 @@ export const useStore = create<StoreState>()(
         set((st) => ({
           agencyReconciliation: { ...st.agencyReconciliation, agencyConfirmed: true },
         }));
-        get().toast("Today's reconciliation confirmed · agency side locked", "success");
+        get().toast("Weekly reconciliation confirmed · agency side locked", "success");
       },
       confirmOutletReconciliation: () => {
         set((st) => ({
           agencyReconciliation: { ...st.agencyReconciliation, outletConfirmed: true },
         }));
-        get().toast("Outlet daily reconciliation confirmed · synced to agency", "success");
+        get().toast("Outlet weekly reconciliation confirmed · synced to agency", "success");
       },
       syncReconciliationFromLedger: () => {
         set((st) => syncLedgerState(st, {}));
@@ -3396,7 +3395,7 @@ export const useStore = create<StoreState>()(
           notifyPr: order.initiatedBy === "pr",
           notifyOutlet: order.initiatedBy === "outlet",
         });
-        get().toast("Special service request declined", "warn");
+        get().toast("Job posting request declined", "warn");
       },
 
       acceptSpecialServiceByPr: (orderId) => {
@@ -3844,13 +3843,8 @@ export const useStore = create<StoreState>()(
             menu,
             nextRules,
           );
-          const reconciliation = recomputeReconciliation({
-            outletGross: outletGrossFromPnl(outletPnl, next.outletName),
-            pvTotal: sumPvNetForCycle(st.prPaymentVouchers),
-            dateIso: st.agencyReconciliation.dateIso,
-            dateLabel: st.agencyReconciliation.dateLabel,
-            agencyConfirmed: st.agencyReconciliation.agencyConfirmed,
-            outletConfirmed: st.agencyReconciliation.outletConfirmed,
+          const reconciliation = buildReconciliationFromLedger(st, {
+            prPaymentVouchers: st.prPaymentVouchers,
           });
           const sync = applyOutletFinancialSync(
             nextShifts,
@@ -4095,6 +4089,7 @@ export const useStore = create<StoreState>()(
             totalPayout: payout,
             totalDrinks: Math.round((shift.drinkUnits ?? 0) / Math.max(shift.prs.length, 1)),
             totalTips: Math.round(((shift.tableUnits ?? 0) * 20) / Math.max(shift.prs.length, 1)),
+            totalTables: Math.round((shift.tableUnits ?? 0) / Math.max(shift.prs.length, 1)),
             durationHours: 6,
           });
         });
@@ -4116,7 +4111,7 @@ export const useStore = create<StoreState>()(
           });
         });
         const recon = get().agencyReconciliation;
-        if (!recon.outletConfirmed) {
+        if (isWeeklyReconciliationSunday() && !recon.outletConfirmed) {
           get().pushNotify({ type: "reconciliation_due", outlet: shift.outletName });
         }
         get().toast("Shift sealed · rate PRs within 24h · PVs synced", "success");

@@ -20,6 +20,11 @@ export function tiedMonthsLabel(pr: AgencyManagedPR, now = Date.now()): string {
 
 export type AgencyPrFlagLevel = "ok" | "warn" | "suspend";
 
+/** Agency roster availability — suspended or detached PRs are inactive. */
+export function isAgencyPrActive(pr: AgencyManagedPR): boolean {
+  return !pr.suspended && !pr.detached;
+}
+
 export function getAgencyPrFlags(pr: AgencyManagedPR) {
   const consecutiveLow = pr.consecutiveLowRatings ?? 0;
   const warnLowAvg = pr.rating < RATING_WARN_THRESHOLD;

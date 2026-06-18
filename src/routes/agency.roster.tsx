@@ -370,6 +370,7 @@ function AgencyRoster() {
         />
         <RosterShiftTable
           slots={filtered}
+          agencyPRs={agencyPRs}
           canAssign={canAssign}
           onEdit={openEdit}
           onFlagLate={(id) => flagRosterAttendance(id, "late")}

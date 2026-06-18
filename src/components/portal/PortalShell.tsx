@@ -2,7 +2,6 @@ import { type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
-  CircleDollarSign,
   CreditCard,
   Settings,
   Shield,
@@ -24,7 +23,6 @@ type ExtraNavItem = NavItem & { permission: string };
 const AGENCY_EXTRAS: ExtraNavItem[] = [
   { to: "/agency/prs", label: "Manage PR", icon: Users, permission: "managePr" },
   { to: "/agency/outlets", label: "Manage Outlet", icon: Store, permission: "managePr" },
-  { to: "/agency/commission-rules", label: "Commission Rules", icon: CircleDollarSign, permission: "viewSettings" },
   { to: "/agency/subscription", label: "Subscription", icon: CreditCard, permission: "viewSettings" },
   { to: "/agency/profile", label: "Settings", icon: Settings, permission: "viewSettings" },
 ];

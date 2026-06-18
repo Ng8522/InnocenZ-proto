@@ -4,14 +4,9 @@ import { useStore } from "@/lib/store";
 import { PhoneFrame } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
 import { IzSheet } from "@/components/iz/Sheet";
-import { ArrowLeft, Mail, Phone, User, Lock, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, User, Lock, Eye, EyeOff } from "lucide-react";
 
-type LoginChannel = "email" | "phone";
-
-const SIGNIN_DEFAULTS: Record<LoginChannel, string> = {
-  email: "example@gmail.com",
-  phone: "+60123456789",
-};
+type ResetChannel = "email" | "phone";
 
 export const Route = createFileRoute("/signin")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -20,8 +15,14 @@ export const Route = createFileRoute("/signin")({
   component: SignIn,
 });
 
-function formatLoginLabel(channel: LoginChannel, value: string) {
-  return channel === "email" ? value : value.trim();
+function detectChannel(value: string): ResetChannel {
+  return value.trim().includes("@") ? "email" : "phone";
+}
+
+function resolveIdentifier(value: string): { channel: ResetChannel; identifier: string } | null {
+  const identifier = value.trim();
+  if (!identifier) return null;
+  return { channel: detectChannel(identifier), identifier };
 }
 
 function SignIn() {
@@ -30,12 +31,13 @@ function SignIn() {
   const role = useStore((s) => s.role);
   const signIn = useStore((s) => s.signIn);
   const toast = useStore((s) => s.toast);
-  const [name, setName] = useState(mode === "create" ? "" : "Alex Tan");
-  const [loginChannel, setLoginChannel] = useState<LoginChannel>("email");
-  const [identifier, setIdentifier] = useState(mode === "create" ? "" : SIGNIN_DEFAULTS.email);
+  const [identifier, setIdentifier] = useState("example@gmail.com");
   const [password, setPassword] = useState("password");
   const [showPassword, setShowPassword] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotContact, setForgotContact] = useState<{ channel: ResetChannel; identifier: string } | null>(
+    null,
+  );
   const [otp, setOtp] = useState("");
 
   useEffect(() => {
@@ -44,40 +46,35 @@ function SignIn() {
     }
   }, [mode, navigate]);
 
-  const otpChannelLabel = loginChannel === "email" ? "email" : "mobile";
-
-  const switchLoginChannel = (channel: LoginChannel) => {
-    setLoginChannel(channel);
-    if (mode === "signin") {
-      setIdentifier(SIGNIN_DEFAULTS[channel]);
-    } else if (loginChannel !== channel) {
-      setIdentifier("");
-    }
-  };
+  const otpChannelLabel = forgotContact?.channel === "phone" ? "mobile" : "email";
 
   const sendOtpToast = () => {
+    if (!forgotContact) return;
     toast(`Password reset OTP sent to your ${otpChannelLabel}`, "info");
   };
 
   const openForgotPassword = () => {
-    if (!identifier.trim()) {
-      toast(`Enter your ${loginChannel === "email" ? "email" : "phone number"} first`, "warn");
+    const contact = resolveIdentifier(identifier);
+    if (!contact) {
+      toast("Enter your email or phone number first", "warn");
       return;
     }
+    setForgotContact(contact);
     setOtp("");
     setForgotOpen(true);
-    sendOtpToast();
+    toast(`Password reset OTP sent to your ${contact.channel === "phone" ? "mobile" : "email"}`, "info");
   };
 
   const verifyForgotOtp = () => {
+    if (!forgotContact) return;
     if (otp === "123456" || otp.length === 6) {
       setForgotOpen(false);
       setOtp("");
       navigate({
         to: "/reset-password",
         search: {
-          channel: loginChannel,
-          identifier: formatLoginLabel(loginChannel, identifier),
+          channel: forgotContact.channel,
+          identifier: forgotContact.identifier,
         },
       });
       return;
@@ -87,10 +84,18 @@ function SignIn() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const loginId = identifier.trim();
-    if (!loginId) return;
-    const displayName = name.trim() || (loginChannel === "email" ? loginId.split("@")[0] : "User");
-    signIn(displayName, loginId);
+    const contact = resolveIdentifier(identifier);
+    if (!contact) {
+      toast("Enter your email or phone number", "warn");
+      return;
+    }
+    if (!password.trim()) {
+      toast("Enter your password", "warn");
+      return;
+    }
+    const displayName =
+      contact.channel === "email" ? contact.identifier.split("@")[0] || "User" : "User";
+    signIn(displayName, contact.identifier);
     const path =
       role === "vendor"
         ? "/outlet"
@@ -111,7 +116,7 @@ function SignIn() {
             <div className="iz-cardttl">Verify OTP</div>
             <p className="iz-tiny iz-muted mb-3">
               Enter the 6-digit OTP sent to your {otpChannelLabel}{" "}
-              <b className="text-[var(--iz-txt)]">{formatLoginLabel(loginChannel, identifier)}</b>
+              <b className="text-[var(--iz-txt)]">{forgotContact?.identifier}</b>
             </p>
             <input
               value={otp}
@@ -149,66 +154,22 @@ function SignIn() {
         </div>
 
         <div className="text-center">
-          {mode === "create" ? (
-            <>
-              <h1 className="font-sora mt-6 text-2xl font-extrabold text-[var(--iz-txt)]">
-                Create your account
-              </h1>
-              <p className="iz-sm iz-muted mt-1">Join with your email or phone number.</p>
-            </>
-          ) : (
-            <h1 className="font-sora mt-6 text-[27px] font-extrabold text-[var(--iz-txt)]">
-              Innocen<span className="iz-wordmark-z">Z</span>
-            </h1>
-          )}
+          <h1 className="font-sora mt-6 text-[27px] font-extrabold text-[var(--iz-txt)]">
+            Innocen<span className="iz-wordmark-z">Z</span>
+          </h1>
         </div>
 
         <form onSubmit={submit} className="mt-8 flex flex-col gap-3">
-          {mode === "create" && (
-            <label className="iz-field">
-              <span className="flex items-center gap-3 rounded-[13px] border border-[var(--iz-line2)] bg-white/[0.03] px-4 py-3">
-                <User className="h-4 w-4 text-[var(--iz-muted)]" />
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Full name"
-                  className="flex-1 bg-transparent text-sm outline-none"
-                />
-              </span>
-            </label>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className={`iz-chip flex-1 ${loginChannel === "email" ? "border-[var(--iz-gold)]" : ""}`}
-              onClick={() => switchLoginChannel("email")}
-            >
-              Email
-            </button>
-            <button
-              type="button"
-              className={`iz-chip flex-1 ${loginChannel === "phone" ? "border-[var(--iz-gold)]" : ""}`}
-              onClick={() => switchLoginChannel("phone")}
-            >
-              Phone
-            </button>
-          </div>
-
           <label className="iz-field">
             <span className="flex items-center gap-3 rounded-[13px] border border-[var(--iz-line2)] bg-white/[0.03] px-4 py-3">
-              {loginChannel === "email" ? (
-                <Mail className="h-4 w-4 shrink-0 text-[var(--iz-muted)]" />
-              ) : (
-                <Phone className="h-4 w-4 shrink-0 text-[var(--iz-muted)]" />
-              )}
+              <User className="h-4 w-4 shrink-0 text-[var(--iz-muted)]" />
               <input
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder={loginChannel === "email" ? "Email" : "Phone number"}
-                type={loginChannel === "email" ? "email" : "tel"}
-                inputMode={loginChannel === "phone" ? "tel" : "email"}
-                autoComplete={loginChannel === "email" ? "email" : "tel"}
+                placeholder="Email or phone number"
+                type="text"
+                inputMode="text"
+                autoComplete="username"
                 className="min-w-0 flex-1 bg-transparent text-sm outline-none"
               />
             </span>
@@ -235,32 +196,27 @@ function SignIn() {
             </span>
           </label>
 
-          {mode === "signin" && (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                className="iz-tiny text-[var(--iz-gold-l)] underline-offset-2 hover:underline"
-                onClick={openForgotPassword}
-              >
-                Forgot password?
-              </button>
-            </div>
-          )}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="iz-tiny text-[var(--iz-gold-l)] underline-offset-2 hover:underline"
+              onClick={openForgotPassword}
+            >
+              Forgot password?
+            </button>
+          </div>
 
           <button type="submit" className="iz-btn iz-btn-primary mt-2">
-            {mode === "create" ? "Create Account" : "Sign In"}
+            Sign In
           </button>
         </form>
 
         <button
           type="button"
-          onClick={() => navigate({ to: mode === "create" ? "/signin" : "/register" })}
+          onClick={() => navigate({ to: "/register" })}
           className="iz-sm iz-muted mt-6 text-center"
         >
-          {mode === "create" ? "Already have an account? " : "New here? "}
-          <span className="text-[var(--iz-gold-l)]">
-            {mode === "create" ? "Sign in" : "Create one"}
-          </span>
+          New here? <span className="text-[var(--iz-gold-l)]">Create one</span>
         </button>
       </div>
     </PhoneFrame>

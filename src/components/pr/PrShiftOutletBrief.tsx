@@ -1,36 +1,51 @@
+import { useState } from "react";
 import { Building2, ExternalLink, MapPin, Shirt, Sparkles, Star } from "lucide-react";
 import { IzPill } from "@/components/iz/ui";
+import { cn } from "@/lib/utils";
 import type { PrShiftOutletBrief } from "@/lib/pr-shift-outlet";
 
 export function PrShiftOutletBriefCard({
   brief,
   assignmentLabel,
+  defaultOpen = false,
 }: {
   brief: PrShiftOutletBrief;
   assignmentLabel?: string;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   const initial = brief.name.trim()[0]?.toUpperCase() ?? "O";
 
   return (
-    <div className="iz-pr-outlet-brief">
-      <div className="iz-pr-outlet-brief__hero" style={{ background: brief.heroGradient }}>
+    <div className={cn("iz-pr-outlet-brief", open && "is-open")}>
+      <button
+        type="button"
+        className="iz-pr-outlet-brief__hero"
+        style={{ background: brief.heroGradient }}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
         <div className="iz-pr-outlet-brief__hero-overlay" aria-hidden />
         <div className="iz-pr-outlet-brief__hero-top">
           {assignmentLabel && <span className="iz-pr-outlet-brief__assign">{assignmentLabel}</span>}
-          {brief.vip && (
-            <IzPill variant="amber" className="!text-[9px]">
-              <Sparkles className="h-3 w-3" /> VIP night
-            </IzPill>
-          )}
+          <div className="iz-pr-outlet-brief__hero-badges">
+            {brief.vip && (
+              <IzPill variant="amber" className="!text-[9px]">
+                <Sparkles className="h-3 w-3" /> VIP night
+              </IzPill>
+            )}
+          </div>
         </div>
         <div className="iz-pr-outlet-brief__hero-mark">{initial}</div>
         <div className="iz-pr-outlet-brief__hero-foot">
           <h2 className="iz-pr-outlet-brief__name">{brief.name}</h2>
           <p className="iz-pr-outlet-brief__event">{brief.event}</p>
+          <span className="iz-pr-outlet-brief__action">{open ? "Tap to collapse" : "Tap to expand"}</span>
         </div>
-      </div>
+      </button>
 
-      <div className="iz-pr-outlet-brief__body">
+      {open && (
+        <div className="iz-pr-outlet-brief__body">
         <div className="iz-pr-outlet-brief__row">
           <MapPin className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />
           <div className="min-w-0">
@@ -84,7 +99,8 @@ export function PrShiftOutletBriefCard({
         >
           <ExternalLink className="h-3 w-3" /> Open directions in Maps
         </a>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

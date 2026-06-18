@@ -7,6 +7,7 @@ import {
   PR_SHIFT_OFFERS,
   SHIFT_TODAY,
   buildDemoReceiptDraft,
+  buildDemoReceiptDraftForCategory,
   findDuplicateReceiptScan,
   buildDemoReceiptRef,
   fmtHistDate,
@@ -18,13 +19,27 @@ import {
 import { Camera, Check, History, Shield } from "lucide-react";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 
+type ScanCategory = "drinks" | "tips" | "tables";
+
+const SCAN_CATEGORY_LABEL: Record<ScanCategory, string> = {
+  drinks: "Drinks",
+  tips: "Tips",
+  tables: "Tables",
+};
+
 export const Route = createFileRoute("/host/scan")({
+  validateSearch: (search: Record<string, unknown>): { category?: ScanCategory } => {
+    const raw = search.category;
+    if (raw === "drinks" || raw === "tips" || raw === "tables") return { category: raw };
+    return {};
+  },
   component: ReceiptScanPage,
 });
 
 type ScanPhase = "idle" | "scanning" | "review" | "logged";
 
 function ReceiptScanPage() {
+  const { category } = Route.useSearch();
   const prSubRole = useStore((s) => s.prSubRole);
   const checkedIn = useStore((s) => s.checkedIn);
   const checkedOut = useStore((s) => s.checkedOut);
@@ -40,10 +55,20 @@ function ReceiptScanPage() {
 
   const outlet = prActiveShift?.outlet ?? PR_SHIFT_OFFERS[0].outlet;
   const shiftDate = prActiveShift?.date ?? SHIFT_TODAY;
-  const draft = useMemo(
-    () => buildDemoReceiptDraft(profile, outlet, 0, prId, pendingReceiptRef ?? undefined),
-    [profile, outlet, prId, pendingReceiptRef],
-  );
+  const draft = useMemo(() => {
+    if (category) {
+      return buildDemoReceiptDraftForCategory(
+        profile,
+        outlet,
+        prId,
+        category,
+        pendingReceiptRef ?? undefined,
+      );
+    }
+    return buildDemoReceiptDraft(profile, outlet, 0, prId, pendingReceiptRef ?? undefined);
+  }, [profile, outlet, prId, category, pendingReceiptRef]);
+
+  const categoryLabel = category ? SCAN_CATEGORY_LABEL[category] : null;
 
   const canScan = checkedIn && !checkedOut && prActiveShift;
 
@@ -91,7 +116,7 @@ function ReceiptScanPage() {
         backLabel={phase === "logged" ? "Scan" : phase === "review" ? "Rescan" : undefined}
       />
       <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">
-        Receipt Scan
+        {categoryLabel ? `Scan ${categoryLabel.toLowerCase()} receipt` : "Receipt Scan"}
       </h2>
       <p className="iz-tiny iz-muted mt-0.5">
         Receipts scanned between Time-In and Time-Out attach to one PV for that shift only.

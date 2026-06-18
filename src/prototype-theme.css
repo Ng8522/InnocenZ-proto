@@ -160,6 +160,15 @@
 .iz-hscroll--dragging * {
   cursor: grabbing;
 }
+/* Data tables — free horizontal scroll, no snap, no text selection while dragging */
+.iz-hscroll.iz-hscroll--free {
+  scroll-snap-type: none;
+  touch-action: pan-x pan-y;
+  cursor: default;
+}
+.iz-hscroll.iz-hscroll--free.iz-hscroll--dragging {
+  cursor: grabbing;
+}
 
 @keyframes iz-fade {
   from {
@@ -1626,10 +1635,17 @@
 .iz-pr-shift-status__table-wrap {
   margin-top: 0;
   -webkit-overflow-scrolling: touch;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.iz-pr-shift-status__table-wrap * {
+  user-select: none;
+  -webkit-user-select: none;
 }
 .iz-pr-shift-status__table {
   width: 100%;
-  min-width: 420px;
+  min-width: 580px;
   font-size: 10px;
   border-collapse: separate;
   border-spacing: 0;
@@ -1663,6 +1679,20 @@
   gap: 2px;
   min-width: 108px;
   max-width: 140px;
+}
+.iz-pr-shift-status__product {
+  min-width: 72px;
+  max-width: 100px;
+  font-size: 10px;
+  color: var(--iz-txt);
+}
+.iz-pr-shift-status__qty {
+  min-width: 32px;
+  font-family: "Sora", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--iz-txt);
+  white-space: nowrap;
 }
 .iz-pr-shift-status__item-label {
   font-family: "Sora", sans-serif;
@@ -1717,6 +1747,40 @@
   color: var(--iz-amber);
   max-width: 88px;
 }
+.iz-pr-shift-status__receipt {
+  min-width: 72px;
+  max-width: 100px;
+}
+.iz-pr-shift-status__receipt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: rgba(167, 139, 250, 0.1);
+  color: var(--iz-violet-l);
+  font-family: "Sora", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.iz-pr-shift-status__receipt-btn:hover,
+.iz-pr-shift-status__receipt-btn:focus-visible {
+  background: rgba(167, 139, 250, 0.18);
+  border-color: rgba(167, 139, 250, 0.5);
+  outline: none;
+}
+.iz-receipt-slip__capture {
+  height: auto;
+  min-height: 160px;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
 
 /* PR check-in — outlet assignment brief */
 .iz-pr-outlet-brief {
@@ -1725,14 +1789,66 @@
   border: 1px solid rgba(167, 139, 250, 0.2);
   background: var(--iz-bg2);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  transition: border-color 0.2s ease;
+}
+.iz-pr-outlet-brief.is-open {
+  border-color: rgba(167, 139, 250, 0.38);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(167, 139, 250, 0.08);
 }
 .iz-pr-outlet-brief__hero {
   position: relative;
+  width: 100%;
   min-height: 132px;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+  border: none;
+  color: inherit;
+  transition: min-height 0.2s ease, background 0.15s ease;
+}
+.iz-pr-outlet-brief__hero:hover {
+  filter: brightness(1.03);
+}
+.iz-pr-outlet-brief:not(.is-open) .iz-pr-outlet-brief__hero {
+  min-height: auto;
+}
+.iz-pr-outlet-brief__hero-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.iz-pr-outlet-brief__chev {
+  display: flex;
+  height: 28px;
+  width: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.85);
+}
+.iz-pr-outlet-brief.is-open .iz-pr-outlet-brief__chev {
+  border-color: rgba(244, 183, 64, 0.45);
+  color: var(--iz-gold-l);
+}
+.iz-pr-outlet-brief__action {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--iz-gold-l);
+}
+.iz-pr-outlet-brief:not(.is-open) .iz-pr-outlet-brief__hero-mark {
+  width: 44px;
+  height: 44px;
+  font-size: 1.35rem;
 }
 .iz-pr-outlet-brief__hero-overlay {
   position: absolute;
@@ -1795,6 +1911,7 @@
 }
 .iz-pr-outlet-brief__body {
   padding: 12px 14px 14px;
+  border-top: 1px dashed var(--iz-line);
 }
 .iz-pr-outlet-brief__row {
   display: flex;
@@ -2172,6 +2289,36 @@
 }
 .iz-pr-shift-status__bar-fill.tables {
   background: linear-gradient(90deg, #39d98a, #059669);
+}
+.iz-pr-shift-scan-rows {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  margin-top: 12px;
+}
+.iz-pr-shift-scan-row {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--iz-line2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+}
+.iz-pr-shift-scan-row__label {
+  font-family: "Sora", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--iz-txt);
+  text-align: center;
+  line-height: 1.2;
+}
+.iz-pr-shift-scan-row__btn {
+  justify-content: center;
+  white-space: nowrap;
 }
 .iz-pr-shift-status__list {
   display: flex;
@@ -6309,6 +6456,8 @@ button.iz-agency-row:hover {
   text-align: left;
   cursor: pointer;
   transition: background 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .iz-collapsible-section__trigger:hover {
   background: rgba(255, 255, 255, 0.03);

@@ -248,7 +248,7 @@ function HostShifts() {
 
       <PrPageHeader
         label={view === "services" ? "Agency add-on services" : tied ? "Agency shifts" : "Marketplace"}
-        title={view === "services" ? "Special service" : `Hi, ${firstName}`}
+        title={view === "services" ? "Job Posting" : `Hi, ${firstName}`}
       />
 
       <div className="iz-pr-hub-toolbar mt-3">
@@ -267,7 +267,7 @@ function HostShifts() {
             onClick={() => setHubView("services")}
           >
             <Sparkles className="h-3.5 w-3.5 shrink-0" />
-            Special services
+            Job postings
             {pendingServices.length > 0 && (
               <span className="iz-pr-hub-toggle__badge">{pendingServices.length}</span>
             )}

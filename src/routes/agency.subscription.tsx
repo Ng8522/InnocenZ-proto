@@ -7,6 +7,7 @@ import {
   type AgencySubscriptionPlanId,
 } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
+import { OutletSection } from "@/components/outlet/OutletSection";
 import { IzCard, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
 import { Calendar, CreditCard, Receipt, Users } from "lucide-react";
 
@@ -50,7 +51,7 @@ function AgencySubscription() {
       return;
     }
     saveAgencyOwner({ subscriptionPlanId: planId });
-    toast(`Switched to ${next.label} · ${formatRM(next.monthlyRm)}/mo · up to ${next.prLimit} PRs`, "success");
+    toast(`Switched to ${next.label} · ${formatRM(next.monthlyRm)}/mo · ${next.capacityLabel}`, "success");
   };
 
   if (!agencyCan(agencySubRole, "viewSettings")) {
@@ -84,7 +85,7 @@ function AgencySubscription() {
       <p className="iz-tiny iz-muted2 -mt-1 mb-2">
         PR limit = max PRs you can roster · {prCount} PR{prCount === 1 ? "" : "s"} on roster now
       </p>
-      <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
         {AGENCY_SUBSCRIPTION_PLANS.map((plan) => {
           const isCurrent = plan.id === currentPlan.id;
           const atCapacity = prCount >= plan.prLimit;
@@ -97,7 +98,7 @@ function AgencySubscription() {
                   : undefined
               }
             >
-              <div className="iz-between gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-sora text-sm font-bold">{plan.label}</p>
@@ -109,18 +110,21 @@ function AgencySubscription() {
                     <span className="iz-tiny iz-muted font-normal"> / month</span>
                   </p>
                 </div>
-                <div className="shrink-0 text-right">
-                  <div className="flex items-center justify-end gap-1.5 text-[var(--iz-txt)]">
+                <div className="shrink-0 sm:text-right">
+                  <div className="flex items-center gap-1.5 text-[var(--iz-txt)] sm:justify-end">
                     <Users className="h-4 w-4 text-[var(--iz-gold)]" />
-                    <span className="font-sora text-sm font-bold">Up to {plan.prLimit}</span>
+                    <span className="font-sora text-sm font-bold">{plan.capacityLabel}</span>
                   </div>
-                  <p className="iz-tiny iz-muted mt-0.5">PRs on roster</p>
+                  <p className="iz-tiny iz-muted mt-0.5">on roster</p>
                 </div>
               </div>
               <p className="iz-tiny iz-muted mt-2">{plan.description}</p>
               {isCurrent ? (
                 <p className="iz-tiny iz-muted2 mt-2">
-                  Renewal {RENEWAL_DATE} · {prCount} / {plan.prLimit} PR slots used
+                  Renewal {RENEWAL_DATE}
+                  {plan.id === "enterprise"
+                    ? ` · ${prCount} PRs on roster`
+                    : ` · ${prCount} / ${plan.prLimit + 1} PR slots used`}
                 </p>
               ) : (
                 canEdit && (
@@ -136,33 +140,6 @@ function AgencySubscription() {
             </IzCard>
           );
         })}
-      </div>
-
-      <IzSectionLabel>Payment method</IzSectionLabel>
-      <IzCard flat>
-        <div className="flex items-center gap-2">
-          <CreditCard className="h-4 w-4 text-[var(--iz-muted)]" />
-          <div>
-            <p className="iz-sm font-semibold">Visa ···· {CARD_LAST4}</p>
-            <p className="iz-tiny iz-muted">
-              Billed monthly · {formatRM(currentPlan.monthlyRm)} · auto-renew
-            </p>
-          </div>
-        </div>
-        {canEdit && (
-          <button
-            type="button"
-            className="iz-btn iz-btn-soft mt-3 w-full"
-            onClick={() => toast("Card updated for subscription billing", "success")}
-          >
-            Update card
-          </button>
-        )}
-      </IzCard>
-
-      <div className="mt-1 flex items-center gap-2 iz-tiny iz-muted">
-        <Calendar className="h-3.5 w-3.5" />
-        Next renewal {RENEWAL_DATE}
       </div>
 
       <IzSectionLabel>Billing history</IzSectionLabel>
@@ -195,6 +172,40 @@ function AgencySubscription() {
           ))
         )}
       </div>
+
+      <OutletSection
+        title="Payment method"
+        hint={`Visa ···· ${CARD_LAST4} · renewal ${RENEWAL_DATE}`}
+        collapsible
+        defaultOpen={false}
+        className="!mt-5"
+      >
+        <IzCard flat>
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-[var(--iz-muted)]" />
+            <div>
+              <p className="iz-sm font-semibold">Visa ···· {CARD_LAST4}</p>
+              <p className="iz-tiny iz-muted">
+                Billed monthly · {formatRM(currentPlan.monthlyRm)} · auto-renew
+              </p>
+            </div>
+          </div>
+          {canEdit && (
+            <button
+              type="button"
+              className="iz-btn iz-btn-soft mt-3 w-full"
+              onClick={() => toast("Card updated for subscription billing", "success")}
+            >
+              Update card
+            </button>
+          )}
+        </IzCard>
+
+        <div className="mt-2 flex items-center gap-2 iz-tiny iz-muted">
+          <Calendar className="h-3.5 w-3.5" />
+          Next renewal {RENEWAL_DATE}
+        </div>
+      </OutletSection>
     </div>
   );
 }

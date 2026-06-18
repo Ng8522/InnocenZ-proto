@@ -30,12 +30,11 @@ import {
   recomputeAllOutletPnl,
   withShiftFinancialDefaults,
 } from "@/lib/outlet-financial-sync";
+import { marketplacePrsFromAgency } from "@/lib/portal-sync";
 import {
-  marketplacePrsFromAgency,
-  outletGrossFromPnl,
-  recomputeReconciliation,
-  sumPvNetForCycle,
-} from "@/lib/portal-sync";
+  DEMO_RECONCILIATION_WEEK,
+  recomputeWeeklyReconciliation,
+} from "@/lib/reconciliation-weekly";
 import { SEED_SHIFT_HISTORY } from "@/lib/shift-history";
 import {
   SEED_PR_PVS,
@@ -196,7 +195,7 @@ function cloneRosterSlot(slot: AgencyRosterSlot): AgencyRosterSlot {
 }
 
 function cloneAgencyPr(pr: AgencyManagedPR): AgencyManagedPR {
-  return { ...pr, suspended: false, detached: false };
+  return { ...pr, detached: false };
 }
 
 function clonePaymentVoucher(pv: PrPaymentVoucher): PrPaymentVoucher {
@@ -280,14 +279,14 @@ function buildDemoRoster(): AgencyRosterSlot[] {
   return [...patched, ...velvetTonight];
 }
 
-/** Fresh reconciliation — both sides pending so Owner/Finance can confirm */
-function buildDemoReconciliation(shifts: ShiftRequest[], roster: AgencyRosterSlot[]) {
-  const outletPnl = recomputeAllOutletPnl(shifts, undefined, roster);
-  return recomputeReconciliation({
-    outletGross: outletGrossFromPnl(outletPnl, "Velvet 23"),
-    pvTotal: sumPvNetForCycle(SEED_PR_PVS),
-    dateIso: SEED_RECONCILIATION.dateIso,
-    dateLabel: SEED_RECONCILIATION.dateLabel,
+/** Fresh weekly reconciliation — both sides pending so Owner/Finance can confirm on Sunday */
+function buildDemoReconciliation(shiftHistory: import("@/lib/shift-history-utils").ShiftHistoryRow[]) {
+  return recomputeWeeklyReconciliation({
+    shiftHistory,
+    pvs: SEED_PR_PVS,
+    weekStartIso: DEMO_RECONCILIATION_WEEK.weekStartIso,
+    weekEndIso: DEMO_RECONCILIATION_WEEK.weekEndIso,
+    dateLabel: DEMO_RECONCILIATION_WEEK.dateLabel,
     agencyConfirmed: false,
     outletConfirmed: false,
   });
@@ -364,7 +363,7 @@ export function buildDemoStoreReset() {
         date: "3 Jun 2026",
       },
     ],
-    agencyReconciliation: buildDemoReconciliation(shifts, agencyRoster),
+    agencyReconciliation: buildDemoReconciliation(SEED_SHIFT_HISTORY.map((row) => ({ ...row }))),
     agencyCollections: DEMO_COLLECTIONS.map((c) => ({ ...c })),
     agencyOwner: { ...DEFAULT_AGENCY_OWNER },
     agencyFinanceHead: { ...DEFAULT_FINANCE_HEAD },

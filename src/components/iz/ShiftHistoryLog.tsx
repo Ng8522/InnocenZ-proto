@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
-import { shiftHistorySubline } from "@/lib/shift-history";
-import { sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
+import {
+  aggregateShiftHistoryByPr,
+  aggregateShiftHistoryByVenue,
+  sortShiftHistoryDesc,
+  sumShiftHistoryVenueRollups,
+  type ShiftHistoryPrRollup,
+} from "@/lib/shift-history-utils";
 import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCalendar";
 import { IzCard, formatRM } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import type { ReactNode } from "react";
-import { Calendar as CalendarIcon, ChevronDown, Download, X } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronDown, ChevronRight, Download, X } from "lucide-react";
 
 type Portal = "agency" | "outlet";
 
@@ -24,7 +29,7 @@ export function ShiftHistoryLog({
   const [nameFilter, setNameFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [thirdFilter, setThirdFilter] = useState("");
-  const [detailRow, setDetailRow] = useState<ShiftHistoryRow | null>(null);
+  const [detailPrId, setDetailPrId] = useState<string | null>(null);
 
   const prNames = useMemo(() => [...new Set(rows.map((r) => r.prName))].sort(), [rows]);
   const dates = useMemo(() => [...new Set(rows.map((r) => r.dateIso))].sort().reverse(), [rows]);
@@ -58,9 +63,32 @@ export function ShiftHistoryLog({
 
   const subtitle =
     subtitleOverride ??
-    "Transaction log for completed shifts — payout, drinks, and tips per PR";
+    "Transaction log — one row per PR with totals across the filtered shifts. Tap for outlet breakdown.";
 
   const thirdLabel = portal === "agency" ? "OUTLET" : "PR AGENCY";
+  const venueLabel = portal === "agency" ? "outlet" : "agency";
+
+  const prRollups = useMemo(
+    () => aggregateShiftHistoryByPr(filtered, portal),
+    [filtered, portal],
+  );
+
+  const detailPrRows = useMemo(
+    () => (detailPrId ? filtered.filter((r) => r.prId === detailPrId) : []),
+    [detailPrId, filtered],
+  );
+  const detailPr = useMemo(
+    () => prRollups.find((p) => p.prId === detailPrId) ?? null,
+    [prRollups, detailPrId],
+  );
+  const detailVenueRollups = useMemo(
+    () => aggregateShiftHistoryByVenue(detailPrRows, portal),
+    [detailPrRows, portal],
+  );
+  const detailTotals = useMemo(
+    () => sumShiftHistoryVenueRollups(detailVenueRollups),
+    [detailVenueRollups],
+  );
 
   return (
     <div className="iz-screen">
@@ -104,7 +132,10 @@ export function ShiftHistoryLog({
 
       <div className="iz-between mt-4">
         <div className="iz-sect-label !mb-0">Transaction log</div>
-        <span className="iz-tiny iz-muted2">{filtered.length} records</span>
+        <span className="iz-tiny iz-muted2">
+          {prRollups.length} PR{prRollups.length !== 1 ? "s" : ""} · {filtered.length} shift
+          {filtered.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
       {portal === "agency" && onExport && (
@@ -114,73 +145,169 @@ export function ShiftHistoryLog({
       )}
 
       <div className="mt-2.5 space-y-2.5">
-        {filtered.length === 0 ? (
+        {prRollups.length === 0 ? (
           <IzCard className="text-center">
             <p className="iz-sm iz-muted">No records match these filters</p>
           </IzCard>
         ) : (
-          filtered.map((row) => (
-            <TxnCard key={row.id} row={row} portal={portal} onTap={() => setDetailRow(row)} />
+          prRollups.map((rollup) => (
+            <PrHistoryCard
+              key={rollup.prId}
+              rollup={rollup}
+              venueLabel={venueLabel}
+              onTap={() => setDetailPrId(rollup.prId)}
+            />
           ))
         )}
       </div>
 
-      {detailRow && (
-        <IzSheet open onClose={() => setDetailRow(null)}>
+      {detailPr && (
+        <IzSheet open onClose={() => setDetailPrId(null)}>
           <div className="iz-sheet-head">
             <div>
               <button
                 type="button"
                 className="iz-chip mb-2 !px-2 !py-1 !text-[10px]"
-                onClick={() => setDetailRow(null)}
+                onClick={() => setDetailPrId(null)}
               >
                 ← Back to log
               </button>
-              <p className="iz-tiny iz-muted2 uppercase">Itemised PV lines</p>
-              <h3>{detailRow.prName}</h3>
+              <p className="iz-tiny iz-muted2 uppercase">Earned breakdown by {venueLabel}</p>
+              <h3>{detailPr.prName}</h3>
             </div>
-            <button type="button" className="iz-sheet-close" onClick={() => setDetailRow(null)} aria-label="Close">
+            <button type="button" className="iz-sheet-close" onClick={() => setDetailPrId(null)} aria-label="Close">
               <X className="h-4 w-4" />
             </button>
           </div>
-          <IzCard>
-            <p className="iz-tiny iz-muted">{detailRow.dateDisplay} · {shiftHistorySubline(detailRow, portal)}</p>
-            <div className="iz-v-sum mt-2"><span className="iz-muted">Duration</span><b>{detailRow.durationHours}h</b></div>
-            <div className="iz-v-sum"><span className="iz-muted">Total drinks</span><b>{detailRow.totalDrinks}</b></div>
-            <div className="iz-v-sum"><span className="iz-muted">Total tips</span><b>{formatRM(detailRow.totalTips)}</b></div>
-            <div className="iz-v-sum tot"><span>Total payout</span><b className="text-[var(--iz-gold)]">{formatRM(detailRow.totalPayout)}</b></div>
+
+          <IzCard flat className="!mb-3">
+            <p className="iz-tiny iz-muted">
+              {detailTotals.shiftCount} shift{detailTotals.shiftCount !== 1 ? "s" : ""} in filtered log
+              {detailVenueRollups.length !== 1
+                ? ` · ${detailVenueRollups.length} ${venueLabel}s`
+                : detailVenueRollups[0]
+                  ? ` · ${detailVenueRollups[0].venue}`
+                  : ""}
+            </p>
+            <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet mt-2">
+              <div className="iz-txn-metric earned">
+                <div className="label">Total earned</div>
+                <div className="value iz-ledger">{formatRM(detailTotals.totalPayout)}</div>
+              </div>
+              <div className="iz-txn-metric">
+                <div className="label">Total drinks</div>
+                <div className="value">{detailTotals.totalDrinks}</div>
+              </div>
+              <div className="iz-txn-metric">
+                <div className="label">Total tips</div>
+                <div className="value iz-ledger">{formatRM(detailTotals.totalTips)}</div>
+              </div>
+              <div className="iz-txn-metric">
+                <div className="label">Total tables</div>
+                <div className="value">{detailTotals.totalTables}</div>
+              </div>
+            </div>
           </IzCard>
-          <p className="iz-tiny iz-muted2 mt-2 text-center">Read-only · mirrored to outlet portal</p>
+
+          <div className="space-y-2.5">
+            {detailVenueRollups.map((rollup) => (
+              <IzCard key={rollup.venue} flat>
+                <div className="iz-between items-start gap-2">
+                  <p className="font-sora text-sm font-bold">{rollup.venue}</p>
+                  <span className="iz-tiny iz-muted2">
+                    {rollup.shiftCount} shift{rollup.shiftCount !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet">
+                  <div className="iz-txn-metric earned">
+                    <div className="label">Earned</div>
+                    <div className="value iz-ledger">{formatRM(rollup.totalPayout)}</div>
+                  </div>
+                  <div className="iz-txn-metric">
+                    <div className="label">Drinks</div>
+                    <div className="value">{rollup.totalDrinks}</div>
+                  </div>
+                  <div className="iz-txn-metric">
+                    <div className="label">Tips</div>
+                    <div className="value iz-ledger">{formatRM(rollup.totalTips)}</div>
+                  </div>
+                  <div className="iz-txn-metric">
+                    <div className="label">Tables</div>
+                    <div className="value">{rollup.totalTables}</div>
+                  </div>
+                </div>
+              </IzCard>
+            ))}
+          </div>
+
+          <p className="iz-tiny iz-muted2 mt-3 text-center">Read-only · mirrored to outlet portal</p>
         </IzSheet>
       )}
     </div>
   );
 }
 
-function TxnCard({ row, portal, onTap }: { row: ShiftHistoryRow; portal: Portal; onTap?: () => void }) {
-  return (
-    <IzCard className={onTap ? "cursor-pointer" : undefined} onClick={onTap} role={onTap ? "button" : undefined}>
+function PrHistoryCard({
+  rollup,
+  venueLabel,
+  onTap,
+}: {
+  rollup: ShiftHistoryPrRollup;
+  venueLabel: string;
+  onTap?: () => void;
+}) {
+  const venueSummary =
+    rollup.venues.length <= 2
+      ? rollup.venues.join(" · ")
+      : `${rollup.venues.length} ${venueLabel}s`;
+
+  const body = (
+    <>
       <div className="iz-between items-start gap-2">
-        <div className="font-sora text-[16px] font-bold">{row.prName}</div>
-        <div className="shrink-0 font-sora text-sm font-bold text-[var(--iz-gold-l)]">{row.dateDisplay}</div>
+        <div className="font-sora text-[16px] font-bold">{rollup.prName}</div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <div className="text-right">
+            <div className="font-sora text-sm font-bold text-[var(--iz-gold-l)]">
+              {rollup.shiftCount} shift{rollup.shiftCount !== 1 ? "s" : ""}
+            </div>
+            <p className="iz-tiny iz-muted2">Latest {rollup.latestDateDisplay}</p>
+          </div>
+          {onTap && <ChevronRight className="h-4 w-4 text-[var(--iz-muted)]" aria-hidden />}
+        </div>
       </div>
-      <p className="iz-tiny iz-muted mt-0.5">{shiftHistorySubline(row, portal)}</p>
+      <p className="iz-tiny iz-muted mt-0.5">{venueSummary}</p>
       <div className="iz-txn-card-metrics">
-        <div className="iz-txn-metric payout">
-          <div className="label">Total payout</div>
-          <div className="value iz-ledger">{formatRM(row.totalPayout)}</div>
+        <div className="iz-txn-metric earned">
+          <div className="label">Total earned</div>
+          <div className="value iz-ledger">{formatRM(rollup.totalPayout)}</div>
         </div>
         <div className="iz-txn-metric">
           <div className="label">Total drinks</div>
-          <div className="value">{row.totalDrinks}</div>
+          <div className="value">{rollup.totalDrinks}</div>
         </div>
         <div className="iz-txn-metric">
           <div className="label">Total tips</div>
-          <div className="value iz-ledger">{formatRM(row.totalTips)}</div>
+          <div className="value iz-ledger">{formatRM(rollup.totalTips)}</div>
+        </div>
+        <div className="iz-txn-metric">
+          <div className="label">Total tables</div>
+          <div className="value">{rollup.totalTables}</div>
         </div>
       </div>
-    </IzCard>
+    </>
   );
+
+  if (onTap) {
+    return (
+      <button type="button" className="iz-txn-card-btn" onClick={onTap}>
+        <IzCard flat className="!mb-0 w-full text-left transition-colors hover:border-[var(--iz-gold-d)]">
+          {body}
+        </IzCard>
+      </button>
+    );
+  }
+
+  return <IzCard>{body}</IzCard>;
 }
 
 function dateFromKey(key: string): Date | undefined {

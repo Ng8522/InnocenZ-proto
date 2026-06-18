@@ -1,7 +1,8 @@
 import { formatRM, IzCard } from "@/components/iz/ui";
 import {
   RECEIPT_COMMISSION_RULES,
-  formatReceiptScannedTime,
+  receiptEntryLoggedLabel,
+  receiptEntryMethod,
   type PrReceiptScan,
 } from "@/lib/pr-demo";
 
@@ -12,12 +13,15 @@ export function ReceiptScanSlip({ scan }: { scan: PrReceiptScan }) {
   const tableUnits = scan.items
     .filter((i) => i.category === "tables")
     .reduce((s, i) => s + i.qty, 0);
+  const manual = receiptEntryMethod(scan) === "manual";
 
   return (
     <div className="iz-receipt-slip">
       <div className="iz-scanbox iz-receipt-slip__capture">
         <div className="font-sora w-full text-left text-[11px] leading-relaxed text-[var(--iz-txt)]">
-          <b className="text-[var(--iz-violet-l)]">— OCR EXTRACTED —</b>
+          <b className="text-[var(--iz-violet-l)]">
+            {manual ? "— MANUAL ENTRY —" : "— OCR EXTRACTED —"}
+          </b>
           <br />
           Receipt ID: {scan.receiptRef}
           <br />
@@ -25,7 +29,7 @@ export function ReceiptScanSlip({ scan }: { scan: PrReceiptScan }) {
           <br />
           PR ID: {scan.prId ?? "—"} · {scan.prCode} ({scan.prName})
           <br />
-          Scanned {formatReceiptScannedTime(scan.scannedAt)}
+          {receiptEntryLoggedLabel(scan)}
           <br />
           <br />
           {scan.items.map((item) => (

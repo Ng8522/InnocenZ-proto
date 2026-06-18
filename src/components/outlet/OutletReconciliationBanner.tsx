@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { outletCan } from "@/lib/outlet-rbac";
+import { shouldShowWeeklyReconciliation } from "@/lib/reconciliation-weekly";
 import { formatRM } from "@/components/iz/ui";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,7 @@ export function OutletReconciliationBanner() {
   const [reason, setReason] = useState(agencyReconciliation.varianceReason ?? "");
 
   if (!canConfirm) return null;
+  if (!shouldShowWeeklyReconciliation(agencyReconciliation)) return null;
   if (agencyReconciliation.outletConfirmed && agencyReconciliation.agencyConfirmed) return null;
 
   const hasVariance = agencyReconciliation.variance !== 0;
@@ -22,7 +24,7 @@ export function OutletReconciliationBanner() {
     ? `Variance ${formatRM(agencyReconciliation.variance)} · action needed`
     : agencyReconciliation.outletConfirmed
       ? "Awaiting agency confirm"
-      : "Confirm today's totals";
+      : `Confirm week · ${agencyReconciliation.dateLabel}`;
 
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-[rgba(232,194,122,.28)] bg-[rgba(232,194,122,.06)]">
@@ -33,7 +35,7 @@ export function OutletReconciliationBanner() {
       >
         <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--iz-amber)]" />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-[var(--iz-txt)]">Reconciliation</p>
+          <p className="text-xs font-semibold text-[var(--iz-txt)]">Weekly reconciliation</p>
           <p className="iz-tiny iz-muted truncate">{summary}</p>
         </div>
         <ChevronDown
@@ -44,7 +46,7 @@ export function OutletReconciliationBanner() {
       {open && (
         <div className="border-t border-[rgba(232,194,122,.2)] px-3.5 pb-3.5 pt-2">
           <p className="iz-tiny iz-muted">
-            Sales {formatRM(agencyReconciliation.outletSalesTotal)} vs PV{" "}
+            {agencyReconciliation.dateLabel} · Sales {formatRM(agencyReconciliation.outletSalesTotal)} vs PV{" "}
             {formatRM(agencyReconciliation.pvTotal)}
           </p>
           {hasVariance && !agencyReconciliation.outletConfirmed && (

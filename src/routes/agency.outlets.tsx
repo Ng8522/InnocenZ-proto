@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { AgencyCommissionRulesPanel } from "@/components/agency/AgencyCommissionRulesPanel";
 import { AgencyOutletFilters } from "@/components/agency/AgencyOutletFilters";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import {
@@ -30,16 +31,24 @@ import {
 
 export const Route = createFileRoute("/agency/outlets")({
   component: AgencyManageOutlets,
+  validateSearch: (search: Record<string, unknown>) => ({
+    outlet: typeof search.outlet === "string" && search.outlet.trim() ? search.outlet.trim() : undefined,
+  }),
 });
 
 function AgencyManageOutlets() {
+  const { outlet: outletFromSearch } = Route.useSearch();
   const shifts = useStore((s) => s.shifts);
   const agencyRoster = useStore((s) => s.agencyRoster);
   const agencySubRole = useStore((s) => s.agencySubRole);
   const [filters, setFilters] = useState(EMPTY_AGENCY_OUTLET_FILTERS);
-  const [detailOutlet, setDetailOutlet] = useState<string | null>(null);
+  const [detailOutlet, setDetailOutlet] = useState<string | null>(outletFromSearch ?? null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (outletFromSearch) setDetailOutlet(outletFromSearch);
+  }, [outletFromSearch]);
 
   const canManage = agencyCan(agencySubRole, "managePr");
 
@@ -274,6 +283,10 @@ function AgencyOutletDetail({
           <div className="iz-tiny iz-muted2">PRs tonight</div>
         </IzCard>
       </div>
+
+      <OutletSection title="Commission rules" className="!mb-3">
+        <AgencyCommissionRulesPanel outlet={summary.outlet} />
+      </OutletSection>
 
       <OutletSection title="Available shifts" hint={`${shifts.length} listing${shifts.length !== 1 ? "s" : ""}`}>
         {shifts.length === 0 ? (

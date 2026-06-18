@@ -925,6 +925,31 @@
   box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.45);
   transform: translateY(-1px);
 }
+
+.iz-pr-comcard-thumb-btn {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 11px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  line-height: 0;
+}
+.iz-pr-comcard-thumb-btn:hover {
+  transform: scale(1.04);
+  box-shadow: 0 4px 14px rgba(124, 107, 255, 0.28);
+}
+.iz-pr-comcard-thumb-btn:focus-visible {
+  outline: 2px solid var(--iz-gold-l);
+  outline-offset: 2px;
+}
+.iz-pr-comcard-thumb-btn--week .iz-comcard-3d-preview--thumb .iz-comcard-3d-preview-stage {
+  width: 36px;
+  height: 48px;
+  border-radius: 9px;
+}
+
 .iz-lang-pick {
   border: 1px solid var(--iz-line2);
   border-radius: 999px;
@@ -3172,6 +3197,51 @@
   line-height: 1.2;
   color: var(--iz-txt);
 }
+
+/* Agency home — tabbed hub strip */
+.iz-agency-home-tabs {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--iz-line);
+  background: var(--iz-line);
+}
+.iz-agency-home-tab {
+  background: var(--iz-grad-card);
+  padding: 10px 4px;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  transition: background 0.15s ease;
+}
+.iz-agency-home-tab:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.iz-agency-home-tab.on {
+  background: rgba(232, 194, 122, 0.12);
+}
+.iz-agency-home-tab .l {
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--iz-muted);
+  line-height: 1.25;
+}
+.iz-agency-home-tab.on .l {
+  color: var(--iz-gold-l);
+}
+.iz-agency-home-tab .n {
+  margin-top: 4px;
+  font-family: var(--font-sora, inherit);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--iz-txt);
+}
+
 .iz-outlet-quick-chip {
   display: inline-flex;
   align-items: center;
@@ -3566,9 +3636,27 @@ button.iz-pr-offer-row:hover {
 }
 .iz-txn-card-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-top: 12px;
+}
+@media (min-width: 520px) {
+  .iz-txn-card-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.iz-txn-card-metrics--sheet {
+  margin-top: 10px;
+}
+.iz-txn-card-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
 }
 .iz-txn-metric {
   background: var(--iz-bg2);
@@ -3591,6 +3679,7 @@ button.iz-pr-offer-row:hover {
   font-weight: 800;
   color: var(--iz-txt);
 }
+.iz-txn-metric.earned .value,
 .iz-txn-metric.payout .value {
   color: var(--iz-gold-l);
 }
@@ -5167,7 +5256,7 @@ button.iz-pr-offer-row:hover {
   position: sticky;
   left: 0;
   z-index: 2;
-  min-width: 108px;
+  min-width: 120px;
   text-align: left !important;
   padding-left: 12px !important;
   background: var(--iz-bg2);
@@ -5192,13 +5281,19 @@ button.iz-pr-offer-row:hover {
   position: sticky;
   left: 0;
   z-index: 1;
-  min-width: 108px;
+  min-width: 120px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--iz-line);
   border-right: 1px solid var(--iz-line);
   background: var(--iz-bg2);
   text-align: left;
   vertical-align: top;
+}
+
+.iz-roster-week-pr-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .iz-roster-week-pr .name {
@@ -5215,6 +5310,14 @@ button.iz-pr-offer-row:hover {
   align-items: center;
   gap: 4px;
   margin-top: 4px;
+}
+
+.iz-roster-week-agency-pill {
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 .iz-roster-week-pr .rating {
@@ -6950,7 +7053,7 @@ button.iz-agency-row:hover {
 
 .iz-portal-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -7034,6 +7137,16 @@ button.iz-agency-row:hover {
   font-size: 14px;
   font-weight: 600;
   color: var(--iz-txt);
+}
+
+.iz-portal-table-name--link {
+  color: var(--iz-gold-l);
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+.iz-portal-table-name--link:hover {
+  opacity: 0.85;
+  text-decoration: underline;
 }
 
 .iz-portal-table-av {
@@ -7124,6 +7237,18 @@ button.iz-agency-row:hover {
 
 .iz-portal-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.iz-portal-table-row--clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.iz-portal-table-row--clickable:hover td,
+.iz-portal-table-row--clickable:focus-visible td {
+  background: rgba(255, 255, 255, 0.04);
+}
+.iz-portal-table-row--clickable:focus-visible {
+  outline: none;
 }
 
 .iz-portal-table-pr {

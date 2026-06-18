@@ -590,7 +590,7 @@ export function applyPushEvent(
             id: nid("ops-recon-out"),
             portal: "outlet",
             kind: "reconciliation_due",
-            title: "End-of-day reconciliation",
+            title: "End-of-week reconciliation",
             body: "Review sealed totals vs live sales",
             at,
             read: false,
@@ -636,7 +636,7 @@ export function applyPushEvent(
             body: event.label,
             at,
             read: false,
-            href: event.portal === "agency" ? "/agency/reports" : "/outlet/billing",
+            href: event.portal === "agency" ? "/agency/pv" : "/outlet/billing",
           },
           opsNotifications,
         );
@@ -650,7 +650,7 @@ export function applyPushEvent(
             id: nid("ops-ss-req-ag"),
             portal: "agency",
             kind: "special_service",
-            title: "Special service request",
+            title: "Job posting request",
             body: `${event.serviceLabel} · ${event.prName} · ${event.outlet}`,
             at,
             read: false,
@@ -715,7 +715,7 @@ export function applyPushEvent(
             id: nid("ops-ss-up-ag"),
             portal: "agency",
             kind: "special_service",
-            title: "Special service update",
+            title: "Job posting update",
             body,
             at,
             read: false,
@@ -732,7 +732,7 @@ export function applyPushEvent(
             id: nid("ops-ss-up-out"),
             portal: "outlet",
             kind: "special_service",
-            title: "Special service update",
+            title: "Job posting update",
             body,
             at,
             read: false,
@@ -748,7 +748,7 @@ export function applyPushEvent(
           {
             id: nid("pr-ss-up"),
             kind: "special_service",
-            title: "Special service update",
+            title: "Job posting update",
             body,
             at,
             read: false,
@@ -779,7 +779,7 @@ export const OPS_KIND_LABEL: Record<OpsNotification["kind"], string> = {
   reconciliation_due: "Reconciliation",
   report_ready: "Report",
   collection_reminder: "Invoice due",
-  special_service: "Special service",
+  special_service: "Job posting",
 };
 
 export function isUrgentOpsKind(kind: OpsNotification["kind"]): boolean {

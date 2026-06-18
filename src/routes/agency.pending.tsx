@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
 import type { PendingFreelancerPayroll } from "@/lib/store";
@@ -10,11 +10,14 @@ import { IzCard, IzPill } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import { Building2, Camera, Check, Clock, Image, UserPlus, Users, X } from "lucide-react";
 
+type Tab = "signups" | "freelancer";
+
 export const Route = createFileRoute("/agency/pending")({
   component: AgencyPending,
+  validateSearch: (search: Record<string, unknown>): { tab?: Tab } => ({
+    tab: search.tab === "freelancer" ? "freelancer" : undefined,
+  }),
 });
-
-type Tab = "signups" | "freelancer";
 
 function SignupApprovalCard({
   name,
@@ -286,6 +289,7 @@ function FreelancerPayrollCard({
 }
 
 function AgencyPending() {
+  const { tab: tabFromSearch } = Route.useSearch();
   const {
     pendingPRs,
     pendingFreelancerPayrolls,
@@ -300,6 +304,10 @@ function AgencyPending() {
   const [tab, setTab] = useState<Tab>("signups");
   const [addOpen, setAddOpen] = useState(false);
   const [invite, setInvite] = useState({ name: "", ic: "", mobile: "", email: "" });
+
+  useEffect(() => {
+    if (tabFromSearch) setTab(tabFromSearch);
+  }, [tabFromSearch]);
 
   const signups = pendingPRs.filter((p) => p.status === "pending");
   const freelancers = pendingFreelancerPayrolls.filter(

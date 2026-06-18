@@ -25,6 +25,7 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     totalPayout: 360,
     totalDrinks: 55,
     totalTips: 32,
+    totalTables: 2,
     durationHours: 5,
   },
   {
@@ -38,6 +39,7 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     totalPayout: 445,
     totalDrinks: 78,
     totalTips: 41,
+    totalTables: 3,
     durationHours: 6,
   },
   {
@@ -51,6 +53,7 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     totalPayout: 510,
     totalDrinks: 24,
     totalTips: 40,
+    totalTables: 1,
     durationHours: 6,
   },
   {
@@ -64,6 +67,7 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     totalPayout: 520,
     totalDrinks: 22,
     totalTips: 50,
+    totalTables: 1,
     durationHours: 6,
   },
   {
@@ -77,7 +81,7 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     totalPayout: 420,
     totalDrinks: 17,
     totalTips: 50,
-    durationHours: 6,
+    totalTables: 1,
   },
 ];
 

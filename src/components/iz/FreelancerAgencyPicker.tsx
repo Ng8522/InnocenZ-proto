@@ -123,7 +123,7 @@ export function FreelancerAgencyPicker({ tied }: { tied?: boolean }) {
           <IzCard flat className="border-[rgba(217,185,122,.25)]">
             <AgencyRow agency={selected} selected readOnly />
             <p className="iz-tiny iz-muted2 mt-2 border-t border-[rgba(255,255,255,.06)] pt-2">
-              Tied {tiedMonths} months · {tiedLocked ? "1-year lock active · leave via Special services" : "eligible to transfer"}
+              Tied {tiedMonths} months · {tiedLocked ? "1-year lock active · leave via Job postings" : "eligible to transfer"}
             </p>
           </IzCard>
           {!tiedLocked && (

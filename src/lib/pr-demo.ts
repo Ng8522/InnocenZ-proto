@@ -927,11 +927,15 @@ export interface PrReceiptItem {
 
 export type ReceiptScanStatus = "attached" | "pending" | "in_pv" | "paid";
 
+export type ReceiptEntryMethod = "scan" | "manual";
+
 export interface PrReceiptScan {
   id: string;
   /** Unique outlet POS receipt number — global duplicate guard */
   receiptRef: string;
   scannedAt: string;
+  /** How the receipt was logged — camera OCR scan vs manual tap entry */
+  entryMethod?: ReceiptEntryMethod;
   date: [number, number, number];
   outlet: string;
   prCode: string;
@@ -1163,6 +1167,19 @@ export function receiptStatusLabel(status: ReceiptScanStatus) {
   return "PENDING";
 }
 
+export function receiptEntryMethod(scan: PrReceiptScan): ReceiptEntryMethod {
+  return scan.entryMethod ?? "scan";
+}
+
+export function receiptEntryMethodLabel(method: ReceiptEntryMethod): string {
+  return method === "manual" ? "Manual" : "Scanned";
+}
+
+export function receiptEntryLoggedLabel(scan: PrReceiptScan): string {
+  const verb = receiptEntryMethod(scan) === "manual" ? "Entered" : "Scanned";
+  return `${verb} ${scan.scannedAt}`;
+}
+
 export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   {
     id: "rc-seed-1",
@@ -1251,8 +1268,9 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-seed-5",
-    receiptRef: "MER-20260521-233042",
+    receiptRef: "TAP-20260521-233042",
     scannedAt: "21 May 2026 · 23:30",
+    entryMethod: "manual",
     date: [2026, 5, 21],
     outlet: "Mermate",
     prCode: "PR-0042",
@@ -1296,8 +1314,9 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-luna-2",
-    receiptRef: "BEAR-20260603-214208",
+    receiptRef: "TAP-20260603-214208",
     scannedAt: "3 Jun 2026 · 22:08",
+    entryMethod: "manual",
     date: [2026, 6, 3],
     outlet: "Bear Lounge",
     prCode: "PR-0001",
@@ -1316,8 +1335,9 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-mia-1",
-    receiptRef: "MER-20260603-234011",
+    receiptRef: "TAP-20260603-234011",
     scannedAt: "3 Jun 2026 · 23:40",
+    entryMethod: "manual",
     date: [2026, 6, 3],
     outlet: "Mermate",
     prCode: "PR-0002",

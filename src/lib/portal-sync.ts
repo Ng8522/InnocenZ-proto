@@ -141,7 +141,7 @@ export function collectionToInvoiceId(colId: string): string {
   return colId.replace(/^COL-/, "INV-");
 }
 
-/** Recompute daily reconciliation from live outlet PNL + PV totals */
+/** Recompute reconciliation totals from outlet gross + PV net (variance = outlet − PV). */
 export function recomputeReconciliation(input: {
   outletGross: number;
   pvTotal: number;
@@ -218,6 +218,7 @@ export function buildShiftHistoryRow(input: {
   totalPayout: number;
   totalDrinks: number;
   totalTips: number;
+  totalTables?: number;
   durationHours?: number;
 }): ShiftHistoryRow {
   return {
@@ -231,6 +232,7 @@ export function buildShiftHistoryRow(input: {
     totalPayout: input.totalPayout,
     totalDrinks: input.totalDrinks,
     totalTips: input.totalTips,
+    totalTables: input.totalTables ?? 0,
     durationHours: input.durationHours ?? 6,
   };
 }

@@ -1,4 +1,5 @@
-import type { AgencyRosterSlot, RosterSlotStatus } from "@/lib/agency-demo";
+import { rosterSlotAgencyName, type AgencyManagedPR, type AgencyRosterSlot, type RosterSlotStatus } from "@/lib/agency-demo";
+import { comcardPreviewFromSlot, PrComcardIdentity } from "@/components/agency/PrComcardIdentity";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 import { ArrowLeftRight, Pencil } from "lucide-react";
 
@@ -17,6 +18,7 @@ const STATUS_LABEL: Record<
 
 export function RosterShiftTable({
   slots,
+  agencyPRs,
   canAssign,
   onEdit,
   onFlagLate,
@@ -24,6 +26,7 @@ export function RosterShiftTable({
   onCancelSwap,
 }: {
   slots: AgencyRosterSlot[];
+  agencyPRs: AgencyManagedPR[];
   canAssign: boolean;
   onEdit: (id: string) => void;
   onFlagLate: (id: string) => void;
@@ -38,10 +41,13 @@ export function RosterShiftTable({
     );
   }
 
+  const prById = new Map(agencyPRs.map((p) => [p.id, p]));
+
   return (
     <>
       <p className="iz-tiny iz-muted2 mb-2 hidden md:block">
-        Tap <strong className="text-[var(--iz-gold-l)]">Edit</strong> to change status, shift times, or request outlet swap.
+        Tap a <strong className="text-[var(--iz-gold-l)]">comcard</strong> to identify PRs ·{" "}
+        <strong className="text-[var(--iz-gold-l)]">Edit</strong> to change status, shift times, or request outlet swap.
       </p>
 
       <div className="iz-roster-table-wrap hidden md:block">
@@ -49,6 +55,7 @@ export function RosterShiftTable({
           <thead>
             <tr>
               <th>PR</th>
+              <th>Agency</th>
               <th>Outlet</th>
               <th>Shift</th>
               <th>Check-in</th>
@@ -64,6 +71,7 @@ export function RosterShiftTable({
               <RosterTableRow
                 key={slot.id}
                 slot={slot}
+                profile={prById.get(slot.prId)}
                 canAssign={canAssign}
                 onEdit={onEdit}
                 onFlagLate={onFlagLate}
@@ -80,6 +88,7 @@ export function RosterShiftTable({
           <RosterShiftCard
             key={slot.id}
             slot={slot}
+            profile={prById.get(slot.prId)}
             canAssign={canAssign}
             onEdit={onEdit}
             onFlagLate={onFlagLate}
@@ -105,6 +114,7 @@ function StatusPills({ slot }: { slot: AgencyRosterSlot }) {
 
 function RosterTableRow({
   slot,
+  profile,
   canAssign,
   onEdit,
   onFlagLate,
@@ -112,19 +122,13 @@ function RosterTableRow({
   onCancelSwap,
 }: {
   slot: AgencyRosterSlot;
+  profile?: AgencyManagedPR;
   canAssign: boolean;
   onEdit: (id: string) => void;
   onFlagLate: (id: string) => void;
   onFlagNoShow: (id: string) => void;
   onCancelSwap: (id: string) => void;
 }) {
-  const initials = slot.prName
-    .split(/\s+/)
-    .map((p) => p[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-
   const showFlags =
     canAssign && !slot.checkedInAt && slot.status !== "unavailable" && slot.status !== "swap-pending";
   const showEdit =
@@ -134,7 +138,11 @@ function RosterTableRow({
     <tr className={slot.outletSwap?.status === "pending_pr" ? "iz-roster-row--swap" : undefined}>
       <td>
         <div className="iz-portal-table-pr">
-          <span className="iz-portal-table-av">{initials}</span>
+          <PrComcardIdentity
+            pr={comcardPreviewFromSlot(slot, profile)}
+            profile={profile}
+            agencyName={rosterSlotAgencyName(slot)}
+          />
           <span className="iz-portal-table-name">{slot.prName}</span>
         </div>
         {slot.outletSwap?.status === "pending_pr" && (
@@ -143,6 +151,7 @@ function RosterTableRow({
           </p>
         )}
       </td>
+      <td className="iz-portal-table-meta">{rosterSlotAgencyName(slot)}</td>
       <td className="iz-portal-table-meta">{slot.outlet}</td>
       <td className="iz-portal-table-meta iz-portal-table-shift">
         {slot.shiftStart} – {slot.shiftEnd}
@@ -196,6 +205,7 @@ function RosterTableRow({
 
 function RosterShiftCard({
   slot,
+  profile,
   canAssign,
   onEdit,
   onFlagLate,
@@ -203,6 +213,7 @@ function RosterShiftCard({
   onCancelSwap,
 }: {
   slot: AgencyRosterSlot;
+  profile?: AgencyManagedPR;
   canAssign: boolean;
   onEdit: (id: string) => void;
   onFlagLate: (id: string) => void;
@@ -212,9 +223,17 @@ function RosterShiftCard({
   return (
     <IzCard>
       <div className="iz-between gap-2">
-        <div className="min-w-0">
-          <div className="font-sora text-[15px] font-bold">{slot.prName}</div>
-          <p className="iz-tiny iz-portal-table-meta mt-0.5">{slot.outlet}</p>
+        <div className="flex min-w-0 items-start gap-2.5">
+          <PrComcardIdentity
+            pr={comcardPreviewFromSlot(slot, profile)}
+            profile={profile}
+            agencyName={rosterSlotAgencyName(slot)}
+          />
+          <div className="min-w-0">
+            <div className="font-sora text-[15px] font-bold">{slot.prName}</div>
+            <p className="iz-tiny iz-portal-table-meta mt-0.5">{rosterSlotAgencyName(slot)}</p>
+            <p className="iz-tiny iz-muted2 mt-0.5">{slot.outlet}</p>
+          </div>
         </div>
         <StatusPills slot={slot} />
       </div>

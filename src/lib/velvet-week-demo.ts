@@ -13,6 +13,7 @@ interface VelvetPrNight {
   payout: number;
   drinks: number;
   tips: number;
+  tables?: number;
   durationHours: number;
 }
 
@@ -267,6 +268,15 @@ const VELVET_OLDER_WEEK_NIGHTS: VelvetNightShift[] = [
   },
 ];
 
+function demoTablesForShift(night: VelvetNightShift, pr: VelvetPrNight): number {
+  if (pr.tables != null) return pr.tables;
+  const weekend = night.day === "F" || night.day === "S";
+  if (night.sales >= 10_000) return pr.drinks >= 38 ? 3 : 2;
+  if (night.sales >= 5_000 || weekend) return pr.drinks >= 24 ? 2 : 1;
+  if (pr.drinks >= 16) return 1;
+  return 0;
+}
+
 function nightsToShiftHistory(nights: VelvetNightShift[]): ShiftHistoryRow[] {
   return nights.flatMap((night) =>
     night.prs.map((pr) => ({
@@ -280,6 +290,7 @@ function nightsToShiftHistory(nights: VelvetNightShift[]): ShiftHistoryRow[] {
       totalPayout: pr.payout,
       totalDrinks: pr.drinks,
       totalTips: pr.tips,
+      totalTables: demoTablesForShift(night, pr),
       durationHours: pr.durationHours,
     })),
   );

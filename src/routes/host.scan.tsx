@@ -88,6 +88,7 @@ function ReceiptScanPage() {
       prId: draft.prId,
       items: draft.items,
       totalLogged: draft.totalLogged,
+      entryMethod: "scan",
     });
     if (!id) return;
     setLoggedId(id);

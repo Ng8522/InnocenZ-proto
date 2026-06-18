@@ -3,6 +3,7 @@ import { shiftHoursFromLabel } from "@/lib/outlet-demo";
 import {
   calcReceiptCommissions,
   RECEIPT_COMMISSION_RULES,
+  receiptEntryMethod,
   type PrActiveShiftSession,
   type PrReceiptItem,
   type PrReceiptScan,
@@ -229,7 +230,7 @@ export function buildShiftStatusRows(
       detail: formatReceiptScanRowDetail(scan),
       product: formatReceiptLineItemNames(scan.items),
       qty: formatReceiptLineItemQty(scan.items),
-      source: "Receipt scan",
+      source: receiptEntryMethod(scan) === "manual" ? "Manual entry" : "Receipt scan",
       wagesRm: 0,
       commissionRm: scan.totalCommission,
       verified: verify.ok,

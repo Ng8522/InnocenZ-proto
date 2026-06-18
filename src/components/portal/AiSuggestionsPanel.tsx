@@ -35,7 +35,8 @@ export function AiSuggestionsPanel() {
     suggestions.push({
       title: "Boost incentive at Pearl Lounge",
       desc: "Retention risk on late shift",
-      to: "/agency/reports",
+      to: "/agency/outlets",
+      search: { outlet: "Pearl Lounge" },
     });
   }
   if (lowKpi) {

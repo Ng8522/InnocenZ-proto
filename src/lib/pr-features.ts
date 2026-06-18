@@ -1,7 +1,7 @@
 /** PR spec features beyond base pr-demo — marketplace, notifications, swaps, ratings */
 
 import type { PrShiftOffer } from "@/lib/pr-demo";
-import { PR_SHIFT_OFFERS, SHIFT_TODAY, fmtDateLabelFromIso } from "@/lib/pr-demo";
+import { PR_SHIFT_OFFERS, SHIFT_TODAY, fmtDateLabelFromIso, fmtDtable, shiftTodayIso } from "@/lib/pr-demo";
 import { SEED_AGENCY_ROSTER, type AgencyRosterSlot } from "@/lib/agency-demo";
 import { DEFAULT_ROSTER_DATE_ISO, isDemoDateOnOrAfter } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
@@ -403,7 +403,7 @@ export const SEED_PR_NOTIFICATIONS: PrNotification[] = [
     id: "n-rate-1",
     kind: "rating",
     title: "Rate Velvet 23",
-    body: "Mutual rating window — 18h left after your 4 Jun shift.",
+    body: `Mutual rating window — 18h left after your ${fmtDtable(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2])} Jun shift.`,
     at: "5 Jun · 02:30",
     read: false,
     href: "/host/profile",
@@ -415,7 +415,7 @@ export const SEED_PENDING_RATINGS: PrPendingRating[] = [
   {
     id: "pr-rate-velvet",
     outlet: "Velvet 23",
-    shiftDate: "4 Jun 2026",
+    shiftDate: fmtDateLabelFromIso(shiftTodayIso()).replace(/^\w+ · /, ""),
     expiresAt: Date.now() + 18 * 60 * 60 * 1000,
   },
 ];

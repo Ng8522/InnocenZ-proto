@@ -2,7 +2,6 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { BottomNav } from "@/components/Nav";
 import { PhoneFrame } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
-import { PrSosFab } from "@/components/pr/PrSosButton";
 import { Briefcase, MapPin, History, FileText, User } from "lucide-react";
 
 export const Route = createFileRoute("/host")({
@@ -20,12 +19,7 @@ function HostLayout() {
 
   return (
     <PhoneFrame
-      overlay={
-        <>
-          <Toasts />
-          <PrSosFab />
-        </>
-      }
+      overlay={<Toasts />}
       footer={<BottomNav items={items} className="iz-pr-tabbar" />}
     >
       <div className="iz-pr-app">

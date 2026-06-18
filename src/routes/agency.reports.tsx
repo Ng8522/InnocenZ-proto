@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from '@tanstack/react-router'
+import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { useMemo, useState } from "react";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
@@ -34,7 +35,7 @@ function AgencyReports() {
   const pushNotify = useStore((s) => s.pushNotify);
   const [outletFilter, setOutletFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("2026-06-01");
-  const [dateTo, setDateTo] = useState("2026-06-04");
+  const [dateTo, setDateTo] = useState(DEFAULT_ROSTER_DATE_ISO);
   const [viewMode, setViewMode] = useState<ViewMode>("live");
   const [quickTab, setQuickTab] = useState<QuickTab>("outlet");
 

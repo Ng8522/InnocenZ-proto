@@ -1,6 +1,18 @@
 /** PR Talent demo data — mirrors InnocenZ_Prototype.html */
 
 import { seedFinanceHeadStamp, buildDemoESignatureDataUrl, type FinanceHeadPvStamp } from "@/lib/finance-head-stamp";
+import {
+  addDaysToIso,
+  getPayrollWeekSundayIso,
+  getPreviousWeekSundayIso,
+  isWeekPvIssuedOnCalendar,
+  getShiftToday,
+  migrateDemoDateIso,
+  migrateDemoYmd,
+  remapIsoByWeekSlide,
+  ymdToIso,
+} from "@/lib/demo-clock";
+import { differenceInCalendarDays, parseISO } from "date-fns";
 
 export type PrSubRole = "pr_tied" | "pr_free";
 
@@ -76,11 +88,22 @@ export interface PrShiftOffer {
   rating: string;
 }
 
+/** Live “today” — shift cards, check-in, payroll week, topbar */
+export const SHIFT_TODAY: [number, number, number] = getShiftToday();
+
+export function shiftTodayIso(): string {
+  return ymdToIso(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2]);
+}
+
+export { getShiftToday };
+
+const _shiftTomorrow = addDay(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2]);
+
 export const PR_SHIFT_OFFERS: PrShiftOffer[] = [
   {
     outlet: "Velvet 23",
     event: "VIP Night",
-    date: [2026, 6, 4],
+    date: SHIFT_TODAY,
     time: "22:00 — 04:00",
     endNext: true,
     distance: "1.2 km",
@@ -93,7 +116,7 @@ export const PR_SHIFT_OFFERS: PrShiftOffer[] = [
   {
     outlet: "Onyx KL",
     event: "Regular",
-    date: [2026, 6, 4],
+    date: SHIFT_TODAY,
     time: "10:00 PM – 3:00 AM",
     endNext: true,
     distance: "3.4 km",
@@ -106,7 +129,7 @@ export const PR_SHIFT_OFFERS: PrShiftOffer[] = [
   {
     outlet: "Urban Soul",
     event: "Launch Party",
-    date: [2026, 6, 5],
+    date: _shiftTomorrow,
     time: "20:00 — 01:00",
     endNext: true,
     distance: "5.1 km",
@@ -117,8 +140,6 @@ export const PR_SHIFT_OFFERS: PrShiftOffer[] = [
     rating: "4.9",
   },
 ];
-
-export const SHIFT_TODAY: [number, number, number] = [2026, 6, 4];
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -583,11 +604,33 @@ function seedPrSignature(prName: string) {
   return { prSignatureDataUrl: buildDemoESignatureDataUrl(prName) };
 }
 
-export const PAYROLL_CYCLE = {
-  label: "Current payroll week",
-  range: "1 Jun – 7 Jun 2026",
-  nextTransfer: "Saturday 7 Jun 2026 · PV auto-issued",
-};
+export function getPayrollCycleLabel(): {
+  label: string;
+  range: string;
+  nextTransfer: string;
+} {
+  const [y, m, d] = getShiftToday();
+  const date = new Date(y, m - 1, d);
+  const dow = date.getDay();
+  const diffToSun = -dow;
+  const start = new Date(date);
+  start.setDate(date.getDate() + diffToSun);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const issueDay = new Date(end);
+  issueDay.setDate(end.getDate() + 1);
+  const startLabel = fmtDtable(start.getFullYear(), start.getMonth() + 1, start.getDate());
+  const endLabel = fmtDtable(end.getFullYear(), end.getMonth() + 1, end.getDate());
+  const issueLabel = fmtDtable(issueDay.getFullYear(), issueDay.getMonth() + 1, issueDay.getDate());
+  return {
+    label: "Current payroll week",
+    range: `${startLabel} – ${endLabel} ${end.getFullYear()}`,
+    nextTransfer: `Sunday ${issueLabel} ${issueDay.getFullYear()} · PV auto-issued`,
+  };
+}
+
+/** @deprecated use getPayrollCycleLabel() */
+export const PAYROLL_CYCLE = getPayrollCycleLabel();
 
 export const SEED_PR_PVS: PrPaymentVoucher[] = [
   {
@@ -789,25 +832,39 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     prName: "Luna",
     prIc: "950312-14-8821",
     outlet: "Multi-outlet (2)",
-    weekStartIso: "2026-06-01",
-    weekEndIso: "2026-06-07",
-    cycle: "1 Jun – 7 Jun 2026",
-    issued: "7 Jun 2026",
-    due: "14 Jun 2026",
+    weekStartIso: "2026-06-15",
+    weekEndIso: "2026-06-21",
+    cycle: "15 Jun – 21 Jun 2026",
+    issued: "20 Jun 2026",
+    due: "27 Jun 2026",
     rows: [
-      { i: 1, date: "2 Jun", day: "Tue", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
-      { i: 2, date: "2 Jun", day: "Tue", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 96, ref: "Verified", receiptIds: ["rc-luna-w2-d"] },
-      { i: 3, date: "2 Jun", day: "Tue", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 84, ref: "Verified" },
-      { i: 4, date: "3 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 290, ref: "Sealed" },
-      { i: 5, date: "3 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Commission – Drinks", qty: 1, amt: 85, ref: "Disputed", receiptIds: ["rc-luna-2"] },
-      { i: 6, date: "4 Jun", day: "Thu", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
-      { i: 7, date: "4 Jun", day: "Thu", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 90, ref: "Verified", receiptIds: ["rc-luna-1"] },
+      { i: 1, date: "15 Jun", day: "Mon", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 280, ref: "Sealed" },
+      { i: 2, date: "15 Jun", day: "Mon", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 45, ref: "Verified" },
+      { i: 3, date: "16 Jun", day: "Tue", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
+      { i: 4, date: "16 Jun", day: "Tue", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 96, ref: "Verified", receiptIds: ["rc-luna-w2-d"] },
+      { i: 5, date: "16 Jun", day: "Tue", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 84, ref: "Verified" },
+      { i: 6, date: "17 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 290, ref: "Sealed" },
+      { i: 7, date: "17 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Commission – Drinks", qty: 1, amt: 85, ref: "Disputed", receiptIds: ["rc-luna-2"] },
+      { i: 8, date: "17 Jun", day: "Wed", outlet: "Bear Lounge", desc: "Commission – Tips", qty: 1, amt: 60, ref: "Verified" },
+      { i: 9, date: "18 Jun", day: "Thu", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
+      { i: 10, date: "18 Jun", day: "Thu", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 90, ref: "Verified", receiptIds: ["rc-luna-1"] },
+      { i: 11, date: "18 Jun", day: "Thu", outlet: "Velvet 23", desc: "Commission – Tables", qty: 1, amt: 55, ref: "Verified" },
+      { i: 12, date: "19 Jun", day: "Fri", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 310, ref: "Sealed" },
+      { i: 13, date: "19 Jun", day: "Fri", outlet: "Velvet 23", desc: "Commission – Drinks", qty: 1, amt: 88, ref: "Verified" },
+      { i: 14, date: "19 Jun", day: "Fri", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 72, ref: "Verified" },
+      { i: 15, date: "19 Jun", day: "Fri", outlet: "Velvet 23", desc: "Commission – Tables", qty: 1, amt: 40, ref: "Verified" },
+      { i: 16, date: "19 Jun", day: "Fri", outlet: "Velvet 23", desc: "Others", qty: 1, amt: 25, ref: "Verified" },
+      { i: 17, date: "20 Jun", day: "Sat", outlet: "Bear Lounge", desc: "Daily Wages", qty: 1, amt: 300, ref: "Sealed" },
+      { i: 18, date: "20 Jun", day: "Sat", outlet: "Bear Lounge", desc: "Commission – Drinks", qty: 1, amt: 95, ref: "Verified" },
+      { i: 19, date: "21 Jun", day: "Sun", outlet: "Velvet 23", desc: "Daily Wages", qty: 1, amt: 320, ref: "Sealed" },
+      { i: 20, date: "21 Jun", day: "Sun", outlet: "Velvet 23", desc: "Commission – Tips", qty: 1, amt: 90, ref: "Verified" },
+      { i: 21, date: "21 Jun", day: "Sun", outlet: "Velvet 23", desc: "Commission – Tables", qty: 1, amt: 65, ref: "Verified" },
     ],
-    subtotal: 1245,
+    subtotal: 3095,
     deduct: 0,
-    net: 1245,
+    net: 3095,
     status: "SENT",
-    ...seedFinanceHeadStamp("7 Jun 2026 · 09:00"),
+    ...seedFinanceHeadStamp("20 Jun 2026 · 09:00"),
     receiptIds: ["rc-luna-w2-d", "rc-luna-2", "rc-luna-1"],
   },
   {
@@ -837,6 +894,89 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     receiptIds: ["rc-luna-2"],
   },
 ];
+
+function pvRowDateIso(row: PrPvRow, year: number): string | null {
+  const m = row.date.trim().match(/^(\d{1,2})\s+([A-Za-z]+)/);
+  if (!m) return null;
+  const day = parseInt(m[1], 10);
+  const mon = m[2].slice(0, 3).toLowerCase();
+  const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const mi = months.findIndex((x) => x === mon);
+  if (mi < 0) return null;
+  return ymdToIso(year, mi + 1, day);
+}
+
+export function remapSeedPaymentVoucher(pv: PrPaymentVoucher): PrPaymentVoucher {
+  if (pv.id !== "PV-2026-0611-A" || !pv.weekStartIso) return pv;
+  const prevSunday = getPreviousWeekSundayIso();
+  const prevEnd = addDaysToIso(prevSunday, 6);
+  if (!isWeekPvIssuedOnCalendar(prevEnd)) return { ...pv, weekStartIso: prevSunday, weekEndIso: prevEnd };
+  const fromAnchor = pv.weekStartIso;
+  const issueIso = addDaysToIso(prevEnd, 1);
+  const [iy, im, id] = issueIso.split("-").map(Number);
+  const issuedLabel = fmtDtable(iy, im, id);
+  const dueIso = addDaysToIso(issueIso, 7);
+  const [dy, dm, dd] = dueIso.split("-").map(Number);
+  const startLabel = fmtDtable(
+    ...prevSunday.split("-").map(Number) as [number, number, number],
+  );
+  const endLabel = fmtDtable(...prevEnd.split("-").map(Number) as [number, number, number]);
+  const year = parseIsoYear(prevSunday);
+  return {
+    ...pv,
+    weekStartIso: prevSunday,
+    weekEndIso: prevEnd,
+    cycle: `${startLabel} – ${endLabel} ${year}`,
+    issued: `${issuedLabel} ${year}`,
+    due: `${fmtDtable(dy, dm, dd)} ${dy}`,
+    status: "SENT",
+    rows: pv.rows.map((row) => {
+      const iso = pvRowDateIso(row, parseIsoYear(fromAnchor));
+      if (!iso) return row;
+      const dayOffset = differenceInCalendarDays(parseISO(iso), parseISO(fromAnchor));
+      const newIso = addDaysToIso(prevSunday, dayOffset);
+      const [y, m, d] = newIso.split("-").map(Number);
+      const dayDate = new Date(y, m - 1, d);
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      return { ...row, date: fmtDtable(y, m, d), day: dayNames[dayDate.getDay()] };
+    }),
+  };
+}
+
+function parseIsoYear(iso: string) {
+  return parseInt(iso.slice(0, 4), 10);
+}
+
+export function remapSeedPaymentVouchers(pvs: PrPaymentVoucher[]): PrPaymentVoucher[] {
+  return pvs.map(remapSeedPaymentVoucher);
+}
+
+export function remapSeedReceiptScan(scan: PrReceiptScan): PrReceiptScan {
+  if (!scan.date) return scan;
+  const iso = ymdToIso(scan.date[0], scan.date[1], scan.date[2]);
+  const migrated = migrateDemoDateIso(iso);
+  if (migrated === iso) return scan;
+  const newDate = migrateDemoYmd(scan.date);
+  const [y, m, d] = newDate;
+  const dateLabel = `${d} ${MONTH_NAMES[m - 1]} ${y}`;
+  return {
+    ...scan,
+    date: newDate,
+    scannedAt: scan.scannedAt.replace(/^\d{1,2}\s+\w+\s+\d{4}/, dateLabel),
+    shiftSessionId: scan.shiftSessionId
+      ? scan.shiftSessionId.replace(
+          /shift-\d{4}-\d{2}-\d{2}-/,
+          `shift-${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}-`,
+        )
+      : scan.shiftSessionId,
+    receiptRef:
+      scan.id === "rc-luna-1" ? buildDemoReceiptRef(scan.outlet, newDate) : scan.receiptRef,
+  };
+}
+
+export function remapSeedReceiptScans(scans: PrReceiptScan[]): PrReceiptScan[] {
+  return scans.map(remapSeedReceiptScan);
+}
 
 export function formatRMPlain(n: number) {
   return `RM ${n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -927,6 +1067,9 @@ export interface PrReceiptItem {
 
 export type ReceiptScanStatus = "attached" | "pending" | "in_pv" | "paid";
 
+export type ReceiptLogSource = "ocr" | "manual";
+export type ReceiptAgencyVerification = "pending" | "approved" | "rejected";
+
 export interface PrReceiptScan {
   id: string;
   /** Unique outlet POS receipt number — global duplicate guard */
@@ -951,6 +1094,12 @@ export interface PrReceiptScan {
   pvLineDesc?: string;
   pvStatus?: PrPvStatus;
   status: ReceiptScanStatus;
+  /** OCR scan vs PR self-log when receipt is unreadable */
+  logSource?: ReceiptLogSource;
+  manualReason?: string;
+  /** Agency must verify manual self-logs before they count as matched */
+  agencyVerification?: ReceiptAgencyVerification;
+  agencyVerifiedAt?: string;
 }
 
 /** Outlet commission rules — matches Check-In running payout (RM15/drink, RM60/table, 100% tips) */
@@ -1104,8 +1253,10 @@ export function receiptScanFingerprint(input: {
 export function findDuplicateReceiptScan(
   scans: PrReceiptScan[],
   fingerprint: string,
+  ignoreScanId?: string,
 ): PrReceiptScan | undefined {
   return scans.find((s) => {
+    if (ignoreScanId && s.id === ignoreScanId) return false;
     const fp = receiptScanFingerprint({
       outlet: s.outlet,
       totalLogged: s.totalLogged,
@@ -1114,6 +1265,12 @@ export function findDuplicateReceiptScan(
     });
     return fp === fingerprint;
   });
+}
+
+export function receiptPrimaryCategory(scan: PrReceiptScan): "drinks" | "tips" | "tables" {
+  const cat = scan.items[0]?.category;
+  if (cat === "drinks" || cat === "tips" || cat === "tables") return cat;
+  return "drinks";
 }
 
 export function receiptBelongsToPvLabel(scan: PrReceiptScan) {
@@ -1161,6 +1318,61 @@ export function receiptStatusLabel(status: ReceiptScanStatus) {
   if (status === "in_pv") return "IN PV";
   if (status === "paid") return "PAID";
   return "PENDING";
+}
+
+export function isManualSelfLog(scan: PrReceiptScan) {
+  return scan.logSource === "manual";
+}
+
+export function isSelfLogPendingAgency(scan: PrReceiptScan) {
+  return isManualSelfLog(scan) && scan.agencyVerification === "pending";
+}
+
+export function selfLogVerificationLabel(scan: PrReceiptScan): string {
+  if (!isManualSelfLog(scan)) return "";
+  if (scan.agencyVerification === "approved") return "Agency verified";
+  if (scan.agencyVerification === "rejected") return "Agency rejected";
+  return "Pending agency verify";
+}
+
+export function buildManualReceiptItems(
+  category: "drinks" | "tips" | "tables",
+  amount: number,
+): PrReceiptItem[] {
+  const safe = Math.max(0, Math.round(amount * 100) / 100);
+  if (category === "drinks") {
+    const unitPrice = 50;
+    const qty = Math.max(1, Math.round(safe / unitPrice));
+    return [
+      {
+        label: "Self-log · drinks (manual)",
+        qty,
+        unitPrice,
+        amount: safe,
+        category: "drinks",
+      },
+    ];
+  }
+  if (category === "tips") {
+    return [
+      {
+        label: "Self-log · tips (manual)",
+        qty: 1,
+        unitPrice: safe,
+        amount: safe,
+        category: "tips",
+      },
+    ];
+  }
+  return [
+    {
+      label: "Self-log · table (manual)",
+      qty: 1,
+      unitPrice: safe,
+      amount: safe,
+      category: "tables",
+    },
+  ];
 }
 
 export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
@@ -1273,14 +1485,14 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
   },
   {
     id: "rc-luna-1",
-    receiptRef: "VEL-20260604-221547",
-    scannedAt: "4 Jun 2026 · 22:15",
-    date: [2026, 6, 4],
+    receiptRef: "VEL-20260618-221547",
+    scannedAt: "18 Jun 2026 · 22:15",
+    date: [2026, 6, 18],
     outlet: "Velvet 23",
     prCode: "PR-0001",
     prName: "Luna",
     prId: "p1",
-    shiftSessionId: "shift-2026-06-04-velvet",
+    shiftSessionId: "shift-2026-06-18-velvet",
     pvId: "PV-2026-0611-A",
     items: [
       { label: "Champagne", qty: 2, unitPrice: 280, amount: 560, category: "drinks" },
@@ -1335,6 +1547,9 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     status: "paid",
   },
 ];
+
+export const LIVE_SEED_PR_PVS = remapSeedPaymentVouchers(SEED_PR_PVS);
+export const LIVE_SEED_RECEIPT_SCANS = remapSeedReceiptScans(SEED_RECEIPT_SCANS);
 
 export interface PvLineRecord {
   key: string;

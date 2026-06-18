@@ -1,7 +1,9 @@
 /**
- * Velvet 23 demo week (2–8 Jun 2026) — single source for Reports + History.
+ * Velvet 23 demo week — single source for Reports + History (slides with live payroll week).
  */
 
+import { DEMO_ANCHOR_WEEK_SUNDAY_ISO, remapIsoByWeekSlide } from "@/lib/demo-clock";
+import { fmtDateLabelFromIso } from "@/lib/pr-demo";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 
 export const VELVET_OUTLET_NAME = "Velvet 23";
@@ -269,19 +271,22 @@ const VELVET_OLDER_WEEK_NIGHTS: VelvetNightShift[] = [
 
 function nightsToShiftHistory(nights: VelvetNightShift[]): ShiftHistoryRow[] {
   return nights.flatMap((night) =>
-    night.prs.map((pr) => ({
-      id: `vh-${night.dateIso}-${pr.prId}`,
-      prName: pr.prName,
-      prId: pr.prId,
-      outlet: VELVET_OUTLET_NAME,
-      agencyName: VELVET_AGENCY,
-      dateDisplay: night.dateDisplay,
-      dateIso: night.dateIso,
-      totalPayout: pr.payout,
-      totalDrinks: pr.drinks,
-      totalTips: pr.tips,
-      durationHours: pr.durationHours,
-    })),
+    night.prs.map((pr) => {
+      const dateIso = remapIsoByWeekSlide(night.dateIso, DEMO_ANCHOR_WEEK_SUNDAY_ISO);
+      return {
+        id: `vh-${dateIso}-${pr.prId}`,
+        prName: pr.prName,
+        prId: pr.prId,
+        outlet: VELVET_OUTLET_NAME,
+        agencyName: VELVET_AGENCY,
+        dateDisplay: fmtDateLabelFromIso(dateIso),
+        dateIso,
+        totalPayout: pr.payout,
+        totalDrinks: pr.drinks,
+        totalTips: pr.tips,
+        durationHours: pr.durationHours,
+      };
+    }),
   );
 }
 

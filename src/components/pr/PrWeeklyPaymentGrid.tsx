@@ -32,11 +32,17 @@ export function PrWeeklyPaymentGrid({
   large,
   interactive,
   onDisputeDay,
+  weekPhase = "open",
+  activeDisputeKey,
 }: {
   summary: WeeklyPaymentSummary;
   large?: boolean;
   interactive?: boolean;
   onDisputeDay?: (targets: WeeklyDisputeTarget[]) => void;
+  /** open = current week (PV not yet issued); issued = past week with PV sent */
+  weekPhase?: "open" | "issued";
+  /** Highlights the cell the user tapped to dispute */
+  activeDisputeKey?: string | null;
 }) {
   const canDispute = interactive && Boolean(onDisputeDay);
 
@@ -84,10 +90,13 @@ export function PrWeeklyPaymentGrid({
               return (
                 <tr key={row.key}>
                   <th className="iz-pr-week-pay__row-label">{row.label}</th>
-                  {row.cells.map((value, idx) => (
+                  {row.cells.map((value, idx) => {
+                    const cellKey = `${summary.columns[idx].dateIso}-${row.key}`;
+                    const isActive = activeDisputeKey === cellKey;
+                    return (
                     <td
                       key={`${row.key}-${summary.columns[idx].dateIso}`}
-                      className={`${statusClass(summary.dayStatus[idx])}${canDispute && value > 0 ? " iz-pr-week-pay__cell--tap" : ""}`}
+                      className={`${statusClass(summary.dayStatus[idx])}${canDispute && value > 0 ? " iz-pr-week-pay__cell--tap" : ""}${isActive ? " iz-pr-week-pay__cell--dispute-active" : ""}`}
                     >
                       {canDispute && value > 0 ? (
                         <button
@@ -97,13 +106,14 @@ export function PrWeeklyPaymentGrid({
                           onClick={() => handleCellDispute(idx, row)}
                         >
                           <span>{cellAmount(value)}</span>
-                          <Flag className="iz-pr-week-pay__cell-flag" />
+                          <Flag className="iz-pr-week-pay__cell-flag" aria-hidden />
                         </button>
                       ) : (
                         cellAmount(value)
                       )}
                     </td>
-                  ))}
+                    );
+                  })}
                   <td className="iz-pr-week-pay__row-total">{cellAmount(rowTotal)}</td>
                 </tr>
               );
@@ -153,12 +163,19 @@ export function PrWeeklyPaymentGrid({
             <tr>
               <td colSpan={summary.columns.length + 1}>
                 <span className="iz-pr-week-pay__foot-note">
-                  Verified days only · synced with PV line items · issues{" "}
-                  <b>{summary.saturdayLabel} (Sat)</b>
+                  Verified days only · synced with PV line items
+                  {weekPhase === "open" ? (
+                    <>
+                      {" "}
+                      · issues <b>{summary.issueDayLabel} (Sun)</b>
+                    </>
+                  ) : (
+                    <> · PV issued</>
+                  )}
                 </span>
               </td>
               <td className="iz-pr-week-pay__net font-sora font-extrabold text-[var(--iz-gold)]">
-                {formatRM(summary.totals.net)}
+                {formatRM(weekPhase === "open" ? summary.verifiedTotals.net : summary.totals.net)}
               </td>
             </tr>
           </tfoot>

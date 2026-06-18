@@ -8,13 +8,18 @@ export function PrShiftOutletBriefCard({
   brief,
   assignmentLabel,
   defaultOpen = false,
+  pageLabel,
+  statusLabel,
 }: {
   brief: PrShiftOutletBrief;
   assignmentLabel?: string;
   defaultOpen?: boolean;
+  pageLabel?: string;
+  statusLabel?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const initial = brief.name.trim()[0]?.toUpperCase() ?? "O";
+  const shiftMeta = [brief.shiftDate, brief.shiftTime].filter(Boolean).join(" · ");
 
   return (
     <div className={cn("iz-pr-outlet-brief", open && "is-open")}>
@@ -26,21 +31,39 @@ export function PrShiftOutletBriefCard({
         onClick={() => setOpen((v) => !v)}
       >
         <div className="iz-pr-outlet-brief__hero-overlay" aria-hidden />
-        <div className="iz-pr-outlet-brief__hero-top">
-          {assignmentLabel && <span className="iz-pr-outlet-brief__assign">{assignmentLabel}</span>}
-          <div className="iz-pr-outlet-brief__hero-badges">
-            {brief.vip && (
-              <IzPill variant="amber" className="!text-[9px]">
-                <Sparkles className="h-3 w-3" /> VIP night
-              </IzPill>
+        {(pageLabel || statusLabel) && (
+          <div className="iz-pr-outlet-brief__hero-head">
+            {pageLabel && <span className="iz-pr-outlet-brief__page-label">{pageLabel}</span>}
+            {statusLabel && (
+              <div className="iz-pr-outlet-brief__status-block">
+                <span className="iz-pr-outlet-brief__status-k">Status</span>
+                <span className="iz-pr-outlet-brief__status-v">{statusLabel}</span>
+              </div>
             )}
           </div>
-        </div>
-        <div className="iz-pr-outlet-brief__hero-mark">{initial}</div>
-        <div className="iz-pr-outlet-brief__hero-foot">
-          <h2 className="iz-pr-outlet-brief__name">{brief.name}</h2>
-          <p className="iz-pr-outlet-brief__event">{brief.event}</p>
-          <span className="iz-pr-outlet-brief__action">{open ? "Tap to collapse" : "Tap to expand"}</span>
+        )}
+        <div className="iz-pr-outlet-brief__hero-main">
+          <div className="iz-pr-outlet-brief__hero-foot">
+            <h2 className="iz-pr-outlet-brief__name">{brief.name}</h2>
+            {shiftMeta && <p className="iz-pr-outlet-brief__shift-meta">{shiftMeta}</p>}
+            <div className="iz-pr-outlet-brief__hero-top">
+              {assignmentLabel && (
+                <span className="iz-pr-outlet-brief__assign">{assignmentLabel}</span>
+              )}
+              <div className="iz-pr-outlet-brief__hero-badges">
+                {brief.vip && (
+                  <IzPill variant="amber" className="!text-[9px]">
+                    <Sparkles className="h-3 w-3" /> VIP night
+                  </IzPill>
+                )}
+              </div>
+            </div>
+            <p className="iz-pr-outlet-brief__event">{brief.event}</p>
+            <span className="iz-pr-outlet-brief__action">
+              {open ? "Tap to collapse" : "Tap to expand"}
+            </span>
+          </div>
+          <div className="iz-pr-outlet-brief__hero-mark">{initial}</div>
         </div>
       </button>
 

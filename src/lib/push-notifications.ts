@@ -22,7 +22,9 @@ export type PushEventType =
   | "report_ready"
   | "collection_reminder"
   | "special_service_requested"
-  | "special_service_update";
+  | "special_service_update"
+  | "receipt_self_log"
+  | "receipt_self_log_verified";
 
 export type PushAudience = "pr" | "agency" | "outlet";
 
@@ -46,6 +48,8 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   collection_reminder: { pr: false, agency: false, outlet: true },
   special_service_requested: { pr: true, agency: true, outlet: true },
   special_service_update: { pr: true, agency: true, outlet: true },
+  receipt_self_log: { pr: false, agency: true, outlet: false },
+  receipt_self_log_verified: { pr: true, agency: false, outlet: false },
 };
 
 export function notificationStamp(): string {
@@ -110,6 +114,24 @@ export type PushEvent =
       notifyAgency?: boolean;
       notifyPr?: boolean;
       notifyOutlet?: boolean;
+    }
+  | {
+      type: "receipt_self_log";
+      scanId: string;
+      receiptRef: string;
+      prId: string;
+      prName: string;
+      outlet: string;
+      amount: number;
+      category: string;
+    }
+  | {
+      type: "receipt_self_log_verified";
+      scanId: string;
+      prId: string;
+      prName: string;
+      approved: boolean;
+      amount: number;
     };
 
 export interface PushNotifyInput {
@@ -760,6 +782,46 @@ export function applyPushEvent(
       }
       break;
     }
+    case "receipt_self_log": {
+      if (prefOn(prefs, "receipt_self_log", "agency")) {
+        opsNotifications = prependOps(
+          {
+            id: nid("ops-selflog"),
+            portal: "agency",
+            kind: "receipt_self_log",
+            title: `Self-log · ${event.prName}`,
+            body: `${event.category} RM ${event.amount.toFixed(2)} at ${event.outlet} — verify manual entry (${event.receiptRef})`,
+            at,
+            read: false,
+            href: "/agency/pv",
+            prName: event.prName,
+            outlet: event.outlet,
+          },
+          opsNotifications,
+        );
+      }
+      break;
+    }
+    case "receipt_self_log_verified": {
+      if (prefOn(prefs, "receipt_self_log_verified", "pr")) {
+        prNotifications = prependPr(
+          {
+            id: nid("pr-selflog-v"),
+            kind: "assignment",
+            title: event.approved ? "Self-log verified" : "Self-log rejected",
+            body: event.approved
+              ? `Agency approved your manual receipt log · RM ${event.amount.toFixed(2)}`
+              : `Agency rejected your manual receipt log · RM ${event.amount.toFixed(2)} — contact agency`,
+            at,
+            read: false,
+            prId: event.prId,
+            href: "/host/tonight",
+          },
+          prNotifications,
+        );
+      }
+      break;
+    }
   }
 
   return { prNotifications, opsNotifications };
@@ -780,6 +842,7 @@ export const OPS_KIND_LABEL: Record<OpsNotification["kind"], string> = {
   report_ready: "Report",
   collection_reminder: "Invoice due",
   special_service: "Special service",
+  receipt_self_log: "Self-log",
 };
 
 export function isUrgentOpsKind(kind: OpsNotification["kind"]): boolean {

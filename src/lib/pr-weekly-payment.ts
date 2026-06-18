@@ -1,14 +1,20 @@
+import { addDays, format, parseISO } from "date-fns";
 import { verifyReceiptScan } from "@/lib/pr-shift-status";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
+import { addDaysToIso, isWeekPvIssuedOnCalendar } from "@/lib/demo-clock";
+import { seedFinanceHeadStamp } from "@/lib/finance-head-stamp";
 import {
-  SHIFT_TODAY,
+  getShiftToday,
   fmtDtable,
+  formatPvSignTimestamp,
   type PrPaymentVoucher,
+  type PrProfile,
   type PrPvRow,
   type PrReceiptScan,
 } from "@/lib/pr-demo";
 
-export const WEEKDAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+/** Payroll week runs Sunday → Saturday; PV issues the following Sunday. */
+export const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 export type WeeklyDayStatus = "verified" | "pending" | "disputed" | "empty";
 
@@ -35,10 +41,12 @@ export type WeeklyPaymentSummary = {
   dayStatus: WeeklyDayStatus[];
   totals: { wages: number; drinks: number; tips: number; tables: number; others: number; net: number };
   verifiedDayCount: number;
-  saturdayLabel: string;
-  saturdayIso: string;
+  /** Totals from verified checkout days only (current-week preview) */
+  verifiedTotals: { wages: number; drinks: number; tips: number; tables: number; others: number; net: number };
+  /** Sunday when this week's PV is issued (day after week ends) */
+  issueDayLabel: string;
+  issueDayIso: string;
   pvReady: boolean;
-  /** Per-day outlet from PV rows / history */
   dayOutlets: (string | undefined)[];
 };
 
@@ -75,43 +83,59 @@ export function parseIsoDate(iso: string): Date {
   return new Date(y, m - 1, d);
 }
 
-/** Monday–Sunday week containing the reference date. */
-export function getWeekBounds(reference: [number, number, number] = SHIFT_TODAY) {
+export function referenceToIso(reference: [number, number, number]) {
+  return toDateIso(reference[0], reference[1], reference[2]);
+}
+
+/** Sunday–Saturday week containing the reference date. */
+export function getWeekBounds(reference: [number, number, number] = getShiftToday()) {
   const [y, m, d] = reference;
   const date = new Date(y, m - 1, d);
   const dow = date.getDay();
-  const diffToMon = dow === 0 ? -6 : 1 - dow;
+  const diffToSun = -dow;
   const start = new Date(date);
-  start.setDate(date.getDate() + diffToMon);
+  start.setDate(date.getDate() + diffToSun);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
-  const saturday = new Date(start);
-  saturday.setDate(start.getDate() + 5);
+  const issueDay = new Date(end);
+  issueDay.setDate(end.getDate() + 1);
   const startIso = toDateIso(start.getFullYear(), start.getMonth() + 1, start.getDate());
   const endIso = toDateIso(end.getFullYear(), end.getMonth() + 1, end.getDate());
-  const saturdayIso = toDateIso(saturday.getFullYear(), saturday.getMonth() + 1, saturday.getDate());
+  const issueDayIso = toDateIso(issueDay.getFullYear(), issueDay.getMonth() + 1, issueDay.getDate());
   const startLabel = fmtDtable(start.getFullYear(), start.getMonth() + 1, start.getDate());
   const endLabel = fmtDtable(end.getFullYear(), end.getMonth() + 1, end.getDate());
+  const issueDayLabel = fmtDtable(issueDay.getFullYear(), issueDay.getMonth() + 1, issueDay.getDate());
   return {
     start,
     end,
-    saturday,
+    issueDay,
     startIso,
     endIso,
-    saturdayIso,
-    label: `${startLabel} – ${endLabel} 2026`,
-    saturdayLabel: fmtDtable(saturday.getFullYear(), saturday.getMonth() + 1, saturday.getDate()),
+    issueDayIso,
+    label: `${startLabel} – ${endLabel} ${end.getFullYear()}`,
+    issueDayLabel,
   };
+}
+
+export function getPreviousWeekBounds(reference: [number, number, number] = getShiftToday()) {
+  const bounds = getWeekBounds(reference);
+  const prevStart = new Date(bounds.start);
+  prevStart.setDate(prevStart.getDate() - 7);
+  return getWeekBounds([
+    prevStart.getFullYear(),
+    prevStart.getMonth() + 1,
+    prevStart.getDate(),
+  ]);
+}
+
+/** PV for a week is issued on the Sunday after that week ends. */
+export function isWeekPvIssued(weekEndIso: string, reference: [number, number, number] = getShiftToday()) {
+  return isWeekPvIssuedOnCalendar(weekEndIso, referenceToIso(reference));
 }
 
 export function makeWeeklyPvId(weekStartIso: string, prSuffix: string) {
   const [y, m, d] = weekStartIso.split("-");
   return `PV-${y}-W${m}${d}-${prSuffix}`;
-}
-
-export function isSaturday(date: [number, number, number] = SHIFT_TODAY) {
-  const [y, m, d] = date;
-  return new Date(y, m - 1, d).getDay() === 6;
 }
 
 export function isPvIssuedForWeek(pv: PrPaymentVoucher, weekStartIso: string) {
@@ -145,8 +169,20 @@ function addRowToBreakdown(b: WeeklyDayBreakdown, row: PrPvRow) {
   else if (b.status !== "disputed") b.status = "verified";
 }
 
+function scansForHistoryRow(row: ShiftHistoryRow, scans: PrReceiptScan[]): PrReceiptScan[] {
+  const dayScans = scans.filter(
+    (s) => s.date && toDateIso(s.date[0], s.date[1], s.date[2]) === row.dateIso,
+  );
+  const isCheckoutRow = row.id.startsWith("h") && !row.id.startsWith("vh-");
+  if (!isCheckoutRow) return dayScans;
+  const sealed = dayScans.filter(
+    (s) => s.shiftSessionId?.includes(row.dateIso) && s.outlet === row.outlet,
+  );
+  return sealed.length ? sealed : dayScans;
+}
+
 function breakdownFromHistoryRow(row: ShiftHistoryRow, scans: PrReceiptScan[]): WeeklyDayBreakdown {
-  const dayScans = scans.filter((s) => s.date && toDateIso(s.date[0], s.date[1], s.date[2]) === row.dateIso);
+  const dayScans = scansForHistoryRow(row, scans);
   let drinks = 0;
   let tips = 0;
   let tables = 0;
@@ -156,6 +192,11 @@ function breakdownFromHistoryRow(row: ShiftHistoryRow, scans: PrReceiptScan[]): 
     tips += s.tipCommission;
     tables += s.tableCommission;
     if (!verifyReceiptScan(s).ok) allVerified = false;
+  }
+  if (dayScans.length === 0) {
+    drinks = row.totalDrinks;
+    tips = row.totalTips;
+    allVerified = true;
   }
   const commission = drinks + tips + tables;
   const wages = Math.max(0, row.totalPayout - commission);
@@ -201,6 +242,36 @@ function breakdownsFromPvRows(rows: PrPvRow[], year: number, weekStartIso: strin
   return map;
 }
 
+function pickSealedHistoryRow(
+  rows: ShiftHistoryRow[],
+  prId: string,
+  dateIso: string,
+): ShiftHistoryRow | undefined {
+  return rows.find(
+    (r) =>
+      r.prId === prId &&
+      r.dateIso === dateIso &&
+      r.id.startsWith("h") &&
+      !r.id.startsWith("vh-"),
+  );
+}
+
+function computeVerifiedTotals(
+  columns: WeeklyDayColumn[],
+  dayStatus: WeeklyDayStatus[],
+  rows: WeeklyIncomeRow[],
+) {
+  const totals = { wages: 0, drinks: 0, tips: 0, tables: 0, others: 0, net: 0 };
+  for (let i = 0; i < columns.length; i++) {
+    if (dayStatus[i] !== "verified") continue;
+    for (const row of rows) {
+      totals[row.key] += row.cells[i];
+      totals.net += row.cells[i];
+    }
+  }
+  return totals;
+}
+
 /** Merge PV line items with week grid totals — single source for display & dispute. */
 export function syncWeeklyPvWithSummary(
   pv: PrPaymentVoucher,
@@ -212,7 +283,7 @@ export function syncWeeklyPvWithSummary(
   const outlets = new Set(rows.map((r) => r.outlet).filter(Boolean));
   return {
     ...pv,
-    cycle: summary.weekLabel.replace(/\s+2026$/, ""),
+    cycle: summary.weekLabel.replace(/\s+\d{4}$/, ""),
     outlet: outlets.size > 1 ? `Multi-outlet (${outlets.size})` : rows[0]?.outlet ?? pv.outlet,
     subtotal,
     net: Math.max(0, subtotal - pv.deduct),
@@ -278,32 +349,45 @@ export function buildWeeklyPaymentSummary(opts: {
   prId?: string;
   disputedDates?: string[];
 }): WeeklyPaymentSummary {
-  const reference = opts.reference ?? SHIFT_TODAY;
+  const reference = opts.reference ?? getShiftToday();
   const bounds = opts.weekStartIso
-    ? getWeekBounds(
-        opts.weekStartIso.split("-").map(Number) as [number, number, number],
-      )
+    ? getWeekBounds(opts.weekStartIso.split("-").map(Number) as [number, number, number])
     : getWeekBounds(reference);
   const weekStartIso = opts.weekStartIso ?? bounds.startIso;
   const weekEndIso = bounds.endIso;
   const year = parseIsoDate(weekStartIso).getFullYear();
   const columns = buildColumns(bounds.start, reference);
   const dayMap = new Map<string, WeeklyDayBreakdown>();
-  const pvOnlyWeek = Boolean(opts.pv?.weekStartIso);
+  const pvMatchesWeek = opts.pv?.weekStartIso === weekStartIso;
+  const pvReady = isWeekPvIssued(weekEndIso, reference);
+  const isCurrentWeek = weekStartIso === getWeekBounds(reference).startIso;
+  const pvIsAuthoritative = pvMatchesWeek && pvReady && (opts.pv?.rows?.length ?? 0) > 0;
 
-  if (opts.pv?.rows?.length) {
-    for (const [iso, b] of breakdownsFromPvRows(opts.pv.rows, year, weekStartIso, weekEndIso)) {
+  if (pvIsAuthoritative) {
+    for (const [iso, b] of breakdownsFromPvRows(opts.pv!.rows, year, weekStartIso, weekEndIso)) {
       dayMap.set(iso, b);
     }
   }
 
-  if (!pvOnlyWeek && opts.shiftHistory?.length && opts.prId) {
-    for (const row of opts.shiftHistory) {
-      if (row.prId !== opts.prId) continue;
-      if (row.dateIso < weekStartIso || row.dateIso > weekEndIso) continue;
-      if (dayMap.has(row.dateIso)) continue;
-      dayMap.set(row.dateIso, breakdownFromHistoryRow(row, opts.scans ?? []));
+  if (opts.shiftHistory?.length && opts.prId && !pvIsAuthoritative) {
+    for (const col of columns) {
+      if (col.isFuture) continue;
+      const row = pickSealedHistoryRow(opts.shiftHistory, opts.prId, col.dateIso);
+      if (!row) continue;
+      dayMap.set(col.dateIso, breakdownFromHistoryRow(row, opts.scans ?? []));
     }
+  }
+
+  // Current week before PV issue: only real check-out rows — never seed venue history or scans alone.
+  if (isCurrentWeek && !pvReady) {
+    const checkoutOnly = new Map<string, WeeklyDayBreakdown>();
+    for (const col of columns) {
+      if (col.isFuture) continue;
+      const row = pickSealedHistoryRow(opts.shiftHistory ?? [], opts.prId ?? "", col.dateIso);
+      if (row) checkoutOnly.set(col.dateIso, breakdownFromHistoryRow(row, opts.scans ?? []));
+    }
+    dayMap.clear();
+    for (const [iso, b] of checkoutOnly) dayMap.set(iso, b);
   }
 
   for (const iso of opts.disputedDates ?? []) {
@@ -344,9 +428,7 @@ export function buildWeeklyPaymentSummary(opts: {
 
   const verifiedDayCount = dayStatus.filter((s) => s === "verified").length;
   const dayOutlets = columns.map((col) => dayMap.get(col.dateIso)?.outlet);
-  const refDate = new Date(reference[0], reference[1] - 1, reference[2]);
-  const satDate = parseIsoDate(bounds.saturdayIso);
-  const pvReady = refDate >= satDate;
+  const verifiedTotals = computeVerifiedTotals(columns, dayStatus, rows);
 
   return {
     weekStartIso,
@@ -356,9 +438,10 @@ export function buildWeeklyPaymentSummary(opts: {
     rows,
     dayStatus,
     totals,
+    verifiedTotals,
     verifiedDayCount,
-    saturdayLabel: bounds.saturdayLabel,
-    saturdayIso: bounds.saturdayIso,
+    issueDayLabel: bounds.issueDayLabel,
+    issueDayIso: bounds.issueDayIso,
     pvReady,
     dayOutlets,
   };
@@ -401,4 +484,46 @@ export function pvRowsFromWeeklySummary(
     }
   }
   return rows;
+}
+
+export function buildSentWeeklyPv(opts: {
+  profile: PrProfile;
+  prSuffix: string;
+  summary: WeeklyPaymentSummary;
+  fallbackOutlet?: string;
+  existing?: PrPaymentVoucher | null;
+}): PrPaymentVoucher {
+  const outlet = opts.fallbackOutlet ?? opts.existing?.outlet ?? "Velvet 23";
+  const synced = opts.existing
+    ? syncWeeklyPvWithSummary(opts.existing, opts.summary)
+    : null;
+  const rows = synced?.rows ?? pvRowsFromWeeklySummary(opts.summary, outlet);
+  const subtotal = opts.summary.totals.net;
+  const issueDate = parseIsoDate(opts.summary.issueDayIso);
+  const issuedLabel = format(issueDate, "d MMM yyyy");
+  const dueLabel = format(addDays(issueDate, 7), "d MMM yyyy");
+  const issuedStamp = formatPvSignTimestamp(issueDate);
+  return {
+    id: opts.existing?.id ?? makeWeeklyPvId(opts.summary.weekStartIso, opts.prSuffix),
+    prName: opts.profile.name,
+    prIc: opts.profile.ic,
+    outlet:
+      rows.length > 0
+        ? [...new Set(rows.map((r) => r.outlet))].length > 1
+          ? `Multi-outlet (${[...new Set(rows.map((r) => r.outlet))].length})`
+          : rows[0].outlet
+        : outlet,
+    weekStartIso: opts.summary.weekStartIso,
+    weekEndIso: opts.summary.weekEndIso,
+    cycle: opts.summary.weekLabel.replace(/\s+\d{4}$/, ""),
+    issued: issuedLabel,
+    due: dueLabel,
+    rows,
+    subtotal,
+    deduct: opts.existing?.deduct ?? 0,
+    net: Math.max(0, subtotal - (opts.existing?.deduct ?? 0)),
+    status: "SENT",
+    ...seedFinanceHeadStamp(`${issuedStamp.split("·")[0]?.trim() ?? issuedLabel} · 09:00`),
+    receiptIds: opts.existing?.receiptIds,
+  };
 }

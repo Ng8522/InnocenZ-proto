@@ -1481,6 +1481,10 @@
 .iz-pr-app .iz-pr-week-pay__row-label {
   color: #d8c8ec;
 }
+.iz-pr-app .iz-pr-week-pay__corner,
+.iz-pr-app .iz-pr-week-pay__row-label {
+  background: linear-gradient(90deg, rgba(22, 16, 32, 0.98) 85%, transparent);
+}
 .iz-pr-app .iz-pr-week-pay__cell--empty {
   color: #b8a8cc;
 }
@@ -1802,7 +1806,7 @@
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 10px;
   text-align: left;
   cursor: pointer;
   border: none;
@@ -1850,6 +1854,48 @@
   height: 44px;
   font-size: 1.35rem;
 }
+.iz-pr-outlet-brief__hero-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.iz-pr-outlet-brief__page-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #d8c8ec;
+}
+.iz-pr-outlet-brief__status-block {
+  flex-shrink: 0;
+  text-align: right;
+}
+.iz-pr-outlet-brief__status-k {
+  display: block;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+.iz-pr-outlet-brief__status-v {
+  display: block;
+  margin-top: 2px;
+  font-family: "Sora", sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--iz-gold-l);
+}
+.iz-pr-outlet-brief__hero-main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
 .iz-pr-outlet-brief__hero-overlay {
   position: absolute;
   inset: 0;
@@ -1862,8 +1908,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 6px;
+  margin-top: 8px;
 }
 .iz-pr-outlet-brief__assign {
   font-family: "Sora", sans-serif;
@@ -1874,10 +1920,11 @@
   color: rgba(255, 255, 255, 0.85);
 }
 .iz-pr-outlet-brief__hero-mark {
-  position: absolute;
-  right: 14px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: relative;
+  top: auto;
+  right: auto;
+  transform: none;
+  flex-shrink: 0;
   width: 56px;
   height: 56px;
   border-radius: 14px;
@@ -1895,7 +1942,8 @@
 .iz-pr-outlet-brief__hero-foot {
   position: relative;
   z-index: 1;
-  max-width: calc(100% - 72px);
+  flex: 1;
+  min-width: 0;
 }
 .iz-pr-outlet-brief__name {
   font-family: "Sora", sans-serif;
@@ -1903,6 +1951,12 @@
   font-weight: 800;
   line-height: 1.15;
   color: #fff;
+}
+.iz-pr-outlet-brief__shift-meta {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.65);
 }
 .iz-pr-outlet-brief__event {
   margin-top: 2px;
@@ -1977,6 +2031,7 @@
 .iz-pr-week-pay__scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
 }
 .iz-pr-week-pay__table {
   width: 100%;
@@ -1988,6 +2043,25 @@
 .iz-pr-week-pay__corner {
   width: 72px;
   min-width: 72px;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: linear-gradient(90deg, rgba(28, 22, 38, 0.98) 85%, transparent);
+}
+.iz-pr-week-pay__row-label {
+  text-align: left;
+  padding: 8px 6px 8px 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--iz-muted);
+  white-space: nowrap;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: linear-gradient(90deg, rgba(28, 22, 38, 0.98) 85%, transparent);
+}
+.iz-pr-week-pay__status-row .iz-pr-week-pay__row-label {
+  z-index: 2;
 }
 .iz-pr-week-pay__day {
   text-align: center;
@@ -2014,14 +2088,6 @@
 }
 .iz-pr-week-pay__day.future {
   opacity: 0.45;
-}
-.iz-pr-week-pay__row-label {
-  text-align: left;
-  padding: 8px 6px 8px 0;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--iz-muted);
-  white-space: nowrap;
 }
 .iz-pr-week-pay__table td,
 .iz-pr-week-pay__table th {
@@ -2124,8 +2190,31 @@
   color: var(--iz-txt);
   letter-spacing: -0.02em;
 }
+.iz-pr-week-pay-collapsible {
+  margin-top: 12px;
+}
+.iz-pr-week-pay-collapsible.is-open {
+  border-color: rgba(167, 139, 250, 0.32);
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.1), rgba(255, 255, 255, 0.02));
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.08);
+}
+.iz-pr-week-pay-collapsible--review.is-open {
+  border-color: rgba(232, 194, 122, 0.38);
+  background: linear-gradient(180deg, rgba(232, 194, 122, 0.1), rgba(255, 255, 255, 0.02));
+}
+.iz-pr-week-pay-collapsible__body {
+  padding: 0 10px 10px !important;
+}
+.iz-pr-week-pay-collapsible__verified {
+  min-width: 2.5rem;
+  text-align: right;
+}
 .iz-pr-week-pay__cell--tap {
   padding: 0 !important;
+}
+.iz-pr-week-pay__cell--dispute-active {
+  box-shadow: inset 0 0 0 2px rgba(232, 194, 122, 0.75);
+  background: rgba(232, 194, 122, 0.12) !important;
 }
 .iz-pr-week-pay__cell-btn {
   display: flex;
@@ -2142,9 +2231,14 @@
   font: inherit;
   cursor: pointer;
   border-radius: 8px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
-.iz-pr-week-pay__cell-btn:hover {
+.iz-pr-week-pay__cell-btn:hover,
+.iz-pr-week-pay__cell-btn:focus-visible {
   background: rgba(255, 107, 107, 0.12);
+  outline: 2px solid rgba(232, 194, 122, 0.45);
+  outline-offset: -2px;
 }
 .iz-pr-week-pay__cell-flag {
   width: 10px;
@@ -2396,6 +2490,120 @@
   color: var(--iz-amber);
   background: rgba(244, 183, 64, 0.1);
   border: 1px solid rgba(244, 183, 64, 0.28);
+}
+.iz-pr-shift-verify--selflog {
+  color: var(--iz-gold-l);
+  background: rgba(232, 194, 122, 0.14);
+  border: 1px solid rgba(232, 194, 122, 0.38);
+  box-shadow: 0 0 0 1px rgba(232, 194, 122, 0.12);
+}
+.iz-pr-shift-status__row--selflog {
+  background: rgba(232, 194, 122, 0.06);
+}
+.iz-pr-shift-scan-row__btn--selflog {
+  border-color: rgba(232, 194, 122, 0.35) !important;
+  color: var(--iz-gold-l) !important;
+}
+.iz-pr-shift-status__actions {
+  min-width: 56px;
+}
+.iz-pr-shift-status__action-btns {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+.iz-pr-shift-status__action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--iz-line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--iz-muted);
+}
+.iz-pr-shift-status__action-btn--edit {
+  border-color: rgba(232, 194, 122, 0.4);
+  color: var(--iz-gold-l);
+  background: rgba(232, 194, 122, 0.1);
+}
+.iz-pr-shift-status__action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.iz-scanbox--blurry {
+  filter: blur(2px);
+  opacity: 0.55;
+  padding: 12px;
+}
+.iz-self-log-callout {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 194, 122, 0.38);
+  background: linear-gradient(180deg, rgba(232, 194, 122, 0.12), rgba(232, 194, 122, 0.04));
+}
+.iz-self-log-form {
+  padding: 14px;
+  border-radius: 14px;
+  border: 2px solid rgba(232, 194, 122, 0.45);
+  background: linear-gradient(180deg, rgba(232, 194, 122, 0.1), rgba(255, 255, 255, 0.02));
+  box-shadow: 0 0 0 1px rgba(232, 194, 122, 0.1);
+}
+.iz-self-log-form__label {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--iz-gold-l);
+}
+.iz-self-log-form__amount-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px solid rgba(232, 194, 122, 0.5);
+  background: rgba(0, 0, 0, 0.25);
+}
+.iz-self-log-form__prefix {
+  font-family: "Sora", sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--iz-gold-l);
+}
+.iz-self-log-form__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-family: "Sora", sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--iz-txt);
+  outline: none;
+}
+.iz-self-log-form__note {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--iz-line);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--iz-txt);
+  font-size: 12px;
+  resize: vertical;
+}
+.iz-self-log-form__submit {
+  box-shadow: 0 0 0 1px rgba(232, 194, 122, 0.25);
+}
+.iz-receipt-selflog-pending {
+  border-color: rgba(244, 183, 64, 0.45) !important;
+  background: linear-gradient(180deg, rgba(244, 183, 64, 0.08), transparent) !important;
 }
 
 .iz-profile-actions {
@@ -6609,11 +6817,37 @@ button.iz-agency-row:hover {
   box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.12);
 }
 
+.iz-pv-dispute-caution {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  background: var(--iz-red-bg);
+}
+.iz-pv-dispute-caution__icon {
+  margin-top: 1px;
+  color: var(--iz-red);
+}
+.iz-pv-dispute-caution__text {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--iz-muted);
+}
+
 .iz-pv-dispute-details {
   border: 1px solid var(--iz-line);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.02);
   overflow: hidden;
+}
+.iz-pv-dispute-details--caution {
+  border-color: rgba(255, 107, 107, 0.35);
+  background: linear-gradient(180deg, rgba(255, 107, 107, 0.06), rgba(255, 255, 255, 0.02));
+}
+.iz-pv-dispute-details-toggle--caution {
+  background: rgba(255, 107, 107, 0.04);
 }
 .iz-pv-dispute-details-toggle {
   display: flex;

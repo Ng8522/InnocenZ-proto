@@ -6,7 +6,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { ArrowLeft, ArrowLeftRight } from "lucide-react";
 
-import { SHIFT_TODAY, fmtDTopbar, getPrProfile } from "@/lib/pr-demo";
+import { getShiftToday, fmtDTopbar, getPrProfile } from "@/lib/pr-demo";
 
 import { AGENCY_SUB_ROLE_LABELS } from "@/lib/agency-rbac";
 
@@ -95,7 +95,8 @@ function formatTopbarTime(d: Date) {
 
 function PrTopbarDateTime() {
   const [time, setTime] = useState(() => formatTopbarTime(new Date()));
-  const dateLine = fmtDTopbar(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2]);
+  const today = getShiftToday();
+  const dateLine = fmtDTopbar(today[0], today[1], today[2]);
 
   useEffect(() => {
     const tick = () => setTime(formatTopbarTime(new Date()));

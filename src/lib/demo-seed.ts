@@ -39,6 +39,9 @@ import {
 import { SEED_SHIFT_HISTORY } from "@/lib/shift-history";
 import {
   SEED_PR_PVS,
+  LIVE_SEED_PR_PVS,
+  LIVE_SEED_RECEIPT_SCANS,
+  remapSeedPaymentVouchers,
   SEED_RECEIPT_SCANS,
   COMCARD,
   PORTFOLIO_SLOT_COUNT,
@@ -313,8 +316,8 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     tables: 0,
     outletRatingStars: 0,
     prActiveShift: null,
-    prPaymentVouchers: SEED_PR_PVS.map(clonePaymentVoucher),
-    prReceiptScans: [...SEED_RECEIPT_SCANS],
+    prPaymentVouchers: remapSeedPaymentVouchers(SEED_PR_PVS).map(clonePaymentVoucher),
+    prReceiptScans: [...LIVE_SEED_RECEIPT_SCANS],
     prComcard: { ...COMCARD },
     prPortfolio: Array.from({ length: PORTFOLIO_SLOT_COUNT }, () => null) as (string | null)[],
     prLanguages: ["English", "Mandarin", "Cantonese"],

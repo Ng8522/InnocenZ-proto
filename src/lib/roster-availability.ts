@@ -1,9 +1,10 @@
 import type { AgencyManagedPR, AgencyRosterSlot } from "@/lib/agency-demo";
 import { OUTLET_NAMES } from "@/lib/agency-demo";
+import { getLiveTodayIso, migrateDemoDateIso } from "@/lib/demo-clock";
 import { primarySlotForPrOnDate } from "@/lib/roster-week-plan";
 
-/** Demo “today” for roster availability filters */
-export const DEFAULT_ROSTER_DATE_ISO = "2026-06-04";
+/** Live “today” for roster availability filters */
+export const DEFAULT_ROSTER_DATE_ISO = getLiveTodayIso();
 
 export function isDemoDateOnOrAfter(dateIso: string, baselineIso = DEFAULT_ROSTER_DATE_ISO): boolean {
   return dateIso >= baselineIso;

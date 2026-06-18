@@ -10,12 +10,21 @@ import {
   PR_SHIFT_OFFERS,
   SHIFT_TODAY,
   SEED_PR_PVS,
+  LIVE_SEED_PR_PVS,
+  LIVE_SEED_RECEIPT_SCANS,
+  remapSeedPaymentVoucher,
+  remapSeedPaymentVouchers,
+  remapSeedReceiptScan,
+  remapSeedReceiptScans,
+  getShiftToday,
   SEED_RECEIPT_SCANS,
   COMCARD,
   PORTFOLIO_SLOT_COUNT,
   calcReceiptCommissions,
   findDuplicateReceiptScan,
   receiptScanFingerprint,
+  buildManualReceiptItems,
+  receiptPrimaryCategory,
   buildPaymentVoucherFromShift,
   getPrProfile,
   makeShiftSessionId,
@@ -25,6 +34,8 @@ import {
   DEFAULT_TIED_AGENCY_ID,
   getPrAgencyById,
   getPrRosterId,
+  filterPvsForPrProfile,
+  filterReceiptScansForPrProfile,
   isFreelancerPrId,
   TIED_DEMO_ROSTER_PR_ID,
   fmtDateLabelFromIso,
@@ -68,6 +79,12 @@ import {
   buildDemoESignatureDataUrl,
 } from "@/lib/finance-head-stamp";
 import { validateReceiptScan } from "@/lib/receipt-scan-utils";
+import {
+  buildSentWeeklyPv,
+  buildWeeklyPaymentSummary,
+  getPreviousWeekBounds,
+  isWeekPvIssued,
+} from "@/lib/pr-weekly-payment";
 import { mergeAgencyCollections } from "@/lib/agency-payroll";
 import { getFreePrsWithDistances } from "@/lib/roster-availability";
 import type { AgencySubRole } from "@/lib/agency-rbac";
@@ -97,6 +114,7 @@ import {
   patchPrRosterAttendanceFlags,
 } from "@/lib/portal-sync";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { migrateDemoDateIso } from "@/lib/demo-clock";
 import {
   buildAvailabilityOpsNotifications,
   canTogglePrDayAvailability,
@@ -149,7 +167,7 @@ import {
   shiftIndexForOutlet,
   type PrShiftSessionState,
 } from "@/lib/pr-session";
-import { calcDutyWagesFromOutlet, shiftPayoutTotal } from "@/lib/pr-shift-status";
+import { calcDutyWagesFromOutlet, shiftPayoutTotal, receiptItemsForShift } from "@/lib/pr-shift-status";
 import {
   syncCommissionRulesFromWorkspace,
   syncWorkspaceFromCommissionRules,
@@ -330,6 +348,8 @@ interface StoreState {
   demoPrShiftIn: () => void;
   /** Prototype: accept shift (if needed) and mark en-route only */
   demoPrEnRoute: () => void;
+  /** Prototype: check out without selfie / GPS hold */
+  demoPrCheckOut: () => void;
   /** PR started heading to venue — outlet roster shows EN-ROUTE until check-in */
   prMarkEnRoute: () => void;
   prCheckIn: (opts?: {
@@ -400,6 +420,7 @@ interface StoreState {
   }) => void;
 
   prPaymentVouchers: PrPaymentVoucher[];
+  ensurePreviousWeekPv: () => void;
   signPrPv: (id: string, signatureDataUrl: string) => void;
   disputePrPv: (id: string, reason: string, photoDataUrls?: string[]) => void;
   updatePrPvDisputeReason: (id: string, reason: string, photoDataUrls?: string[]) => void;
@@ -415,7 +436,23 @@ interface StoreState {
     prId: string;
     items: PrReceiptScan["items"];
     totalLogged: number;
+    manualSelfLog?: {
+      reason: string;
+      category: "drinks" | "tips" | "tables";
+      amount: number;
+    };
+    /** Replace a wrong scan on the current shift (keeps slot on shift) */
+    replaceScanId?: string;
   }) => string;
+  updateReceiptSelfLog: (
+    scanId: string,
+    patch: {
+      amount: number;
+      reason?: string;
+      category?: "drinks" | "tips" | "tables";
+    },
+  ) => void;
+  verifyAgencyReceiptSelfLog: (scanId: string, decision: "approved" | "rejected") => void;
   editAgencyPv: (
     id: string,
     patch: { rows?: PrPvRow[]; deduct?: number; disputeNote?: string },
@@ -625,6 +662,13 @@ function prIdForPayeeName(
   return FREELANCER_DEMO_PR_ID;
 }
 
+function receiptQtyDelta(items: PrReceiptScan["items"]) {
+  return {
+    drinks: items.filter((i) => i.category === "drinks").reduce((s, i) => s + i.qty, 0),
+    tables: items.filter((i) => i.category === "tables").reduce((s, i) => s + i.qty, 0),
+  };
+}
+
 function demoAttendanceContext(st: Pick<StoreState, "prSubRole" | "acceptedShiftIndex">) {
   const idx = st.acceptedShiftIndex ?? 0;
   const offer = PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
@@ -830,6 +874,14 @@ export const useStore = create<StoreState>()(
           });
         }
         get().prMarkEnRoute();
+      },
+      demoPrCheckOut: () => {
+        const st = get();
+        if (!st.checkedIn || st.checkedOut) {
+          get().toast("Check in first to demo check-out", "warn");
+          return;
+        }
+        get().prCheckOut();
       },
       prMarkEnRoute: () => {
         const st = get();
@@ -1177,7 +1229,7 @@ export const useStore = create<StoreState>()(
           hour: "2-digit",
           minute: "2-digit",
         });
-        const date = [...SHIFT_TODAY] as [number, number, number];
+        const date = getShiftToday();
         const dutyWages = calcDutyWagesFromOutlet(offer.outlet, offer.time);
         const session: PrActiveShiftSession = {
           id: makeShiftSessionId(date, offer.outlet),
@@ -1313,29 +1365,24 @@ export const useStore = create<StoreState>()(
           wagePerHour: dutyWages.wagePerHour,
           shiftHours: dutyWages.shiftHours,
         };
-        const scans = (get().prReceiptScans ?? SEED_RECEIPT_SCANS).filter(
-          (r) =>
-            r.prId === prId &&
-            (r.shiftSessionId === shift.id || (r.pvId === shift.pvId && r.status === "attached")),
+        const scans = receiptItemsForShift(shift, get().prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).filter(
+          (r) => r.shiftSessionId === shift.id || shift.receiptIds.includes(r.id),
         );
         const profile = getPrProfile(get().prSubRole);
         const shiftPayout = shiftPayoutTotal(closed.baseWages, scans);
         const scanIds = new Set(scans.map((s) => s.id));
         const [y, m, d] = shift.date;
+        const dateIso = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
         const managedPr = get().agencyPRs.find((p) => p.id === prId);
         const historyRow = buildShiftHistoryRow({
           prId,
           prName: managedPr?.name ?? profile.name,
           outlet: shift.outlet,
-          dateIso: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+          dateIso,
           dateDisplay: stamp.split("·")[0]?.trim() ?? stamp,
           totalPayout: shiftPayout,
-          totalDrinks: get().drinks,
-          totalTips: scans.reduce(
-            (s, r) =>
-              s + (r.items?.reduce((a, i) => a + (i.category === "tips" ? i.amount : 0), 0) ?? 0),
-            0,
-          ),
+          totalDrinks: scans.reduce((s, r) => s + r.drinkCommission, 0),
+          totalTips: scans.reduce((s, r) => s + r.tipCommission, 0),
           durationHours: 6,
         });
         const checkOutTime = new Date().toLocaleTimeString("en-MY", {
@@ -1345,7 +1392,17 @@ export const useStore = create<StoreState>()(
         set((st) => ({
           ...syncLedgerState(st, {
             agencyRoster: rosterCheckOut(st.agencyRoster, prId, shift.outlet, checkOutTime),
-            shiftHistory: mergeShiftHistory(st.shiftHistory, [historyRow]),
+            shiftHistory: mergeShiftHistory(
+              st.shiftHistory.filter(
+                (r) =>
+                  !(
+                    r.prId === prId &&
+                    r.dateIso === dateIso &&
+                    r.id.startsWith("vh-")
+                  ),
+              ),
+              [historyRow],
+            ),
           }),
           checkedOut: true,
           prActiveShift: null,
@@ -1353,12 +1410,12 @@ export const useStore = create<StoreState>()(
             ...st.prCheckInMeta,
             closedShift: closed,
           },
-          prReceiptScans: (st.prReceiptScans ?? SEED_RECEIPT_SCANS).map((r) =>
+          prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).map((r) =>
             scanIds.has(r.id) ? { ...r, shiftSessionId: shift.id, status: "attached" as const } : r,
           ),
         }));
         get().toast(
-          `Checked out ✓ shift sealed · ${scans.length} receipt(s) · weekly PV issues Saturday`,
+          `Checked out ✓ shift sealed · ${scans.length} receipt(s) · weekly PV issues Sunday`,
           "success",
         );
         get().pushNotify({
@@ -1579,7 +1636,65 @@ export const useStore = create<StoreState>()(
         get().toast("Profile saved — synced across agency roster & outlet", "success");
       },
 
-      prPaymentVouchers: SEED_PR_PVS,
+      prPaymentVouchers: LIVE_SEED_PR_PVS,
+      ensurePreviousWeekPv: () => {
+        const st = get();
+        const role = st.prSubRole;
+        if (!role) return;
+        const profile = getPrProfile(role);
+        const prId = getPrRosterId(role);
+        const prev = getPreviousWeekBounds();
+        if (!isWeekPvIssued(prev.endIso)) return;
+
+        const pvs = st.prPaymentVouchers ?? SEED_PR_PVS;
+        const mine = filterPvsForPrProfile(pvs, profile, role);
+        const existing = mine.find((p) => p.weekStartIso === prev.startIso);
+        if (existing && (existing.status === "SIGNED" || existing.status === "PAID")) return;
+
+        const scans = filterReceiptScansForPrProfile(st.prReceiptScans ?? [], profile, role, mine);
+        const summary = buildWeeklyPaymentSummary({
+          weekStartIso: prev.startIso,
+          pv: existing,
+          shiftHistory: st.shiftHistory,
+          scans,
+          prId,
+        });
+        if (summary.totals.net <= 0 && !existing) return;
+
+        const sentPv = buildSentWeeklyPv({
+          profile,
+          prSuffix: prId.charAt(0).toUpperCase(),
+          summary,
+          existing,
+          fallbackOutlet: existing?.outlet ?? "Velvet 23",
+        });
+        const nextPv =
+          existing?.status === "DISPUTED"
+            ? {
+                ...sentPv,
+                status: "DISPUTED" as const,
+                prDisputeReason: existing.prDisputeReason,
+                disputedAt: existing.disputedAt,
+                prDisputePhotoDataUrl: existing.prDisputePhotoDataUrl,
+                prDisputePhotoDataUrls: existing.prDisputePhotoDataUrls,
+              }
+            : sentPv;
+
+        if (
+          existing &&
+          existing.status === nextPv.status &&
+          existing.net === nextPv.net &&
+          existing.rows.length === nextPv.rows.length
+        ) {
+          return;
+        }
+
+        set((state) => {
+          const all = state.prPaymentVouchers ?? SEED_PR_PVS;
+          const without = existing ? all.filter((p) => p.id !== existing.id) : all;
+          return { prPaymentVouchers: [nextPv, ...without] };
+        });
+      },
       signPrPv: (id, signatureDataUrl) => {
         if (!signatureDataUrl?.startsWith("data:image/")) {
           get().toast("Draw your signature before confirming", "warn");
@@ -1741,7 +1856,7 @@ export const useStore = create<StoreState>()(
         );
       },
 
-      prReceiptScans: SEED_RECEIPT_SCANS,
+      prReceiptScans: LIVE_SEED_RECEIPT_SCANS,
       addReceiptScan: (draft) => {
         const shift = get().prActiveShift;
         if (!get().checkedIn || get().checkedOut) {
@@ -1752,15 +1867,21 @@ export const useStore = create<StoreState>()(
           get().toast("No active shift session — check in again", "warn");
           return "";
         }
+        const manual = draft.manualSelfLog;
+        const items = manual
+          ? buildManualReceiptItems(manual.category, manual.amount)
+          : draft.items;
+        const totalLogged = manual ? manual.amount : draft.totalLogged;
         const fingerprint = receiptScanFingerprint({
           outlet: draft.outlet,
-          totalLogged: draft.totalLogged,
-          items: draft.items,
+          totalLogged,
+          items,
           receiptRef: draft.receiptRef,
         });
         const existing = findDuplicateReceiptScan(
-          get().prReceiptScans ?? SEED_RECEIPT_SCANS,
+          get().prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS,
           fingerprint,
+          draft.replaceScanId,
         );
         if (existing) {
           get().toast(
@@ -1769,7 +1890,21 @@ export const useStore = create<StoreState>()(
           );
           return "";
         }
-        const id = `rc-${Date.now().toString(36)}`;
+        const scans = get().prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS;
+        const replaced = draft.replaceScanId
+          ? scans.find((s) => s.id === draft.replaceScanId)
+          : undefined;
+        if (draft.replaceScanId) {
+          if (!replaced) {
+            get().toast("Original receipt not found — scan as new instead", "warn");
+            return "";
+          }
+          if (replaced.shiftSessionId !== shift.id) {
+            get().toast("Can only replace receipts on your current shift", "warn");
+            return "";
+          }
+        }
+        const id = replaced?.id ?? `rc-${Date.now().toString(36)}`;
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -1777,7 +1912,7 @@ export const useStore = create<StoreState>()(
           hour: "2-digit",
           minute: "2-digit",
         });
-        const comm = calcReceiptCommissions(draft.items);
+        const comm = calcReceiptCommissions(items);
         const outlet = draft.outlet.replace(/\s+KL$/i, "").trim() || draft.outlet;
         const scan: PrReceiptScan = {
           id,
@@ -1788,28 +1923,173 @@ export const useStore = create<StoreState>()(
           prCode: draft.prCode,
           prName: draft.prName,
           prId: draft.prId,
-          items: draft.items,
-          totalLogged: draft.totalLogged,
+          items,
+          totalLogged,
           ...comm,
           shiftSessionId: shift.id,
           pvId: shift.pvId,
           status: "attached",
+          logSource: manual ? "manual" : "ocr",
+          manualReason: manual?.reason ?? (manual ? "OCR unreadable — water / blur on receipt" : undefined),
+          agencyVerification: manual ? "pending" : undefined,
         };
-        set((st) => ({
-          prReceiptScans: [scan, ...(st.prReceiptScans ?? SEED_RECEIPT_SCANS)],
-          prActiveShift: shift ? { ...shift, receiptIds: [...shift.receiptIds, id] } : null,
-          drinks:
-            st.drinks +
-            draft.items.filter((i) => i.category === "drinks").reduce((s, i) => s + i.qty, 0),
-          tables:
-            st.tables +
-            draft.items.filter((i) => i.category === "tables").reduce((s, i) => s + i.qty, 0),
-        }));
-        get().toast(
-          `Receipt logged → ${shift.pvId} · receipt #${shift.receiptIds.length + 1} on this shift`,
-          "success",
-        );
+        set((st) => {
+          const allScans = st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS;
+          const withoutReplaced = replaced ? allScans.filter((s) => s.id !== replaced.id) : allScans;
+          const oldQty = replaced ? receiptQtyDelta(replaced.items) : { drinks: 0, tables: 0 };
+          const newQty = receiptQtyDelta(items);
+          const receiptIds = replaced
+            ? shift.receiptIds.map((rid) => (rid === replaced.id ? id : rid))
+            : [...shift.receiptIds, id];
+          return {
+            prReceiptScans: [scan, ...withoutReplaced],
+            prActiveShift: shift ? { ...shift, receiptIds } : null,
+            drinks: st.drinks - oldQty.drinks + newQty.drinks,
+            tables: st.tables - oldQty.tables + newQty.tables,
+          };
+        });
+        if (manual) {
+          get().pushNotify({
+            type: "receipt_self_log",
+            scanId: id,
+            receiptRef: scan.receiptRef,
+            prId: draft.prId,
+            prName: draft.prName,
+            outlet,
+            amount: totalLogged,
+            category: manual.category,
+          });
+          get().toast(
+            replaced
+              ? `Self-log updated · RM ${totalLogged.toFixed(2)} — agency will re-verify`
+              : `Self-log submitted · RM ${totalLogged.toFixed(2)} — agency will verify before it counts`,
+            "success",
+          );
+        } else {
+          get().toast(
+            replaced
+              ? `Receipt re-scanned · replaced ${replaced.receiptRef}`
+              : `Receipt logged → ${shift.pvId} · receipt #${shift.receiptIds.length + 1} on this shift`,
+            "success",
+          );
+        }
         return id;
+      },
+
+      updateReceiptSelfLog: (scanId, patch) => {
+        const shift = get().prActiveShift;
+        if (!get().checkedIn || get().checkedOut) {
+          get().toast("Check in on your shift to edit self-logs", "warn");
+          return;
+        }
+        if (!shift) {
+          get().toast("No active shift session", "warn");
+          return;
+        }
+        const scans = get().prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS;
+        const scan = scans.find((s) => s.id === scanId);
+        if (!scan || scan.logSource !== "manual" || scan.agencyVerification !== "pending") {
+          get().toast("Only pending self-logs on this shift can be edited", "warn");
+          return;
+        }
+        if (scan.shiftSessionId !== shift.id) {
+          get().toast("This self-log belongs to another shift", "warn");
+          return;
+        }
+        const amount = Math.max(0, Math.round(patch.amount * 100) / 100);
+        if (amount <= 0) {
+          get().toast("Enter a valid amount", "warn");
+          return;
+        }
+        const category = patch.category ?? receiptPrimaryCategory(scan);
+        const items = buildManualReceiptItems(category, amount);
+        const comm = calcReceiptCommissions(items);
+        const oldQty = receiptQtyDelta(scan.items);
+        const newQty = receiptQtyDelta(items);
+        const stamp = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        set((st) => ({
+          prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).map((s) =>
+            s.id === scanId
+              ? {
+                  ...s,
+                  items,
+                  totalLogged: amount,
+                  ...comm,
+                  manualReason:
+                    patch.reason?.trim() ||
+                    s.manualReason ||
+                    "OCR unreadable — water / blur on receipt",
+                  scannedAt: `${stamp} (edited)`,
+                  agencyVerification: "pending" as const,
+                  agencyVerifiedAt: undefined,
+                }
+              : s,
+          ),
+          drinks: st.drinks - oldQty.drinks + newQty.drinks,
+          tables: st.tables - oldQty.tables + newQty.tables,
+        }));
+        if (scan.prId) {
+          get().pushNotify({
+            type: "receipt_self_log",
+            scanId,
+            receiptRef: scan.receiptRef,
+            prId: scan.prId,
+            prName: scan.prName,
+            outlet: scan.outlet,
+            amount,
+            category,
+          });
+        }
+        get().toast(`Self-log updated · RM ${amount.toFixed(2)} — agency notified`, "success");
+      },
+
+      verifyAgencyReceiptSelfLog: (scanId, decision) => {
+        const scans = get().prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS;
+        const scan = scans.find((s) => s.id === scanId);
+        if (!scan || scan.logSource !== "manual" || scan.agencyVerification !== "pending") {
+          get().toast("This self-log is not awaiting verification", "warn");
+          return;
+        }
+        const stamp = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        set((st) => ({
+          prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).map((s) =>
+            s.id === scanId
+              ? {
+                  ...s,
+                  agencyVerification: decision,
+                  agencyVerifiedAt: stamp,
+                }
+              : s,
+          ),
+        }));
+        if (scan.prId) {
+          get().pushNotify({
+            type: "receipt_self_log_verified",
+            scanId,
+            prId: scan.prId,
+            prName: scan.prName,
+            approved: decision === "approved",
+            amount: scan.totalLogged,
+          });
+        }
+        get().toast(
+          decision === "approved"
+            ? `Self-log approved · ${scan.prName} · RM ${scan.totalLogged.toFixed(2)}`
+            : `Self-log rejected · ${scan.prName} notified`,
+          decision === "approved" ? "success" : "warn",
+        );
       },
 
       editAgencyPv: (id, patch) => {
@@ -4086,7 +4366,7 @@ export const useStore = create<StoreState>()(
       },
       merge: (persisted, current) => {
         const p = persisted as Partial<StoreState> | undefined;
-        const seedById = Object.fromEntries(SEED_PR_PVS.map((s) => [s.id, s]));
+        const seedById = Object.fromEntries(LIVE_SEED_PR_PVS.map((s) => [s.id, s]));
         const persistedPvs = p?.prPaymentVouchers ?? [];
         const mergedFromPersisted =
           persistedPvs.length > 0
@@ -4169,12 +4449,13 @@ export const useStore = create<StoreState>()(
               })
             : [];
         const persistedIds = new Set(mergedFromPersisted.map((pv) => pv.id));
-        const missingSeedPvs = SEED_PR_PVS.filter((s) => !persistedIds.has(s.id));
-        const mergedPvs =
+        const missingSeedPvs = LIVE_SEED_PR_PVS.filter((s) => !persistedIds.has(s.id));
+        const mergedPvs = remapSeedPaymentVouchers(
           persistedPvs.length > 0
             ? [...mergedFromPersisted, ...missingSeedPvs]
-            : current.prPaymentVouchers;
-        const seedScanById = Object.fromEntries(SEED_RECEIPT_SCANS.map((s) => [s.id, s]));
+            : current.prPaymentVouchers,
+        );
+        const seedScanById = Object.fromEntries(LIVE_SEED_RECEIPT_SCANS.map((s) => [s.id, s]));
         const persistedScans = p?.prReceiptScans ?? [];
         const userScans = persistedScans
           .filter((s) => !seedScanById[s.id])
@@ -4184,16 +4465,18 @@ export const useStore = create<StoreState>()(
           }));
         const mergedScans = [
           ...userScans,
-          ...SEED_RECEIPT_SCANS.map((seed) => {
+          ...LIVE_SEED_RECEIPT_SCANS.map((seed) => {
             const saved = persistedScans.find((s) => s.id === seed.id);
-            return saved
-              ? {
-                  ...seed,
-                  ...saved,
-                  receiptRef: saved.receiptRef ?? seed.receiptRef,
-                  prId: saved.prId ?? seed.prId,
-                }
-              : seed;
+            return remapSeedReceiptScan(
+              saved
+                ? {
+                    ...seed,
+                    ...saved,
+                    receiptRef: saved.receiptRef ?? seed.receiptRef,
+                    prId: saved.prId ?? seed.prId,
+                  }
+                : seed,
+            );
           }),
         ].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt));
         const merged = {
@@ -4238,7 +4521,15 @@ export const useStore = create<StoreState>()(
           prAvatarPhoto: p?.prAvatarPhoto ?? current.prAvatarPhoto,
           prReceiptScans: mergedScans.length ? mergedScans : current.prReceiptScans,
           prActiveShift: p?.prActiveShift ?? current.prActiveShift,
-          shiftHistory: mergeShiftHistory(p?.shiftHistory ?? [], current.shiftHistory),
+          shiftHistory: mergeShiftHistory(
+            (p?.shiftHistory ?? []).map((row) => {
+              const dateIso = migrateDemoDateIso(row.dateIso);
+              return dateIso === row.dateIso
+                ? row
+                : { ...row, dateIso, dateDisplay: fmtDateLabelFromIso(dateIso) };
+            }),
+            current.shiftHistory,
+          ),
           pendingPRs: mergePendingPRs(p?.pendingPRs, current.pendingPRs),
           pendingFreelancerPayrolls: mergePendingFreelancerPayrolls(
             p?.pendingFreelancerPayrolls,

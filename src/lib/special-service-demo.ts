@@ -1,3 +1,6 @@
+import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { fmtDateLabelFromIso } from "@/lib/pr-demo";
+
 export type SpecialServiceInitiator = "agency" | "outlet" | "pr";
 
 export type PartyAcceptance = "pending" | "accepted" | "declined" | "n/a";
@@ -182,14 +185,16 @@ export const EMPTY_SPECIAL_SERVICE_FILTERS: SpecialServiceFilterState = {
   amountOutMin: "",
 };
 
+const DEMO_TODAY_LABEL = fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO);
+
 export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
   {
     id: "SS-2026-014",
     prId: "p1",
     prName: "Luna",
     outlet: "Velvet 23",
-    date: "Thu 04 Jun 2026",
-    dateIso: "2026-06-04",
+    date: DEMO_TODAY_LABEL,
+    dateIso: DEFAULT_ROSTER_DATE_ISO,
     time: "22:00",
     serviceType: "vip_escort",
     description: "VIP table escort — Hennessy launch · 3h premium coverage",
@@ -201,15 +206,15 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     prAcceptance: "accepted",
     outletAcceptance: "accepted",
     status: "confirmed",
-    approvedAt: "4 Jun 2026 · 14:20",
+    approvedAt: "18 Jun 2026 · 14:20",
   },
   {
     id: "SS-2026-015",
     prId: "p2",
     prName: "Mia",
     outlet: "Onyx KL",
-    date: "Thu 04 Jun 2026",
-    dateIso: "2026-06-04",
+    date: DEMO_TODAY_LABEL,
+    dateIso: DEFAULT_ROSTER_DATE_ISO,
     time: "04:15",
     serviceType: "transportation",
     description: "Late-night return after 04:00 shift — agency Grab booking",
@@ -227,8 +232,8 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     prId: "p4",
     prName: "Cici",
     outlet: "Velvet 23",
-    date: "Thu 04 Jun 2026",
-    dateIso: "2026-06-04",
+    date: DEMO_TODAY_LABEL,
+    dateIso: DEFAULT_ROSTER_DATE_ISO,
     time: "19:30",
     serviceType: "delivery",
     description: "Heels + clutch delivered to outlet before Ladies Night",
@@ -246,8 +251,8 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     prId: "p1",
     prName: "Luna",
     outlet: "Velvet 23",
-    date: "Thu 04 Jun 2026",
-    dateIso: "2026-06-04",
+    date: DEMO_TODAY_LABEL,
+    dateIso: DEFAULT_ROSTER_DATE_ISO,
     time: "20:00",
     serviceType: "makeup",
     description: "Agency-booked makeup session before VIP table — confirm availability",
@@ -259,7 +264,7 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     prAcceptance: "pending",
     outletAcceptance: "pending",
     status: "pending_both",
-    approvedAt: "4 Jun 2026 · 10:05",
+    approvedAt: "18 Jun 2026 · 10:05",
   },
   {
     id: "SS-2026-011",

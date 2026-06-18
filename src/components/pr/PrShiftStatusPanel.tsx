@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Check, Shield, AlertTriangle, Camera, FileText } from "lucide-react";
+import { Check, Shield, AlertTriangle, Camera, FileText, PenLine, RotateCcw } from "lucide-react";
 import { formatRM } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
 import { IzSheet } from "@/components/iz/Sheet";
 import { PrSection } from "@/components/pr/PrSection";
 import { ReceiptScanSlip } from "@/components/pr/ReceiptScanSlip";
-import { formatReceiptScannedTime, type PrActiveShiftSession, type PrReceiptScan } from "@/lib/pr-demo";
+import { formatReceiptScannedTime, isManualSelfLog, isSelfLogPendingAgency, receiptPrimaryCategory, type PrActiveShiftSession, type PrReceiptScan } from "@/lib/pr-demo";
 import {
   DEFAULT_SHIFT_SALES_TARGETS,
   buildShiftStatusRows,
@@ -22,15 +22,38 @@ function VerifyBadge({
   verified,
   kind,
   note,
+  scan,
 }: {
   verified: boolean;
   kind: "duty" | "receipt";
   note?: string;
+  scan?: PrReceiptScan;
 }) {
   if (kind === "duty") {
     return (
       <span className="iz-pr-shift-verify iz-pr-shift-verify--sealed" title={note}>
         <Shield className="h-3 w-3" /> Sealed
+      </span>
+    );
+  }
+  if (scan && isManualSelfLog(scan)) {
+    if (isSelfLogPendingAgency(scan)) {
+      return (
+        <span className="iz-pr-shift-verify iz-pr-shift-verify--selflog" title={note}>
+          <PenLine className="h-3 w-3" /> Self-log
+        </span>
+      );
+    }
+    if (scan.agencyVerification === "approved") {
+      return (
+        <span className="iz-pr-shift-verify iz-pr-shift-verify--matched" title={note}>
+          <Check className="h-3 w-3" /> Verified
+        </span>
+      );
+    }
+    return (
+      <span className="iz-pr-shift-verify iz-pr-shift-verify--review" title={note}>
+        <AlertTriangle className="h-3 w-3" /> Rejected
       </span>
     );
   }
@@ -60,14 +83,24 @@ function ShiftReceiptScanRows() {
       {SCAN_RECEIPT_ROWS.map((row) => (
         <div key={row.category} className="iz-pr-shift-scan-row">
           <span className="iz-pr-shift-scan-row__label">{row.label}</span>
-          <Link
-            to="/host/scan"
-            search={{ category: row.category }}
-            className="iz-btn iz-btn-soft iz-btn-sm iz-pr-shift-scan-row__btn w-full"
-          >
-            <Camera className="h-3.5 w-3.5" />
-            Scan
-          </Link>
+          <div className="flex w-full flex-col gap-1.5">
+            <Link
+              to="/host/scan"
+              search={{ category: row.category }}
+              className="iz-btn iz-btn-soft iz-btn-sm iz-pr-shift-scan-row__btn w-full"
+            >
+              <Camera className="h-3.5 w-3.5" />
+              Scan
+            </Link>
+            <Link
+              to="/host/scan"
+              search={{ category: row.category, blurry: true }}
+              className="iz-btn iz-btn-soft iz-btn-sm iz-pr-shift-scan-row__btn iz-pr-shift-scan-row__btn--selflog w-full"
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              Self-log
+            </Link>
+          </div>
         </div>
       ))}
     </div>
@@ -100,12 +133,17 @@ export function PrShiftStatusPanel({
   const receiptRows = rows.filter((r) => r.kind === "receipt");
   const verifiedReceipts = receiptRows.filter((r) => r.verified).length;
   const pendingReceipts = receiptRows.length - verifiedReceipts;
+  const pendingSelfLogs = receiptRows.filter(
+    (r) => r.scan && isSelfLogPendingAgency(r.scan),
+  ).length;
   const statusHint =
     receiptRows.length === 0
       ? "Use Scan receipt — each log adds a row below"
-      : pendingReceipts > 0
-        ? `${pendingReceipts} receipt${pendingReceipts !== 1 ? "s" : ""} need review`
-        : `${verifiedReceipts} receipt${verifiedReceipts !== 1 ? "s" : ""} matched · PV ready`;
+      : pendingSelfLogs > 0
+        ? `${pendingSelfLogs} self-log${pendingSelfLogs !== 1 ? "s" : ""} awaiting agency verify`
+        : pendingReceipts > 0
+          ? `${pendingReceipts} receipt${pendingReceipts !== 1 ? "s" : ""} need review`
+          : `${verifiedReceipts} receipt${verifiedReceipts !== 1 ? "s" : ""} matched · PV ready`;
 
   const [viewScan, setViewScan] = useState<PrReceiptScan | null>(null);
 
@@ -172,6 +210,7 @@ export function PrShiftStatusPanel({
                 <th>Comm.</th>
                 <th>Verify</th>
                 <th>Receipt</th>
+                {!checkedOut && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -179,9 +218,11 @@ export function PrShiftStatusPanel({
                 <tr
                   key={row.id}
                   className={
-                    row.kind === "receipt" && !row.verified
-                      ? "iz-pr-shift-status__row--warn"
-                      : undefined
+                    row.kind === "receipt" && row.scan && isManualSelfLog(row.scan)
+                      ? "iz-pr-shift-status__row--selflog"
+                      : row.kind === "receipt" && !row.verified
+                        ? "iz-pr-shift-status__row--warn"
+                        : undefined
                   }
                 >
                   <td>
@@ -211,7 +252,12 @@ export function PrShiftStatusPanel({
                     {row.commissionRm > 0 ? formatRM(row.commissionRm) : "—"}
                   </td>
                   <td>
-                    <VerifyBadge verified={row.verified} kind={row.kind} note={row.verifyNote} />
+                    <VerifyBadge
+                      verified={row.verified}
+                      kind={row.kind}
+                      note={row.verifyNote}
+                      scan={row.scan}
+                    />
                   </td>
                   <td className="iz-pr-shift-status__receipt">
                     {row.kind === "receipt" && row.scan ? (
@@ -228,6 +274,37 @@ export function PrShiftStatusPanel({
                       <span className="iz-tiny iz-muted2">—</span>
                     )}
                   </td>
+                  {!checkedOut && (
+                    <td className="iz-pr-shift-status__actions">
+                      {row.kind === "receipt" && row.scan ? (
+                        <div className="iz-pr-shift-status__action-btns">
+                          {isManualSelfLog(row.scan) && isSelfLogPendingAgency(row.scan) ? (
+                            <Link
+                              to="/host/scan"
+                              search={{ edit: row.scan.id }}
+                              className="iz-pr-shift-status__action-btn iz-pr-shift-status__action-btn--edit"
+                              title="Edit self-log"
+                            >
+                              <PenLine className="h-3 w-3" />
+                            </Link>
+                          ) : null}
+                          <Link
+                            to="/host/scan"
+                            search={{
+                              rescan: row.scan.id,
+                              category: receiptPrimaryCategory(row.scan),
+                            }}
+                            className="iz-pr-shift-status__action-btn"
+                            title="Scan again"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                          </Link>
+                        </div>
+                      ) : (
+                        <span className="iz-tiny iz-muted2">—</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -253,6 +330,7 @@ export function PrShiftStatusPanel({
                 </td>
                 <td />
                 <td />
+                {!checkedOut && <td />}
               </tr>
             </tfoot>
           </table>
@@ -268,6 +346,31 @@ export function PrShiftStatusPanel({
                 Scanned receipt · {viewScan.outlet} · {formatReceiptScannedTime(viewScan.scannedAt)}
               </p>
               <ReceiptScanSlip scan={viewScan} />
+              {!checkedOut && (
+                <div className="mt-4 flex flex-col gap-2">
+                  {isManualSelfLog(viewScan) && isSelfLogPendingAgency(viewScan) && (
+                    <Link
+                      to="/host/scan"
+                      search={{ edit: viewScan.id }}
+                      className="iz-btn iz-btn-primary iz-btn-sm w-full"
+                      onClick={() => setViewScan(null)}
+                    >
+                      <PenLine className="h-4 w-4" /> Edit self-log
+                    </Link>
+                  )}
+                  <Link
+                    to="/host/scan"
+                    search={{
+                      rescan: viewScan.id,
+                      category: receiptPrimaryCategory(viewScan),
+                    }}
+                    className="iz-btn iz-btn-soft iz-btn-sm w-full"
+                    onClick={() => setViewScan(null)}
+                  >
+                    <RotateCcw className="h-4 w-4" /> Scan again
+                  </Link>
+                </div>
+              )}
             </div>
           )}
         </IzSheet>

@@ -2,6 +2,10 @@
 
 import type { PendingFreelancerPayroll, PendingPR } from "@/lib/store";
 import { buildDemoESignatureDataUrl } from "@/lib/finance-head-stamp";
+import {
+  addDaysToIso,
+  migrateDemoDateIso,
+} from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { DEFAULT_TIED_AGENCY_ID, FREELANCER_DEMO_PR_ID, fmtDateLabelFromIso } from "@/lib/pr-demo";
 
@@ -133,7 +137,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     prId: "p1",
     prName: "Luna",
     outlet: "Velvet 23",
-    dateIso: "2026-06-04",
+    dateIso: DEFAULT_ROSTER_DATE_ISO,
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
     shiftEnd: "04:00",
@@ -146,7 +150,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
       status: "pending_pr",
       agencyName: "Atlas Agency",
       agencyNote: "Relocate for lounge launch night — same shift time",
-      requestedAt: "3 Jun 2026 · 11:28",
+      requestedAt: "17 Jun 2026 · 11:28",
       requestedAtMs: Date.now() - 20 * 60 * 1000,
     },
   }),
@@ -155,7 +159,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     prId: "p2",
     prName: "Mia",
     outlet: "Velvet 23",
-    dateIso: "2026-06-04",
+    dateIso: DEFAULT_ROSTER_DATE_ISO,
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
     shiftEnd: "04:00",
@@ -169,7 +173,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     prId: "p6",
     prName: "Yuki",
     outlet: "Onyx KL",
-    dateIso: "2026-06-04",
+    dateIso: DEFAULT_ROSTER_DATE_ISO,
     shift: "21:00 — 03:00",
     shiftStart: "21:00",
     shiftEnd: "03:00",
@@ -178,7 +182,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
       targetOutlet: "Mermate",
       status: "pending_pr",
       agencyNote: "VIP coverage — agency moving shift to Mermate",
-      requestedAt: "4 Jun 2026 · 09:15",
+      requestedAt: "18 Jun 2026 · 09:15",
     },
   }),
   withRosterDate({
@@ -186,7 +190,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     prId: "p5",
     prName: "Nina",
     outlet: "Mermate",
-    dateIso: "2026-06-05",
+    dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
     shift: "20:00 — 02:00",
     shiftStart: "20:00",
     shiftEnd: "02:00",
@@ -197,7 +201,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     prId: "p1",
     prName: "Luna",
     outlet: "Mermate",
-    dateIso: "2026-06-05",
+    dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
     shiftEnd: "04:00",
@@ -205,7 +209,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     agencyAssignment: {
       agencyName: "Atlas Agency",
       agencyNote: "You are needed at Mermate Friday — lounge relaunch coverage",
-      assignedAt: "4 Jun 2026 · 11:36",
+      assignedAt: "18 Jun 2026 · 11:36",
       assignedAtMs: Date.now() - 12 * 60 * 1000,
     },
   }),
@@ -214,7 +218,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     prId: "p1",
     prName: "Luna",
     outlet: "Onyx KL",
-    dateIso: "2026-06-04",
+    dateIso: DEFAULT_ROSTER_DATE_ISO,
     shift: "21:00 — 03:00",
     shiftStart: "21:00",
     shiftEnd: "03:00",
@@ -222,7 +226,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     agencyAssignment: {
       agencyName: "Atlas Agency",
       agencyNote: "Same-night backup at Onyx — only if you can leave Velvet early",
-      assignedAt: "4 Jun 2026 · 14:10",
+      assignedAt: "18 Jun 2026 · 14:10",
       assignedAtMs: Date.now() - 45 * 60 * 1000,
     },
   }),
@@ -231,7 +235,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     prId: "p3",
     prName: "Vivi",
     outlet: "Bear Lounge",
-    dateIso: "2026-06-05",
+    dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
     shift: "22:30 — 04:30",
     shiftStart: "22:30",
     shiftEnd: "04:30",
@@ -596,7 +600,7 @@ export const SEED_PENDING_FREELANCER_PAYROLLS: PendingFreelancerPayroll[] = [
     agencyId: DEFAULT_TIED_AGENCY_ID,
     agencyName: "Atlas Agency",
     status: "pending",
-    requestedAt: "4 Jun 2026 · 10:42",
+    requestedAt: "18 Jun 2026 · 10:42",
   },
 ];
 
@@ -790,7 +794,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     linkedPvIds: ["PV-2026-0611-A"],
     kind: "outlet",
     lines: [
-      { label: "Daily wages", detail: "Luna · 4 Jun sealed shift", amount: 360, group: "payroll" },
+      { label: "Daily wages", detail: "Luna · 18 Jun sealed shift", amount: 360, group: "payroll" },
       { label: "Commission – Drinks", detail: "Velvet 23 floor · tap log", amount: 2940, group: "commissions" },
       { label: "Commission – Tips", detail: "100% passthrough to PR payroll", amount: 680, group: "commissions" },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 300, group: "fees" },
@@ -887,9 +891,9 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     id: "AINV-2026-0604",
     outlet: "InnocenZ escrow",
     amount: 1200,
-    issueDate: "4 Jun 2026",
+    issueDate: "18 Jun 2026",
     issueTime: "09:15",
-    dueDate: "4 Jun 2026",
+    dueDate: "18 Jun 2026",
     status: "PENDING",
     aging: "current",
     linkedPvIds: ["PV-2026-0604-L"],
@@ -917,8 +921,8 @@ export interface AgencyReconciliationDay {
 }
 
 export const SEED_RECONCILIATION: AgencyReconciliationDay = {
-  dateIso: "2026-06-04",
-  dateLabel: fmtDateLabelFromIso("2026-06-04"),
+  dateIso: DEFAULT_ROSTER_DATE_ISO,
+  dateLabel: fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO),
   outletSalesTotal: 14820,
   pvTotal: 14760,
   variance: 60,
@@ -945,8 +949,10 @@ export function mergeAgencyRoster(
   persisted: AgencyRosterSlot[] | undefined,
   seed: AgencyRosterSlot[] = SEED_AGENCY_ROSTER,
 ): AgencyRosterSlot[] {
-  const normalize = (slot: AgencyRosterSlot): AgencyRosterSlot =>
-    withRosterDate({ ...slot, dateIso: slot.dateIso });
+  const normalize = (slot: AgencyRosterSlot): AgencyRosterSlot => {
+    const dateIso = migrateDemoDateIso(slot.dateIso);
+    return withRosterDate({ ...slot, dateIso });
+  };
 
   if (!persisted?.length) return seed.map(normalize);
   const seedIds = new Set(seed.map((s) => s.id));
@@ -956,10 +962,11 @@ export function mergeAgencyRoster(
     ...seed.map((seedSlot) => {
       const saved = persisted.find((s) => s.id === seedSlot.id);
       if (!saved) return seedSlot;
-      const dateIso =
+      const dateIso = migrateDemoDateIso(
         saved.dateIso < DEFAULT_ROSTER_DATE_ISO && seedSlot.dateIso >= DEFAULT_ROSTER_DATE_ISO
           ? seedSlot.dateIso
-          : saved.dateIso ?? seedSlot.dateIso;
+          : saved.dateIso ?? seedSlot.dateIso,
+      );
       if (DEMO_LAYOUT_ROSTER_IDS.has(seedSlot.id)) {
         return normalize({
           ...seedSlot,

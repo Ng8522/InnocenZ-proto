@@ -138,6 +138,7 @@ function AgencyPV() {
   const [payrollRange, setPayrollRange] = useState<PayrollRangeFilter>(EMPTY_PAYROLL_RANGE);
   const shiftHistory = useStore((s) => s.shiftHistory);
   const raiseAgencyPvFromHistory = useStore((s) => s.raiseAgencyPvFromHistory);
+  const verifyAgencyReceiptSelfLog = useStore((s) => s.verifyAgencyReceiptSelfLog);
   const { date, time } = nowAgencyDateTime();
   const canRaisePv = agencyCan(agencySubRole, "raisePv");
 
@@ -499,6 +500,7 @@ function AgencyPV() {
         payrollRange={payrollRange}
         onRangeChange={setPayrollRange}
         onClearRange={() => setPayrollRange(EMPTY_PAYROLL_RANGE)}
+        onVerifySelfLog={verifyAgencyReceiptSelfLog}
       />
       )}
         </>
@@ -843,17 +845,32 @@ function CollectionsSection({
   );
 }
 
-function ReceiptScanRow({ scan }: { scan: PrReceiptScan }) {
+function ReceiptScanRow({
+  scan,
+  onVerify,
+}: {
+  scan: PrReceiptScan;
+  onVerify?: (scanId: string, decision: "approved" | "rejected") => void;
+}) {
   const [y, m, d] = scan.date;
+  const pendingSelfLog = scan.logSource === "manual" && scan.agencyVerification === "pending";
   return (
-    <IzCard flat className="!mb-2">
+    <IzCard flat className={`!mb-2${pendingSelfLog ? " iz-receipt-selflog-pending" : ""}`}>
       <div className="iz-between items-start gap-2">
         <div className="min-w-0">
-          <p className="font-sora text-sm font-bold">{scan.receiptRef}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-sora text-sm font-bold">{scan.receiptRef}</p>
+            {scan.logSource === "manual" && (
+              <IzPill variant="amber">Self-log</IzPill>
+            )}
+          </div>
           <p className="iz-tiny iz-muted2 mt-0.5 font-mono">{scan.id}</p>
           <p className="iz-tiny iz-muted mt-0.5">
             {scan.prName} · {scan.outlet}
           </p>
+          {scan.manualReason && (
+            <p className="iz-tiny text-[var(--iz-amber)] mt-1">{scan.manualReason}</p>
+          )}
           {scan.prId && <p className="iz-tiny iz-muted2">PR ID {scan.prId}</p>}
           <p className="iz-tiny iz-muted2 mt-0.5">Scanned {scan.scannedAt}</p>
           <p className="iz-tiny iz-muted2">
@@ -863,7 +880,13 @@ function ReceiptScanRow({ scan }: { scan: PrReceiptScan }) {
         </div>
         <div className="shrink-0 text-right">
           <IzPill variant={scan.status === "paid" ? "green" : scan.status === "in_pv" ? "amber" : "ink"}>
-            {receiptStatusLabel(scan.status)}
+            {scan.logSource === "manual" && scan.agencyVerification === "pending"
+              ? "VERIFY"
+              : scan.logSource === "manual" && scan.agencyVerification === "approved"
+                ? "VERIFIED"
+                : scan.logSource === "manual" && scan.agencyVerification === "rejected"
+                  ? "REJECTED"
+                  : receiptStatusLabel(scan.status)}
           </IzPill>
           <p className="iz-ledger mt-1 text-sm font-bold">{formatRM(scan.totalLogged)}</p>
           <p className="iz-tiny iz-muted2">Comm {formatRM(scan.totalCommission)}</p>
@@ -876,6 +899,24 @@ function ReceiptScanRow({ scan }: { scan: PrReceiptScan }) {
           </p>
         ))}
       </div>
+      {pendingSelfLog && onVerify && (
+        <div className="mt-2 flex gap-2 border-t border-[var(--iz-line)] pt-2">
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft flex-1 !py-1.5 !text-xs"
+            onClick={() => onVerify(scan.id, "rejected")}
+          >
+            Reject
+          </button>
+          <button
+            type="button"
+            className="iz-btn iz-btn-primary flex-1 !py-1.5 !text-xs"
+            onClick={() => onVerify(scan.id, "approved")}
+          >
+            <CheckCircle2 className="h-3 w-3" /> Verify self-log
+          </button>
+        </div>
+      )}
     </IzCard>
   );
 }
@@ -885,11 +926,13 @@ function ReceiptsSection({
   payrollRange,
   onRangeChange,
   onClearRange,
+  onVerifySelfLog,
 }: {
   scans: PrReceiptScan[];
   payrollRange: PayrollRangeFilter;
   onRangeChange: (r: PayrollRangeFilter) => void;
   onClearRange: () => void;
+  onVerifySelfLog?: (scanId: string, decision: "approved" | "rejected") => void;
 }) {
   const [outlet, setOutlet] = useState("");
   const outlets = useMemo(() => [...new Set(scans.map((s) => s.outlet))].sort(), [scans]);
@@ -902,8 +945,23 @@ function ReceiptsSection({
     [scans, outlet, payrollRange],
   );
 
+  const pendingSelfLogs = useMemo(
+    () => scans.filter((s) => s.logSource === "manual" && s.agencyVerification === "pending"),
+    [scans],
+  );
+
   return (
     <OutletSection title="Receipt scans" hint={`${scans.length} from managed PRs`}>
+      {pendingSelfLogs.length > 0 && (
+        <IzCard flat className="mb-2 border-[rgba(244,183,64,.4)] bg-[rgba(244,183,64,.08)]">
+          <p className="iz-sm font-bold text-[var(--iz-amber)]">
+            {pendingSelfLogs.length} manual self-log{pendingSelfLogs.length !== 1 ? "s" : ""} awaiting verify
+          </p>
+          <p className="iz-tiny iz-muted2 mt-0.5">
+            PR keyed in amounts when OCR could not read blurry or water-damaged receipts.
+          </p>
+        </IzCard>
+      )}
       <IzCard flat>
         <p className="iz-tiny iz-muted">
           Agency copy of PR receipt scans — synced when PR logs scans on shift (Time-In → scan → Time-Out).
@@ -925,7 +983,9 @@ function ReceiptsSection({
             <p className="iz-sm iz-muted">No receipt scans in this range</p>
           </IzCard>
         ) : (
-          filtered.map((scan) => <ReceiptScanRow key={scan.id} scan={scan} />)
+          filtered.map((scan) => (
+            <ReceiptScanRow key={scan.id} scan={scan} onVerify={onVerifySelfLog} />
+          ))
         )}
       </div>
     </OutletSection>

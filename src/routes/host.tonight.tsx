@@ -14,13 +14,10 @@ import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { evaluateShiftCancellation, CANCEL_RULES } from "@/lib/pr-schedule-cancellation";
 import { SHIFT_TODAY, fmtDFriendly, getPrRosterId, PR_SHIFT_OFFERS } from "@/lib/pr-demo";
 import {
-  aggregateShiftSales,
   calcDutyWagesFromOutlet,
   receiptItemsForShift,
-  shiftCommissionRemaining,
   shiftDurationLabel,
   shiftPayoutTotal,
-  shiftSalesTargetRm,
 } from "@/lib/pr-shift-status";
 import { Calendar, Camera, Check, ExternalLink, MapPin, Navigation } from "lucide-react";
 import { formatRM } from "@/components/iz/ui";
@@ -52,6 +49,7 @@ function AttendancePage() {
   const cancelPrShift = useStore((s) => s.cancelPrShift);
   const demoPrShiftIn = useStore((s) => s.demoPrShiftIn);
   const demoPrEnRoute = useStore((s) => s.demoPrEnRoute);
+  const demoPrCheckOut = useStore((s) => s.demoPrCheckOut);
   const simulatePrNoShow = useStore((s) => s.simulatePrNoShow);
   const simulatePrLate = useStore((s) => s.simulatePrLate);
   const toast = useStore((s) => s.toast);
@@ -83,11 +81,6 @@ function AttendancePage() {
     () => receiptItemsForShift(attendanceSession, prReceiptScans),
     [attendanceSession, prReceiptScans],
   );
-  const shiftSales = useMemo(() => aggregateShiftSales(shiftScans), [shiftScans]);
-  const runningCommission = shiftSales.commissionTotal;
-  const shiftTargetRm = shiftSalesTargetRm();
-  const toTargetRm = shiftCommissionRemaining(runningCommission);
-  const targetMet = toTargetRm <= 0;
   const runningPayout = shiftPayoutTotal(baseWages, shiftScans);
 
   const prId = getPrRosterId(prSubRole);
@@ -218,59 +211,27 @@ function AttendancePage() {
         backLabel={cancelOpen || checkPhase === "selfie" ? "Attendance" : undefined}
       />
 
-      <PrPageHeader
-        label="Attendance"
-        title={venueName}
-        meta={`${todayFriendly} · ${shiftOffer.time}`}
-      />
-
-      {shiftAccepted && (
-        <div className="mt-3">
+      {shiftAccepted ? (
+        <div className="pt-1">
           <PrShiftOutletBriefCard
             brief={outletBrief}
             assignmentLabel={rosterSlot ? "Outlet assigned · Atlas Agency" : "Tonight's shift"}
+            pageLabel="Attendance"
+            statusLabel={statusLabel}
           />
         </div>
+      ) : (
+        <>
+          <PrPageHeader
+            label="Attendance"
+            title="Check in"
+            meta="Accept a shift to enable check-in."
+          />
+          <p className="iz-tiny iz-muted mt-2">
+            Browse shifts on the home tab to get assigned to an outlet.
+          </p>
+        </>
       )}
-
-      {!shiftAccepted && (
-        <p className="iz-tiny iz-muted mt-3">
-          Accept a shift to see your assigned outlet briefing.
-        </p>
-      )}
-
-      <div className="iz-outlet-stat-strip mt-3">
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Status</div>
-          <div className="n text-[var(--iz-gold-l)]">{statusLabel}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Wages</div>
-          <div className="n text-[var(--iz-violet-l)]">{formatRM(baseWages)}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">To target</div>
-          <div className={`n ${targetMet ? "text-[var(--iz-green)]" : "text-[var(--iz-gold-l)]"}`}>
-            {targetMet ? "Met" : formatRM(toTargetRm)}
-          </div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Target</div>
-          <div className="n text-[11px] leading-tight">{formatRM(shiftTargetRm)}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">Payout</div>
-          <div className="n text-[var(--iz-gold)]">{formatRM(runningPayout)}</div>
-        </div>
-        <div className="iz-outlet-stat-cell">
-          <div className="l">GPS</div>
-          <div
-            className={`n ${gpsState.inRange ? "text-[var(--iz-green)]" : "text-[var(--iz-amber)]"}`}
-          >
-            {formatDistanceMeters(gpsState.meters)}
-          </div>
-        </div>
-      </div>
 
       <div className="pt-3">
         {!shiftAccepted && (
@@ -484,6 +445,13 @@ function AttendancePage() {
               progress={progress}
               onPress={() => startHold(true)}
             />
+            <button
+              type="button"
+              className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-full"
+              onClick={demoPrCheckOut}
+            >
+              Demo: check out
+            </button>
           </>
         )}
 

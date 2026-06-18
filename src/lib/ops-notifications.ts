@@ -18,7 +18,8 @@ export type OpsNotificationKind =
   | "reconciliation_due"
   | "report_ready"
   | "collection_reminder"
-  | "special_service";
+  | "special_service"
+  | "receipt_self_log";
 
 export interface SosIncident {
   id: string;

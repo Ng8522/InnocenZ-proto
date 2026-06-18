@@ -2,6 +2,7 @@ import { getOutletRule } from "@/lib/agency-demo";
 import { shiftHoursFromLabel } from "@/lib/outlet-demo";
 import {
   calcReceiptCommissions,
+  isManualSelfLog,
   RECEIPT_COMMISSION_RULES,
   type PrActiveShiftSession,
   type PrReceiptItem,
@@ -125,6 +126,15 @@ export function aggregateShiftSales(scans: PrReceiptScan[]) {
 }
 
 export function verifyReceiptScan(scan: PrReceiptScan): { ok: boolean; note: string } {
+  if (isManualSelfLog(scan)) {
+    if (scan.agencyVerification === "approved") {
+      return { ok: true, note: "Self-log · agency verified" };
+    }
+    if (scan.agencyVerification === "rejected") {
+      return { ok: false, note: "Self-log · rejected by agency" };
+    }
+    return { ok: false, note: "Self-log · pending agency verify" };
+  }
   const expected = calcReceiptCommissions(scan.items);
   const itemTotal = scan.items.reduce((s, i) => s + i.amount, 0);
   const issues: string[] = [];
@@ -229,7 +239,7 @@ export function buildShiftStatusRows(
       detail: formatReceiptScanRowDetail(scan),
       product: formatReceiptLineItemNames(scan.items),
       qty: formatReceiptLineItemQty(scan.items),
-      source: "Receipt scan",
+      source: isManualSelfLog(scan) ? "Self-log" : "Receipt scan",
       wagesRm: 0,
       commissionRm: scan.totalCommission,
       verified: verify.ok,

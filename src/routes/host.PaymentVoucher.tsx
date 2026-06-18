@@ -1,7 +1,8 @@
 import {
   FINANCE_HEAD_LABEL,
   PV_DISPUTE_PRESETS,
-  SHIFT_TODAY,
+  getShiftToday,
+  getPayrollCycleLabel,
   filterPvsForPrProfile,
   filterReceiptScansForPrProfile,
   getPrAgencyById,
@@ -12,13 +13,13 @@ import {
   pvStatusPillVariant,
   pvDisputePhotos,
   parsePvIssuedMs,
-  PAYROLL_CYCLE,
   calcReceiptCommissions,
   type PrPaymentVoucher,
   type PrReceiptScan,
   type PrSubRole,
 } from "@/lib/pr-demo";
 import { PvSummaryView } from "@/components/iz/PvSummaryView";
+import { PrWeeklyPaymentWeekCard } from "@/components/pr/PrWeeklyPaymentWeekCard";
 import { PrWeeklyPaymentGrid } from "@/components/pr/PrWeeklyPaymentGrid";
 import { viewPvBreakdownPdf } from "@/lib/pv-pdf";
 import { payeeFromProfile } from "@/lib/pv-template";
@@ -26,6 +27,8 @@ import {
   buildWeeklyPaymentSummary,
   buildWeeklyDisputeMessage,
   getWeekBounds,
+  getPreviousWeekBounds,
+  isWeekPvIssued,
   syncWeeklyPvWithSummary,
   type WeeklyDisputeTarget,
 } from "@/lib/pr-weekly-payment";
@@ -40,6 +43,7 @@ import {
   X,
   ChevronDown,
   ImagePlus,
+  AlertTriangle,
 } from "lucide-react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -98,6 +102,7 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
   const disputePrPv = useStore((s) => s.disputePrPv);
   const updatePrPvDisputeReason = useStore((s) => s.updatePrPvDisputeReason);
   const escalatePrPvDispute = useStore((s) => s.escalatePrPvDispute);
+  const ensurePreviousWeekPv = useStore((s) => s.ensurePreviousWeekPv);
   const toast = useStore((s) => s.toast);
   const [detailId, setDetailId] = useState<string | null>(searchPvId ?? null);
   const [pvFilter, setPvFilter] = useState<PvDayTimeFilter>(EMPTY_PV_DAY_TIME_FILTER);
@@ -115,15 +120,40 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
     () => filterReceiptScansForPrProfile(prReceiptScans, profile, prSubRole, myVouchers),
     [prReceiptScans, profile, prSubRole, myVouchers],
   );
-  const weekBounds = useMemo(() => getWeekBounds(SHIFT_TODAY), []);
+  const prevWeekBounds = useMemo(() => getPreviousWeekBounds(), []);
+  const previousWeekPv = useMemo(
+    () => myVouchers.find((p) => p.weekStartIso === prevWeekBounds.startIso),
+    [myVouchers, prevWeekBounds.startIso],
+  );
+
+  useEffect(() => {
+    ensurePreviousWeekPv();
+  }, [ensurePreviousWeekPv]);
+  const weekBounds = useMemo(() => getWeekBounds(getShiftToday()), []);
+  const payrollCycle = useMemo(() => getPayrollCycleLabel(), []);
   const currentWeekPv = useMemo(
     () => myVouchers.find((p) => p.weekStartIso === weekBounds.startIso),
     [myVouchers, weekBounds.startIso],
   );
+  const previousWeekSummary = useMemo(
+    () =>
+      buildWeeklyPaymentSummary({
+        weekStartIso: prevWeekBounds.startIso,
+        reference: getShiftToday(),
+        pv: previousWeekPv,
+        shiftHistory,
+        scans: myReceiptScans,
+        prId,
+      }),
+    [prevWeekBounds.startIso, previousWeekPv, shiftHistory, myReceiptScans, prId],
+  );
+  const prevWeekIssued = isWeekPvIssued(prevWeekBounds.endIso);
+  const showLastWeekCard =
+    prevWeekIssued && (previousWeekSummary.totals.net > 0 || Boolean(previousWeekPv));
   const currentWeekSummary = useMemo(
     () =>
       buildWeeklyPaymentSummary({
-        reference: SHIFT_TODAY,
+        reference: getShiftToday(),
         pv: currentWeekPv,
         shiftHistory,
         scans: myReceiptScans,
@@ -146,10 +176,16 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
 
   const filteredVouchers = useMemo(() => {
     const matched = myVouchers.filter((p) => matchesPvDayTimeFilter(p, pvFilter, myReceiptScans));
-    if (!currentWeekSummary.pvReady && currentWeekPv) {
-      return matched.filter((p) => p.id !== currentWeekPv.id);
-    }
-    return matched;
+    const withoutCurrentDraft =
+      !currentWeekSummary.pvReady && currentWeekPv
+        ? matched.filter((p) => p.id !== currentWeekPv.id)
+        : matched;
+    return [...withoutCurrentDraft].sort((a, b) => {
+      const aReview = pvNeedsPrReview(a.status) ? 1 : 0;
+      const bReview = pvNeedsPrReview(b.status) ? 1 : 0;
+      if (aReview !== bReview) return bReview - aReview;
+      return parsePvIssuedMs(b.issued) - parsePvIssuedMs(a.issued);
+    });
   }, [myVouchers, pvFilter, myReceiptScans, currentWeekSummary.pvReady, currentWeekPv]);
 
   const filterCount = pvDayTimeFilterCount(pvFilter);
@@ -231,43 +267,29 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
       ) : (
         <p className="iz-tiny iz-muted mt-3 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
           <Shield className="mr-1 inline h-3 w-3" />
-          Outlet → Agency → your bank · one PV per week (issued Saturday)
+          Outlet → Agency → your bank · one PV per week (issued Sunday)
         </p>
       )}
 
-      <IzCard className="mt-3 iz-pr-week-pay-card">
-        <div className="iz-pr-week-pay-card__head">
-          <div>
-            <p className="iz-pr-week-pay-card__title">This week</p>
-            <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">
-              {currentWeekSummary.weekLabel}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="iz-tiny iz-muted2">Verified days</p>
-            <p className="font-sora text-base font-extrabold text-[var(--iz-violet-l)]">
-              {currentWeekSummary.verifiedDayCount}/7
-            </p>
-          </div>
-        </div>
-        <PrWeeklyPaymentGrid summary={currentWeekSummary} large />
-        {!currentWeekSummary.pvReady ? (
-          <p className="iz-tiny iz-muted2 mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-2">
-            Summary from <b>verified days only</b>. Weekly PV auto-issues on{" "}
-            <b className="text-[var(--iz-gold-l)]">{currentWeekSummary.saturdayLabel} (Sat)</b> —
-            dispute any wrong line before then. Current week total so far:{" "}
-            <b className="text-[var(--iz-gold)]">{formatRM(currentWeekSummary.totals.net)}</b>
-          </p>
-        ) : currentWeekPv ? (
-          <button
-            type="button"
-            className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-full"
-            onClick={() => openDetail(currentWeekPv.id)}
-          >
-            Open this week&apos;s PV · {formatRM(currentWeekPv.net)}
-          </button>
-        ) : null}
-      </IzCard>
+      <PrWeeklyPaymentWeekCard
+        title="This week"
+        summary={currentWeekSummary}
+        weekPhase="open"
+        defaultOpen
+        pv={currentWeekPv}
+        onOpenPv={openDetail}
+      />
+
+      {showLastWeekCard && (
+        <PrWeeklyPaymentWeekCard
+          title="Last week"
+          summary={previousWeekSummary}
+          weekPhase="issued"
+          defaultOpen={previousWeekPv ? pvNeedsPrReview(previousWeekPv.status) : false}
+          pv={previousWeekPv}
+          onOpenPv={openDetail}
+        />
+      )}
 
       <div className="iz-outlet-stat-strip mt-3">
         <div className="iz-outlet-stat-cell">
@@ -335,7 +357,7 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
       </div>
 
       <p className="iz-tiny iz-muted2 mt-4 mb-1 tracking-wide">
-        WEEKLY PAYMENT VOUCHERS · {PAYROLL_CYCLE.range}
+        WEEKLY PAYMENT VOUCHERS · {payrollCycle.range}
       </p>
       <div className="iz-pr-list">
         {filteredVouchers.length === 0 ? (
@@ -345,7 +367,7 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
             <p className="iz-tiny iz-muted2 mt-1">
               {currentWeekSummary.pvReady
                 ? "Try another date or clear the time range."
-                : "This week's PV issues Saturday — past weeks appear here after you filter."}
+                : "Last week's PV appears here every Sunday — filter by date to find older weeks."}
             </p>
             {pvDayTimeFilterActive(pvFilter) && (
               <button
@@ -411,6 +433,9 @@ function PvDetail({
   const [disputePhotos, setDisputePhotos] = useState<string[]>([]);
   const [editDisputeReason, setEditDisputeReason] = useState(pv.prDisputeReason ?? "");
   const [editDisputePhotos, setEditDisputePhotos] = useState<string[]>(() => pvDisputePhotos(pv));
+  const [disputeSheetOpen, setDisputeSheetOpen] = useState(false);
+  const [disputeTargets, setDisputeTargets] = useState<WeeklyDisputeTarget[]>([]);
+  const [activeDisputeKey, setActiveDisputeKey] = useState<string | null>(null);
   const raiseDisputeRef = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
@@ -436,9 +461,7 @@ function PvDetail({
     () =>
       buildWeeklyPaymentSummary({
         weekStartIso: pv.weekStartIso,
-        reference: pv.weekStartIso
-          ? (pv.weekStartIso.split("-").map(Number) as [number, number, number])
-          : SHIFT_TODAY,
+        reference: getShiftToday(),
         pv,
         shiftHistory,
         scans: receiptScans,
@@ -452,11 +475,43 @@ function PvDetail({
     [pv, weekSummary],
   );
 
+  const canDisputeFromGrid = needsReview || pv.status === "DISPUTED";
+
   const openDisputeForDay = (targets: WeeklyDisputeTarget[]) => {
-    if (!targets.length) return;
+    if (!targets.length || !canDisputeFromGrid) return;
     const lines = targets.map((t) => buildWeeklyDisputeMessage(t));
-    setDisputeReason(lines.join("\n\n"));
-    if (raiseDisputeRef.current) raiseDisputeRef.current.open = true;
+    const text = lines.join("\n\n");
+    setDisputeTargets(targets);
+    if (targets.length === 1) {
+      const t = targets[0];
+      setActiveDisputeKey(`${t.dateIso}-${t.incomeKey}`);
+    } else {
+      setActiveDisputeKey(null);
+    }
+    if (pv.status === "DISPUTED") {
+      setEditDisputeReason((prev) => {
+        const base = prev.trim();
+        return base && !base.includes(text.slice(0, 48)) ? `${base}\n\n${text}` : base || text;
+      });
+    } else {
+      setDisputeReason(text);
+    }
+    setDisputeSheetOpen(true);
+  };
+
+  const closeDisputeSheet = () => {
+    setDisputeSheetOpen(false);
+    setDisputeTargets([]);
+    setActiveDisputeKey(null);
+  };
+
+  const submitDisputeFromSheet = () => {
+    if (pv.status === "DISPUTED") {
+      saveDisputeEdits();
+    } else {
+      submitDispute();
+    }
+    closeDisputeSheet();
   };
 
   const submitDispute = () => {
@@ -492,8 +547,8 @@ function PvDetail({
         >
           <p className="iz-sm font-bold text-[var(--iz-gold-l)]">Pending your review</p>
           <p className="iz-tiny iz-muted mt-1">
-            Finance Head has pre-signed this weekly PV. Check the week summary and line items below
-            — sign if correct, or raise a dispute with a clear description for your agency.
+            Finance Head has pre-signed this weekly PV. Tap any amount in the week summary to
+            dispute a line, or use Raise dispute below — sign if everything is correct.
           </p>
           <p className="iz-tiny iz-muted2 mt-1">Sign-by: {pv.due}</p>
         </IzCard>
@@ -510,8 +565,10 @@ function PvDetail({
           <PrWeeklyPaymentGrid
             summary={weekSummary}
             large
-            interactive={needsReview || pv.status === "DISPUTED"}
+            weekPhase="issued"
+            interactive={canDisputeFromGrid}
             onDisputeDay={openDisputeForDay}
+            activeDisputeKey={activeDisputeKey}
           />
         </IzCard>
       )}
@@ -578,6 +635,55 @@ function PvDetail({
 
       <LinkedReceiptScanSheet scan={receiptDetail} onClose={() => setReceiptDetail(null)} />
 
+      <IzSheet open={disputeSheetOpen} onClose={closeDisputeSheet}>
+        <div className="iz-cardttl">
+          {disputeTargets.length === 1 ? "Dispute this amount" : "Dispute selected lines"}
+        </div>
+        {disputeTargets.length > 0 && (
+          <div className="mb-3 space-y-1.5">
+            {disputeTargets.map((t) => (
+              <p
+                key={`${t.dateIso}-${t.incomeKey}`}
+                className="iz-tiny rounded-lg border border-[var(--iz-line)] bg-[var(--iz-bg2)] px-2.5 py-2"
+              >
+                <b className="text-[var(--iz-gold-l)]">
+                  {t.dayLabel} {t.dateLabel}
+                </b>{" "}
+                · {t.incomeLabel}
+                {t.outlet ? ` · ${t.outlet}` : ""} · <b>{formatRM(t.amount)}</b>
+              </p>
+            ))}
+          </div>
+        )}
+        {pv.status === "DISPUTED" ? (
+          <>
+            <DisputeReasonFields value={editDisputeReason} onChange={setEditDisputeReason} />
+            <DisputeImageAttachments images={editDisputePhotos} onChange={setEditDisputePhotos} />
+            <button
+              type="button"
+              className="iz-btn iz-btn-primary mt-3 w-full"
+              disabled={!editDisputeReason.trim() || !disputeDirty}
+              onClick={submitDisputeFromSheet}
+            >
+              Update dispute
+            </button>
+          </>
+        ) : (
+          <>
+            <DisputeReasonFields value={disputeReason} onChange={setDisputeReason} />
+            <DisputeImageAttachments images={disputePhotos} onChange={setDisputePhotos} />
+            <button
+              type="button"
+              className="iz-btn iz-btn-primary mt-3 w-full"
+              disabled={!disputeReason.trim()}
+              onClick={submitDisputeFromSheet}
+            >
+              Submit dispute
+            </button>
+          </>
+        )}
+      </IzSheet>
+
       <button type="button" className="iz-btn iz-btn-soft mt-2.5 w-full" onClick={onViewPdf}>
         <FileText className="h-4 w-4" /> View PDF
       </button>
@@ -617,9 +723,20 @@ function PvDetail({
             wallet or withdraw step.
           </IzCard>
           <div className="mt-2.5 flex flex-col gap-2.5">
-            <details ref={raiseDisputeRef} className="iz-pv-dispute-details">
-              <summary className="iz-pv-dispute-details-toggle">
-                <span className="iz-sm font-semibold">Raise dispute</span>
+            <div className="iz-pv-dispute-caution" role="note">
+              <AlertTriangle className="iz-pv-dispute-caution__icon h-4 w-4 shrink-0" aria-hidden />
+              <p className="iz-pv-dispute-caution__text">
+                <b className="text-[var(--iz-red)]">You can raise a dispute</b> if any wage or
+                commission line is wrong — tap amounts in the week summary above, or expand{" "}
+                <b>Raise dispute</b> below.
+              </p>
+            </div>
+            <details ref={raiseDisputeRef} className="iz-pv-dispute-details iz-pv-dispute-details--caution">
+              <summary className="iz-pv-dispute-details-toggle iz-pv-dispute-details-toggle--caution">
+                <span className="flex min-w-0 items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--iz-red)]" aria-hidden />
+                  <span className="iz-sm font-semibold text-[var(--iz-red)]">Raise dispute</span>
+                </span>
                 <ChevronDown className="iz-pv-dispute-details-chevron h-4 w-4 shrink-0" />
               </summary>
               <div className="iz-pv-dispute-details-body">

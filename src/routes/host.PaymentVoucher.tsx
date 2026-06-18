@@ -13,6 +13,7 @@ import {
   pvDisputePhotos,
   parsePvIssuedMs,
   PAYROLL_CYCLE,
+  calcReceiptCommissions,
   type PrPaymentVoucher,
   type PrReceiptScan,
   type PrSubRole,
@@ -405,6 +406,7 @@ function PvDetail({
   onViewPdf: () => void;
 }) {
   const [signOpen, setSignOpen] = useState(false);
+  const [receiptDetail, setReceiptDetail] = useState<PrReceiptScan | null>(null);
   const [disputeReason, setDisputeReason] = useState("");
   const [disputePhotos, setDisputePhotos] = useState<string[]>([]);
   const [editDisputeReason, setEditDisputeReason] = useState(pv.prDisputeReason ?? "");
@@ -523,51 +525,62 @@ function PvDetail({
       />
 
       {linkedReceipts.length > 0 && (
-        <IzCard className="mt-2.5">
-          <div className="iz-tiny iz-muted2 mb-2 tracking-widest">LINKED RECEIPT SCANS</div>
-          <div className="iz-data-table-wrap">
-            <table className="iz-data-table">
-              <thead>
-                <tr>
-                  <th>Receipt</th>
-                  <th>Belongs to PV</th>
-                  <th>Logged</th>
-                  <th className="text-right">Commission</th>
-                </tr>
-              </thead>
-              <tbody>
-                {linkedReceipts.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      <div className="font-semibold">{s.id}</div>
-                      <div className="iz-tiny iz-muted2">{s.scannedAt}</div>
-                    </td>
-                    <td className="font-semibold text-[var(--iz-gold-l)]">{s.pvId ?? pv.id}</td>
-                    <td>{formatRM(s.totalLogged)}</td>
-                    <td className="text-right text-[var(--iz-gold-l)]">
-                      {formatRM(s.totalCommission)}
-                    </td>
+        <details className="iz-pv-dispute-details mt-2.5">
+          <summary className="iz-pv-dispute-details-toggle">
+            <span>
+              <span className="iz-tiny iz-muted2 tracking-widest">LINKED RECEIPT SCANS</span>
+              <span className="iz-sm mt-0.5 block font-semibold">
+                {linkedReceipts.length} scan{linkedReceipts.length !== 1 ? "s" : ""} ·{" "}
+                {formatRM(linkedReceipts.reduce((sum, s) => sum + s.totalCommission, 0))} commission
+              </span>
+            </span>
+            <ChevronDown className="iz-pv-dispute-details-chevron h-4 w-4 shrink-0" />
+          </summary>
+          <div className="iz-pv-dispute-details-body">
+            <div className="iz-data-table-wrap">
+              <table className="iz-data-table">
+                <thead>
+                  <tr>
+                    <th>Receipt</th>
+                    <th>Outlet</th>
+                    <th className="text-right">Commission</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {linkedReceipts.map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <div className="font-semibold">{s.receiptRef}</div>
+                        <div className="iz-tiny iz-muted2">{s.scannedAt}</div>
+                      </td>
+                      <td>{s.outlet}</td>
+                      <td className="text-right font-semibold text-[var(--iz-gold-l)]">
+                        {formatRM(s.totalCommission)}
+                      </td>
+                      <td className="text-right">
+                        <button
+                          type="button"
+                          className="iz-btn iz-btn-ghost iz-btn-sm"
+                          onClick={() => setReceiptDetail(s)}
+                        >
+                          Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <Link
-            to="/host/history"
-            search={{ tab: "receipts" }}
-            className="iz-tiny mt-2 inline-block text-[var(--iz-blue)] underline-offset-2 hover:underline"
-          >
-            View all receipt records
-          </Link>
-        </IzCard>
+        </details>
       )}
+
+      <LinkedReceiptScanSheet scan={receiptDetail} onClose={() => setReceiptDetail(null)} />
 
       <button type="button" className="iz-btn iz-btn-soft mt-2.5 w-full" onClick={onViewPdf}>
         <FileText className="h-4 w-4" /> View PDF
       </button>
-      <p className="iz-tiny iz-muted2 mt-1.5 text-center">
-        Opens the official Atmosphere payment voucher — use Print → Save as PDF to download.
-      </p>
 
       <IzCard className="mt-2.5">
         <div className="iz-tiny iz-muted2 mb-2 tracking-widest">E-SIGNATURES</div>
@@ -732,6 +745,69 @@ function PvDetail({
         Back
       </button>
     </>
+  );
+}
+
+function receiptItemCommissionShare(scan: PrReceiptScan, item: PrReceiptScan["items"][number]) {
+  const pool =
+    item.category === "drinks"
+      ? scan.drinkCommission
+      : item.category === "tips"
+        ? scan.tipCommission
+        : item.category === "tables"
+          ? scan.tableCommission
+          : 0;
+  const categoryItems = scan.items.filter((row) => row.category === item.category);
+  if (pool > 0 && categoryItems.length > 0) {
+    const categoryWeight = categoryItems.reduce(
+      (sum, row) => sum + (item.category === "tips" ? row.amount : row.qty),
+      0,
+    );
+    const itemWeight = item.category === "tips" ? item.amount : item.qty;
+    if (categoryWeight > 0) return (pool * itemWeight) / categoryWeight;
+  }
+  return calcReceiptCommissions([item]).totalCommission;
+}
+
+function LinkedReceiptScanSheet({
+  scan,
+  onClose,
+}: {
+  scan: PrReceiptScan | null;
+  onClose: () => void;
+}) {
+  if (!scan) return null;
+
+  return (
+    <IzSheet open onClose={onClose}>
+      <div className="iz-cardttl">Receipt details</div>
+      <dl className="iz-pv-receipt-detail-grid">
+        <div>
+          <dt>Date & time</dt>
+          <dd>{scan.scannedAt}</dd>
+        </div>
+        <div>
+          <dt>Outlet</dt>
+          <dd>{scan.outlet}</dd>
+        </div>
+        <div>
+          <dt>Commission</dt>
+          <dd className="text-[var(--iz-gold-l)]">{formatRM(scan.totalCommission)}</dd>
+        </div>
+      </dl>
+      <ul className="iz-pv-receipt-item-list">
+        {scan.items.map((item) => (
+          <li key={`${item.label}-${item.qty}`} className="iz-pv-receipt-item-list__row">
+            <span>
+              {item.qty}× {item.label}
+            </span>
+            <span className="text-[var(--iz-gold-l)]">
+              {formatRM(receiptItemCommissionShare(scan, item))}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </IzSheet>
   );
 }
 

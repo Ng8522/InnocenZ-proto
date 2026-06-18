@@ -1,4 +1,7 @@
 import type { PrReceiptItem, PrReceiptScan } from "@/lib/pr-demo";
+import { outletMatches } from "@/lib/portal-sync";
+import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
+import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 
 export function normalizeReceiptRef(ref: string): string {
   return ref.trim().toUpperCase();
@@ -50,4 +53,45 @@ export function validateReceiptScan(
   }
 
   return { ok: true };
+}
+
+export function receiptDateIso(scan: PrReceiptScan): string {
+  const [y, m, d] = scan.date;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** History tab — hide receipts still attached to tonight's live shift. */
+export function isReceiptFromPastShift(
+  scan: PrReceiptScan,
+  shiftHistory: ShiftHistoryRow[],
+  prId: string,
+  opts?: {
+    todayIso?: string;
+    checkedIn?: boolean;
+    checkedOut?: boolean;
+    activeOutlet?: string | null;
+  },
+): boolean {
+  const todayIso = opts?.todayIso ?? DEFAULT_ROSTER_DATE_ISO;
+  const dateIso = receiptDateIso(scan);
+  if (dateIso > todayIso) return false;
+
+  const rosterId = scan.prId ?? prId;
+  if (scan.prId && scan.prId !== prId) return false;
+
+  if (
+    opts?.checkedIn &&
+    !opts?.checkedOut &&
+    dateIso === todayIso &&
+    opts.activeOutlet &&
+    outletMatches(scan.outlet, opts.activeOutlet)
+  ) {
+    return false;
+  }
+
+  if (dateIso < todayIso) return true;
+
+  return shiftHistory.some(
+    (h) => h.prId === rosterId && h.dateIso === dateIso && outletMatches(h.outlet, scan.outlet),
+  );
 }

@@ -3089,6 +3089,20 @@ button.iz-pr-offer-row:hover {
   border-radius: 14px;
   background: var(--iz-grad-card);
   overflow: hidden;
+  padding: 12px 14px;
+}
+.iz-pr-inbox-card > .iz-pr-offer-row {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+.iz-pr-inbox-card__actions {
+  display: flex;
+  gap: 8px;
+  margin: 12px -14px -12px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--iz-line);
 }
 .iz-pr-hero {
   padding: 14px;
@@ -5962,6 +5976,181 @@ button.iz-agency-row:hover {
 }
 .iz-hist-shift-list {
   padding-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.iz-hist-payroll-week {
+  border-radius: 14px;
+  border: 1px solid var(--iz-line2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01));
+  overflow: hidden;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.iz-hist-payroll-week.is-current {
+  border-color: rgba(244, 183, 64, 0.38);
+  box-shadow: 0 0 0 1px rgba(244, 183, 64, 0.08);
+}
+.iz-hist-payroll-week.is-open {
+  border-color: rgba(244, 183, 64, 0.28);
+  background: linear-gradient(180deg, rgba(244, 183, 64, 0.06), rgba(255, 255, 255, 0.01));
+}
+.iz-hist-payroll-week__trigger {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.iz-hist-payroll-week__trigger:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.iz-hist-payroll-week__trigger:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+.iz-hist-payroll-week__icon {
+  display: flex;
+  height: 36px;
+  width: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--iz-line);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--iz-gold-l);
+}
+.iz-hist-payroll-week.is-current .iz-hist-payroll-week__icon {
+  border-color: rgba(244, 183, 64, 0.35);
+  background: rgba(244, 183, 64, 0.1);
+}
+.iz-hist-payroll-week__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.iz-hist-payroll-week__title {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--iz-txt);
+}
+.iz-hist-payroll-week__hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--iz-muted);
+}
+.iz-hist-payroll-week__action {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--iz-gold-l);
+}
+.iz-hist-payroll-week__chev {
+  display: flex;
+  height: 32px;
+  width: 32px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--iz-line2);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--iz-muted);
+}
+.iz-hist-payroll-week.is-open .iz-hist-payroll-week__chev {
+  border-color: rgba(244, 183, 64, 0.35);
+  color: var(--iz-gold-l);
+}
+.iz-hist-payroll-week__body {
+  padding: 0 12px 12px;
+  border-top: 1px dashed var(--iz-line);
+}
+
+/* Collapsible section — PR Shifts home, outlet panels */
+.iz-collapsible-section {
+  margin-top: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--iz-line2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01));
+  overflow: hidden;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.iz-collapsible-section.is-open {
+  border-color: rgba(217, 185, 122, 0.32);
+  background: linear-gradient(180deg, rgba(217, 185, 122, 0.06), rgba(255, 255, 255, 0.01));
+  box-shadow: 0 0 0 1px rgba(217, 185, 122, 0.06);
+}
+.iz-collapsible-section__trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.iz-collapsible-section__trigger:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.iz-collapsible-section__trigger:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+.iz-collapsible-section__title {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--iz-txt);
+}
+.iz-collapsible-section__hint {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--iz-muted);
+}
+.iz-collapsible-section__action {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--iz-gold-l);
+}
+.iz-collapsible-section__chev {
+  display: flex;
+  height: 32px;
+  width: 32px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--iz-line2);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--iz-muted);
+}
+.iz-collapsible-section.is-open .iz-collapsible-section__chev {
+  border-color: rgba(217, 185, 122, 0.35);
+  color: var(--iz-gold-l);
+}
+.iz-collapsible-section__body {
+  padding: 0 12px 12px;
+  border-top: 1px dashed var(--iz-line);
 }
 .iz-hist-shift-card {
   border-color: var(--iz-line2) !important;
@@ -5969,14 +6158,14 @@ button.iz-agency-row:hover {
 }
 .iz-hist-shift-card-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 .iz-hist-shift-metric {
   border-radius: 10px;
   border: 1px solid var(--iz-line);
   background: rgba(0, 0, 0, 0.15);
-  padding: 8px 9px;
+  padding: 9px 10px;
   min-width: 0;
 }
 .iz-hist-shift-metric .l {
@@ -5989,14 +6178,17 @@ button.iz-agency-row:hover {
 }
 .iz-hist-shift-metric .v {
   display: block;
-  margin-top: 3px;
+  margin-top: 4px;
   font-family: "Sora", sans-serif;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
+  line-height: 1.25;
   color: var(--iz-txt);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
 }
 .iz-data-table-wrap {
   overflow-x: auto;

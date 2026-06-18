@@ -148,6 +148,8 @@ export function SpecialServiceSection({ canBook }: { canBook: boolean }) {
       <OutletSection
         title="All service orders"
         hint={`${filtered.length} record${filtered.length !== 1 ? "s" : ""}`}
+        collapsible
+        defaultOpen={false}
         className="!mt-3"
       >
         {filtered.length === 0 ? (

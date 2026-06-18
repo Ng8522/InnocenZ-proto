@@ -909,7 +909,7 @@ export interface HistRow {
   table: number;
   drinks: number;
   tips: number;
-  st: "PAID" | "SIGNED" | "SENT" | "DISPUTED";
+  st: "PAID" | "SIGNED" | "SENT" | "DISPUTED" | "SEALED";
   pill: "green" | "amber" | "ink" | "red";
   durationHours?: number;
 }

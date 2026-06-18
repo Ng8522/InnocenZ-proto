@@ -160,7 +160,6 @@ export function PrPaymentHistoryPanel({
       <div className="iz-pay-hist-hero">
         <div>
           <p className="iz-pay-hist-hero__title">Payment history</p>
-          <p className="iz-tiny iz-muted2">Signed &amp; paid weekly PVs only — wages, commission, withdrawals</p>
         </div>
       </div>
 
@@ -185,10 +184,7 @@ export function PrPaymentHistoryPanel({
 
       {records.length === 0 ? (
         <IzCard flat className="mt-4 px-4 py-8 text-center">
-          <p className="text-sm font-semibold">No signed or paid payments yet</p>
-          <p className="iz-tiny iz-muted2 mt-1">
-            Weekly PVs appear here after you sign — transfers show once marked PAID.
-          </p>
+          <p className="text-sm font-semibold">No payments yet</p>
           <Link to="/host/PaymentVoucher" className="iz-btn iz-btn-soft mt-3">
             Open Payment
           </Link>

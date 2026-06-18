@@ -19,6 +19,7 @@ import {
   Star,
   User,
   X,
+  Clock,
 } from "lucide-react";
 
 export const Route = createFileRoute("/register")({
@@ -666,9 +667,9 @@ function RegistrationAcknowledgements({
 
 function RegisterPage() {
   const navigate = useNavigate();
-  const signIn = useStore((s) => s.signIn);
   const toast = useStore((s) => s.toast);
   const [step, setStep] = useState(1);
+  const [submitted, setSubmitted] = useState(false);
   const [draft, setDraft] = useState<RegisterDraft>(() => buildDemoRegisterDraft());
   const profilePhotoRef = useRef<HTMLInputElement>(null);
 
@@ -801,11 +802,52 @@ function RegisterPage() {
       toast("Accept all acknowledgements and terms to continue", "warn");
       return;
     }
-    const loginId = draft.email.trim() || fullPhone;
-    signIn(displayName, loginId);
-    toast("Account created — welcome to InnocenZ", "success");
-    navigate({ to: "/host" });
+    toast("Registration submitted — awaiting agency verification", "success");
+    setSubmitted(true);
   };
+
+  const agencyName =
+    draft.underAgency === false
+      ? "your assigned agency"
+      : draft.agencyId
+        ? (getPrAgencyById(draft.agencyId)?.name ?? "your agency")
+        : "your agency";
+
+  if (submitted) {
+    return (
+      <PhoneFrame overlay={<Toasts />}>
+        <div className="iz-welcome iz-reg-pending flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col items-center justify-center py-6">
+            <div className="iz-reg-pending-card">
+              <span className="iz-reg-pending-badge">Pending verification</span>
+              <div className="iz-reg-pending__icon" aria-hidden>
+                <Clock className="h-8 w-8 text-[var(--iz-amber)]" strokeWidth={2} />
+              </div>
+              <h1 className="font-sora mt-5 text-[22px] font-extrabold leading-tight text-[var(--iz-txt)]">
+                Information updated
+              </h1>
+              <p className="iz-sm iz-muted mt-3 leading-relaxed">
+                Your registration has been submitted. Please wait for{" "}
+                <span className="font-semibold text-[var(--iz-txt)]">{agencyName}</span> to verify
+                your account.
+              </p>
+              <p className="iz-reg-pending-note iz-tiny mt-4 leading-relaxed">
+                Once verified, you will be notified by <b className="text-[var(--iz-txt)]">email</b>{" "}
+                or <b className="text-[var(--iz-txt)]">WhatsApp</b>.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/signin" })}
+              className="iz-chip iz-reg-pending-back mt-6"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
+            </button>
+          </div>
+        </div>
+      </PhoneFrame>
+    );
+  }
 
   const current = STEPS[step - 1];
 

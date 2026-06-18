@@ -7494,3 +7494,46 @@ button.iz-agency-row:hover {
 .iz-reg-footer {
   flex-shrink: 0;
 }
+
+.iz-reg-pending-card {
+  width: 100%;
+  padding: 22px 20px 24px;
+  border-radius: 20px;
+  border: 1px solid var(--iz-line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.015) 100%);
+  text-align: center;
+  box-shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.65);
+}
+.iz-reg-pending-badge {
+  display: inline-block;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-family: "Sora", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--iz-amber);
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.22);
+}
+.iz-reg-pending__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: 18px auto 0;
+  border-radius: 18px;
+  border: 1px solid rgba(251, 191, 36, 0.22);
+  background: rgba(251, 191, 36, 0.08);
+}
+.iz-reg-pending-note {
+  padding-top: 14px;
+  border-top: 1px solid var(--iz-line);
+  color: var(--iz-muted2);
+}
+.iz-reg-pending-back {
+  min-width: 120px;
+  justify-content: center;
+}

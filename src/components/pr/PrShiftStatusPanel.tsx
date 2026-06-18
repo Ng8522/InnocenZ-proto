@@ -1,8 +1,12 @@
-import { useMemo } from "react";
-import { Check, Shield, AlertTriangle } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { Check, Shield, AlertTriangle, Camera, FileText } from "lucide-react";
 import { formatRM } from "@/components/iz/ui";
+import { IzHScroll } from "@/components/iz/HScroll";
+import { IzSheet } from "@/components/iz/Sheet";
 import { PrSection } from "@/components/pr/PrSection";
-import type { PrActiveShiftSession, PrReceiptScan } from "@/lib/pr-demo";
+import { ReceiptScanSlip } from "@/components/pr/ReceiptScanSlip";
+import { formatReceiptScannedTime, type PrActiveShiftSession, type PrReceiptScan } from "@/lib/pr-demo";
 import {
   DEFAULT_SHIFT_SALES_TARGETS,
   buildShiftStatusRows,
@@ -44,6 +48,32 @@ function VerifyBadge({
   );
 }
 
+const SCAN_RECEIPT_ROWS: { category: "drinks" | "tips" | "tables"; label: string }[] = [
+  { category: "drinks", label: "Drinks" },
+  { category: "tips", label: "Tips" },
+  { category: "tables", label: "Tables" },
+];
+
+function ShiftReceiptScanRows() {
+  return (
+    <div className="iz-pr-shift-scan-rows">
+      {SCAN_RECEIPT_ROWS.map((row) => (
+        <div key={row.category} className="iz-pr-shift-scan-row">
+          <span className="iz-pr-shift-scan-row__label">{row.label}</span>
+          <Link
+            to="/host/scan"
+            search={{ category: row.category }}
+            className="iz-btn iz-btn-soft iz-btn-sm shrink-0"
+          >
+            <Camera className="h-3.5 w-3.5" />
+            Scan receipt
+          </Link>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function PrShiftStatusPanel({
   session,
   scans,
@@ -76,6 +106,10 @@ export function PrShiftStatusPanel({
       : pendingReceipts > 0
         ? `${pendingReceipts} receipt${pendingReceipts !== 1 ? "s" : ""} need review`
         : `${verifiedReceipts} receipt${verifiedReceipts !== 1 ? "s" : ""} matched · PV ready`;
+
+  const [viewScan, setViewScan] = useState<PrReceiptScan | null>(null);
+
+  const wagesFinalized = checkedOut || Boolean(session?.timeOut);
 
   if (!session) return null;
 
@@ -123,16 +157,21 @@ export function PrShiftStatusPanel({
         </div>
       </div>
 
+      {!checkedOut && <ShiftReceiptScanRows />}
+
       <PrSection title="Status" hint={statusHint} collapsible defaultOpen className="!mt-3">
-        <div className="iz-pr-shift-status__table-wrap iz-hscroll">
+        <IzHScroll className="iz-pr-shift-status__table-wrap iz-hscroll--free">
           <table className="iz-pr-shift-status__table iz-table">
             <thead>
               <tr>
+                <th>Ref</th>
                 <th>Item</th>
+                <th>Qty</th>
                 <th>Source</th>
-                <th>Wages</th>
-                <th>Commission</th>
+                {wagesFinalized && <th>Wages</th>}
+                <th>Comm.</th>
                 <th>Verify</th>
+                <th>Receipt</th>
               </tr>
             </thead>
             <tbody>
@@ -156,45 +195,88 @@ export function PrShiftStatusPanel({
                       )}
                     </div>
                   </td>
-                  <td className="iz-pr-shift-status__source">{row.source}</td>
-                  <td className="iz-pr-shift-status__money wages">
-                    {row.wagesRm > 0 ? formatRM(row.wagesRm) : "—"}
+                  <td className="iz-pr-shift-status__product">
+                    {row.kind === "receipt" ? row.product ?? "—" : "—"}
                   </td>
+                  <td className="iz-pr-shift-status__qty">
+                    {row.kind === "receipt" ? row.qty ?? "—" : "—"}
+                  </td>
+                  <td className="iz-pr-shift-status__source">{row.source}</td>
+                  {wagesFinalized && (
+                    <td className="iz-pr-shift-status__money wages">
+                      {row.wagesRm > 0 ? formatRM(row.wagesRm) : "—"}
+                    </td>
+                  )}
                   <td className="iz-pr-shift-status__money commission">
                     {row.commissionRm > 0 ? formatRM(row.commissionRm) : "—"}
                   </td>
                   <td>
                     <VerifyBadge verified={row.verified} kind={row.kind} note={row.verifyNote} />
                   </td>
+                  <td className="iz-pr-shift-status__receipt">
+                    {row.kind === "receipt" && row.scan ? (
+                      <button
+                        type="button"
+                        className="iz-pr-shift-status__receipt-btn"
+                        onClick={() => setViewScan(row.scan!)}
+                        title="View scanned receipt"
+                      >
+                        <FileText className="h-3 w-3 shrink-0" aria-hidden />
+                        <span className="truncate">{row.scan.receiptRef}</span>
+                      </button>
+                    ) : (
+                      <span className="iz-tiny iz-muted2">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="iz-pr-shift-status__foot">
-                <td colSpan={2}>
+                <td colSpan={4}>
                   <span className="font-sora text-[10px] font-bold uppercase tracking-wide text-[var(--iz-muted)]">
                     Totals
                   </span>
                   <p className="iz-tiny iz-muted2 mt-0.5">
-                    Payout {formatRM(payout)} · hourly wages + commission
+                    {wagesFinalized
+                      ? `Payout ${formatRM(payout)} · hourly wages + commission`
+                      : `Commission ${formatRM(commissionTotal)} · wages calculated at check-out`}
                   </p>
                 </td>
-                <td className="iz-pr-shift-status__money wages font-sora font-bold">
-                  {formatRM(baseWages)}
-                </td>
+                {wagesFinalized && (
+                  <td className="iz-pr-shift-status__money wages font-sora font-bold">
+                    {formatRM(baseWages)}
+                  </td>
+                )}
                 <td className="iz-pr-shift-status__money commission font-sora font-bold">
                   {formatRM(commissionTotal)}
                 </td>
                 <td />
+                <td />
               </tr>
             </tfoot>
           </table>
-        </div>
+        </IzHScroll>
+
+        <IzSheet open={viewScan !== null} onClose={() => setViewScan(null)}>
+          {viewScan && (
+            <div className="iz-sheet-body">
+              <h3 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">
+                {viewScan.receiptRef}
+              </h3>
+              <p className="iz-tiny iz-muted mt-0.5">
+                Scanned receipt · {viewScan.outlet} · {formatReceiptScannedTime(viewScan.scannedAt)}
+              </p>
+              <ReceiptScanSlip scan={viewScan} />
+            </div>
+          )}
+        </IzSheet>
 
         {shiftScans.length === 0 && (
           <p className="iz-tiny iz-muted2 mt-2 text-center">
-            Duty time is sealed at the outlet hourly rate (wages column). Scan receipts to add rows
-            — each receipt scan is verified for commission.
+            {wagesFinalized
+              ? "Duty time is sealed at the outlet hourly rate (wages column). Scan receipts to add rows — each receipt scan is verified for commission."
+              : "Duty wages are calculated when you check out. Scan receipts to add commission rows below."}
           </p>
         )}
         {receiptRows.length > 0 && (

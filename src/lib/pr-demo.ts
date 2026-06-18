@@ -1044,6 +1044,43 @@ export function buildDemoReceiptDraft(
   };
 }
 
+const CATEGORY_DRAFT_ITEMS: Record<"drinks" | "tips" | "tables", PrReceiptItem[]> = {
+  drinks: [
+    { label: "Cocktail", qty: 2, unitPrice: 45, amount: 90, category: "drinks" },
+    { label: "Beer", qty: 1, unitPrice: 35, amount: 35, category: "drinks" },
+  ],
+  tips: [{ label: "Tip", qty: 1, unitPrice: 80, amount: 80, category: "tips" }],
+  tables: [{ label: "VIP Table", qty: 1, unitPrice: 200, amount: 200, category: "tables" }],
+};
+
+export function buildDemoReceiptDraftForCategory(
+  profile: { name: string; first: string },
+  outlet: string,
+  prId: string,
+  category: "drinks" | "tips" | "tables",
+  receiptRef?: string,
+) {
+  const items = CATEGORY_DRAFT_ITEMS[category];
+  const totalLogged = items.reduce((s, i) => s + i.amount, 0);
+  const comm = calcReceiptCommissions(items);
+  const prCode =
+    prId === FREELANCER_DEMO_PR_ID
+      ? "PR-0042"
+      : prId === TIED_DEMO_ROSTER_PR_ID
+        ? "PR-0001"
+        : `PR-${prId.replace(/\D/g, "").slice(0, 4).padStart(4, "0") || "0099"}`;
+  return {
+    receiptRef: receiptRef ?? buildDemoReceiptRef(outlet),
+    outlet: outlet.includes("KL") ? outlet : `${outlet} KL`,
+    prCode,
+    prName: profile.first,
+    prId,
+    items,
+    totalLogged,
+    ...comm,
+  };
+}
+
 /** Unique key for duplicate receipt detection (POS ref preferred) */
 export function receiptScanFingerprint(input: {
   outlet: string;

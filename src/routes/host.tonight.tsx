@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { IzSheet } from "@/components/iz/Sheet";
-import { PrDuringShiftExtras } from "@/components/pr/PrDuringShiftExtras";
 import { PrShiftStatusPanel } from "@/components/pr/PrShiftStatusPanel";
 import { PrShiftOutletBriefCard } from "@/components/pr/PrShiftOutletBrief";
 import { getPrShiftOutletBrief } from "@/lib/pr-shift-outlet";
@@ -478,7 +477,6 @@ function AttendancePage() {
               baseWages={baseWages}
               checkedOut={false}
             />
-            <PrDuringShiftExtras />
             <HoldButton
               label="Check out"
               icon={<MapPin className="h-4 w-4" />}

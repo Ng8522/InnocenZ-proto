@@ -59,11 +59,17 @@ export type ShiftStatusRow = {
   id: string;
   label: string;
   detail: string;
+  /** OCR line item name(s) — receipt rows only */
+  product?: string;
+  /** Line quantity — receipt rows only */
+  qty?: string;
   source: string;
   wagesRm: number;
   commissionRm: number;
   verified: boolean;
   verifyNote?: string;
+  /** Full scan record — receipt rows only */
+  scan?: PrReceiptScan;
 };
 
 export function receiptItemsForShift(
@@ -132,6 +138,47 @@ export function verifyReceiptScan(scan: PrReceiptScan): { ok: boolean; note: str
   return { ok: false, note: `Check ${issues.join(", ")}` };
 }
 
+const RECEIPT_CATEGORY_LABEL: Record<PrReceiptItem["category"], string> = {
+  drinks: "Drinks",
+  tips: "Tips",
+  tables: "Tables",
+  other: "Other",
+};
+
+/** Status table — one line per item with category and quantity. */
+export function formatReceiptScanItemSummary(items: PrReceiptItem[]): string {
+  return items
+    .map((item) => {
+      const type = RECEIPT_CATEGORY_LABEL[item.category] ?? "Item";
+      if (item.category === "tips") {
+        return `${type} · ${item.qty}× · RM ${item.amount}`;
+      }
+      return `${type} · ${item.qty}× ${item.label}`;
+    })
+    .join(" · ");
+}
+
+/** Status table — line item labels joined for multi-item receipts. */
+export function formatReceiptLineItemNames(items: PrReceiptItem[]): string {
+  if (items.length === 0) return "—";
+  return items.map((item) => item.label).join(", ");
+}
+
+/** Status table — quantities per line item. */
+export function formatReceiptLineItemQty(items: PrReceiptItem[]): string {
+  if (items.length === 0) return "—";
+  return items.map((item) => String(item.qty)).join(", ");
+}
+
+/** Status table row title — receipt unique ref. */
+export function formatReceiptScanRowLabel(scan: PrReceiptScan): string {
+  return scan.receiptRef || scan.id;
+}
+
+export function formatReceiptScanRowDetail(scan: PrReceiptScan): string {
+  return scan.scannedAt;
+}
+
 export function shiftDurationLabel(session: {
   shiftTime: string;
   shiftHours?: number;
@@ -154,7 +201,7 @@ export function buildShiftStatusRows(
     session.shiftTime,
     session.overtimeMinutes ?? 0,
   );
-  const dutyWages = session.timeOut ? duty.wages : baseWages;
+  const dutyWages = session.timeOut ? duty.wages : 0;
   const dutyDetail = session.timeOut
     ? `${session.timeIn} → ${session.timeOut} · ${duty.detail}`
     : `${session.timeIn} · ${duty.detail}`;
@@ -178,13 +225,16 @@ export function buildShiftStatusRows(
     rows.push({
       kind: "receipt",
       id: scan.id,
-      label: scan.receiptRef || scan.id,
-      detail: scan.scannedAt,
+      label: formatReceiptScanRowLabel(scan),
+      detail: formatReceiptScanRowDetail(scan),
+      product: formatReceiptLineItemNames(scan.items),
+      qty: formatReceiptLineItemQty(scan.items),
       source: "Receipt scan",
       wagesRm: 0,
       commissionRm: scan.totalCommission,
       verified: verify.ok,
       verifyNote: verify.note,
+      scan,
     });
   }
 

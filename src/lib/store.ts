@@ -401,8 +401,8 @@ interface StoreState {
 
   prPaymentVouchers: PrPaymentVoucher[];
   signPrPv: (id: string, signatureDataUrl: string) => void;
-  disputePrPv: (id: string, reason: string, photoDataUrl?: string) => void;
-  updatePrPvDisputeReason: (id: string, reason: string) => void;
+  disputePrPv: (id: string, reason: string, photoDataUrls?: string[]) => void;
+  updatePrPvDisputeReason: (id: string, reason: string, photoDataUrls?: string[]) => void;
   escalatePrPvDispute: (id: string) => void;
   demoFreelancerLowRatingStrike: () => void;
 
@@ -1622,12 +1622,13 @@ export const useStore = create<StoreState>()(
           "success",
         );
       },
-      disputePrPv: (id, reason, photoDataUrl) => {
+      disputePrPv: (id, reason, photoDataUrls) => {
         const trimmed = reason.trim();
         if (!trimmed) {
           get().toast("Describe the issue so your agency can verify", "warn");
           return;
         }
+        const photos = photoDataUrls?.filter(Boolean) ?? [];
         const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
         if (!pv) return;
         const stamp = new Date().toLocaleString("en-MY", {
@@ -1645,7 +1646,8 @@ export const useStore = create<StoreState>()(
                   status: "DISPUTED" as const,
                   prDisputeReason: trimmed,
                   disputedAt: stamp,
-                  prDisputePhotoDataUrl: photoDataUrl,
+                  prDisputePhotoDataUrls: photos.length ? photos : undefined,
+                  prDisputePhotoDataUrl: photos[0],
                 }
               : p,
           ),
@@ -1661,12 +1663,13 @@ export const useStore = create<StoreState>()(
           "warn",
         );
       },
-      updatePrPvDisputeReason: (id, reason) => {
+      updatePrPvDisputeReason: (id, reason, photoDataUrls) => {
         const trimmed = reason.trim();
         if (!trimmed) {
           get().toast("Dispute reason cannot be empty", "warn");
           return;
         }
+        const photos = photoDataUrls?.filter(Boolean) ?? [];
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -1681,6 +1684,8 @@ export const useStore = create<StoreState>()(
                   ...p,
                   prDisputeReason: trimmed,
                   disputeUpdatedAt: stamp,
+                  prDisputePhotoDataUrls: photos.length ? photos : undefined,
+                  prDisputePhotoDataUrl: photos[0],
                 }
               : p,
           ),

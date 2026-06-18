@@ -2415,6 +2415,42 @@
   line-height: 1.1;
   color: var(--iz-gold);
 }
+.iz-pv-summary-details {
+  border: none;
+}
+.iz-pv-summary-details-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+  background: linear-gradient(135deg, rgba(232, 194, 122, 0.12), rgba(232, 194, 122, 0.02));
+}
+.iz-pv-summary-details-toggle::-webkit-details-marker {
+  display: none;
+}
+.iz-pv-summary-details-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.iz-pv-summary-hero-amt--compact {
+  margin-top: 0;
+  font-size: 24px;
+}
+.iz-pv-summary-details-chevron {
+  color: var(--iz-muted);
+  transition: transform 0.18s ease;
+}
+.iz-pv-summary-details[open] .iz-pv-summary-details-chevron {
+  transform: rotate(180deg);
+}
+.iz-pv-summary-details-body {
+  border-top: 1px solid var(--iz-line);
+}
 .iz-pv-summary-grid {
   padding: 4px 0;
 }
@@ -5270,6 +5306,11 @@ button.iz-pr-offer-row:hover {
   font-family: "Sora", sans-serif;
   cursor: pointer;
 }
+.iz-hist-chip--on {
+  border-color: rgba(217, 185, 122, 0.55);
+  background: rgba(217, 185, 122, 0.2);
+  color: var(--iz-gold);
+}
 .iz-hist-metrics {
   display: flex;
   flex-wrap: wrap;
@@ -5998,7 +6039,7 @@ button.iz-agency-row:hover {
 
 .iz-pv-dispute-input {
   width: 100%;
-  min-height: 120px;
+  min-height: 104px;
   resize: vertical;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--iz-line2);
@@ -6017,6 +6058,72 @@ button.iz-agency-row:hover {
   outline: none;
   border-color: var(--iz-red);
   box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.12);
+}
+
+.iz-pv-dispute-details {
+  border: 1px solid var(--iz-line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+.iz-pv-dispute-details-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+.iz-pv-dispute-details-toggle::-webkit-details-marker {
+  display: none;
+}
+.iz-pv-dispute-details-toggle--alert {
+  padding: 14px 16px;
+}
+.iz-pv-dispute-details-chevron {
+  color: var(--iz-muted);
+  transition: transform 0.18s ease;
+}
+.iz-pv-dispute-details[open] .iz-pv-dispute-details-chevron {
+  transform: rotate(180deg);
+}
+.iz-pv-dispute-details-body {
+  border-top: 1px solid var(--iz-line);
+  padding: 14px;
+}
+.iz-pv-dispute-files-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.iz-pv-dispute-file {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+}
+.iz-pv-dispute-file-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid var(--iz-line);
+}
+.iz-pv-dispute-file-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--iz-line);
+  background: var(--iz-bg2);
+  color: var(--iz-muted);
+  cursor: pointer;
 }
 
 /* ── Responsive portal shell (agency + outlet) ── */

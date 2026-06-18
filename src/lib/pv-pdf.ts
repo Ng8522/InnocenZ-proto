@@ -584,26 +584,19 @@ export function downloadPvBreakdownCsv(pv: PrPaymentVoucher, payee: PvPayeeProfi
   URL.revokeObjectURL(url);
 }
 
-/** Open print-ready PV (Save as PDF) or download HTML fallback */
-export function downloadPvBreakdownPdf(
+/** Open print-ready PV in a new tab for viewing (Print → Save as PDF to download). */
+export function viewPvBreakdownPdf(
   pv: PrPaymentVoucher,
   payee: PvPayeeProfile,
   receipts: PrReceiptScan[] = [],
 ) {
   const html = buildPvBreakdownHtml(pv, payee, receipts);
-  const printWin = window.open("", "_blank");
-  if (printWin) {
-    printWin.document.open();
-    printWin.document.write(html);
-    printWin.document.close();
-    printWin.focus();
-    setTimeout(() => {
-      try {
-        printWin.print();
-      } catch {
-        /* user may block print */
-      }
-    }, 600);
+  const viewWin = window.open("", "_blank");
+  if (viewWin) {
+    viewWin.document.open();
+    viewWin.document.write(html);
+    viewWin.document.close();
+    viewWin.focus();
     return;
   }
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
@@ -615,6 +608,15 @@ export function downloadPvBreakdownPdf(
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/** @deprecated Prefer viewPvBreakdownPdf — same behavior (view first, no auto-print). */
+export function downloadPvBreakdownPdf(
+  pv: PrPaymentVoucher,
+  payee: PvPayeeProfile,
+  receipts: PrReceiptScan[] = [],
+) {
+  viewPvBreakdownPdf(pv, payee, receipts);
 }
 
 export function downloadAgencyPvPdf(

@@ -309,6 +309,7 @@ export interface PrPaymentVoucher {
   /** Agency internal note after reviewing PR dispute */
   disputeNote?: string;
   prDisputePhotoDataUrl?: string;
+  prDisputePhotoDataUrls?: string[];
   /** Set when agency does not resolve within 7 days */
   disputeEscalatedAt?: string;
   /** Finance override of signed/paid PV — audit logged */
@@ -547,14 +548,34 @@ export function pvStatusPillVariant(status: PrPvStatus): "green" | "amber" | "re
   return "amber";
 }
 
-/** Quick picks — PR can tap then edit before submitting dispute */
+/** Quick picks — PR can choose then edit before submitting dispute */
 export const PV_DISPUTE_PRESETS = [
-  "Drink commission qty doesn't match my receipt scans",
-  "Missing tip commission from scanned receipts",
-  "Wrong daily wages for my sealed shift date",
-  "Deduction amount is incorrect or unexplained",
-  "Duplicate line item — already paid in a previous PV",
+  {
+    label: "Unmatch commission",
+    reason: "Commission doesn't match my receipt scans",
+  },
+  {
+    label: "Missing record",
+    reason: "Missing record from scanned receipts",
+  },
+  {
+    label: "Unmatch wages",
+    reason: "Wages don't match my sealed shift",
+  },
+  {
+    label: "Repeated record",
+    reason: "Repeated record — already paid in a previous PV",
+  },
+  {
+    label: "Others",
+    reason: "",
+  },
 ] as const;
+
+export function pvDisputePhotos(pv: Pick<PrPaymentVoucher, "prDisputePhotoDataUrl" | "prDisputePhotoDataUrls">) {
+  if (pv.prDisputePhotoDataUrls?.length) return pv.prDisputePhotoDataUrls;
+  return pv.prDisputePhotoDataUrl ? [pv.prDisputePhotoDataUrl] : [];
+}
 
 export const FINANCE_HEAD_LABEL = "Finance Head · Atlas Agency";
 

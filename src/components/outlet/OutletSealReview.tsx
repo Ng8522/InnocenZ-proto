@@ -41,6 +41,8 @@ export function OutletSealReview({
         drinkSales,
         tips,
         tableSales,
+        prTier: pr?.trainingLevel,
+        shiftTierRates: shift.tierRates,
       });
       return {
         prId,

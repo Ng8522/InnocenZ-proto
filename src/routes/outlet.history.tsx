@@ -9,8 +9,8 @@ export const Route = createFileRoute("/outlet/history")({
 });
 
 function OutletHistory() {
-  const shiftHistory = useStore((s) => s.shiftHistory);
-  const shifts = useStore((s) => s.shifts);
+  const shiftHistory = useStore((s) => s.shiftHistory) ?? [];
+  const shifts = useStore((s) => s.shifts) ?? [];
   const outletName = tonightShiftOutletName(shifts);
   const rows = useMemo(
     () => shiftHistoryForOutlet(shiftHistory, outletName),

@@ -1,6 +1,16 @@
 /** Outlet portal demo config — workspace rates, tags, dress codes */
 
-import { getOutletRule } from "@/lib/agency-demo";
+import {
+  buildDefaultTierRates,
+  cloneTierRates,
+  getOutletRule,
+  normalizeTierRates,
+  OUTLET_BASE_TIER,
+  OUTLET_PR_TIERS,
+  snapTierWage,
+  type OutletPrTier,
+  type OutletTierRateSettings,
+} from "@/lib/agency-demo";
 import { DEFAULT_PER_DRINK_RM, DEFAULT_PER_TABLE_RM } from "@/lib/outlet-financial-sync";
 
 export type ShiftDestination = "agency" | "marketplace" | "both";
@@ -54,6 +64,19 @@ export function drinkMenuPriceRange(menu: OutletDrinkPrice[]): { min: number; ma
   return { min: Math.min(...prices), max: Math.max(...prices) };
 }
 
+export function workspaceBaseRates(ws: Pick<
+  OutletWorkspaceSettings,
+  "basePayPerHour" | "drinkPct" | "tipPct" | "tablePct" | "otAfterHours"
+>): OutletTierRateSettings {
+  return {
+    wagePerHour: ws.basePayPerHour,
+    drinkPct: ws.drinkPct,
+    tipPct: ws.tipPct,
+    tablePct: ws.tablePct,
+    otAfterHours: ws.otAfterHours,
+  };
+}
+
 export function normalizeOutletWorkspace(
   ws: Partial<OutletWorkspaceSettings> | undefined,
 ): OutletWorkspaceSettings {
@@ -61,12 +84,124 @@ export function normalizeOutletWorkspace(
     ws?.drinkMenu && ws.drinkMenu.length > 0
       ? ws.drinkMenu.map((d) => ({ ...d }))
       : DEFAULT_OUTLET_DRINK_MENU.map((d) => ({ ...d }));
-  return {
+  const merged = {
     ...DEFAULT_OUTLET_WORKSPACE,
     ...ws,
     drinkMenu,
-    perDrinkRm: ws?.perDrinkRm ?? averageDrinkPrice(drinkMenu),
   };
+  const tierRates = normalizeTierRates(workspaceBaseRates(merged), ws?.tierRates);
+  const baseTier = tierRates[OUTLET_BASE_TIER];
+  return {
+    ...merged,
+    drinkMenu,
+    perDrinkRm: ws?.perDrinkRm ?? averageDrinkPrice(drinkMenu),
+    tierRates,
+    basePayPerHour: baseTier.wagePerHour,
+    drinkPct: baseTier.drinkPct,
+    tipPct: baseTier.tipPct,
+    tablePct: baseTier.tablePct,
+    otAfterHours: baseTier.otAfterHours,
+  };
+}
+
+export function resolveShiftTierRates(
+  shift: { tierRates?: Record<OutletPrTier, OutletTierRateSettings>; payPerHour: number },
+  workspace: Pick<OutletWorkspaceSettings, "tierRates">,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  if (shift.tierRates) return shift.tierRates;
+  const baseTier = workspace.tierRates[OUTLET_BASE_TIER];
+  return buildDefaultTierRates({
+    wagePerHour: shift.payPerHour,
+    drinkPct: baseTier.drinkPct,
+    tipPct: baseTier.tipPct,
+    tablePct: baseTier.tablePct,
+    otAfterHours: baseTier.otAfterHours,
+  });
+}
+
+export function patchShiftTierWages(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  wages: Partial<Record<OutletPrTier, number>>,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  const out = cloneTierRates(tierRates);
+  for (const tier of OUTLET_PR_TIERS) {
+    if (wages[tier] != null) {
+      out[tier] = { ...out[tier], wagePerHour: snapTierWage(wages[tier]!) };
+    }
+  }
+  return out;
+}
+
+export function patchShiftTierSalesTargets(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  targets: Partial<Record<OutletPrTier, number>>,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  const out = cloneTierRates(tierRates);
+  for (const tier of OUTLET_PR_TIERS) {
+    if (targets[tier] != null) {
+      out[tier] = { ...out[tier], targetSalesRm: targets[tier] };
+    }
+  }
+  return out;
+}
+
+/** Demo per-shift PR sales targets (RM) — Post Job optional targets, seeded for outlet home */
+export const DEMO_SHIFT_TIER_SALES_TARGETS: Record<string, Partial<Record<OutletPrTier, number>>> = {
+  s1: {
+    "Tier I": 800,
+    "Tier II": 1000,
+    "Tier III": 1200,
+    "Tier IV": 1500,
+    "Tier V": 2000,
+  },
+  s2: {
+    "Tier I": 1000,
+    "Tier II": 1200,
+    "Tier III": 1400,
+    "Tier IV": 1600,
+    "Tier V": 2200,
+  },
+  s3: {
+    "Tier I": 600,
+    "Tier II": 750,
+    "Tier III": 900,
+    "Tier IV": 1100,
+    "Tier V": 1400,
+  },
+};
+
+export function ensureShiftSalesTargets<T extends {
+  id: string;
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>;
+}>(shift: T): T {
+  const demo = DEMO_SHIFT_TIER_SALES_TARGETS[shift.id];
+  if (!demo) return shift;
+  const hasTargets = OUTLET_PR_TIERS.some((t) => (shift.tierRates[t].targetSalesRm ?? 0) > 0);
+  if (hasTargets) return shift;
+  return {
+    ...shift,
+    tierRates: patchShiftTierSalesTargets(shift.tierRates, demo),
+  };
+}
+
+export function migrateShiftTierRates<T extends {
+  id?: string;
+  tierRates?: Record<OutletPrTier, OutletTierRateSettings>;
+  payPerHour: number;
+}>(
+  shift: T,
+  workspace: Pick<OutletWorkspaceSettings, "tierRates">,
+): T & { tierRates: Record<OutletPrTier, OutletTierRateSettings>; payPerHour: number } {
+  const tierRates = resolveShiftTierRates(shift, workspace);
+  const migrated = {
+    ...shift,
+    tierRates,
+    payPerHour: tierRates[OUTLET_BASE_TIER].wagePerHour,
+  };
+  if (shift.id) {
+    return ensureShiftSalesTargets(migrated as T & { id: string; tierRates: Record<OutletPrTier, OutletTierRateSettings> });
+  }
+  return migrated;
 }
 
 export interface OutletWorkspaceSettings {
@@ -76,6 +211,8 @@ export interface OutletWorkspaceSettings {
   tipPct: number;
   tablePct: number;
   otAfterHours: number;
+  /** Wage & commission per PR training tier */
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>;
   /** Legacy average — derived from drinkMenu on save */
   perDrinkRm: number;
   perTableRm: number;
@@ -103,7 +240,83 @@ export interface OutletOwnerSettings {
   otpChannel: "email" | "phone";
   accountActivated: boolean;
   avatarPhoto?: string | null;
+  subscriptionPlanId?: OutletSubscriptionPlanId;
 }
+
+export type OutletSubscriptionPlanId = "starter" | "plus" | "pro" | "enterprise";
+
+export interface OutletSubscriptionPlan {
+  id: OutletSubscriptionPlanId;
+  label: string;
+  monthlyRm: number;
+  shiftLimit: number;
+  capacityLabel: string;
+  description: string;
+}
+
+export const OUTLET_SUBSCRIPTION_PLANS: OutletSubscriptionPlan[] = [
+  {
+    id: "starter",
+    label: "Starter",
+    monthlyRm: 499,
+    shiftLimit: 12,
+    capacityLabel: "Up to 12 shifts / mo",
+    description: "Single floor · core ops & reports",
+  },
+  {
+    id: "plus",
+    label: "Plus",
+    monthlyRm: 799,
+    shiftLimit: 30,
+    capacityLabel: "Up to 30 shifts / mo",
+    description: "Growing venue · sales dashboard & history",
+  },
+  {
+    id: "pro",
+    label: "Pro",
+    monthlyRm: 1299,
+    shiftLimit: 60,
+    capacityLabel: "Up to 60 shifts / mo",
+    description: "Multi-event nights · workspace & tier rules",
+  },
+  {
+    id: "enterprise",
+    label: "Enterprise",
+    monthlyRm: 1999,
+    shiftLimit: 9999,
+    capacityLabel: "Unlimited shifts",
+    description: "Multi-venue groups · priority support",
+  },
+];
+
+export function getOutletSubscriptionPlan(id?: OutletSubscriptionPlanId | null): OutletSubscriptionPlan {
+  return OUTLET_SUBSCRIPTION_PLANS.find((p) => p.id === id) ?? OUTLET_SUBSCRIPTION_PLANS[1];
+}
+
+export interface OutletSubscriptionInvoice {
+  id: string;
+  issueDate: string;
+  detail: string;
+  amount: number;
+  status: "SETTLED" | "PENDING";
+}
+
+export const OUTLET_SUBSCRIPTION_BILLING: OutletSubscriptionInvoice[] = [
+  {
+    id: "SUB-2026-0601",
+    issueDate: "1 Jun 2026",
+    detail: "Jun 2026 · Plus · InnocenZ Outlet SaaS",
+    amount: 799,
+    status: "SETTLED",
+  },
+  {
+    id: "SUB-2026-0501",
+    issueDate: "1 May 2026",
+    detail: "May 2026 · Plus · InnocenZ Outlet SaaS",
+    amount: 799,
+    status: "SETTLED",
+  },
+];
 
 export interface OutletFinanceHead {
   name: string;
@@ -127,6 +340,13 @@ export interface ShiftApplicant {
 }
 
 const velvetRule = getOutletRule("Velvet 23");
+const velvetTierBase = {
+  wagePerHour: velvetRule.wagePerHour,
+  drinkPct: velvetRule.drinkPct,
+  tipPct: velvetRule.tipPct,
+  tablePct: velvetRule.tablePct,
+  otAfterHours: velvetRule.otAfterHours,
+};
 
 export const DEFAULT_OUTLET_WORKSPACE: OutletWorkspaceSettings = {
   outletName: "Velvet 23",
@@ -135,6 +355,7 @@ export const DEFAULT_OUTLET_WORKSPACE: OutletWorkspaceSettings = {
   tipPct: velvetRule.tipPct,
   tablePct: velvetRule.tablePct,
   otAfterHours: velvetRule.otAfterHours,
+  tierRates: normalizeTierRates(velvetTierBase, velvetRule.tierRates),
   perDrinkRm: DEFAULT_PER_DRINK_RM,
   perTableRm: DEFAULT_PER_TABLE_RM,
   drinkMenu: DEFAULT_OUTLET_DRINK_MENU.map((d) => ({ ...d })),
@@ -160,6 +381,7 @@ export const DEFAULT_OUTLET_OWNER: OutletOwnerSettings = {
   otpChannel: "email",
   accountActivated: true,
   avatarPhoto: null,
+  subscriptionPlanId: "plus",
 };
 
 export const DEFAULT_OUTLET_FINANCE_HEAD: OutletFinanceHead = {

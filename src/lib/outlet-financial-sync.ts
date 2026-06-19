@@ -142,6 +142,7 @@ export function buildSyncedOutletPnlRow(
       drinkSales,
       tips,
       tableSales,
+      shiftTierRates: s.tierRates,
     },
     commissionRules,
   );
@@ -202,6 +203,7 @@ function calcAnchorCommission(
       drinkSales: computeDrinkSales({ ...shift, drinkUnits }, drinkMenu),
       tips: floorTipsForOutlet(shift.outletName, roster),
       tableSales: tableUnits * perTable,
+      shiftTierRates: shift.tierRates,
     },
     commissionRules,
   );

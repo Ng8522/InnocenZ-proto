@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AgencyCommissionRulesPanel } from "@/components/agency/AgencyCommissionRulesPanel";
 import { AgencyOutletFilters } from "@/components/agency/AgencyOutletFilters";
 import { OutletSection } from "@/components/outlet/OutletSection";
+import { ShiftTierWagesStrip } from "@/components/outlet/ShiftTierWagesStrip";
 import {
   EMPTY_AGENCY_OUTLET_FILTERS,
   buildAgencyOutletSummaries,
@@ -14,6 +15,7 @@ import {
   type AgencyOutletSummary,
 } from "@/lib/agency-outlet-shifts";
 import { agencyCan } from "@/lib/agency-rbac";
+import { formatTierSalesTargets, formatTierWageRange } from "@/lib/agency-demo";
 import { useStore } from "@/lib/store";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
@@ -22,6 +24,7 @@ import {
   ArrowLeft,
   Calendar,
   Check,
+  ChevronDown,
   ChevronRight,
   Clock,
   Filter,
@@ -40,6 +43,8 @@ function AgencyManageOutlets() {
   const { outlet: outletFromSearch } = Route.useSearch();
   const shifts = useStore((s) => s.shifts);
   const agencyRoster = useStore((s) => s.agencyRoster);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const outletWorkspace = useStore((s) => s.outletWorkspace);
   const agencySubRole = useStore((s) => s.agencySubRole);
   const [filters, setFilters] = useState(EMPTY_AGENCY_OUTLET_FILTERS);
   const [detailOutlet, setDetailOutlet] = useState<string | null>(outletFromSearch ?? null);
@@ -59,8 +64,10 @@ function AgencyManageOutlets() {
         roster: agencyRoster,
         tiedOffers: PR_AGENCY_TIED_OFFERS,
         todayIso: DEFAULT_ROSTER_DATE_ISO,
+        commissionRules: outletCommissionRules,
+        outletWorkspace,
       }),
-    [shifts, agencyRoster],
+    [shifts, agencyRoster, outletCommissionRules, outletWorkspace],
   );
 
   const shiftDateIsos = useMemo(() => collectOutletShiftDateIsos(summaries), [summaries]);
@@ -288,7 +295,10 @@ function AgencyOutletDetail({
         <AgencyCommissionRulesPanel outlet={summary.outlet} />
       </OutletSection>
 
-      <OutletSection title="Available shifts" hint={`${shifts.length} listing${shifts.length !== 1 ? "s" : ""}`}>
+      <OutletSection
+        title="Available shifts"
+        hint={`${shifts.length} listing${shifts.length !== 1 ? "s" : ""} · tap for tier pay & targets`}
+      >
         {shifts.length === 0 ? (
           <IzCard flat className="text-center">
             <p className="iz-sm iz-muted">No open shifts match your filters.</p>
@@ -313,53 +323,68 @@ function AgencyOutletDetail({
 function OutletShiftCard({ shift }: { shift: AgencyOutletAvailableShift }) {
   const sourceVariant =
     shift.source === "posted" ? "ink" : shift.source === "tied-offer" ? "violet" : "amber";
+  const targetPay = formatTierWageRange(shift.tierRates);
+  const salesTargets = formatTierSalesTargets(shift.tierRates);
 
   return (
-    <IzCard flat>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">{shift.event}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 iz-tiny iz-muted2">
-            <span className="inline-flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              {shift.date}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {shift.shift}
-            </span>
+    <details className="iz-outlet-booking-card group">
+      <summary className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">{shift.event}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 iz-tiny iz-muted2">
+                <span className="inline-flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {shift.date}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {shift.shift}
+                </span>
+              </div>
+            </div>
+            <IzPill variant={sourceVariant} className="shrink-0 !text-[9px]">
+              {outletShiftSourceLabel(shift.source)}
+            </IzPill>
           </div>
+
+          <div className="mt-2 flex flex-wrap gap-1">
+            <IzPill variant="amber" className="!text-[9px]">
+              {shift.openSlots} open slot{shift.openSlots !== 1 ? "s" : ""}
+            </IzPill>
+            <IzPill variant="gold" className="!text-[9px]">
+              Est. {formatRM(shift.payEstimate)}
+            </IzPill>
+            {shift.vip && (
+              <IzPill variant="violet" className="!text-[9px]">
+                VIP
+              </IzPill>
+            )}
+            {shift.destination && (
+              <IzPill variant="ink" className="!text-[9px]">
+                {shiftDestinationLabel(shift.destination)}
+              </IzPill>
+            )}
+          </div>
+
+          <p className="iz-tiny iz-muted mt-2 truncate group-open:hidden">
+            {targetPay}
+            {salesTargets ? ` · ${salesTargets}` : ""}
+          </p>
         </div>
-        <IzPill variant={sourceVariant} className="shrink-0 !text-[9px]">
-          {outletShiftSourceLabel(shift.source)}
-        </IzPill>
-      </div>
+        <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-[var(--iz-muted)] transition-transform group-open:rotate-180" />
+      </summary>
 
-      <div className="mt-2 flex flex-wrap gap-1">
-        <IzPill variant="amber" className="!text-[9px]">
-          {shift.openSlots} open slot{shift.openSlots !== 1 ? "s" : ""}
-        </IzPill>
-        <IzPill variant="gold" className="!text-[9px]">
-          Est. {formatRM(shift.payEstimate)}
-        </IzPill>
-        {shift.vip && (
-          <IzPill variant="violet" className="!text-[9px]">
-            VIP
-          </IzPill>
+      <div className="border-t border-[var(--iz-line)] px-3.5 pb-3.5 pt-2">
+        {shift.languages && (
+          <p className="iz-tiny iz-muted">Languages · {shift.languages}</p>
         )}
-        {shift.destination && (
-          <IzPill variant="ink" className="!text-[9px]">
-            {shiftDestinationLabel(shift.destination)}
-          </IzPill>
+        {shift.briefing && (
+          <p className="iz-tiny iz-muted2 mt-1">{shift.briefing}</p>
         )}
+        <ShiftTierWagesStrip tierRates={shift.tierRates} compact />
       </div>
-
-      {shift.languages && (
-        <p className="iz-tiny iz-muted mt-2">Languages · {shift.languages}</p>
-      )}
-      {shift.briefing && (
-        <p className="iz-tiny iz-muted2 mt-1 line-clamp-2">{shift.briefing}</p>
-      )}
-    </IzCard>
+    </details>
   );
 }

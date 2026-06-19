@@ -20,6 +20,7 @@ import { Route as OutletIndexRouteImport } from './routes/outlet.index'
 import { Route as HostIndexRouteImport } from './routes/host.index'
 import { Route as AgencyIndexRouteImport } from './routes/agency.index'
 import { Route as OutletWorkspaceRouteImport } from './routes/outlet.workspace'
+import { Route as OutletSubscriptionRouteImport } from './routes/outlet.subscription'
 import { Route as OutletSpecialServiceRouteImport } from './routes/outlet.special-service'
 import { Route as OutletSettingsRouteImport } from './routes/outlet.settings'
 import { Route as OutletSalesRouteImport } from './routes/outlet.sales'
@@ -99,6 +100,11 @@ const AgencyIndexRoute = AgencyIndexRouteImport.update({
 const OutletWorkspaceRoute = OutletWorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
+  getParentRoute: () => OutletRoute,
+} as any)
+const OutletSubscriptionRoute = OutletSubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
   getParentRoute: () => OutletRoute,
 } as any)
 const OutletSpecialServiceRoute = OutletSpecialServiceRouteImport.update({
@@ -260,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/outlet/sales': typeof OutletSalesRoute
   '/outlet/settings': typeof OutletSettingsRoute
   '/outlet/special-service': typeof OutletSpecialServiceRoute
+  '/outlet/subscription': typeof OutletSubscriptionRoute
   '/outlet/workspace': typeof OutletWorkspaceRoute
   '/agency/': typeof AgencyIndexRoute
   '/host/': typeof HostIndexRoute
@@ -295,6 +302,7 @@ export interface FileRoutesByTo {
   '/outlet/sales': typeof OutletSalesRoute
   '/outlet/settings': typeof OutletSettingsRoute
   '/outlet/special-service': typeof OutletSpecialServiceRoute
+  '/outlet/subscription': typeof OutletSubscriptionRoute
   '/outlet/workspace': typeof OutletWorkspaceRoute
   '/agency': typeof AgencyIndexRoute
   '/host': typeof HostIndexRoute
@@ -334,6 +342,7 @@ export interface FileRoutesById {
   '/outlet/sales': typeof OutletSalesRoute
   '/outlet/settings': typeof OutletSettingsRoute
   '/outlet/special-service': typeof OutletSpecialServiceRoute
+  '/outlet/subscription': typeof OutletSubscriptionRoute
   '/outlet/workspace': typeof OutletWorkspaceRoute
   '/agency/': typeof AgencyIndexRoute
   '/host/': typeof HostIndexRoute
@@ -374,6 +383,7 @@ export interface FileRouteTypes {
     | '/outlet/sales'
     | '/outlet/settings'
     | '/outlet/special-service'
+    | '/outlet/subscription'
     | '/outlet/workspace'
     | '/agency/'
     | '/host/'
@@ -409,6 +419,7 @@ export interface FileRouteTypes {
     | '/outlet/sales'
     | '/outlet/settings'
     | '/outlet/special-service'
+    | '/outlet/subscription'
     | '/outlet/workspace'
     | '/agency'
     | '/host'
@@ -447,6 +458,7 @@ export interface FileRouteTypes {
     | '/outlet/sales'
     | '/outlet/settings'
     | '/outlet/special-service'
+    | '/outlet/subscription'
     | '/outlet/workspace'
     | '/agency/'
     | '/host/'
@@ -540,6 +552,13 @@ declare module '@tanstack/react-router' {
       path: '/workspace'
       fullPath: '/outlet/workspace'
       preLoaderRoute: typeof OutletWorkspaceRouteImport
+      parentRoute: typeof OutletRoute
+    }
+    '/outlet/subscription': {
+      id: '/outlet/subscription'
+      path: '/subscription'
+      fullPath: '/outlet/subscription'
+      preLoaderRoute: typeof OutletSubscriptionRouteImport
       parentRoute: typeof OutletRoute
     }
     '/outlet/special-service': {
@@ -784,6 +803,7 @@ interface OutletRouteChildren {
   OutletSalesRoute: typeof OutletSalesRoute
   OutletSettingsRoute: typeof OutletSettingsRoute
   OutletSpecialServiceRoute: typeof OutletSpecialServiceRoute
+  OutletSubscriptionRoute: typeof OutletSubscriptionRoute
   OutletWorkspaceRoute: typeof OutletWorkspaceRoute
   OutletIndexRoute: typeof OutletIndexRoute
 }
@@ -797,6 +817,7 @@ const OutletRouteChildren: OutletRouteChildren = {
   OutletSalesRoute: OutletSalesRoute,
   OutletSettingsRoute: OutletSettingsRoute,
   OutletSpecialServiceRoute: OutletSpecialServiceRoute,
+  OutletSubscriptionRoute: OutletSubscriptionRoute,
   OutletWorkspaceRoute: OutletWorkspaceRoute,
   OutletIndexRoute: OutletIndexRoute,
 }

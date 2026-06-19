@@ -206,10 +206,8 @@ export function shiftHistoryToHistRows(
   });
 }
 
-export function shiftHistoryForOutlet(rows: ShiftHistoryRow[], outletName: string): ShiftHistoryRow[] {
-  return sortShiftHistoryDesc(
-    prepareShiftHistoryForDisplay(rows).filter((r) => outletMatches(r.outlet, outletName)),
-  );
+export function shiftHistoryForOutlet(rows: ShiftHistoryRow[] | undefined, outletName: string): ShiftHistoryRow[] {
+  return sortShiftHistoryDesc((rows ?? []).filter((r) => outletMatches(r.outlet, outletName)));
 }
 
 /** Build a history row when a PR checks out or outlet seals a shift */
@@ -337,7 +335,7 @@ export function rosterEnRoute(
   const { shiftStart, shiftEnd } = parseShiftWindow(seed.shift ?? "22:00 — 04:00");
   return ensureRosterSlot(
     roster,
-    { prId, prName: seed.prName, outlet: canon, dateIso, ...seed },
+    { prId, outlet: canon, dateIso, ...seed },
     "en-route",
     { shiftStart, shiftEnd },
   );
@@ -375,7 +373,7 @@ export function rosterCheckIn(
   const { shiftStart, shiftEnd } = parseShiftWindow(seed.shift ?? "22:00 — 04:00");
   return ensureRosterSlot(
     roster,
-    { prId, prName: seed.prName, outlet: canon, dateIso, ...seed },
+    { prId, outlet: canon, dateIso, ...seed },
     "on-duty",
     { checkedInAt: time, noShowFlag: false, shiftStart, shiftEnd },
   );
@@ -426,7 +424,8 @@ export function marketplacePrsFromAgency(
   }));
 }
 
-export function tonightShiftOutletName(shifts: ShiftRequest[]): string {
-  const tonight = shifts.find((s) => s.date === "Tonight") ?? shifts[0];
+export function tonightShiftOutletName(shifts: ShiftRequest[] | undefined): string {
+  const list = shifts ?? [];
+  const tonight = list.find((s) => s.date === "Tonight") ?? list[0];
   return tonight ? canonicalOutlet(tonight.outletName) : DEFAULT_OUTLET_CANONICAL;
 }

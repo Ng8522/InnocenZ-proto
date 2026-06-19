@@ -23,9 +23,13 @@ import {
   DEFAULT_OUTLET_OWNER,
   DEFAULT_OUTLET_FINANCE_HEAD,
   DEFAULT_OUTLET_OPS_HEAD,
+  patchShiftTierWages,
+  patchShiftTierSalesTargets,
+  DEMO_SHIFT_TIER_SALES_TARGETS,
   type ShiftApplicant,
 } from "@/lib/outlet-demo";
 import { mergeHistoryDemoLedger } from "@/lib/history-demo-sync";
+import { cloneTierRates } from "@/lib/agency-demo";
 import {
   computeShiftLiveSales,
   recomputeAllOutletPnl,
@@ -126,6 +130,31 @@ const DEMO_COLLECTIONS: AgencyCollectionInvoice[] = [
 ];
 
 function buildDemoShifts(): ShiftRequest[] {
+  const wsTierRates = DEFAULT_OUTLET_WORKSPACE.tierRates;
+  const tonightTiers = patchShiftTierSalesTargets(
+    cloneTierRates(wsTierRates),
+    DEMO_SHIFT_TIER_SALES_TARGETS.s1,
+  );
+  const ladiesTiers = patchShiftTierSalesTargets(
+    patchShiftTierWages(wsTierRates, {
+      "Tier I": 55,
+      "Tier II": 60,
+      "Tier III": 65,
+      "Tier IV": 70,
+      "Tier V": 85,
+    }),
+    DEMO_SHIFT_TIER_SALES_TARGETS.s2,
+  );
+  const corporateTiers = patchShiftTierSalesTargets(
+    patchShiftTierWages(wsTierRates, {
+      "Tier I": 45,
+      "Tier II": 50,
+      "Tier III": 55,
+      "Tier IV": 60,
+      "Tier V": 75,
+    }),
+    DEMO_SHIFT_TIER_SALES_TARGETS.s3,
+  );
   const raw: ShiftRequest[] = [
     withShiftFinancialDefaults({
       id: "s1",
@@ -144,7 +173,8 @@ function buildDemoShifts(): ShiftRequest[] {
       tableUnits: 3,
       status: "confirmed",
       prs: ["p1", "p2", "p3", "p4", "p5"],
-      payPerHour: 60,
+      payPerHour: tonightTiers["Tier I"].wagePerHour,
+      tierRates: tonightTiers,
       dressCode: "Black elegant",
       destination: "both",
     }),
@@ -163,7 +193,8 @@ function buildDemoShifts(): ShiftRequest[] {
       liveSales: 0,
       status: "open",
       prs: ["p1", "p2", "p3", "p4"],
-      payPerHour: 60,
+      payPerHour: ladiesTiers["Tier I"].wagePerHour,
+      tierRates: ladiesTiers,
       dressCode: "Cocktail attire",
       destination: "both",
     }),
@@ -181,7 +212,8 @@ function buildDemoShifts(): ShiftRequest[] {
       liveSales: 0,
       status: "open",
       prs: ["p2", "p3"],
-      payPerHour: 60,
+      payPerHour: corporateTiers["Tier I"].wagePerHour,
+      tierRates: corporateTiers,
       dressCode: "Smart casual",
       destination: "agency",
     }),

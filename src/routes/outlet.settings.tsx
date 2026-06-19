@@ -312,18 +312,6 @@ function OutletSettingsPage() {
           on={outletSettings.notifyShiftUpdates}
           onChange={(v) => saveOutletSettings({ notifyShiftUpdates: v })}
         />
-        <ToggleRow
-          label="Reconciliation"
-          desc="Daily variance alerts"
-          on={outletSettings.notifyReconciliation}
-          onChange={(v) => saveOutletSettings({ notifyReconciliation: v })}
-        />
-        <ToggleRow
-          label="Invoice due"
-          desc="Billing reminders"
-          on={outletSettings.notifyInvoiceDue}
-          onChange={(v) => saveOutletSettings({ notifyInvoiceDue: v })}
-        />
       </IzCard>
 
       {canEdit && (

@@ -6,6 +6,7 @@ import {
   sortShiftHistoryDesc,
   sumShiftHistoryVenueRollups,
   type ShiftHistoryPrRollup,
+  type ShiftHistoryRow,
 } from "@/lib/shift-history-utils";
 import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCalendar";
 import { IzCard, formatRM } from "@/components/iz/ui";
@@ -17,12 +18,12 @@ type Portal = "agency" | "outlet";
 
 export function ShiftHistoryLog({
   portal,
-  rows,
+  rows = [],
   onExport,
   subtitle: subtitleOverride,
 }: {
   portal: Portal;
-  rows: ShiftHistoryRow[];
+  rows?: ShiftHistoryRow[];
   onExport?: () => void;
   subtitle?: string;
 }) {
@@ -63,10 +64,13 @@ export function ShiftHistoryLog({
 
   const subtitle =
     subtitleOverride ??
-    "Transaction log — one row per PR with totals across the filtered shifts. Tap for outlet breakdown.";
+    (portal === "agency"
+      ? "Transaction log — one row per PR with totals across the filtered shifts. Tap for outlet breakdown."
+      : "Transaction log — one row per PR with totals across the filtered shifts.");
 
   const thirdLabel = portal === "agency" ? "OUTLET" : "PR AGENCY";
   const venueLabel = portal === "agency" ? "outlet" : "agency";
+  const showPrDetail = portal === "agency";
 
   const prRollups = useMemo(
     () => aggregateShiftHistoryByPr(filtered, portal),
@@ -155,14 +159,14 @@ export function ShiftHistoryLog({
               key={rollup.prId}
               rollup={rollup}
               venueLabel={venueLabel}
-              onTap={() => setDetailPrId(rollup.prId)}
+              onTap={showPrDetail ? () => setDetailPrId(rollup.prId) : undefined}
             />
           ))
         )}
       </div>
 
-      {detailPr && (
-        <IzSheet open onClose={() => setDetailPrId(null)}>
+      {showPrDetail && detailPr && (
+        <IzSheet open wide onClose={() => setDetailPrId(null)}>
           <div className="iz-sheet-head">
             <div>
               <button

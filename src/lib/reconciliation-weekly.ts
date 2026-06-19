@@ -1,5 +1,5 @@
 import type { AgencyReconciliationDay } from "@/lib/agency-demo";
-import { parsePvIssuedMs, type PrPaymentVoucher } from "@/lib/pr-demo";
+import { parsePvIssuedMs, type PrPaymentVoucher, type PrPvStatus } from "@/lib/pr-demo";
 import { recomputeReconciliation, sumPvNetForCycle } from "@/lib/portal-sync";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 import { VELVET_OUTLET_NAME, VELVET_WEEKLY_NIGHTS } from "@/lib/velvet-week-demo";
@@ -52,6 +52,175 @@ export function formatWeekRangeLabel(weekStartIso: string, weekEndIso: string): 
     parseIsoDateLocal(iso).toLocaleDateString("en-MY", { day: "numeric", month: "short" });
   const y = parseIsoDateLocal(weekEndIso).getFullYear();
   return `Week ${fmt(weekStartIso)} – ${fmt(weekEndIso)} ${y}`;
+}
+
+export function formatIncomeCutoffLabel(weekEndIso: string): string {
+  const d = parseIsoDateLocal(weekEndIso);
+  return d.toLocaleDateString("en-MY", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export interface PrReconciliationIncome {
+  prId: string;
+  prName: string;
+  shiftCount: number;
+  outlets: string[];
+  wagesRm: number;
+  drinksRm: number;
+  tipsRm: number;
+  tablesRm: number;
+  totalRm: number;
+  cutoffIso: string;
+  cutoffLabel: string;
+  weekLabel: string;
+  pvId?: string;
+  pvStatus?: PrPvStatus;
+  /** Linked PV net payable for the same week (if raised). */
+  pvNetRm?: number;
+  prConfirmed: boolean;
+}
+
+function incomeFromShiftRow(row: ShiftHistoryRow): {
+  wagesRm: number;
+  drinksRm: number;
+  tipsRm: number;
+  tablesRm: number;
+  totalRm: number;
+} {
+  const drinksRm = row.totalDrinks;
+  const tipsRm = row.totalTips;
+  const tablesRm = row.totalTables ?? 0;
+  const commission = drinksRm + tipsRm + tablesRm;
+  const wagesRm = Math.max(0, row.totalPayout - commission);
+  return {
+    wagesRm,
+    drinksRm,
+    tipsRm,
+    tablesRm,
+    totalRm: row.totalPayout,
+  };
+}
+
+function pvForPrInWeek(
+  pvs: PrPaymentVoucher[],
+  prName: string,
+  weekStartIso: string,
+  weekEndIso: string,
+): PrPaymentVoucher | undefined {
+  return pvs.find((p) => p.prName === prName && pvBelongsToWeek(p, weekStartIso, weekEndIso));
+}
+
+/** Agency–PR weekly income rows from sealed shifts + linked PV status. */
+export function buildPrReconciliationIncomes(input: {
+  shiftHistory: ShiftHistoryRow[];
+  pvs: PrPaymentVoucher[];
+  weekStartIso: string;
+  weekEndIso: string;
+  weekLabel: string;
+  prConfirmedIds?: string[];
+}): PrReconciliationIncome[] {
+  const cutoffLabel = formatIncomeCutoffLabel(input.weekEndIso);
+  const byPr = new Map<string, PrReconciliationIncome>();
+
+  for (const row of input.shiftHistory) {
+    if (!dateIsoInRange(row.dateIso, input.weekStartIso, input.weekEndIso)) continue;
+    const inc = incomeFromShiftRow(row);
+    const existing = byPr.get(row.prId);
+    if (existing) {
+      existing.shiftCount += 1;
+      existing.wagesRm += inc.wagesRm;
+      existing.drinksRm += inc.drinksRm;
+      existing.tipsRm += inc.tipsRm;
+      existing.tablesRm += inc.tablesRm;
+      existing.totalRm += inc.totalRm;
+      if (!existing.outlets.includes(row.outlet)) existing.outlets.push(row.outlet);
+    } else {
+      const pv = pvForPrInWeek(input.pvs, row.prName, input.weekStartIso, input.weekEndIso);
+      byPr.set(row.prId, {
+        prId: row.prId,
+        prName: row.prName,
+        shiftCount: 1,
+        outlets: [row.outlet],
+        wagesRm: inc.wagesRm,
+        drinksRm: inc.drinksRm,
+        tipsRm: inc.tipsRm,
+        tablesRm: inc.tablesRm,
+        totalRm: inc.totalRm,
+        cutoffIso: input.weekEndIso,
+        cutoffLabel,
+        weekLabel: input.weekLabel,
+        pvId: pv?.id,
+        pvStatus: pv?.status,
+        pvNetRm: pv?.net,
+        prConfirmed: (input.prConfirmedIds ?? []).includes(row.prId),
+      });
+    }
+  }
+
+  for (const income of byPr.values()) {
+    if (!income.pvId) {
+      const pv = pvForPrInWeek(input.pvs, income.prName, input.weekStartIso, input.weekEndIso);
+      if (pv) {
+        income.pvId = pv.id;
+        income.pvStatus = pv.status;
+        income.pvNetRm = pv.net;
+      }
+    }
+    income.wagesRm = Math.round(income.wagesRm * 100) / 100;
+    income.drinksRm = Math.round(income.drinksRm * 100) / 100;
+    income.tipsRm = Math.round(income.tipsRm * 100) / 100;
+    income.tablesRm = Math.round(income.tablesRm * 100) / 100;
+    income.totalRm = Math.round(income.totalRm * 100) / 100;
+    income.outlets.sort();
+  }
+
+  return [...byPr.values()].sort((a, b) => b.totalRm - a.totalRm);
+}
+
+const RECON_VARIANCE_EPS = 0.01;
+
+/** Per-PR shift total minus PV net (positive = shifts exceed PV). */
+export function prReconciliationVariance(row: PrReconciliationIncome): number {
+  const pvNet = row.pvNetRm ?? 0;
+  return Math.round((row.totalRm - pvNet) * 100) / 100;
+}
+
+/** Option B: expand PV / breakdown only when disputed or amounts differ. */
+export function prReconciliationNeedsDetail(row: PrReconciliationIncome): boolean {
+  if (row.pvStatus === "DISPUTED") return true;
+  return Math.abs(prReconciliationVariance(row)) > RECON_VARIANCE_EPS;
+}
+
+export function prReconciliationAttentionCount(incomes: PrReconciliationIncome[]): number {
+  return incomes.filter(prReconciliationNeedsDetail).length;
+}
+
+export function sumPrReconciliationIncome(incomes: PrReconciliationIncome[]): number {
+  return Math.round(incomes.reduce((s, r) => s + r.totalRm, 0) * 100) / 100;
+}
+
+export function allPrsConfirmedForWeek(
+  incomes: PrReconciliationIncome[],
+  prConfirmedIds: string[] | undefined,
+): boolean {
+  if (incomes.length === 0) return true;
+  const confirmed = new Set(prConfirmedIds ?? []);
+  return incomes.every((r) => confirmed.has(r.prId));
+}
+
+export function prConfirmationSummary(
+  incomes: PrReconciliationIncome[],
+  prConfirmedIds: string[] | undefined,
+): { confirmed: number; total: number } {
+  const confirmed = new Set(prConfirmedIds ?? []);
+  return {
+    confirmed: incomes.filter((r) => confirmed.has(r.prId)).length,
+    total: incomes.length,
+  };
 }
 
 export function shouldShowWeeklyReconciliation(
@@ -127,6 +296,7 @@ export function recomputeWeeklyReconciliation(input: {
   agencyAdjustDrinks?: number;
   agencyAdjustTips?: number;
   agencyAdjustReason?: string;
+  prConfirmedIds?: string[];
 }): AgencyReconciliationDay {
   const outletGross = sumAgencyOutletSalesForWeek(
     input.shiftHistory,
@@ -134,6 +304,16 @@ export function recomputeWeeklyReconciliation(input: {
     input.weekEndIso,
   );
   const pvTotal = sumPvNetForWeek(input.pvs, input.weekStartIso, input.weekEndIso);
+  const prIncomes = buildPrReconciliationIncomes({
+    shiftHistory: input.shiftHistory,
+    pvs: input.pvs,
+    weekStartIso: input.weekStartIso,
+    weekEndIso: input.weekEndIso,
+    weekLabel: input.dateLabel,
+    prConfirmedIds: input.prConfirmedIds,
+  });
+  const prIncomeTotal = sumPrReconciliationIncome(prIncomes);
+  const prVariance = Math.round((prIncomeTotal - pvTotal) * 100) / 100;
   const base = recomputeReconciliation({
     outletGross,
     pvTotal,
@@ -146,10 +326,13 @@ export function recomputeWeeklyReconciliation(input: {
     ...base,
     weekStartIso: input.weekStartIso,
     weekEndIso: input.weekEndIso,
+    prIncomeTotal,
+    prVariance,
     varianceReason: input.varianceReason,
     agencyAdjustDrinks: input.agencyAdjustDrinks,
     agencyAdjustTips: input.agencyAdjustTips,
     agencyAdjustReason: input.agencyAdjustReason,
+    prConfirmedIds: input.prConfirmedIds,
   };
 }
 
@@ -185,6 +368,7 @@ export function buildReconciliationFromLedger(
     agencyAdjustDrinks: isNewWeek ? undefined : prev.agencyAdjustDrinks,
     agencyAdjustTips: isNewWeek ? undefined : prev.agencyAdjustTips,
     agencyAdjustReason: isNewWeek ? undefined : prev.agencyAdjustReason,
+    prConfirmedIds: isNewWeek ? [] : prev.prConfirmedIds,
   });
 }
 

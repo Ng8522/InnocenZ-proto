@@ -470,7 +470,6 @@ function PvDetail({
   onSign,
   onDispute,
   onUpdateDispute,
-  onEscalateDispute,
   onViewPdf,
 }: {
   pv: PrPaymentVoucher;
@@ -862,7 +861,7 @@ function PvDetail({
           <details className="iz-pv-dispute-details">
             <summary className="iz-pv-dispute-details-toggle iz-pv-dispute-details-toggle--alert">
               <span className="iz-sm font-bold text-[var(--iz-red)]">
-                Dispute open — payment held
+                Dispute open — agency reviewing
               </span>
               <ChevronDown className="iz-pv-dispute-details-chevron h-4 w-4 shrink-0" />
             </summary>
@@ -890,19 +889,6 @@ function PvDetail({
               >
                 Submit
               </button>
-              {pv.disputeEscalatedAt ? (
-                <p className="iz-tiny mt-3 text-[var(--iz-amber)]">
-                  Escalated to InnocenZ Admin · {pv.disputeEscalatedAt}
-                </p>
-              ) : (
-                <button
-                  type="button"
-                  className="iz-btn iz-btn-soft iz-btn-sm mt-3 w-auto"
-                  onClick={onEscalateDispute}
-                >
-                  Simulate 7-day escalation
-                </button>
-              )}
             </div>
           </details>
         </IzCard>

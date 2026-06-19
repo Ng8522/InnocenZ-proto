@@ -13,6 +13,7 @@ import { DEFAULT_AGENCY_OWNER, OUTLET_COMMISSION_RULES } from "@/lib/agency-demo
 import type { HistRow, PrPaymentVoucher } from "@/lib/pr-demo";
 import { formatPrDisplayName } from "@/lib/pr-demo";
 import { deriveShiftHistoryStatus } from "@/lib/pr-payment-history";
+import { shiftRowIncomeBreakdown } from "@/lib/pr-weekly-payment";
 import { filterShiftHistoryThroughToday, prepareShiftHistoryForDisplay, sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
 import type { ShiftRequest } from "@/lib/store";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
@@ -191,12 +192,13 @@ export function shiftHistoryToHistRows(
   return list.map((row) => {
     const [y, m, d] = row.dateIso.split("-").map(Number);
     const { st, pill } = deriveShiftHistoryStatus(row.dateIso, vouchers);
+    const income = shiftRowIncomeBreakdown(row);
     return {
       d: [y, m, d] as [number, number, number],
       venue: row.outlet,
-      wages: Math.round(row.totalPayout * 0.55),
+      wages: Math.round(income.wages),
       sales: row.totalPayout,
-      table: Math.round(row.totalTips * 0.5),
+      table: Math.round(income.tables),
       drinks: row.totalDrinks,
       tips: row.totalTips,
       st,

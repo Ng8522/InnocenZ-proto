@@ -53,7 +53,8 @@ import { parseDateInputMs, parseScannedAtMs } from "@/lib/payroll-filters";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { isReceiptFromPastShift } from "@/lib/receipt-scan-utils";
 import { isReceiptHiddenInHistory } from "@/lib/history-demo-sync";
-import { mondayOfWeek, weekRangeLabel } from "@/lib/roster-week-plan";
+import { getPayrollWeekSundayIso } from "@/lib/demo-clock";
+import { payrollWeekRangeLabel } from "@/lib/pr-weekly-payment";
 
 type HistTab = "shifts" | "receipts" | "payment";
 
@@ -238,7 +239,7 @@ type HistPayrollWeekGroup = {
 function groupHistRowsByPayrollWeek(rows: HistRow[]): HistPayrollWeekGroup[] {
   const groups = new Map<string, HistRow[]>();
   for (const row of rows) {
-    const weekStart = mondayOfWeek(dateKey(row.d));
+    const weekStart = getPayrollWeekSundayIso(dateKey(row.d));
     const bucket = groups.get(weekStart);
     if (bucket) bucket.push(row);
     else groups.set(weekStart, [row]);
@@ -247,7 +248,7 @@ function groupHistRowsByPayrollWeek(rows: HistRow[]): HistPayrollWeekGroup[] {
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([weekStart, weekRows]) => ({
       weekStart,
-      label: weekRangeLabel(weekStart),
+      label: payrollWeekRangeLabel(weekStart),
       rows: weekRows,
       earnings: weekRows.reduce((sum, row) => sum + row.sales, 0),
       wages: weekRows.reduce((sum, row) => sum + row.wages, 0),
@@ -959,7 +960,7 @@ function HistoryPage() {
 
   const shiftEarningsLabel = shiftEarningsContextLabel(filters, histDateOptions);
 
-  const currentPayrollWeekStart = mondayOfWeek(DEFAULT_ROSTER_DATE_ISO);
+  const currentPayrollWeekStart = getPayrollWeekSundayIso();
 
   const shiftRowsByCycle = useMemo(
     () => groupHistRowsByPayrollWeek(filteredRows),

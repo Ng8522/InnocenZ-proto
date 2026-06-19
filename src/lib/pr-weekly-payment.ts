@@ -7,6 +7,7 @@ import {
   getShiftToday,
   fmtDtable,
   formatPvSignTimestamp,
+  RECEIPT_COMMISSION_RULES,
   type PrPaymentVoucher,
   type PrProfile,
   type PrPvRow,
@@ -255,7 +256,11 @@ function scansForHistoryRow(row: ShiftHistoryRow, scans: PrReceiptScan[]): PrRec
   return sealed.length ? sealed : dayScans;
 }
 
-function breakdownFromHistoryRow(row: ShiftHistoryRow, scans: PrReceiptScan[]): WeeklyDayBreakdown {
+/** Canonical wages + commission split for a sealed shift — shared by History tabs. */
+export function shiftRowIncomeBreakdown(
+  row: ShiftHistoryRow,
+  scans: PrReceiptScan[] = [],
+): WeeklyDayBreakdown {
   const dayScans = scansForHistoryRow(row, scans);
   let drinks = 0;
   let tips = 0;
@@ -268,8 +273,9 @@ function breakdownFromHistoryRow(row: ShiftHistoryRow, scans: PrReceiptScan[]): 
     if (!verifyReceiptScan(s).ok) allVerified = false;
   }
   if (dayScans.length === 0) {
-    drinks = row.totalDrinks;
-    tips = row.totalTips;
+    drinks = row.totalDrinks * RECEIPT_COMMISSION_RULES.drinkPerUnit;
+    tips = row.totalTips * RECEIPT_COMMISSION_RULES.tipRate;
+    tables = (row.totalTables ?? 0) * RECEIPT_COMMISSION_RULES.tablePerUnit;
     allVerified = true;
   }
   const commission = drinks + tips + tables;
@@ -283,6 +289,21 @@ function breakdownFromHistoryRow(row: ShiftHistoryRow, scans: PrReceiptScan[]): 
     status: allVerified ? "verified" : "pending",
     outlet: row.outlet,
   };
+}
+
+function breakdownFromHistoryRow(row: ShiftHistoryRow, scans: PrReceiptScan[]): WeeklyDayBreakdown {
+  return shiftRowIncomeBreakdown(row, scans);
+}
+
+/** Short label for a Sun–Sat payroll week (e.g. "8–14 Jun 2026"). */
+export function payrollWeekRangeLabel(weekStartIso: string): string {
+  const bounds = getWeekBounds(weekStartIso.split("-").map(Number) as [number, number, number]);
+  const start = bounds.start;
+  const end = bounds.end;
+  if (start.getMonth() === end.getMonth()) {
+    return `${format(start, "d")}–${format(end, "d MMM yyyy")}`;
+  }
+  return `${format(start, "d MMM")}–${format(end, "d MMM yyyy")}`;
 }
 
 function buildColumns(weekStart: Date, reference: [number, number, number]): WeeklyDayColumn[] {

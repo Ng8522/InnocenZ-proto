@@ -295,6 +295,7 @@ function nightsToShiftHistory(nights: VelvetNightShift[], weekSundayIso: string)
       totalPayout: pr.payout,
       totalDrinks: pr.drinks,
       totalTips: pr.tips,
+      totalTables: demoTablesForShift(night, pr),
       durationHours: pr.durationHours,
     }));
   });

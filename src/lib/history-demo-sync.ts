@@ -9,6 +9,7 @@ import { buildDemoESignatureDataUrl, seedFinanceHeadStamp } from "@/lib/finance-
 import {
   calcReceiptCommissions,
   fmtDtable,
+  RECEIPT_COMMISSION_RULES,
   TIED_DEMO_ROSTER_PR_ID,
   type PrPaymentVoucher,
   type PrProfile,
@@ -47,7 +48,31 @@ function receiptRefFor(outlet: string, dateIso: string, slot: number): string {
   return `${code}-${dateIso.replace(/-/g, "")}-${String(slot).padStart(2, "0")}`;
 }
 
-/** Receipt scans for each sealed shift night in history (skips rc-hist slots already generated). */
+function histScanPrefix(prId: string) {
+  return `rc-hist-${prId}-`;
+}
+
+/** Drop shift-history synced ledger rows so they can be rebuilt from the current log. */
+function stripShiftHistorySyncedLedger(
+  scans: PrReceiptScan[],
+  pvs: PrPaymentVoucher[],
+  prId: string,
+  profileName: string,
+) {
+  return {
+    scans: scans.filter((s) => !s.id.startsWith(histScanPrefix(prId))),
+    pvs: pvs.filter(
+      (p) =>
+        !(
+          p.prName === profileName &&
+          p.weekStartIso &&
+          (p.status === "PAID" || p.status === "SIGNED")
+        ),
+    ),
+  };
+}
+
+/** Receipt scans for each sealed shift night in history. */
 export function buildReceiptScansFromShiftHistory(
   rows: ShiftHistoryRow[],
   prId: string,
@@ -60,21 +85,29 @@ export function buildReceiptScansFromShiftHistory(
 
   for (const row of rows) {
     if (row.prId !== prId || row.dateIso > todayIso) continue;
-    const histPrefix = `rc-hist-${prId}-${row.dateIso.replace(/-/g, "")}`;
-    if (existing.some((s) => s.id.startsWith(histPrefix))) continue;
 
     const ymd = ymdFromIso(row.dateIso);
     const [y, m, d] = ymd;
     const dateLabel = fmtDtable(y, m, d);
     const tables = row.totalTables ?? 0;
     const sessionId = shiftSessionId(row.outlet, row.dateIso);
+    const histPrefix = `rc-hist-${prId}-${row.dateIso.replace(/-/g, "")}`;
 
     const parts: Array<{ slot: number; category: "drinks" | "tips" | "tables"; qty: number }> = [];
     if (row.totalDrinks > 0) parts.push({ slot: 1, category: "drinks", qty: row.totalDrinks });
     if (row.totalTips > 0) parts.push({ slot: 2, category: "tips", qty: 1 });
     if (tables > 0) parts.push({ slot: 3, category: "tables", qty: tables });
     if (parts.length === 0) {
-      parts.push({ slot: 1, category: "drinks", qty: Math.max(2, Math.round(row.totalPayout / 80)) });
+      parts.push({
+        slot: 1,
+        category: "drinks",
+        qty: Math.max(
+          1,
+          Math.round(
+            (row.totalPayout * 0.45) / RECEIPT_COMMISSION_RULES.drinkPerUnit,
+          ),
+        ),
+      });
     }
 
     for (const part of parts) {
@@ -88,8 +121,8 @@ export function buildReceiptScansFromShiftHistory(
               {
                 label: "Drinks commission",
                 qty: part.qty,
-                unitPrice: 45,
-                amount: part.qty * 45,
+                unitPrice: RECEIPT_COMMISSION_RULES.drinkPerUnit,
+                amount: part.qty * RECEIPT_COMMISSION_RULES.drinkPerUnit,
                 category: "drinks" as const,
               },
             ]
@@ -107,8 +140,8 @@ export function buildReceiptScansFromShiftHistory(
                 {
                   label: "VIP table",
                   qty: part.qty,
-                  unitPrice: 400,
-                  amount: part.qty * 400,
+                  unitPrice: RECEIPT_COMMISSION_RULES.tablePerUnit,
+                  amount: part.qty * RECEIPT_COMMISSION_RULES.tablePerUnit,
                   category: "tables" as const,
                 },
               ];
@@ -183,16 +216,6 @@ export function buildWeeklyPvsFromShiftHistory(
   const todayIso = getLiveTodayIso();
   const currentWeekSun = getPayrollWeekSundayIso(todayIso);
   const prevWeekSun = addDaysToIso(currentWeekSun, -7);
-  const closedWeekStarts = new Set(
-    existing
-      .filter(
-        (p) =>
-          p.weekStartIso &&
-          p.prName === profile.name &&
-          (p.status === "PAID" || p.status === "SIGNED"),
-      )
-      .map((p) => p.weekStartIso!),
-  );
   const inboxWeekStarts = new Set(
     existing
       .filter(
@@ -216,7 +239,7 @@ export function buildWeeklyPvsFromShiftHistory(
   const pvs: PrPaymentVoucher[] = [];
 
   for (const weekStartIso of [...weekStarts].sort()) {
-    if (closedWeekStarts.has(weekStartIso) || inboxWeekStarts.has(weekStartIso)) continue;
+    if (inboxWeekStarts.has(weekStartIso)) continue;
     const bounds = getWeekBounds(ymdFromIso(weekStartIso));
     const summary = buildWeeklyPaymentSummary({
       weekStartIso,
@@ -328,14 +351,18 @@ export function mergeHistoryDemoLedger(opts: {
   const prId = opts.prId ?? TIED_DEMO_ROSTER_PR_ID;
   const profile = opts.profile ?? { name: "Luna", ic: "950312-14-8821" } as PrProfile;
 
-  const extraScans = buildReceiptScansFromShiftHistory(opts.shiftHistory, prId, profile, opts.scans);
-  let scans = [...opts.scans, ...extraScans];
+  const stripped = stripShiftHistorySyncedLedger(opts.scans, opts.pvs, prId, profile.name);
+  const extraScans = buildReceiptScansFromShiftHistory(opts.shiftHistory, prId, profile, []);
+  let scans = [...stripped.scans, ...extraScans];
 
-  const existingIds = new Set(opts.pvs.map((p) => p.id));
-  const extraPvs = buildWeeklyPvsFromShiftHistory(opts.shiftHistory, scans, prId, profile, opts.pvs).filter(
-    (p) => !existingIds.has(p.id),
+  const extraPvs = buildWeeklyPvsFromShiftHistory(
+    opts.shiftHistory,
+    scans,
+    prId,
+    profile,
+    stripped.pvs,
   );
-  const pvs = [...opts.pvs, ...extraPvs];
+  const pvs = [...stripped.pvs, ...extraPvs];
 
   scans = syncReceiptScansWithPvs(scans, pvs, prId);
   return { scans, pvs };

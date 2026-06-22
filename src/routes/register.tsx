@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneFrame } from "@/components/Brand";
 import { IzSheet } from "@/components/iz/Sheet";
 import { Toasts } from "@/components/Toasts";
-import { isValidDemoOtp, OtpVerifySheet } from "@/components/auth/OtpVerifySheet";
+import { isValidDemoOtp } from "@/components/auth/OtpVerifySheet";
 import { useStore } from "@/lib/store";
 import { getPrAgencyById, PR_AGENCIES, DEFAULT_TIED_AGENCY_ID } from "@/lib/pr-demo";
 import {
@@ -21,6 +21,7 @@ import {
   User,
   X,
   Clock,
+  Smartphone,
 } from "lucide-react";
 
 export const Route = createFileRoute("/register")({
@@ -33,6 +34,7 @@ const STEPS = [
   { id: 3, title: "Agency", subtitle: "Optional tie" },
   { id: 4, title: "Verify", subtitle: "ID photos" },
   { id: 5, title: "Summary", subtitle: "Review & submit" },
+  { id: 6, title: "OTP", subtitle: "Verify your mobile" },
 ] as const;
 
 const ID_TYPES = ["NRIC", "Passport", "Work permit"] as const;
@@ -671,8 +673,6 @@ function RegisterPage() {
   const toast = useStore((s) => s.toast);
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [otpOpen, setOtpOpen] = useState(false);
   const [otp, setOtp] = useState("");
   const [draft, setDraft] = useState<RegisterDraft>(() => buildDemoRegisterDraft());
   const profilePhotoRef = useRef<HTMLInputElement>(null);
@@ -680,7 +680,6 @@ function RegisterPage() {
   const patch = (partial: Partial<RegisterDraft>) => setDraft((d) => ({ ...d, ...partial }));
 
   const fillDemo = () => {
-    setPhoneVerified(false);
     setDraft(buildDemoRegisterDraft());
     toast("Demo data filled — tap Continue through each step", "info");
   };
@@ -707,7 +706,6 @@ function RegisterPage() {
   };
 
   const onPhoneNumberChange = (raw: string) => {
-    setPhoneVerified(false);
     patch({ phoneNumber: raw.replace(/\D/g, "").slice(0, 15) });
   };
 
@@ -733,8 +731,8 @@ function RegisterPage() {
         toast("Enter your first and last name", "warn");
         return false;
       }
-      if (!draft.email.trim() && !fullPhone) {
-        toast("Enter email or phone", "warn");
+      if (!fullPhone) {
+        toast("Enter your phone number", "warn");
         return false;
       }
       if (!draft.dob) {
@@ -787,18 +785,35 @@ function RegisterPage() {
       }
       return true;
     }
+    if (n === 5) {
+      if (!draft.profilePhoto) {
+        toast("Upload a profile photo", "warn");
+        return false;
+      }
+      return true;
+    }
     return true;
   };
 
   const goNext = () => {
     if (!validateStep(step)) return;
-    if (step === 1 && fullPhone && !phoneVerified) {
-      setOtp("");
-      setOtpOpen(true);
+    setStep((s) => Math.min(s + 1, STEPS.length));
+  };
+
+  useEffect(() => {
+    if (step === 6 && fullPhone) {
       toast("OTP sent to your mobile", "info");
+    }
+  }, [step, fullPhone, toast]);
+
+  const proceedToVerification = () => {
+    if (!validateStep(5)) return;
+    if (!draft.acceptPrivacy || !draft.acceptTruth || !draft.acceptAgencyShare || !draft.acceptTerms) {
+      toast("Accept all acknowledgements and terms to continue", "warn");
       return;
     }
-    setStep((s) => Math.min(s + 1, STEPS.length));
+    setOtp("");
+    setStep(6);
   };
 
   const verifyRegistrationOtp = () => {
@@ -806,10 +821,7 @@ function RegisterPage() {
       toast("Invalid OTP — try 123456 for demo", "warn");
       return;
     }
-    setPhoneVerified(true);
-    setOtpOpen(false);
-    setOtp("");
-    setStep((s) => Math.min(s + 1, STEPS.length));
+    submit();
   };
 
   const goBack = () => {
@@ -875,34 +887,14 @@ function RegisterPage() {
   const current = STEPS[step - 1];
 
   return (
-    <PhoneFrame
-      overlay={
-        <>
-          <Toasts />
-          <OtpVerifySheet
-            open={otpOpen}
-            onClose={() => setOtpOpen(false)}
-            title="Verify mobile"
-            description={
-              <>
-                Enter the 6-digit OTP sent to{" "}
-                <b className="text-[var(--iz-txt)]">{fullPhone}</b>
-              </>
-            }
-            otp={otp}
-            onOtpChange={setOtp}
-            onVerify={verifyRegistrationOtp}
-            onResend={() => toast("OTP sent to your mobile", "info")}
-            verifyLabel="Verify & continue"
-          />
-        </>
-      }
-    >
+    <PhoneFrame overlay={<Toasts />}>
       <div className="iz-welcome iz-reg flex flex-1 flex-col">
         <div className="flex justify-end">
-          <button type="button" onClick={fillDemo} className="iz-chip w-fit">
-            <RotateCcw className="h-3.5 w-3.5" /> Demo fill
-          </button>
+          {step < 6 && (
+            <button type="button" onClick={fillDemo} className="iz-chip w-fit">
+              <RotateCcw className="h-3.5 w-3.5" /> Demo fill
+            </button>
+          )}
         </div>
 
         <div className="mt-5">
@@ -949,13 +941,13 @@ function RegisterPage() {
                   />
                 </Field>
               </div>
-              <Field label="Email">
+              <Field label="Email (optional)">
                 <input
                   className="iz-field-input w-full"
                   type="email"
                   value={draft.email}
                   onChange={(e) => patch({ email: e.target.value })}
-                  placeholder="you@email.com"
+                  placeholder="Optional"
                   autoComplete="email"
                 />
               </Field>
@@ -964,10 +956,7 @@ function RegisterPage() {
                   <select
                     className="iz-select iz-phone-field__dial"
                     value={draft.phoneDialCode}
-                    onChange={(e) => {
-                      setPhoneVerified(false);
-                      patch({ phoneDialCode: e.target.value });
-                    }}
+                    onChange={(e) => patch({ phoneDialCode: e.target.value })}
                     aria-label="Country code"
                   >
                     {PHONE_DIAL_CODES.map(({ code, label }) => (
@@ -1185,7 +1174,7 @@ function RegisterPage() {
                     <Camera className="h-3.5 w-3.5" />
                   </span>
                 </button>
-                <p className="iz-tiny iz-muted mt-2">Profile Photo</p>
+                <p className="iz-tiny iz-muted mt-2">Profile photo · required</p>
                 <input
                   ref={profilePhotoRef}
                   type="file"
@@ -1234,6 +1223,34 @@ function RegisterPage() {
               <RegistrationAcknowledgements draft={draft} patch={patch} />
             </>
           )}
+
+          {step === 6 && (
+            <div className="flex flex-1 flex-col items-center justify-center py-4 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--iz-violet-ink)] text-[var(--iz-violet-l)]">
+                <Smartphone className="h-8 w-8" strokeWidth={2} />
+              </div>
+              <p className="iz-sm iz-muted mt-5 max-w-[18rem] leading-relaxed">
+                Enter the 6-digit OTP sent to{" "}
+                <b className="text-[var(--iz-txt)]">{fullPhone}</b>
+              </p>
+              <input
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                inputMode="numeric"
+                placeholder="123456"
+                autoFocus
+                aria-label="One-time password"
+                className="iz-pv-dispute-input mt-6 w-full max-w-[16rem] !min-h-0 py-3 text-center font-mono text-lg tracking-[0.35em]"
+              />
+              <button
+                type="button"
+                className="iz-tiny mt-4 text-[var(--iz-gold-l)] underline-offset-2 hover:underline"
+                onClick={() => toast("OTP sent to your mobile", "info")}
+              >
+                Resend OTP
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="iz-reg-footer mt-auto flex gap-2.5 pt-4">
@@ -1241,13 +1258,17 @@ function RegisterPage() {
             <ArrowLeft className="h-4 w-4 shrink-0" />
             {step === 1 ? "Back" : "Previous"}
           </button>
-          {step < STEPS.length ? (
+          {step < 5 ? (
             <button type="button" className="iz-btn iz-btn-primary min-w-0 flex-[7]" onClick={goNext}>
               Continue <ArrowRight className="ml-1 inline h-4 w-4" />
             </button>
-          ) : (
-            <button type="button" className="iz-btn iz-btn-primary min-w-0 flex-[7]" onClick={submit}>
+          ) : step === 5 ? (
+            <button type="button" className="iz-btn iz-btn-primary min-w-0 flex-[7]" onClick={proceedToVerification}>
               Create account
+            </button>
+          ) : (
+            <button type="button" className="iz-btn iz-btn-primary min-w-0 flex-[7]" onClick={verifyRegistrationOtp}>
+              Verify & submit
             </button>
           )}
         </div>

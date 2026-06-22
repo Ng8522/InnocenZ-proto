@@ -22,6 +22,7 @@ export const Route = createFileRoute("/host/profile")({
 
 type ProfileDraft = {
   displayName: string;
+  email: string;
   avatarPhoto: string | null;
   comcard: PrComcard;
   portfolio: (string | null)[];
@@ -31,6 +32,7 @@ type ProfileDraft = {
 function buildProfileDraft(
   u: ReturnType<typeof getPrProfile>,
   prDisplayName: string | null,
+  prEmail: string | null,
   prAvatarPhoto: string | null,
   prComcard: PrComcard,
   prPortfolio: (string | null)[],
@@ -38,6 +40,7 @@ function buildProfileDraft(
 ): ProfileDraft {
   return {
     displayName: prDisplayName ?? u.name,
+    email: prEmail ?? u.email,
     avatarPhoto: prAvatarPhoto,
     comcard: { ...prComcard },
     portfolio: [...prPortfolio],
@@ -53,6 +56,7 @@ function ProfilePage() {
   const prPortfolio = useStore((s) => s.prPortfolio);
   const prLanguages = useStore((s) => s.prLanguages);
   const prDisplayName = useStore((s) => s.prDisplayName);
+  const prEmail = useStore((s) => s.prEmail);
   const prAvatarPhoto = useStore((s) => s.prAvatarPhoto);
   const savePrProfile = useStore((s) => s.savePrProfile);
   const toast = useStore((s) => s.toast);
@@ -62,7 +66,7 @@ function ProfilePage() {
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfileDraft>(() =>
-    buildProfileDraft(u, prDisplayName, prAvatarPhoto, prComcard, prPortfolio, prLanguages),
+    buildProfileDraft(u, prDisplayName, prEmail, prAvatarPhoto, prComcard, prPortfolio, prLanguages),
   );
 
   const portfolioFileRef = useRef<HTMLInputElement>(null);
@@ -70,12 +74,12 @@ function ProfilePage() {
   const uploadSlotRef = useRef<number>(0);
 
   const startEdit = () => {
-    setDraft(buildProfileDraft(u, prDisplayName, prAvatarPhoto, prComcard, prPortfolio, prLanguages));
+    setDraft(buildProfileDraft(u, prDisplayName, prEmail, prAvatarPhoto, prComcard, prPortfolio, prLanguages));
     setEditing(true);
   };
 
   const cancelEdit = () => {
-    setDraft(buildProfileDraft(u, prDisplayName, prAvatarPhoto, prComcard, prPortfolio, prLanguages));
+    setDraft(buildProfileDraft(u, prDisplayName, prEmail, prAvatarPhoto, prComcard, prPortfolio, prLanguages));
     setEditing(false);
   };
 
@@ -83,6 +87,11 @@ function ProfilePage() {
     const name = draft.displayName.trim();
     if (!name) {
       toast("Enter your display name", "warn");
+      return;
+    }
+    const email = draft.email.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast("Enter a valid email address", "warn");
       return;
     }
     const height = Math.max(100, Math.min(220, Math.round(draft.comcard.height) || COMCARD_DEFAULT.height));
@@ -94,6 +103,7 @@ function ProfilePage() {
     }
     savePrProfile({
       displayName: name,
+      email,
       avatarPhoto: draft.avatarPhoto,
       comcard: {
         height,
@@ -108,6 +118,7 @@ function ProfilePage() {
   };
 
   const displayName = editing ? draft.displayName : (prDisplayName ?? u.name);
+  const email = editing ? draft.email : (prEmail ?? u.email);
   const avatarPhoto = editing ? draft.avatarPhoto : prAvatarPhoto;
   const avatarLetter = displayName.trim()[0]?.toUpperCase() ?? u.av;
   const comcard = editing ? draft.comcard : prComcard;
@@ -247,18 +258,34 @@ function ProfilePage() {
 
           <div className="iz-pr-account-hero__profile-body">
             {editing ? (
-              <div className="iz-field iz-pr-account-hero__name-field !mb-0">
-                <label className="!text-[9px]">Display name</label>
-                <input
-                  type="text"
-                  value={draft.displayName}
-                  maxLength={40}
-                  placeholder="Your name"
-                  onChange={(e) => setDraft((p) => ({ ...p, displayName: e.target.value }))}
-                />
-              </div>
+              <>
+                <div className="iz-field iz-pr-account-hero__name-field !mb-0">
+                  <label className="!text-[9px]">Display name</label>
+                  <input
+                    type="text"
+                    value={draft.displayName}
+                    maxLength={40}
+                    placeholder="Your name"
+                    onChange={(e) => setDraft((p) => ({ ...p, displayName: e.target.value }))}
+                  />
+                </div>
+                <div className="iz-field iz-pr-account-hero__name-field !mb-0 mt-2">
+                  <label className="!text-[9px]">Email</label>
+                  <input
+                    type="email"
+                    value={draft.email}
+                    maxLength={80}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    onChange={(e) => setDraft((p) => ({ ...p, email: e.target.value }))}
+                  />
+                </div>
+              </>
             ) : (
-              <h1 className="iz-pr-account-hero__name">{displayName}</h1>
+              <>
+                <h1 className="iz-pr-account-hero__name">{displayName}</h1>
+                <p className="iz-pr-account-hero__email">{email}</p>
+              </>
             )}
             <div className="iz-pr-account-hero__meta">
               <span className="iz-tier iz-pr-account-hero__tier">

@@ -1071,6 +1071,13 @@
   letter-spacing: -0.3px;
   color: var(--iz-txt);
 }
+.iz-pr-account-hero__email {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--iz-muted);
+  word-break: break-all;
+}
 .iz-pr-account-hero__name-field input {
   font-size: 15px !important;
   font-weight: 700;

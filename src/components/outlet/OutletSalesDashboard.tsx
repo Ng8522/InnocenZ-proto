@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { useStore } from "@/lib/store";
 import { getOutletWeeklyReport } from "@/lib/outlet-demo";
-import { tonightShiftOutletName } from "@/lib/portal-sync";
+import { shiftHistoryForOutlet, tonightShiftOutletName } from "@/lib/portal-sync";
+import { aggregateShiftHistoryByPr } from "@/lib/shift-history-utils";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import { IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
 import { OutletSection } from "@/components/outlet/OutletSection";
@@ -64,9 +65,28 @@ function EarningsTooltip({
 }
 
 export function OutletSalesDashboard() {
-  const { shifts } = useStore();
+  const { shifts, shiftHistory } = useStore();
   const outletName = tonightShiftOutletName(shifts);
   const report = getOutletWeeklyReport(outletName);
+
+  const outletHistoryRows = useMemo(
+    () => shiftHistoryForOutlet(shiftHistory, outletName),
+    [shiftHistory, outletName],
+  );
+
+  /** Same totals as Outlet → History (sum of sealed shift payouts per PR). */
+  const topPrs = useMemo(() => {
+    if (outletHistoryRows.length === 0) return report?.topPrs ?? [];
+    return aggregateShiftHistoryByPr(outletHistoryRows, "outlet")
+      .sort((a, b) => b.totalPayout - a.totalPayout || a.prName.localeCompare(b.prName))
+      .slice(0, 5)
+      .map((r) => ({ prId: r.prId, name: r.prName, earned: r.totalPayout }));
+  }, [outletHistoryRows, report?.topPrs]);
+
+  const totalPrEarned = useMemo(
+    () => outletHistoryRows.reduce((a, r) => a + r.totalPayout, 0),
+    [outletHistoryRows],
+  );
 
   const dayRows = useMemo((): DayRow[] => {
     if (!report) return [];
@@ -100,11 +120,10 @@ export function OutletSalesDashboard() {
     );
   }
 
-  const { totalSales, totalCost, margin, wowGrowthPct, weekLabel, topPrs, shifts: shiftCount, avgTicket } =
-    report;
+  const { totalSales, totalCost, margin, wowGrowthPct, weekLabel, shifts: shiftCount, avgTicket } = report;
   const marginPct = totalSales > 0 ? Math.round((margin / totalSales) * 100) : 0;
   const avgEarnedPerNight = shiftCount > 0 ? Math.round(margin / shiftCount) : 0;
-  const topSalesMax = Math.max(...topPrs.map((p) => p.sales), 1);
+  const topEarnedMax = Math.max(...topPrs.map((p) => p.earned), 1);
   const bestDay = [...dayRows].sort((a, b) => b.earned - a.earned)[0];
 
   return (
@@ -254,7 +273,11 @@ export function OutletSalesDashboard() {
       <div className="rounded-2xl bg-gradient-surface p-4 shadow-card">
         <OutletSection
           title="Top performing PRs"
-          hint={`Share of ${formatRM(totalSales)} attributed floor sales`}
+          hint={
+            totalPrEarned > 0
+              ? `Total earned at outlet · ${formatRM(totalPrEarned)} · matches History`
+              : "Total PR earnings at this outlet"
+          }
           collapsible
           defaultOpen={false}
           className="!mt-0"
@@ -266,7 +289,7 @@ export function OutletSalesDashboard() {
         >
           <div className="space-y-3">
             {topPrs.map((p, i) => {
-              const share = totalSales > 0 ? Math.round((p.sales / totalSales) * 100) : 0;
+              const share = totalPrEarned > 0 ? Math.round((p.earned / totalPrEarned) * 100) : 0;
               return (
                 <div key={p.prId} className="rounded-xl border border-[var(--iz-line)] bg-black/15 px-3 py-2.5">
                   <div className="flex items-center gap-2">
@@ -275,18 +298,18 @@ export function OutletSalesDashboard() {
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">{p.name}</span>
                     <span className="shrink-0 whitespace-nowrap font-mono text-xs font-semibold tabular-nums text-[var(--iz-gold-l)]">
-                      {formatRM(p.sales)}
+                      {formatRM(p.earned)}
                     </span>
                   </div>
                   <div className="mt-2 flex items-center gap-3">
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-background">
                       <div
                         className="h-full bg-gradient-gold"
-                        style={{ width: `${(p.sales / topSalesMax) * 100}%` }}
+                        style={{ width: `${(p.earned / topEarnedMax) * 100}%` }}
                       />
                     </div>
                     <span className="shrink-0 whitespace-nowrap text-[10px] text-[var(--iz-muted2)]">
-                      {share}% of week
+                      {share}% of payouts
                     </span>
                   </div>
                 </div>

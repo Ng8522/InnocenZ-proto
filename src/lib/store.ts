@@ -441,11 +441,13 @@ interface StoreState {
   prPortfolio: (string | null)[];
   prLanguages: string[];
   prDisplayName: string | null;
+  prEmail: string | null;
   prAvatarPhoto: string | null;
   prPayrollAgencyId: string | null;
   setPrPayrollAgency: (agencyId: string) => void;
   savePrProfile: (data: {
     displayName: string;
+    email: string;
     avatarPhoto: string | null;
     comcard: PrComcard;
     portfolio: (string | null)[];
@@ -1688,6 +1690,7 @@ export const useStore = create<StoreState>()(
       prPortfolio: demoSnapshot.prPortfolio,
       prLanguages: ["English", "Mandarin", "Cantonese"],
       prDisplayName: null,
+      prEmail: null,
       prAvatarPhoto: demoSnapshot.prAvatarPhoto,
       prPayrollAgencyId: null,
       setPrPayrollAgency: (agencyId) => {
@@ -1749,9 +1752,11 @@ export const useStore = create<StoreState>()(
       savePrProfile: (data) => {
         const prId = getPrRosterId(get().prSubRole);
         const displayName = data.displayName.trim();
+        const email = data.email.trim();
         set((st) => {
           const portal = {
             prDisplayName: displayName,
+            prEmail: email,
             prAvatarPhoto: data.avatarPhoto,
             prComcard: data.comcard,
             prPortfolio: data.portfolio,
@@ -1765,6 +1770,7 @@ export const useStore = create<StoreState>()(
           );
           return {
             prDisplayName: displayName,
+            prEmail: email,
             prAvatarPhoto: data.avatarPhoto,
             prComcard: data.comcard,
             prPortfolio: data.portfolio,
@@ -3466,7 +3472,16 @@ export const useStore = create<StoreState>()(
       updateAgencyPrProfile: (prId, patch) => {
         const pr = get().agencyPRs.find((p) => p.id === prId);
         if (!pr) return;
+        const myPrId = getPrRosterId(get().prSubRole);
+        const syncPortal =
+          prId === myPrId
+            ? {
+                ...(patch.name?.trim() ? { prDisplayName: patch.name.trim() } : {}),
+                ...(patch.email?.trim() ? { prEmail: patch.email.trim() } : {}),
+              }
+            : {};
         set((st) => ({
+          ...syncPortal,
           agencyPRs: st.agencyPRs.map((p) => (p.id === prId ? { ...p, ...patch } : p)),
           agencyRoster:
             patch.name && patch.name !== pr.name
@@ -4527,6 +4542,7 @@ export const useStore = create<StoreState>()(
           prPortfolio: s.prPortfolio,
           prLanguages: s.prLanguages,
           prDisplayName: s.prDisplayName,
+          prEmail: s.prEmail,
           prAvatarPhoto: s.prAvatarPhoto,
           prPayrollAgencyId: s.prPayrollAgencyId,
           prNotifications: s.prNotifications,
@@ -4711,6 +4727,11 @@ export const useStore = create<StoreState>()(
         const portalForAgencySync = {
           prDisplayName:
             p?.prDisplayName === "Luna" ? null : (p?.prDisplayName ?? current.prDisplayName),
+          prEmail: (() => {
+            const raw = p?.prEmail ?? current.prEmail;
+            if (!raw || raw.toLowerCase() === "luna@inz.my") return null;
+            return raw;
+          })(),
           prAvatarPhoto: migratePrPortfolioAssetPath(p?.prAvatarPhoto ?? current.prAvatarPhoto),
           prComcard: {
             ...(p?.prComcard ?? current.prComcard),
@@ -4735,6 +4756,8 @@ export const useStore = create<StoreState>()(
             next = {
               ...next,
               name: next.name === "Luna" ? seed.name : next.name,
+              email:
+                !next.email || next.email.toLowerCase() === "luna@inz.my" ? seed.email : next.email,
               avatarPhoto:
                 migratePrPortfolioAssetPath(next.avatarPhoto ?? seed.avatarPhoto ?? null) ??
                 seed.avatarPhoto ??
@@ -4771,6 +4794,11 @@ export const useStore = create<StoreState>()(
           prLanguages: p?.prLanguages?.length ? p.prLanguages : current.prLanguages,
           prDisplayName:
             p?.prDisplayName === "Luna" ? null : (p?.prDisplayName ?? current.prDisplayName),
+          prEmail: (() => {
+            const raw = p?.prEmail ?? current.prEmail;
+            if (!raw || raw.toLowerCase() === "luna@inz.my") return null;
+            return raw;
+          })(),
           prPayrollAgencyId: p?.prPayrollAgencyId ?? current.prPayrollAgencyId,
           prNotifications: p?.prNotifications?.length ? p.prNotifications : current.prNotifications,
           opsNotifications: p?.opsNotifications ?? current.opsNotifications,

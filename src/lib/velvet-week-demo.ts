@@ -332,7 +332,7 @@ export interface OutletWeeklyReport {
   shifts: number;
   avgTicket: number;
   wowGrowthPct: number;
-  topPrs: { prId: string; name: string; sales: number }[];
+  topPrs: { prId: string; name: string; earned: number }[];
 }
 
 /**
@@ -353,12 +353,6 @@ export function buildVelvetWeekShiftHistory(): ShiftHistoryRow[] {
   return nightsToShiftHistory(VELVET_WEEKLY_NIGHTS, getPayrollWeekSundayIso());
 }
 
-function attributedPrSales(night: VelvetNightShift, pr: VelvetPrNight): number {
-  const totalDrinks = night.prs.reduce((a, p) => a + p.drinks, 0);
-  if (totalDrinks === 0) return 0;
-  return Math.round(night.sales * (pr.drinks / totalDrinks));
-}
-
 export function getOutletWeeklyReport(outletName: string): OutletWeeklyReport | null {
   if (outletName !== VELVET_OUTLET_NAME) return null;
 
@@ -373,18 +367,18 @@ export function getOutletWeeklyReport(outletName: string): OutletWeeklyReport | 
 
   const totalSales = days.reduce((a, d) => a + d.sales, 0);
   const totalCost = days.reduce((a, d) => a + d.manpowerCost, 0);
-  const prSales = new Map<string, { name: string; sales: number }>();
+  const prEarned = new Map<string, { name: string; earned: number }>();
   for (const night of VELVET_WEEKLY_NIGHTS) {
     for (const pr of night.prs) {
-      const attr = attributedPrSales(night, pr);
-      const cur = prSales.get(pr.prId) ?? { name: pr.prName, sales: 0 };
-      prSales.set(pr.prId, { name: pr.prName, sales: cur.sales + attr });
+      const earned = sealedShiftPayout(pr, demoTablesForShift(night, pr));
+      const cur = prEarned.get(pr.prId) ?? { name: pr.prName, earned: 0 };
+      prEarned.set(pr.prId, { name: pr.prName, earned: cur.earned + earned });
     }
   }
 
-  const topPrs = [...prSales.entries()]
-    .map(([prId, p]) => ({ prId, name: p.name, sales: p.sales }))
-    .sort((a, b) => b.sales - a.sales)
+  const topPrs = [...prEarned.entries()]
+    .map(([prId, p]) => ({ prId, name: p.name, earned: p.earned }))
+    .sort((a, b) => b.earned - a.earned)
     .slice(0, 5);
 
   return {

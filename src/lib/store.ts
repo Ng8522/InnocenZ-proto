@@ -206,6 +206,7 @@ import {
   SEED_PENDING_RATINGS,
   SEED_RATING_HISTORY,
   SEED_UPCOMING_SHIFTS,
+  remapSeedUpcomingShifts,
   SEED_PR_SWAP_REQUESTS,
   mergePrSwapRequests,
   PR_AGENCY_TIED_OFFERS,
@@ -4656,9 +4657,9 @@ export const useStore = create<StoreState>()(
           notificationPrefs: p?.notificationPrefs ?? current.notificationPrefs,
           prDeclinedOfferIds: p?.prDeclinedOfferIds ?? current.prDeclinedOfferIds,
           prMarketplaceApplication: p?.prMarketplaceApplication ?? current.prMarketplaceApplication,
-          prUpcomingShifts: p?.prUpcomingShifts?.length
-            ? p.prUpcomingShifts
-            : current.prUpcomingShifts,
+          prUpcomingShifts: remapSeedUpcomingShifts(
+            p?.prUpcomingShifts?.length ? p.prUpcomingShifts : current.prUpcomingShifts,
+          ),
           prSwapRequests: mergePrSwapRequests(
             p?.prSwapRequests,
             current.prSwapRequests,

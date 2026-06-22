@@ -3,6 +3,7 @@
 import type { PrShiftOffer } from "@/lib/pr-demo";
 import { PR_SHIFT_OFFERS, SHIFT_TODAY, fmtDateLabelFromIso, fmtDtable, shiftTodayIso } from "@/lib/pr-demo";
 import { SEED_AGENCY_ROSTER, type AgencyRosterSlot } from "@/lib/agency-demo";
+import { migrateDemoYmd } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO, isDemoDateOnOrAfter } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
 
@@ -370,6 +371,14 @@ export const PR_MARKETPLACE_LISTINGS: MarketplaceListing[] = PR_SHIFT_OFFERS.map
   lng: 101.7005 + i * 0.01,
 }));
 
+export function remapSeedUpcomingShift(shift: PrUpcomingShift): PrUpcomingShift {
+  return { ...shift, date: migrateDemoYmd(shift.date) };
+}
+
+export function remapSeedUpcomingShifts(shifts: PrUpcomingShift[]): PrUpcomingShift[] {
+  return shifts.map(remapSeedUpcomingShift);
+}
+
 export const SEED_UPCOMING_SHIFTS: PrUpcomingShift[] = [
   {
     id: "up-1",
@@ -385,7 +394,7 @@ export const SEED_UPCOMING_SHIFTS: PrUpcomingShift[] = [
     time: "20:00 — 01:00",
     status: "pending",
   },
-];
+].map(remapSeedUpcomingShift);
 
 export const SEED_PR_NOTIFICATIONS: PrNotification[] = [
   {

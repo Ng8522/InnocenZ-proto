@@ -82,6 +82,7 @@ type HistFilters = {
   timeFrom: string;
   timeTo: string;
   venue: string;
+  status: HistRow["st"] | "";
   wages: string;
   sales: string;
   tables: string;
@@ -94,11 +95,21 @@ const EMPTY_FILTERS: HistFilters = {
   timeFrom: "",
   timeTo: "",
   venue: "",
+  status: "",
   wages: "",
   sales: "",
   tables: "",
   drinks: "",
 };
+
+const SHIFT_HIST_STATUS_OPTIONS: { value: HistRow["st"] | ""; label: string }[] = [
+  { value: "", label: "Any status" },
+  { value: "PAID", label: "Paid" },
+  { value: "SIGNED", label: "Signed" },
+  { value: "SENT", label: "In PV" },
+  { value: "DISPUTED", label: "Disputed" },
+  { value: "SEALED", label: "Sealed" },
+];
 
 function dateKey(d: [number, number, number]) {
   const [y, m, day] = d;
@@ -139,6 +150,8 @@ function rowSearchBlob(row: HistRow) {
     formatRM(row.wages),
     formatRM(row.sales),
     formatRM(row.table),
+    formatRM(row.drinks),
+    formatRM(row.tips),
   ]
     .join(" ")
     .toLowerCase();
@@ -151,6 +164,7 @@ function matchesFilters(row: HistRow, filters: HistFilters) {
   }
   if (filters.date && dateKey(row.d) !== filters.date) return false;
   if (filters.venue && row.venue !== filters.venue) return false;
+  if (filters.status && row.st !== filters.status) return false;
   const wages = parseFilterNum(filters.wages);
   if (wages !== null && row.wages !== wages) return false;
   const sales = parseFilterNum(filters.sales);
@@ -213,6 +227,7 @@ function activeFilterCount(filters: HistFilters) {
   if (filters.date && filters.timeFrom) n++;
   if (filters.date && filters.timeTo) n++;
   if (filters.venue) n++;
+  if (filters.status) n++;
   if (parseFilterNum(filters.wages) !== null) n++;
   if (parseFilterNum(filters.sales) !== null) n++;
   if (parseFilterNum(filters.tables) !== null) n++;
@@ -506,18 +521,23 @@ type PaymentHistFilters = {
   date: string;
   timeFrom: string;
   timeTo: string;
-  shiftSessionId: string;
   outlet: string;
   status: "" | "PAID" | "SIGNED" | "DISPUTED";
   net: string;
 };
+
+const PAYMENT_HIST_STATUS_OPTIONS: { value: PaymentHistFilters["status"]; label: string }[] = [
+  { value: "", label: "Any status" },
+  { value: "PAID", label: "Paid" },
+  { value: "SIGNED", label: "Signed" },
+  { value: "DISPUTED", label: "Disputed" },
+];
 
 const EMPTY_PAYMENT_HIST_FILTERS: PaymentHistFilters = {
   query: "",
   date: "",
   timeFrom: "",
   timeTo: "",
-  shiftSessionId: "",
   outlet: "",
   status: "",
   net: "",
@@ -655,14 +675,6 @@ function matchesPaymentHistFilters(
     const outlets = pvOutlets(pv);
     if (!outlets.includes(filters.outlet) && !pv.outlet.includes(filters.outlet)) return false;
   }
-  if (filters.shiftSessionId) {
-    const shifts = pvShiftSessionIds(pv);
-    const linked = pvLinkedScans(pv, scansById);
-    const scanShifts = linked.map((s) => s.shiftSessionId).filter(Boolean) as string[];
-    if (!shifts.includes(filters.shiftSessionId) && !scanShifts.includes(filters.shiftSessionId)) {
-      return false;
-    }
-  }
   if (filters.date) {
     if (!pvDateKeys(pv, scansById).includes(filters.date)) return false;
     if (filters.timeFrom || filters.timeTo) {
@@ -687,7 +699,6 @@ function paymentHistFilterCount(filters: PaymentHistFilters) {
   if (filters.date) n++;
   if (filters.date && filters.timeFrom) n++;
   if (filters.date && filters.timeTo) n++;
-  if (filters.shiftSessionId) n++;
   if (filters.outlet) n++;
   if (filters.status) n++;
   if (parseFilterNum(filters.net) !== null) n++;
@@ -861,18 +872,13 @@ function HistoryPage() {
       .map(([key, d]) => ({ key, label: fmtHistDate(d[0], d[1], d[2]) }));
   }, [paymentHistVouchers, scanById]);
 
-  const paymentShiftOptions = useMemo(() => {
-    const ids = new Set<string>();
-    for (const pv of paymentHistVouchers) {
-      for (const id of pvShiftSessionIds(pv)) ids.add(id);
-      for (const scan of pvLinkedScans(pv, scanById)) {
-        if (scan.shiftSessionId) ids.add(scan.shiftSessionId);
-      }
-    }
-    return [...ids]
-      .sort()
-      .map((id) => ({ value: id, label: formatShiftSessionLabel(id) }));
-  }, [paymentHistVouchers, scanById]);
+  const histOutletFilterOptions = useMemo(
+    () => [
+      { value: "", label: "Any outlet" },
+      ...histOutletOptions.map((o) => ({ value: o.name, label: o.name })),
+    ],
+    [histOutletOptions],
+  );
 
   const filteredPaymentVouchers = useMemo(
     () =>
@@ -887,6 +893,13 @@ function HistoryPage() {
   const receiptOutlets = useMemo(
     () => [...new Set(pastShiftReceipts.map((s) => s.outlet))].sort(),
     [pastShiftReceipts],
+  );
+  const receiptOutletFilterOptions = useMemo(
+    () => [
+      { value: "", label: "Any outlet" },
+      ...receiptOutlets.map((v) => ({ value: v, label: v })),
+    ],
+    [receiptOutlets],
   );
   const receiptDateOptions = useMemo(() => {
     const map = new Map<string, [number, number, number]>();
@@ -1136,89 +1149,59 @@ function HistoryPage() {
                 </button>
               </div>
 
-              <div className="iz-hist-search mb-2.5">
-                <Search className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />
-                <input
-                  type="search"
-                  placeholder="Search wages, sales, tables, drinks?"
-                  value={filters.query}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, query: e.target.value }))}
-                  aria-label="Search shift history"
-                />
-                {filters.query && (
-                  <button
-                    type="button"
-                    className="iz-hist-clear"
-                    aria-label="Clear search"
-                    onClick={() => setFilters((prev) => ({ ...prev, query: "" }))}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {histOutletOptions.length > 1 ? (
-                <div className="iz-grid2 iz-hist-shift-filter-grid mb-2.5">
-                  <div className="min-w-0">
-                    <PvDateTimeFilter
-                      compact
-                      date={filters.date}
-                      timeFrom={filters.timeFrom}
-                      timeTo={filters.timeTo}
-                      onDateChange={(date) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          date,
-                          ...(!date ? { timeFrom: "", timeTo: "" } : {}),
-                        }))
-                      }
-                      onTimeFromChange={(timeFrom) => setFilters((prev) => ({ ...prev, timeFrom }))}
-                      onTimeToChange={(timeTo) => setFilters((prev) => ({ ...prev, timeTo }))}
-                      dateOptions={histDateOptions}
-                      defaultMonth={histDefaultMonth}
-                    />
-                  </div>
-                  <OutletPickerField
-                    value={filters.venue}
-                    onChange={(venue) => setFilters((prev) => ({ ...prev, venue }))}
-                    compact
-                    outlets={histOutletOptions}
-                  />
-                </div>
-              ) : (
-                <div className="mb-2.5">
-                  <PvDateTimeFilter
-                    compact
-                    date={filters.date}
-                    timeFrom={filters.timeFrom}
-                    timeTo={filters.timeTo}
-                    onDateChange={(date) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        date,
-                        ...(!date ? { timeFrom: "", timeTo: "" } : {}),
-                      }))
-                    }
-                    onTimeFromChange={(timeFrom) => setFilters((prev) => ({ ...prev, timeFrom }))}
-                    onTimeToChange={(timeTo) => setFilters((prev) => ({ ...prev, timeTo }))}
-                    dateOptions={histDateOptions}
-                    defaultMonth={histDefaultMonth}
-                  />
-                </div>
-              )}
+              <HistRecordsFilterBar
+                searchPlaceholder="Search wages, sales, tables, drinks…"
+                searchAriaLabel="Search shift history"
+                query={filters.query}
+                onQueryChange={(query) => setFilters((prev) => ({ ...prev, query }))}
+                outletValue={filters.venue}
+                onOutletChange={(venue) => setFilters((prev) => ({ ...prev, venue }))}
+                outletOptions={histOutletFilterOptions}
+                statusValue={filters.status}
+                onStatusChange={(status) =>
+                  setFilters((prev) => ({ ...prev, status: status as HistRow["st"] | "" }))
+                }
+                statusOptions={SHIFT_HIST_STATUS_OPTIONS}
+                date={filters.date}
+                timeFrom={filters.timeFrom}
+                timeTo={filters.timeTo}
+                onDateChange={(date) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    date,
+                    ...(!date ? { timeFrom: "", timeTo: "" } : {}),
+                  }))
+                }
+                onTimeFromChange={(timeFrom) => setFilters((prev) => ({ ...prev, timeFrom }))}
+                onTimeToChange={(timeTo) => setFilters((prev) => ({ ...prev, timeTo }))}
+                dateOptions={histDateOptions}
+                defaultMonth={histDefaultMonth}
+              />
 
               {filterCount > 0 && (
                 <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-[var(--iz-line)] pt-2.5">
+                  {(filters.date || filters.venue || filters.status || filters.timeFrom || filters.timeTo) && (
+                    <HistInlineFilterChips
+                      date={filters.date}
+                      timeFrom={filters.timeFrom}
+                      timeTo={filters.timeTo}
+                      dateOptions={histDateOptions}
+                      outlet={filters.venue}
+                      statusLabel={filters.status ? shiftHistoryStatusLabel(filters.status) : undefined}
+                      onClearDate={() =>
+                        setFilters((prev) => ({ ...prev, date: "", timeFrom: "", timeTo: "" }))
+                      }
+                      onClearTimeFrom={() => setFilters((prev) => ({ ...prev, timeFrom: "" }))}
+                      onClearTimeTo={() => setFilters((prev) => ({ ...prev, timeTo: "" }))}
+                      onClearOutlet={() => setFilters((prev) => ({ ...prev, venue: "" }))}
+                      onClearStatus={() => setFilters((prev) => ({ ...prev, status: "" }))}
+                      onClearAll={clearFilters}
+                      hideClearAll
+                    />
+                  )}
                   <FilterChips
                     filters={filters}
-                    dateOptions={histDateOptions}
-                    onRemove={(key) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        [key]: "",
-                        ...(key === "date" ? { timeFrom: "", timeTo: "" } : {}),
-                      }))
-                    }
+                    onRemove={(key) => setFilters((prev) => ({ ...prev, [key]: "" }))}
                   />
                   <button
                     type="button"
@@ -1325,10 +1308,19 @@ function HistoryPage() {
                 dateOptions={histDateOptions}
                 defaultMonth={histDefaultMonth}
               />
-              <OutletPickerField
+              <GenericSelectField
+                label="Outlet"
                 value={draft.venue}
                 onChange={(venue) => setDraft((prev) => ({ ...prev, venue }))}
-                outlets={histOutletOptions}
+                options={histOutletFilterOptions}
+              />
+              <GenericSelectField
+                label="Status"
+                value={draft.status}
+                onChange={(status) =>
+                  setDraft((prev) => ({ ...prev, status: status as HistRow["st"] | "" }))
+                }
+                options={SHIFT_HIST_STATUS_OPTIONS}
               />
               <div className="iz-grid2">
                 <FilterNumberInput
@@ -1388,7 +1380,7 @@ function HistoryPage() {
           setReceiptDraft={setReceiptDraft}
           receiptFilterOpen={receiptFilterOpen}
           setReceiptFilterOpen={setReceiptFilterOpen}
-          receiptOutlets={receiptOutlets}
+          outletOptions={receiptOutletFilterOptions}
           receiptDateOptions={receiptDateOptions}
           shiftByKey={histShiftByKey}
           pvById={pvById}
@@ -1413,7 +1405,6 @@ function HistoryPage() {
           setPaymentFilterOpen={setPaymentFilterOpen}
           paymentOutlets={paymentOutlets}
           paymentDateOptions={paymentDateOptions}
-          paymentShiftOptions={paymentShiftOptions}
           paymentDefaultMonth={paymentDefaultMonth}
           onClear={() => {
             setPaymentFilters(EMPTY_PAYMENT_HIST_FILTERS);
@@ -1537,72 +1528,6 @@ function DatePickerField({
   );
 }
 
-function OutletPickerField({
-  value,
-  onChange,
-  compact,
-  outlets,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  compact?: boolean;
-  outlets: { name: string; count: number }[];
-}) {
-  const [open, setOpen] = useState(false);
-  const totalShifts = outlets.reduce((sum, o) => sum + o.count, 0);
-  const current = value || "All outlets";
-
-  return (
-    <>
-      <div className={`iz-hist-custom-select${compact ? " compact" : ""}`}>
-        <label className={compact ? "!text-[10px]" : undefined}>Outlet</label>
-        <button
-          type="button"
-          className={`iz-hist-select-trigger${compact ? " sm" : ""}${open ? " open" : ""}`}
-          onClick={() => setOpen(true)}
-          aria-haspopup="dialog"
-        >
-          <span className={value ? "" : "iz-muted2"}>{current}</span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />
-        </button>
-      </div>
-
-      <IzSheet open={open} onClose={() => setOpen(false)}>
-        <div className="iz-cardttl">Choose outlet</div>
-        <div className="iz-hist-outlet-sheet-list">
-          <button
-            type="button"
-            className={`iz-hist-outlet-opt${!value ? " sel" : ""}`}
-            onClick={() => {
-              onChange("");
-              setOpen(false);
-            }}
-          >
-            <span>All outlets</span>
-            <span className="c">{totalShifts} shifts</span>
-          </button>
-          {outlets.map((o) => (
-            <button
-              key={o.name}
-              type="button"
-              className={`iz-hist-outlet-opt${value === o.name ? " sel" : ""}`}
-              onClick={() => {
-                onChange(o.name);
-                setOpen(false);
-              }}
-            >
-              <span>{o.name}</span>
-              <span className="c">
-                {o.count} shift{o.count === 1 ? "" : "s"}
-              </span>
-            </button>
-          ))}
-        </div>
-      </IzSheet>
-    </>
-  );
-}
-
 function FilterNumberInput({
   label,
   placeholder,
@@ -1632,25 +1557,12 @@ function FilterNumberInput({
 
 function FilterChips({
   filters,
-  dateOptions,
   onRemove,
 }: {
   filters: HistFilters;
-  dateOptions: { key: string; label: string }[];
   onRemove: (key: keyof HistFilters) => void;
 }) {
   const chips: { key: keyof HistFilters; label: string }[] = [];
-  if (filters.date) {
-    const opt = dateOptions.find((o) => o.key === filters.date);
-    chips.push({ key: "date", label: `Date: ${opt?.label ?? filters.date}` });
-  }
-  if (filters.date && filters.timeFrom) {
-    chips.push({ key: "timeFrom", label: `From ${filters.timeFrom}` });
-  }
-  if (filters.date && filters.timeTo) {
-    chips.push({ key: "timeTo", label: `To ${filters.timeTo}` });
-  }
-  if (filters.venue) chips.push({ key: "venue", label: `Outlet: ${filters.venue}` });
   const wages = parseFilterNum(filters.wages);
   if (wages !== null) chips.push({ key: "wages", label: `Wages: ${formatRM(wages)}` });
   const sales = parseFilterNum(filters.sales);
@@ -1658,19 +1570,25 @@ function FilterChips({
   const tables = parseFilterNum(filters.tables);
   if (tables !== null) chips.push({ key: "tables", label: `Tables: ${formatRM(tables)}` });
   const drinks = parseFilterNum(filters.drinks);
-  if (drinks !== null) chips.push({ key: "drinks", label: `Drinks: ${drinks}` });
+  if (drinks !== null) chips.push({ key: "drinks", label: `Drinks: ${formatRM(drinks)}` });
 
-  return chips.map((chip) => (
-    <button
-      key={chip.key}
-      type="button"
-      className="iz-hist-chip"
-      onClick={() => onRemove(chip.key)}
-    >
-      {chip.label}
-      <X className="h-3 w-3 opacity-70" />
-    </button>
-  ));
+  if (!chips.length) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {chips.map((chip) => (
+        <button
+          key={chip.key}
+          type="button"
+          className="iz-hist-chip"
+          onClick={() => onRemove(chip.key)}
+        >
+          {chip.label}
+          <X className="h-3 w-3 opacity-70" />
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function HistShiftCard({
@@ -1748,7 +1666,7 @@ function HistShiftCard({
         </div>
         <div className="iz-hist-shift-metric">
           <span className="l">Drinks</span>
-          <span className="v">{row.drinks}</span>
+          <span className="v">{formatRM(row.drinks)}</span>
         </div>
         <div className="iz-hist-shift-metric">
           <span className="l">Tips</span>
@@ -1837,7 +1755,6 @@ function PaymentHistorySection({
   setPaymentFilterOpen,
   paymentOutlets,
   paymentDateOptions,
-  paymentShiftOptions,
   paymentDefaultMonth,
   onClear,
   onDownloadPdf,
@@ -1854,7 +1771,6 @@ function PaymentHistorySection({
   setPaymentFilterOpen: (v: boolean) => void;
   paymentOutlets: string[];
   paymentDateOptions: { key: string; label: string }[];
-  paymentShiftOptions: { value: string; label: string }[];
   paymentDefaultMonth: Date;
   onClear: () => void;
   onDownloadPdf: (pv: PrPaymentVoucher) => void;
@@ -1915,14 +1831,13 @@ function PaymentHistorySection({
           ]}
         />
         <GenericSelectField
-          label="Shift"
+          label="Status"
           compact
-          value={filters.shiftSessionId}
-          onChange={(shiftSessionId) => setFilters((p) => ({ ...p, shiftSessionId }))}
-          options={[
-            { value: "", label: "Any shift" },
-            ...paymentShiftOptions.map((o) => ({ value: o.value, label: o.label })),
-          ]}
+          value={filters.status}
+          onChange={(status) =>
+            setFilters((p) => ({ ...p, status: status as PaymentHistFilters["status"] }))
+          }
+          options={PAYMENT_HIST_STATUS_OPTIONS}
         />
       </div>
 
@@ -1984,25 +1899,13 @@ function PaymentHistorySection({
               <X className="h-3 w-3" />
             </button>
           )}
-          {filters.shiftSessionId && (
-            <button
-              type="button"
-              className="iz-hist-chip"
-              onClick={() => setFilters((p) => ({ ...p, shiftSessionId: "" }))}
-            >
-              Shift:{" "}
-              {paymentShiftOptions.find((o) => o.value === filters.shiftSessionId)?.label ??
-                filters.shiftSessionId}
-              <X className="h-3 w-3" />
-            </button>
-          )}
           {filters.status && (
             <button
               type="button"
               className="iz-hist-chip"
               onClick={() => setFilters((p) => ({ ...p, status: "" }))}
             >
-              Status: {filters.status}
+              Status: {PAYMENT_HIST_STATUS_OPTIONS.find((o) => o.value === filters.status)?.label ?? filters.status}
               <X className="h-3 w-3" />
             </button>
           )}
@@ -2056,15 +1959,6 @@ function PaymentHistorySection({
             defaultMonth={paymentDefaultMonth}
           />
           <GenericSelectField
-            label="Shift"
-            value={paymentDraft.shiftSessionId}
-            onChange={(shiftSessionId) => setPaymentDraft((p) => ({ ...p, shiftSessionId }))}
-            options={[
-              { value: "", label: "Any shift" },
-              ...paymentShiftOptions.map((o) => ({ value: o.value, label: o.label })),
-            ]}
-          />
-          <GenericSelectField
             label="Outlet"
             value={paymentDraft.outlet}
             onChange={(outlet) => setPaymentDraft((p) => ({ ...p, outlet }))}
@@ -2074,17 +1968,12 @@ function PaymentHistorySection({
             ]}
           />
           <GenericSelectField
-            label="Payment status"
+            label="Status"
             value={paymentDraft.status}
             onChange={(status) =>
               setPaymentDraft((p) => ({ ...p, status: status as PaymentHistFilters["status"] }))
             }
-            options={[
-              { value: "", label: "Any status" },
-              { value: "PAID", label: "Paid" },
-              { value: "SIGNED", label: "Signed" },
-              { value: "DISPUTED", label: "Disputed" },
-            ]}
+            options={PAYMENT_HIST_STATUS_OPTIONS}
           />
           <FilterNumberInput
             label="Net paid (RM)"
@@ -2127,7 +2016,7 @@ function ReceiptScansSection({
   setReceiptDraft,
   receiptFilterOpen,
   setReceiptFilterOpen,
-  receiptOutlets,
+  outletOptions,
   receiptDateOptions,
   shiftByKey,
   pvById,
@@ -2142,7 +2031,7 @@ function ReceiptScansSection({
   setReceiptDraft: Dispatch<SetStateAction<ReceiptFilters>>;
   receiptFilterOpen: boolean;
   setReceiptFilterOpen: (v: boolean) => void;
-  receiptOutlets: string[];
+  outletOptions: { value: string; label: string }[];
   receiptDateOptions: { key: string; label: string }[];
   shiftByKey: Map<string, ShiftHistoryRow>;
   pvById: Record<string, PrPaymentVoucher>;
@@ -2175,115 +2064,46 @@ function ReceiptScansSection({
         </button>
       </div>
 
-      <div className="iz-hist-search mb-2.5">
-        <Search className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />
-        <input
-          type="search"
-          placeholder="Search receipt ID, outlet, PV, items…"
-          value={filters.query}
-          onChange={(e) => setFilters((prev) => ({ ...prev, query: e.target.value }))}
-          aria-label="Search receipt scans"
-        />
-        {filters.query && (
-          <button
-            type="button"
-            className="iz-hist-clear"
-            aria-label="Clear search"
-            onClick={() => setFilters((p) => ({ ...p, query: "" }))}
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+      <HistRecordsFilterBar
+        searchPlaceholder="Search receipt ID, outlet, PV, items…"
+        searchAriaLabel="Search receipt scans"
+        query={filters.query}
+        onQueryChange={(query) => setFilters((prev) => ({ ...prev, query }))}
+        outletValue={filters.outlet}
+        onOutletChange={(outlet) => setFilters((prev) => ({ ...prev, outlet }))}
+        outletOptions={outletOptions}
+        statusValue={filters.status}
+        onStatusChange={(status) =>
+          setFilters((prev) => ({ ...prev, status: status as ReceiptScanStatus | "" }))
+        }
+        statusOptions={RECEIPT_STATUS_FILTER_OPTIONS}
+        date={filters.date}
+        timeFrom={filters.timeFrom}
+        timeTo={filters.timeTo}
+        onDateChange={(date) =>
+          setFilters((prev) => ({ ...prev, date, ...(!date ? { timeFrom: "", timeTo: "" } : {}) }))
+        }
+        onTimeFromChange={(timeFrom) => setFilters((prev) => ({ ...prev, timeFrom }))}
+        onTimeToChange={(timeTo) => setFilters((prev) => ({ ...prev, timeTo }))}
+        dateOptions={receiptDateOptions}
+        defaultMonth={receiptDefaultMonth}
+      />
 
-      <div className="iz-grid2 mb-2.5">
-        <GenericSelectField
-          label="Outlet"
-          compact
-          value={filters.outlet}
-          onChange={(outlet) => setFilters((p) => ({ ...p, outlet }))}
-          options={[
-            { value: "", label: "Any outlet" },
-            ...receiptOutlets.map((v) => ({ value: v, label: v })),
-          ]}
-        />
-        <GenericSelectField
-          label="Status"
-          compact
-          value={filters.status}
-          onChange={(status) =>
-            setFilters((p) => ({ ...p, status: status as ReceiptScanStatus | "" }))
-          }
-          options={RECEIPT_STATUS_FILTER_OPTIONS}
-        />
-      </div>
-
-      <div className="mb-2.5">
-        <PvDateTimeFilter
-          compact
+      {filterCount > 0 && (
+        <HistInlineFilterChips
           date={filters.date}
           timeFrom={filters.timeFrom}
           timeTo={filters.timeTo}
-          onDateChange={(date) =>
-            setFilters((p) => ({ ...p, date, ...(!date ? { timeFrom: "", timeTo: "" } : {}) }))
-          }
-          onTimeFromChange={(timeFrom) => setFilters((p) => ({ ...p, timeFrom }))}
-          onTimeToChange={(timeTo) => setFilters((p) => ({ ...p, timeTo }))}
           dateOptions={receiptDateOptions}
-          defaultMonth={receiptDefaultMonth}
+          outlet={filters.outlet}
+          statusLabel={filters.status ? receiptStatusLabel(filters.status) : undefined}
+          onClearDate={() => setFilters((p) => ({ ...p, date: "", timeFrom: "", timeTo: "" }))}
+          onClearTimeFrom={() => setFilters((p) => ({ ...p, timeFrom: "" }))}
+          onClearTimeTo={() => setFilters((p) => ({ ...p, timeTo: "" }))}
+          onClearOutlet={() => setFilters((p) => ({ ...p, outlet: "" }))}
+          onClearStatus={() => setFilters((p) => ({ ...p, status: "" }))}
+          onClearAll={onClear}
         />
-      </div>
-
-      {filterCount > 0 && (
-        <div className="mb-2.5 flex flex-wrap items-center gap-2">
-          {filters.date && (
-            <button
-              type="button"
-              className="iz-hist-chip"
-              onClick={() => setFilters((p) => ({ ...p, date: "", timeFrom: "", timeTo: "" }))}
-            >
-              Date: {receiptDateOptions.find((o) => o.key === filters.date)?.label ?? filters.date}
-              <X className="h-3 w-3" />
-            </button>
-          )}
-          {filters.date && filters.timeFrom && (
-            <button
-              type="button"
-              className="iz-hist-chip"
-              onClick={() => setFilters((p) => ({ ...p, timeFrom: "" }))}
-            >
-              From {filters.timeFrom}
-              <X className="h-3 w-3" />
-            </button>
-          )}
-          {filters.date && filters.timeTo && (
-            <button
-              type="button"
-              className="iz-hist-chip"
-              onClick={() => setFilters((p) => ({ ...p, timeTo: "" }))}
-            >
-              To {filters.timeTo}
-              <X className="h-3 w-3" />
-            </button>
-          )}
-          {filters.status && (
-            <button
-              type="button"
-              className="iz-hist-chip"
-              onClick={() => setFilters((p) => ({ ...p, status: "" }))}
-            >
-              Status: {receiptStatusLabel(filters.status)}
-              <X className="h-3 w-3" />
-            </button>
-          )}
-          <button
-            type="button"
-            className="iz-tiny font-semibold text-[var(--iz-gold-l)]"
-            onClick={onClear}
-          >
-            Clear all filters
-          </button>
-        </div>
       )}
 
       {scans.length === 0 ? (
@@ -2393,10 +2213,7 @@ function ReceiptScansSection({
             label="Outlet"
             value={receiptDraft.outlet}
             onChange={(outlet) => setReceiptDraft((p) => ({ ...p, outlet }))}
-            options={[
-              { value: "", label: "Any outlet" },
-              ...receiptOutlets.map((v) => ({ value: v, label: v })),
-            ]}
+            options={outletOptions}
           />
           <GenericSelectField
             label="Status"
@@ -2513,6 +2330,180 @@ function PvDateTimeFilter({
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+function HistRecordsFilterBar({
+  searchPlaceholder,
+  searchAriaLabel,
+  query,
+  onQueryChange,
+  outletValue,
+  onOutletChange,
+  outletOptions,
+  statusValue,
+  onStatusChange,
+  statusOptions,
+  date,
+  timeFrom,
+  timeTo,
+  onDateChange,
+  onTimeFromChange,
+  onTimeToChange,
+  dateOptions,
+  defaultMonth,
+}: {
+  searchPlaceholder: string;
+  searchAriaLabel: string;
+  query: string;
+  onQueryChange: (value: string) => void;
+  outletValue: string;
+  onOutletChange: (value: string) => void;
+  outletOptions: { value: string; label: string }[];
+  statusValue: string;
+  onStatusChange: (value: string) => void;
+  statusOptions: { value: string; label: string }[];
+  date: string;
+  timeFrom: string;
+  timeTo: string;
+  onDateChange: (value: string) => void;
+  onTimeFromChange: (value: string) => void;
+  onTimeToChange: (value: string) => void;
+  dateOptions: { key: string; label: string }[];
+  defaultMonth: Date;
+}) {
+  return (
+    <>
+      <div className="iz-hist-search mb-2.5">
+        <Search className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />
+        <input
+          type="search"
+          placeholder={searchPlaceholder}
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          aria-label={searchAriaLabel}
+        />
+        {query && (
+          <button
+            type="button"
+            className="iz-hist-clear"
+            aria-label="Clear search"
+            onClick={() => onQueryChange("")}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      <div className="iz-grid2 mb-2.5">
+        <GenericSelectField
+          label="Outlet"
+          compact
+          value={outletValue}
+          onChange={onOutletChange}
+          options={outletOptions}
+        />
+        <GenericSelectField
+          label="Status"
+          compact
+          value={statusValue}
+          onChange={onStatusChange}
+          options={statusOptions}
+        />
+      </div>
+
+      <div className="mb-2.5">
+        <PvDateTimeFilter
+          compact
+          date={date}
+          timeFrom={timeFrom}
+          timeTo={timeTo}
+          onDateChange={onDateChange}
+          onTimeFromChange={onTimeFromChange}
+          onTimeToChange={onTimeToChange}
+          dateOptions={dateOptions}
+          defaultMonth={defaultMonth}
+        />
+      </div>
+    </>
+  );
+}
+
+function HistInlineFilterChips({
+  date,
+  timeFrom,
+  timeTo,
+  dateOptions,
+  outlet,
+  statusLabel,
+  onClearDate,
+  onClearTimeFrom,
+  onClearTimeTo,
+  onClearOutlet,
+  onClearStatus,
+  onClearAll,
+  hideClearAll,
+}: {
+  date: string;
+  timeFrom: string;
+  timeTo: string;
+  dateOptions: { key: string; label: string }[];
+  outlet?: string;
+  statusLabel?: string;
+  onClearDate: () => void;
+  onClearTimeFrom: () => void;
+  onClearTimeTo: () => void;
+  onClearOutlet?: () => void;
+  onClearStatus?: () => void;
+  onClearAll: () => void;
+  hideClearAll?: boolean;
+}) {
+  const hasChip =
+    date ||
+    (date && timeFrom) ||
+    (date && timeTo) ||
+    outlet ||
+    statusLabel;
+  if (!hasChip && hideClearAll) return null;
+
+  return (
+    <div className="mb-2.5 flex flex-wrap items-center gap-2">
+      {date && (
+        <button type="button" className="iz-hist-chip" onClick={onClearDate}>
+          Date: {dateOptions.find((o) => o.key === date)?.label ?? date}
+          <X className="h-3 w-3" />
+        </button>
+      )}
+      {date && timeFrom && (
+        <button type="button" className="iz-hist-chip" onClick={onClearTimeFrom}>
+          From {timeFrom}
+          <X className="h-3 w-3" />
+        </button>
+      )}
+      {date && timeTo && (
+        <button type="button" className="iz-hist-chip" onClick={onClearTimeTo}>
+          To {timeTo}
+          <X className="h-3 w-3" />
+        </button>
+      )}
+      {outlet && onClearOutlet && (
+        <button type="button" className="iz-hist-chip" onClick={onClearOutlet}>
+          Outlet: {outlet}
+          <X className="h-3 w-3" />
+        </button>
+      )}
+      {statusLabel && onClearStatus && (
+        <button type="button" className="iz-hist-chip" onClick={onClearStatus}>
+          Status: {statusLabel}
+          <X className="h-3 w-3" />
+        </button>
+      )}
+      {!hideClearAll && (
+        <button type="button" className="iz-tiny font-semibold text-[var(--iz-gold-l)]" onClick={onClearAll}>
+          Clear all filters
+        </button>
+      )}
     </div>
   );
 }

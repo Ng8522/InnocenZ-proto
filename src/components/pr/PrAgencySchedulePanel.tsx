@@ -3,8 +3,8 @@ import { IzSheet } from "@/components/iz/Sheet";
 import { PrStatusPill } from "@/components/pr/PrOfferRow";
 import type { AgencyRosterSlot } from "@/lib/agency-demo";
 import {
-  AGENCY_SCHEDULE_FROM_ISO,
-  AGENCY_SCHEDULE_TO_ISO,
+  getAgencyScheduleFromIso,
+  getAgencyScheduleToIso,
   buildPrScheduleDays,
   buildTimetableEntries,
   dayCanToggleAvailability,
@@ -20,6 +20,7 @@ import {
   evaluateShiftCancellation,
 } from "@/lib/pr-schedule-cancellation";
 import { calendarNavBounds, dateFromIsoKey, isoKeyFromDate } from "@/components/iz/HistDateCalendar";
+import { getLiveTodayIso } from "@/lib/demo-clock";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Building2, CalendarDays, ChevronDown, Clock, Shield } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -50,7 +51,7 @@ export function PrAgencySchedulePanel({
   );
   const dayByIso = useMemo(() => new Map(scheduleDays.map((d) => [d.dateIso, d])), [scheduleDays]);
 
-  const defaultMonth = dateFromIsoKey("2026-06-01") ?? new Date();
+  const defaultMonth = dateFromIsoKey(getLiveTodayIso()) ?? new Date();
   const [viewMonth, setViewMonth] = useState(defaultMonth);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [selectedIso, setSelectedIso] = useState<string | null>(null);
@@ -79,6 +80,13 @@ export function PrAgencySchedulePanel({
   const timetableEntries = useMemo(
     () => buildTimetableEntries(prId, roster, upcoming, viewMonth),
     [prId, roster, upcoming, viewMonth],
+  );
+  const visibleTimetable = useMemo(
+    () =>
+      selectedIso
+        ? timetableEntries.filter((e) => e.dateIso === selectedIso)
+        : timetableEntries,
+    [timetableEntries, selectedIso],
   );
 
   const cancelSlot = cancelSlotId ? roster.find((s) => s.id === cancelSlotId) : undefined;
@@ -189,7 +197,9 @@ export function PrAgencySchedulePanel({
           onSelect={handleDaySelect}
           disabled={(date) => {
             const iso = isoKeyFromDate(date);
-            if (iso < AGENCY_SCHEDULE_FROM_ISO || iso > AGENCY_SCHEDULE_TO_ISO) return true;
+            const fromIso = getAgencyScheduleFromIso();
+            const toIso = getAgencyScheduleToIso();
+            if (iso < fromIso || iso > toIso) return true;
             const day = dayByIso.get(iso);
             return day?.kind === "past";
           }}
@@ -234,13 +244,13 @@ export function PrAgencySchedulePanel({
           <Clock className="h-4 w-4 text-[var(--iz-muted2)]" />
           <span className="text-xs font-bold uppercase tracking-wide text-[var(--iz-muted)]">Timetable</span>
         </div>
-        {timetableEntries.length === 0 ? (
+        {visibleTimetable.length === 0 ? (
           <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-3 py-5 text-center">
-            No shifts this month
+            {selectedIso ? "No shifts on this day" : "No shifts this month"}
           </p>
         ) : (
           <div className="iz-pr-list">
-            {timetableEntries.map((entry) => (
+            {visibleTimetable.map((entry) => (
               <TimetableRow
                 key={entry.id}
                 entry={entry}

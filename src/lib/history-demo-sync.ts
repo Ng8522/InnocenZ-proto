@@ -23,6 +23,7 @@ import {
   getWeekBounds,
   makeWeeklyPvId,
   pvRowsFromWeeklySummary,
+  shiftRowIncomeBreakdown,
   syncWeeklyPvWithSummary,
 } from "@/lib/pr-weekly-payment";
 import { isPrPaymentInboxPv, pvForPayrollDate, pvRowDateToIso } from "@/lib/pr-payment-history";
@@ -240,24 +241,42 @@ export function buildReceiptScansFromShiftHistory(
     const ymd = ymdFromIso(row.dateIso);
     const [y, m, d] = ymd;
     const dateLabel = fmtDtable(y, m, d);
-    const tables = row.totalTables ?? 0;
     const sessionId = shiftSessionId(row.outlet, row.dateIso);
     const histPrefix = `rc-hist-${prId}-${row.dateIso.replace(/-/g, "")}`;
+    const income = shiftRowIncomeBreakdown(row);
 
-    const parts: Array<{ slot: number; category: "drinks" | "tips" | "tables"; qty: number }> = [];
-    if (row.totalDrinks > 0) parts.push({ slot: 1, category: "drinks", qty: row.totalDrinks });
-    if (row.totalTips > 0) parts.push({ slot: 2, category: "tips", qty: 1 });
-    if (tables > 0) parts.push({ slot: 3, category: "tables", qty: tables });
-    if (parts.length === 0) {
+    const parts: Array<{
+      slot: number;
+      category: "drinks" | "tips" | "tables";
+      amount: number;
+      qty: number;
+      unitPrice: number;
+    }> = [];
+    if (income.drinks > 0) {
       parts.push({
         slot: 1,
         category: "drinks",
-        qty: Math.max(
-          1,
-          Math.round(
-            (row.totalPayout * 0.45) / RECEIPT_COMMISSION_RULES.drinkPerUnit,
-          ),
-        ),
+        amount: income.drinks,
+        qty: Math.max(1, Math.round(income.drinks / RECEIPT_COMMISSION_RULES.drinkPerUnit)),
+        unitPrice: RECEIPT_COMMISSION_RULES.drinkPerUnit,
+      });
+    }
+    if (income.tips > 0) {
+      parts.push({
+        slot: 2,
+        category: "tips",
+        amount: income.tips,
+        qty: 1,
+        unitPrice: income.tips,
+      });
+    }
+    if (income.tables > 0) {
+      parts.push({
+        slot: 3,
+        category: "tables",
+        amount: income.tables,
+        qty: Math.max(1, Math.round(income.tables / RECEIPT_COMMISSION_RULES.tablePerUnit)),
+        unitPrice: RECEIPT_COMMISSION_RULES.tablePerUnit,
       });
     }
 
@@ -272,8 +291,8 @@ export function buildReceiptScansFromShiftHistory(
               {
                 label: "Drinks commission",
                 qty: part.qty,
-                unitPrice: RECEIPT_COMMISSION_RULES.drinkPerUnit,
-                amount: part.qty * RECEIPT_COMMISSION_RULES.drinkPerUnit,
+                unitPrice: part.unitPrice,
+                amount: part.amount,
                 category: "drinks" as const,
               },
             ]
@@ -282,8 +301,8 @@ export function buildReceiptScansFromShiftHistory(
                 {
                   label: "Tips",
                   qty: 1,
-                  unitPrice: row.totalTips,
-                  amount: row.totalTips,
+                  unitPrice: part.amount,
+                  amount: part.amount,
                   category: "tips" as const,
                 },
               ]
@@ -291,8 +310,8 @@ export function buildReceiptScansFromShiftHistory(
                 {
                   label: "VIP table",
                   qty: part.qty,
-                  unitPrice: RECEIPT_COMMISSION_RULES.tablePerUnit,
-                  amount: part.qty * RECEIPT_COMMISSION_RULES.tablePerUnit,
+                  unitPrice: part.unitPrice,
+                  amount: part.amount,
                   category: "tables" as const,
                 },
               ];
@@ -311,7 +330,7 @@ export function buildReceiptScansFromShiftHistory(
         prId,
         shiftSessionId: sessionId,
         items,
-        totalLogged: items.reduce((s, i) => s + i.amount, 0),
+        totalLogged: part.amount,
         drinkCommission: comm.drinkCommission,
         tipCommission: comm.tipCommission,
         tableCommission: comm.tableCommission,

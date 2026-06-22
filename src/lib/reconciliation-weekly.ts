@@ -1,5 +1,6 @@
 import type { AgencyReconciliationDay } from "@/lib/agency-demo";
 import { parsePvIssuedMs, type PrPaymentVoucher, type PrPvStatus } from "@/lib/pr-demo";
+import { shiftRowIncomeBreakdown } from "@/lib/pr-weekly-payment";
 import { recomputeReconciliation, sumPvNetForCycle } from "@/lib/portal-sync";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 import { VELVET_OUTLET_NAME, VELVET_WEEKLY_NIGHTS } from "@/lib/velvet-week-demo";
@@ -91,17 +92,14 @@ function incomeFromShiftRow(row: ShiftHistoryRow): {
   tablesRm: number;
   totalRm: number;
 } {
-  const drinksRm = row.totalDrinks;
-  const tipsRm = row.totalTips;
-  const tablesRm = row.totalTables ?? 0;
-  const commission = drinksRm + tipsRm + tablesRm;
-  const wagesRm = Math.max(0, row.totalPayout - commission);
+  const b = shiftRowIncomeBreakdown(row);
+  const totalRm = b.wages + b.drinks + b.tips + b.tables;
   return {
-    wagesRm,
-    drinksRm,
-    tipsRm,
-    tablesRm,
-    totalRm: row.totalPayout,
+    wagesRm: b.wages,
+    drinksRm: b.drinks,
+    tipsRm: b.tips,
+    tablesRm: b.tables,
+    totalRm,
   };
 }
 

@@ -14,6 +14,7 @@ import { ProfileLanguagePicker } from "@/components/iz/ProfileLanguagePicker";
 import { Camera, Pencil, Star, X } from "lucide-react";
 import { FreelancerAgencyPicker } from "@/components/iz/FreelancerAgencyPicker";
 import { IzCard, IzPill } from "@/components/iz/ui";
+import { publicAssetPath } from "@/lib/public-asset";
 
 export const Route = createFileRoute("/host/profile")({
   component: ProfilePage,
@@ -218,7 +219,7 @@ function ProfilePage() {
               className={`iz-avatar iz-pr-account-hero__avatar${avatarPhoto ? " iz-avatar-photo" : ""}`}
               style={avatarPhoto ? undefined : { background: u.avg }}
             >
-              {avatarPhoto ? <img src={avatarPhoto} alt="" /> : avatarLetter}
+              {avatarPhoto ? <img src={publicAssetPath(avatarPhoto)} alt="" /> : avatarLetter}
             </div>
             {editing && (
               <>
@@ -353,7 +354,7 @@ function ProfilePage() {
                     aria-label={src ? `Portfolio photo ${i + 1}` : `Add portfolio photo ${i + 1}`}
                   >
                     {src ? (
-                      <img src={src} alt="" className="h-full w-full rounded-[10px] object-cover" />
+                      <img src={publicAssetPath(src)} alt="" className="h-full w-full rounded-[10px] object-cover" />
                     ) : (
                       <Camera className="h-[18px] w-[18px]" />
                     )}

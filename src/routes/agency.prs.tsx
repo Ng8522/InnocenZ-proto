@@ -12,6 +12,7 @@ import type { AgencyManagedPR } from "@/lib/agency-demo";
 import { collectAgencyPrLanguages, languagesFromPr } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { IzCard, IzPill, IzSectionLabel, IzSelect, formatRM } from "@/components/iz/ui";
+import { publicAssetPath } from "@/lib/public-asset";
 import { ProfileLanguagePicker } from "@/components/iz/ProfileLanguagePicker";
 import { shiftHistoryForPr } from "@/lib/portal-sync";
 import {
@@ -530,7 +531,7 @@ function AgencyPrDetail({
           <div
             className={`iz-avatar !h-[54px] !w-[54px] shrink-0 text-xl${detail.avatarPhoto ? " iz-avatar-photo" : ""}`}
           >
-            {detail.avatarPhoto ? <img src={detail.avatarPhoto} alt="" /> : avatarLetter}
+            {detail.avatarPhoto ? <img src={publicAssetPath(detail.avatarPhoto)} alt="" /> : avatarLetter}
           </div>
           <div className="min-w-0 flex-1">
             <div className="iz-between items-start gap-2">
@@ -606,7 +607,7 @@ function AgencyPrDetail({
                 .filter((src): src is string => Boolean(src))
                 .map((src, i) => (
                   <div key={i} className="aspect-square overflow-hidden rounded-lg border border-[var(--iz-line)]">
-                    <img src={src} alt="" className="h-full w-full object-cover" />
+                    <img src={publicAssetPath(src)} alt="" className="h-full w-full object-cover" />
                   </div>
                 ))}
             </div>

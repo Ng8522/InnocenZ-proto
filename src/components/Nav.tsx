@@ -11,6 +11,7 @@ import { getShiftToday, fmtDTopbar, getPrProfile } from "@/lib/pr-demo";
 import { AGENCY_SUB_ROLE_LABELS } from "@/lib/agency-rbac";
 
 import { goToWelcome } from "@/lib/go-welcome";
+import { publicAssetPath } from "@/lib/public-asset";
 import { PrNotificationBell } from "@/components/pr/PrNotificationBell";
 import { getAutoBackLabel, getAutoBackTo, WELCOME_PATH } from "@/lib/nav-back";
 
@@ -273,7 +274,7 @@ export function AppTopbar({
                   className={`iz-avatar iz-avatar--sm${prAvatarPhoto ? " iz-avatar-photo" : ""}`}
                   style={prAvatarPhoto ? undefined : { background: displayGradient }}
                 >
-                  {prAvatarPhoto ? <img src={prAvatarPhoto} alt="" /> : displayAv}
+                  {prAvatarPhoto ? <img src={publicAssetPath(prAvatarPhoto)} alt="" /> : displayAv}
                 </div>
                 <div className="iz-topbar-meta">
                   <div className="iz-topbar-name">{displayName}</div>
@@ -288,7 +289,7 @@ export function AppTopbar({
                 className={`iz-avatar iz-avatar--sm${prAvatarPhoto ? " iz-avatar-photo" : ""}`}
                 style={prAvatarPhoto ? undefined : { background: displayGradient }}
               >
-                {prAvatarPhoto ? <img src={prAvatarPhoto} alt="" /> : displayAv}
+                {prAvatarPhoto ? <img src={publicAssetPath(prAvatarPhoto)} alt="" /> : displayAv}
               </div>
               <div className="iz-topbar-meta">
                 <div className="iz-topbar-name">{displayName}</div>

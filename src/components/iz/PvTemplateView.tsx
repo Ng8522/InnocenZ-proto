@@ -8,6 +8,7 @@ import {
   type PvPayeeProfile,
 } from "@/lib/pv-template";
 import type { PrPaymentVoucher } from "@/lib/pr-demo";
+import { publicAssetPath } from "@/lib/public-asset";
 
 function PayeeField({ label, value }: { label: string; value: string }) {
   const display = formatPayeeField(value);
@@ -49,7 +50,7 @@ export function PvTemplateView({
     <div className={`iz-pv-doc-shell${className ? ` ${className}` : ""}`}>
       <article className="iz-pv-doc" aria-label={`Payment voucher ${pv.id}`}>
         <header className="iz-pv-doc-head">
-          <img className="iz-pv-doc-logo" src={PV_TEMPLATE_ISSUER.logoPath} alt={PV_TEMPLATE_ISSUER.brand} />
+          <img className="iz-pv-doc-logo" src={publicAssetPath(PV_TEMPLATE_ISSUER.logoPath)} alt={PV_TEMPLATE_ISSUER.brand} />
           <div className="iz-pv-doc-title-block">
             <h1 className="iz-pv-doc-title">Payment Voucher</h1>
             <p className="iz-pv-doc-issuer">

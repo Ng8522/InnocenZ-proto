@@ -1,6 +1,7 @@
 import { IzPill } from "@/components/iz/ui";
 import { StaticComcardVisual } from "@/components/pr/PortfolioComcardVisual";
 import { getComcardDemoStyle } from "@/lib/comcard-demo";
+import { publicAssetPath } from "@/lib/public-asset";
 import { cn } from "@/lib/utils";
 
 export type ComcardPreviewData = {
@@ -107,7 +108,7 @@ export function Comcard3dPreviewThumb({
         )}
       >
         <img
-          src={data.comcardImageUrl}
+          src={publicAssetPath(data.comcardImageUrl)}
           alt=""
           className="iz-comcard-3d-preview--thumb-photo__img"
         />

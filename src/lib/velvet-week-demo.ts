@@ -3,7 +3,8 @@
  */
 
 import { addDaysToIso, getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/demo-clock";
-import { fmtDateLabelFromIso } from "@/lib/pr-demo";
+import { fmtDateLabelFromIso, RECEIPT_COMMISSION_RULES } from "@/lib/pr-demo";
+import { SHIFT_SEALED_BASE_WAGE } from "@/lib/pr-weekly-payment";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 
 export const VELVET_OUTLET_NAME = "Velvet 23";
@@ -279,25 +280,37 @@ function demoTablesForShift(night: VelvetNightShift, pr: VelvetPrNight): number 
   return 0;
 }
 
+function sealedShiftPayout(pr: VelvetPrNight, tables: number): number {
+  return (
+    SHIFT_SEALED_BASE_WAGE +
+    pr.drinks * RECEIPT_COMMISSION_RULES.drinkPerUnit +
+    pr.tips * RECEIPT_COMMISSION_RULES.tipRate +
+    tables * RECEIPT_COMMISSION_RULES.tablePerUnit
+  );
+}
+
 function nightsToShiftHistory(nights: VelvetNightShift[], weekSundayIso: string): ShiftHistoryRow[] {
   const todayIso = getLiveTodayIso();
   return nights.flatMap((night, index) => {
     const dateIso = addDaysToIso(weekSundayIso, index);
     if (dateIso > todayIso) return [];
-    return night.prs.map((pr) => ({
-      id: `vh-${dateIso}-${pr.prId}`,
-      prName: pr.prName,
-      prId: pr.prId,
-      outlet: VELVET_OUTLET_NAME,
-      agencyName: VELVET_AGENCY,
-      dateDisplay: fmtDateLabelFromIso(dateIso),
-      dateIso,
-      totalPayout: pr.payout,
-      totalDrinks: pr.drinks,
-      totalTips: pr.tips,
-      totalTables: demoTablesForShift(night, pr),
-      durationHours: pr.durationHours,
-    }));
+    return night.prs.map((pr) => {
+      const totalTables = demoTablesForShift(night, pr);
+      return {
+        id: `vh-${dateIso}-${pr.prId}`,
+        prName: pr.prName,
+        prId: pr.prId,
+        outlet: VELVET_OUTLET_NAME,
+        agencyName: VELVET_AGENCY,
+        dateDisplay: fmtDateLabelFromIso(dateIso),
+        dateIso,
+        totalPayout: sealedShiftPayout(pr, totalTables),
+        totalDrinks: pr.drinks,
+        totalTips: pr.tips,
+        totalTables,
+        durationHours: pr.durationHours,
+      };
+    });
   });
 }
 

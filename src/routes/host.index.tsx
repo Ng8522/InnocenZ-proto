@@ -5,9 +5,10 @@ import { IzSheet } from "@/components/iz/Sheet";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { PrOfferRow, PrOfferRowActions, PrStatusPill } from "@/components/pr/PrOfferRow";
 import { PrAgencySchedulePanel } from "@/components/pr/PrAgencySchedulePanel";
+import { buildPrUpcomingEvents, type PrUpcomingEventKind } from "@/lib/pr-agency-schedule";
 import { PrSection } from "@/components/pr/PrSection";
 import { useStore } from "@/lib/store";
-import { PR_SHIFT_OFFERS, fmtDFriendly, fmtDShort, getPrProfile, getPrRosterId, filterPvsForPrProfile, filterReceiptScansForPrProfile, pvNeedsPrReview, receiptStatusLabel } from "@/lib/pr-demo";
+import { PR_SHIFT_OFFERS, fmtDFriendly, fmtDShort, getPrProfile, getPrRosterId, filterPvsForPrProfile, pvNeedsPrReview } from "@/lib/pr-demo";
 import { findAgencyRosterTonight, resolvePrShiftOfferForPr, shiftIndexForOutlet } from "@/lib/pr-session";
 import { DEFAULT_ROSTER_DATE_ISO, outletPendingShiftsForPr } from "@/lib/roster-availability";
 import {
@@ -21,7 +22,7 @@ import {
 import { SpecialServicePortalSection } from "@/components/special-service/SpecialServicePortalSection";
 import { SpecialServiceOrderCard } from "@/components/special-service/SpecialServiceOrderCard";
 import { pendingSpecialServicesForPr } from "@/lib/special-service-actions";
-import { ArrowLeftRight, Briefcase, ExternalLink, FileText, Filter, MapPin, Receipt, Sparkles } from "lucide-react";
+import { ArrowLeftRight, Briefcase, ExternalLink, FileText, Filter, MapPin, Sparkles } from "lucide-react";
 import { formatRM } from "@/components/iz/ui";
 import { cn } from "@/lib/utils";
 
@@ -65,7 +66,6 @@ function HostShifts() {
   const cancelPrRosterShift = useStore((s) => s.cancelPrRosterShift);
   const specialServiceOrders = useStore((s) => s.specialServiceOrders);
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
-  const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
   const acceptSpecialServiceByPr = useStore((s) => s.acceptSpecialServiceByPr);
   const declineSpecialServiceByPr = useStore((s) => s.declineSpecialServiceByPr);
   const prDisplayName = useStore((s) => s.prDisplayName);
@@ -143,21 +143,12 @@ function HostShifts() {
     () => filterPvsForPrProfile(prPaymentVouchers, profile, prSubRole),
     [prPaymentVouchers, profile, prSubRole],
   );
-  const myReceipts = useMemo(
-    () => filterReceiptScansForPrProfile(prReceiptScans, profile, prSubRole, myVouchers),
-    [prReceiptScans, profile, prSubRole, myVouchers],
-  );
   const todoPvs = useMemo(
     () => myVouchers.filter((p) => pvNeedsPrReview(p.status)),
     [myVouchers],
   );
-  const todoReceipts = useMemo(
-    () => myReceipts.filter((r) => r.status === "attached" || r.status === "pending"),
-    [myReceipts],
-  );
   const todoCount =
     todoPvs.length +
-    todoReceipts.length +
     pendingServices.length +
     swapOffers.length +
     outletPendingShifts.length +
@@ -223,9 +214,12 @@ function HostShifts() {
   const mktRoles = [...new Set(PR_MARKETPLACE_LISTINGS.map((l) => l.role))];
   const mktRates = [...new Set(PR_MARKETPLACE_LISTINGS.map((l) => l.rate))].sort((a, b) => a - b);
 
-  const upcomingConfirmed = prUpcomingShifts.filter((u) => u.status === "confirmed").length;
-  const upcomingPending = prUpcomingShifts.filter((u) => u.status === "pending").length;
-  const offerCount = tied ? prUpcomingShifts.length : filteredMarketplace.length;
+  const upcomingEvents = useMemo(
+    () => (tied ? buildPrUpcomingEvents(myRosterId, agencyRoster, prUpcomingShifts) : []),
+    [tied, myRosterId, agencyRoster, prUpcomingShifts],
+  );
+  const upcomingConfirmed = upcomingEvents.filter((u) => u.kind === "confirmed").length;
+  const offerCount = tied ? upcomingEvents.length : filteredMarketplace.length;
   const statusLabel = blockingSwap?.status === "pending_replacement"
     ? "Swap pending"
     : outletPendingShifts.length > 0
@@ -311,7 +305,7 @@ function HostShifts() {
             </div>
             <div className="iz-outlet-stat-cell">
               <div className="l">Upcoming</div>
-              <div className="n">{prUpcomingShifts.length}</div>
+              <div className="n">{upcomingEvents.length}</div>
             </div>
             <div className="iz-outlet-stat-cell">
               <div className="l">Confirmed</div>
@@ -363,7 +357,8 @@ function HostShifts() {
         </div>
       )}
 
-      <PrSection title="Today" collapsible defaultOpen={false} className="mt-4">
+      <div className="iz-pr-hub-sections">
+      <PrSection title="Today" collapsible defaultOpen={false}>
         {effectiveShiftAccepted && activeShift ? (
           <div className="iz-pr-hero">
             <p className="iz-tiny iz-muted2 uppercase tracking-wide">{checkedIn ? "On duty" : "Tonight"}</p>
@@ -405,7 +400,6 @@ function HostShifts() {
         title="To-do"
         collapsible
         defaultOpen={false}
-        className="mt-4"
       >
         {todoCount === 0 ? (
           <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
@@ -422,17 +416,6 @@ function HostShifts() {
                 actionLabel="Review PV"
                 to="/host/PaymentVoucher"
                 search={{ pvId: pv.id }}
-              />
-            ))}
-            {todoReceipts.map((scan) => (
-              <TodoActionCard
-                key={scan.id}
-                icon={<Receipt className="h-4 w-4" />}
-                title="Confirm receipt"
-                subtitle={`${scan.outlet} · ${scan.receiptRef} · ${receiptStatusLabel(scan.status)}`}
-                actionLabel="Review"
-                to="/host/history"
-                search={{ tab: "receipts" as const }}
               />
             ))}
             {pendingServices.map((row) => (
@@ -502,18 +485,32 @@ function HostShifts() {
         )}
       </PrSection>
 
-      {prUpcomingShifts.length > 0 && (
-        <PrSection title="Upcoming" collapsible defaultOpen={false} className="mt-4">
+      {tied && upcomingEvents.length > 0 && (
+        <PrSection title="Upcoming" collapsible defaultOpen>
           <div className="iz-pr-list">
-            {prUpcomingShifts.map((u) => (
+            {upcomingEvents.map((u) => (
               <PrOfferRow
                 key={u.id}
                 title={u.outlet}
-                subtitle={`${fmtDFriendly(u.date[0], u.date[1], u.date[2])} · ${u.time}`}
-                badge={<PrStatusPill variant={u.status === "confirmed" ? "green" : "amber"}>{u.status}</PrStatusPill>}
+                subtitle={`${fmtDFriendly(u.date[0], u.date[1], u.date[2])} · ${u.time} · ${u.detail}`}
+                badge={<PrStatusPill variant={upcomingEventPillVariant(u.kind)}>{upcomingEventLabel(u.kind)}</PrStatusPill>}
               />
             ))}
           </div>
+          <p className="iz-tiny iz-muted2 mt-2.5">
+            Swaps and agency assignments are managed in{" "}
+            <button
+              type="button"
+              className="font-semibold text-[var(--iz-gold-l)]"
+              onClick={() => {
+                const el = document.querySelector(".iz-pr-schedule");
+                el?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            >
+              Agency schedule
+            </button>{" "}
+            below.
+          </p>
         </PrSection>
       )}
 
@@ -527,8 +524,7 @@ function HostShifts() {
         <PrSection
           title="Agency schedule"
           collapsible
-          defaultOpen={false}
-          className="mt-4"
+          defaultOpen={upcomingEvents.some((e) => e.kind === "swap" || e.kind === "assignment")}
         >
           <PrAgencySchedulePanel
             prId={myRosterId}
@@ -594,6 +590,7 @@ function HostShifts() {
         </div>
       </PrSection>
       )}
+      </div>
         </>
       )}
 
@@ -761,6 +758,25 @@ function FilterSelect({
       </select>
     </>
   );
+}
+
+function upcomingEventLabel(kind: PrUpcomingEventKind): string {
+  switch (kind) {
+    case "swap":
+      return "Swap";
+    case "assignment":
+      return "Assignment";
+    case "pending":
+      return "Pending";
+    default:
+      return "Confirmed";
+  }
+}
+
+function upcomingEventPillVariant(kind: PrUpcomingEventKind): "green" | "amber" | "red" | "ink" {
+  if (kind === "confirmed") return "green";
+  if (kind === "swap" || kind === "assignment") return "amber";
+  return "amber";
 }
 
 function TodoActionCard({

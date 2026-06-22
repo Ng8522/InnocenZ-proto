@@ -18,6 +18,63 @@ import {
 /** Payroll week runs Sunday → Saturday; PV issues the following Sunday. */
 export const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
+/** Base daily wage included in every sealed demo shift payout. */
+export const SHIFT_SEALED_BASE_WAGE = 80;
+
+function roundRm(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Gross commission from drink units, tip RM, and table units on a sealed row. */
+export function sealedShiftCommissionRm(row: Pick<ShiftHistoryRow, "totalDrinks" | "totalTips" | "totalTables">) {
+  return {
+    drinks: row.totalDrinks * RECEIPT_COMMISSION_RULES.drinkPerUnit,
+    tips: row.totalTips * RECEIPT_COMMISSION_RULES.tipRate,
+    tables: (row.totalTables ?? 0) * RECEIPT_COMMISSION_RULES.tablePerUnit,
+  };
+}
+
+/** Total payout when wages + commission are derived from shift counters. */
+export function sealedShiftTotalPayout(
+  row: Pick<ShiftHistoryRow, "totalDrinks" | "totalTips" | "totalTables">,
+  baseWage = SHIFT_SEALED_BASE_WAGE,
+): number {
+  const comm = sealedShiftCommissionRm(row);
+  return roundRm(baseWage + comm.drinks + comm.tips + comm.tables);
+}
+
+/** Fit commission lines to a sealed total — scales down when raw commission exceeds payout. */
+export function fitIncomeToPayout(
+  totalPayout: number,
+  drinksRm: number,
+  tipsRm: number,
+  tablesRm: number,
+): { wages: number; drinks: number; tips: number; tables: number } {
+  const commission = drinksRm + tipsRm + tablesRm;
+  if (commission <= totalPayout) {
+    return {
+      wages: roundRm(totalPayout - commission),
+      drinks: roundRm(drinksRm),
+      tips: roundRm(tipsRm),
+      tables: roundRm(tablesRm),
+    };
+  }
+  if (commission <= 0) {
+    return { wages: roundRm(totalPayout), drinks: 0, tips: 0, tables: 0 };
+  }
+  const scale = totalPayout / commission;
+  let drinks = roundRm(drinksRm * scale);
+  let tips = roundRm(tipsRm * scale);
+  let tables = roundRm(tablesRm * scale);
+  const remainder = roundRm(totalPayout - drinks - tips - tables);
+  if (remainder !== 0) {
+    if (drinks >= tips && drinks >= tables) drinks = roundRm(drinks + remainder);
+    else if (tips >= tables) tips = roundRm(tips + remainder);
+    else tables = roundRm(tables + remainder);
+  }
+  return { wages: 0, drinks, tips, tables };
+}
+
 export type WeeklyDayStatus = "verified" | "pending" | "disputed" | "empty";
 
 export type WeeklyDayColumn = {
@@ -263,29 +320,11 @@ export function shiftRowIncomeBreakdown(
   scans: PrReceiptScan[] = [],
 ): WeeklyDayBreakdown {
   const dayScans = scansForHistoryRow(row, scans);
-  let drinks = 0;
-  let tips = 0;
-  let tables = 0;
-  let allVerified = dayScans.length === 0 || dayScans.every((s) => verifyReceiptScan(s).ok);
-  for (const s of dayScans) {
-    drinks += s.drinkCommission;
-    tips += s.tipCommission;
-    tables += s.tableCommission;
-    if (!verifyReceiptScan(s).ok) allVerified = false;
-  }
-  if (dayScans.length === 0) {
-    drinks = row.totalDrinks * RECEIPT_COMMISSION_RULES.drinkPerUnit;
-    tips = row.totalTips * RECEIPT_COMMISSION_RULES.tipRate;
-    tables = (row.totalTables ?? 0) * RECEIPT_COMMISSION_RULES.tablePerUnit;
-    allVerified = true;
-  }
-  const commission = drinks + tips + tables;
-  const wages = Math.max(0, row.totalPayout - commission);
+  const allVerified = dayScans.length === 0 || dayScans.every((s) => verifyReceiptScan(s).ok);
+  const raw = sealedShiftCommissionRm(row);
+  const fitted = fitIncomeToPayout(row.totalPayout, raw.drinks, raw.tips, raw.tables);
   return {
-    wages,
-    drinks,
-    tips,
-    tables,
+    ...fitted,
     others: 0,
     status: allVerified ? "verified" : "pending",
     outlet: row.outlet,

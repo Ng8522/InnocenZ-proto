@@ -1,6 +1,7 @@
 /** Shared shift transaction log — agency & outlet read the same records */
 
 import { buildAllVelvetSeedShiftHistory } from "@/lib/velvet-week-demo";
+import { sealedShiftTotalPayout } from "@/lib/pr-weekly-payment";
 import { prepareShiftHistoryForDisplay, mergeShiftHistory, type ShiftHistoryRow } from "@/lib/shift-history-utils";
 
 export type { ShiftHistoryRow } from "@/lib/shift-history-utils";
@@ -28,10 +29,10 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     agencyName: "Atlas Agency",
     dateDisplay: "7 Jun 2026",
     dateIso: "2026-06-07",
-    totalPayout: 360,
     totalDrinks: 55,
     totalTips: 32,
     totalTables: 2,
+    totalPayout: sealedShiftTotalPayout({ totalDrinks: 55, totalTips: 32, totalTables: 2 }),
     durationHours: 5,
   },
   {
@@ -42,10 +43,10 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     agencyName: "Atlas Agency",
     dateDisplay: "6 Jun 2026",
     dateIso: "2026-06-06",
-    totalPayout: 445,
     totalDrinks: 78,
     totalTips: 41,
     totalTables: 3,
+    totalPayout: sealedShiftTotalPayout({ totalDrinks: 78, totalTips: 41, totalTables: 3 }),
     durationHours: 6,
   },
   {
@@ -56,10 +57,10 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     agencyName: "Atlas Agency",
     dateDisplay: "04 May 2026",
     dateIso: "2026-05-04",
-    totalPayout: 510,
     totalDrinks: 24,
     totalTips: 40,
     totalTables: 1,
+    totalPayout: sealedShiftTotalPayout({ totalDrinks: 24, totalTips: 40, totalTables: 1 }),
     durationHours: 6,
   },
   {
@@ -70,10 +71,10 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     agencyName: "Atlas Agency",
     dateDisplay: "05 May 2026",
     dateIso: "2026-05-05",
-    totalPayout: 520,
     totalDrinks: 22,
     totalTips: 50,
     totalTables: 1,
+    totalPayout: sealedShiftTotalPayout({ totalDrinks: 22, totalTips: 50, totalTables: 1 }),
     durationHours: 6,
   },
   {
@@ -84,10 +85,10 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     agencyName: "Atlas Agency",
     dateDisplay: "06 May 2026",
     dateIso: "2026-05-06",
-    totalPayout: 420,
     totalDrinks: 17,
     totalTips: 50,
     totalTables: 1,
+    totalPayout: sealedShiftTotalPayout({ totalDrinks: 17, totalTips: 50, totalTables: 1 }),
     durationHours: 6,
   },
 ];

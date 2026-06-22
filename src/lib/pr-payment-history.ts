@@ -1,5 +1,4 @@
 import type { HistRow, PrPaymentVoucher, PrPvRow } from "@/lib/pr-demo";
-import { RECEIPT_COMMISSION_RULES } from "@/lib/pr-demo";
 import { getPayrollWeekSundayIso, addDaysToIso } from "@/lib/demo-clock";
 import { buildWeeklyPaymentSummary, syncWeeklyPvWithSummary } from "@/lib/pr-weekly-payment";
 
@@ -134,17 +133,13 @@ export function histRowsFromInboxPv(pv: PrPaymentVoucher): HistRow[] {
       const dateIso = `${acc.d[0]}-${String(acc.d[1]).padStart(2, "0")}-${String(acc.d[2]).padStart(2, "0")}`;
       const { st, pill } = deriveShiftHistoryStatus(dateIso, [pv]);
       const sales = acc.wages + acc.drinksAmt + acc.tips + acc.tables + acc.others;
-      const drinkUnits =
-        acc.drinksAmt > 0
-          ? Math.max(1, Math.round(acc.drinksAmt / RECEIPT_COMMISSION_RULES.drinkPerUnit))
-          : 0;
       return {
         d: acc.d,
         venue: acc.venue,
         wages: Math.round(acc.wages),
         sales: Math.round(sales),
         table: Math.round(acc.tables),
-        drinks: drinkUnits,
+        drinks: Math.round(acc.drinksAmt),
         tips: Math.round(acc.tips),
         st,
         pill,

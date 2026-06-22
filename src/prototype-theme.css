@@ -3505,7 +3505,7 @@
 }
 .iz-outlet-stat-cell {
   background: var(--iz-grad-card);
-  padding: 10px 8px;
+  padding: 12px 10px;
   text-align: center;
 }
 .iz-outlet-stat-cell .l {
@@ -6898,9 +6898,22 @@ button.iz-agency-row:hover {
   border-top: 1px dashed var(--iz-line);
 }
 
+/* PR hub — stacked shift sections with consistent gaps */
+.iz-pr-hub-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  padding-bottom: 12px;
+}
+.iz-pr-hub-sections > .iz-collapsible-section,
+.iz-pr-hub-sections > section {
+  margin-top: 0;
+}
+
 /* Collapsible section — PR Shifts home, outlet panels */
 .iz-collapsible-section {
-  margin-top: 10px;
+  margin-top: 12px;
   border-radius: 14px;
   border: 1px solid var(--iz-line2);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01));
@@ -6971,7 +6984,7 @@ button.iz-agency-row:hover {
   color: var(--iz-gold-l);
 }
 .iz-collapsible-section__body {
-  padding: 0 12px 12px;
+  padding: 12px 14px 14px;
   border-top: 1px dashed var(--iz-line);
 }
 .iz-hist-shift-card {

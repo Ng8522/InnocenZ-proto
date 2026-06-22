@@ -1,11 +1,143 @@
 import type { AgencyRosterSlot } from "@/lib/agency-demo";
 import { DEFAULT_PR_AGENCY_NAME, fmtHistDate } from "@/lib/pr-demo";
 import type { PrUpcomingShift } from "@/lib/pr-features";
+import { addDaysToIso, getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { outletMatches } from "@/lib/portal-sync";
 
-/** Atlas payroll cycle window — agency publishes shifts here */
+/** Atlas payroll cycle window — agency publishes shifts here (live Sun through +3 weeks). */
+export function getAgencyScheduleFromIso(): string {
+  return getPayrollWeekSundayIso();
+}
+
+export function getAgencyScheduleToIso(fromIso = getLiveTodayIso()): string {
+  return addDaysToIso(fromIso, 21);
+}
+
+/** @deprecated use getAgencyScheduleFromIso() */
 export const AGENCY_SCHEDULE_FROM_ISO = "2026-05-04";
+/** @deprecated use getAgencyScheduleToIso() */
 export const AGENCY_SCHEDULE_TO_ISO = "2026-06-10";
+
+export type PrUpcomingEventKind = "confirmed" | "pending" | "swap" | "assignment";
+
+export type PrUpcomingEvent = {
+  id: string;
+  outlet: string;
+  date: [number, number, number];
+  time: string;
+  kind: PrUpcomingEventKind;
+  detail: string;
+};
+
+function ymdFromIso(iso: string): [number, number, number] {
+  const [y, m, d] = iso.split("-").map(Number);
+  return [y, m, d];
+}
+
+/** Future shifts — roster assignments, swaps, bookings + outlet-confirmed upcoming list. */
+export function buildPrUpcomingEvents(
+  prId: string,
+  roster: AgencyRosterSlot[],
+  upcoming: PrUpcomingShift[],
+  baselineIso = getLiveTodayIso(),
+): PrUpcomingEvent[] {
+  const events: PrUpcomingEvent[] = [];
+  const covered = new Set<string>();
+
+  for (const slot of roster) {
+    if (slot.prId !== prId || slot.dateIso < baselineIso || slot.status === "unavailable") continue;
+
+    const dateYmd = ymdFromIso(slot.dateIso);
+    const key = `${slot.dateIso}|${slot.outlet}`;
+
+    if (slot.status === "assignment-pending" && slot.agencyAssignment) {
+      events.push({
+        id: slot.id,
+        outlet: slot.outlet,
+        date: dateYmd,
+        time: slot.shift,
+        kind: "assignment",
+        detail: slot.agencyAssignment.agencyNote ?? "Agency assignment — approve or decline in schedule",
+      });
+      covered.add(key);
+      continue;
+    }
+
+    if (slot.outletSwap?.status === "pending_pr") {
+      events.push({
+        id: `${slot.id}-swap`,
+        outlet: slot.outlet,
+        date: dateYmd,
+        time: slot.shift,
+        kind: "swap",
+        detail: `Move to ${slot.outletSwap.targetOutlet} — ${slot.outletSwap.agencyNote ?? "agency swap request"}`,
+      });
+      covered.add(key);
+      continue;
+    }
+
+    if (slot.status === "outlet-pending") {
+      events.push({
+        id: slot.id,
+        outlet: slot.outlet,
+        date: dateYmd,
+        time: slot.shift,
+        kind: "pending",
+        detail: `${slot.outlet} must confirm your slot on their roster`,
+      });
+      covered.add(key);
+      continue;
+    }
+
+    if (
+      slot.status === "scheduled" ||
+      slot.status === "swap-pending" ||
+      slot.status === "en-route"
+    ) {
+      if (!covered.has(key)) {
+        events.push({
+          id: slot.id,
+          outlet: slot.outlet,
+          date: dateYmd,
+          time: slot.shift,
+          kind: slot.status === "swap-pending" ? "pending" : "confirmed",
+          detail:
+            slot.status === "swap-pending"
+              ? "Swap in progress — awaiting outlet confirmation"
+              : "Scheduled on agency roster",
+        });
+        covered.add(key);
+      }
+    }
+  }
+
+  for (const up of upcoming) {
+    const iso = dateKeyFromTuple(up.date);
+    if (iso < baselineIso) continue;
+    const rosterCovered = roster.some(
+      (s) => s.prId === prId && s.dateIso === iso && outletMatches(s.outlet, up.outlet),
+    );
+    if (rosterCovered) continue;
+    events.push({
+      id: up.id,
+      outlet: up.outlet,
+      date: up.date,
+      time: up.time,
+      kind: up.status === "confirmed" ? "confirmed" : "pending",
+      detail:
+        up.status === "confirmed"
+          ? `${up.outlet} confirmed you on their bookings roster`
+          : "Atlas proposed — outlet has not confirmed yet",
+    });
+  }
+
+  return events.sort((a, b) => {
+    const ak = dateKeyFromTuple(a.date);
+    const bk = dateKeyFromTuple(b.date);
+    return ak.localeCompare(bk) || a.outlet.localeCompare(b.outlet);
+  });
+}
 
 export type ShiftDataSource = "agency" | "outlet";
 
@@ -86,7 +218,7 @@ export function buildPrScheduleDays(
     upcoming.map((u) => [dateKeyFromTuple(u.date), u] as const),
   );
 
-  return eachDateIsoInRange(AGENCY_SCHEDULE_FROM_ISO, AGENCY_SCHEDULE_TO_ISO).map((dateIso) => {
+  return eachDateIsoInRange(getAgencyScheduleFromIso(), getAgencyScheduleToIso()).map((dateIso) => {
     const [y, m, d] = dateIso.split("-").map(Number);
     const slots = roster.filter((s) => s.prId === prId && s.dateIso === dateIso);
     const up = upcomingByDate.get(dateIso);

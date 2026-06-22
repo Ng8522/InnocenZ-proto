@@ -1,0 +1,49 @@
+import type { ReactNode } from "react";
+import { IzSheet } from "@/components/iz/Sheet";
+
+export function isValidDemoOtp(code: string) {
+  return code === "123456" || code.length === 6;
+}
+
+export function OtpVerifySheet({
+  open,
+  onClose,
+  title,
+  description,
+  otp,
+  onOtpChange,
+  onVerify,
+  onResend,
+  verifyLabel = "Verify OTP",
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  description: ReactNode;
+  otp: string;
+  onOtpChange: (value: string) => void;
+  onVerify: () => void;
+  onResend: () => void;
+  verifyLabel?: string;
+}) {
+  return (
+    <IzSheet open={open} onClose={onClose}>
+      <div className="iz-cardttl">{title}</div>
+      <p className="iz-tiny iz-muted mb-3">{description}</p>
+      <input
+        value={otp}
+        onChange={(e) => onOtpChange(e.target.value.replace(/\D/g, "").slice(0, 6))}
+        inputMode="numeric"
+        placeholder="123456"
+        className="iz-pv-dispute-input !min-h-0 py-3 text-center font-mono text-lg tracking-[0.35em]"
+        aria-label="One-time password"
+      />
+      <button type="button" className="iz-btn iz-btn-primary mt-4 w-full" onClick={onVerify}>
+        {verifyLabel}
+      </button>
+      <button type="button" className="iz-btn iz-btn-soft mt-2.5 w-full" onClick={onResend}>
+        Resend OTP
+      </button>
+    </IzSheet>
+  );
+}

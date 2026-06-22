@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { PhoneFrame } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
-import { IzSheet } from "@/components/iz/Sheet";
+import { isValidDemoOtp, OtpVerifySheet } from "@/components/auth/OtpVerifySheet";
 import { ArrowLeft, User, Lock, Eye, EyeOff } from "lucide-react";
 
 type ResetChannel = "email" | "phone";
@@ -25,55 +25,8 @@ function resolveIdentifier(value: string): { channel: ResetChannel; identifier: 
   return { channel: detectChannel(identifier), identifier };
 }
 
-function isValidDemoOtp(code: string) {
-  return code === "123456" || code.length === 6;
-}
-
 function displayNameForContact(contact: { channel: ResetChannel; identifier: string }) {
   return contact.channel === "email" ? contact.identifier.split("@")[0] || "User" : "User";
-}
-
-function OtpVerifySheet({
-  open,
-  onClose,
-  title,
-  description,
-  otp,
-  onOtpChange,
-  onVerify,
-  onResend,
-  verifyLabel = "Verify OTP",
-}: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  description: ReactNode;
-  otp: string;
-  onOtpChange: (value: string) => void;
-  onVerify: () => void;
-  onResend: () => void;
-  verifyLabel?: string;
-}) {
-  return (
-    <IzSheet open={open} onClose={onClose}>
-      <div className="iz-cardttl">{title}</div>
-      <p className="iz-tiny iz-muted mb-3">{description}</p>
-      <input
-        value={otp}
-        onChange={(e) => onOtpChange(e.target.value.replace(/\D/g, "").slice(0, 6))}
-        inputMode="numeric"
-        placeholder="123456"
-        className="iz-pv-dispute-input !min-h-0 py-3 text-center font-mono text-lg tracking-[0.35em]"
-        aria-label="One-time password"
-      />
-      <button type="button" className="iz-btn iz-btn-primary mt-4 w-full" onClick={onVerify}>
-        {verifyLabel}
-      </button>
-      <button type="button" className="iz-btn iz-btn-soft mt-2.5 w-full" onClick={onResend}>
-        Resend OTP
-      </button>
-    </IzSheet>
-  );
 }
 
 function SignIn() {
@@ -86,17 +39,11 @@ function SignIn() {
   const [password, setPassword] = useState("password");
   const [showPassword, setShowPassword] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
-  const [loginOtpOpen, setLoginOtpOpen] = useState(false);
   const [forgotContact, setForgotContact] = useState<{
     channel: ResetChannel;
     identifier: string;
   } | null>(null);
-  const [pendingLogin, setPendingLogin] = useState<{
-    displayName: string;
-    contact: { channel: ResetChannel; identifier: string };
-  } | null>(null);
   const [forgotOtp, setForgotOtp] = useState("");
-  const [loginOtp, setLoginOtp] = useState("");
 
   useEffect(() => {
     if (mode === "create") {
@@ -123,11 +70,6 @@ function SignIn() {
   const sendForgotOtpToast = () => {
     if (!forgotContact) return;
     toast(`Password reset OTP sent to your ${otpChannelLabel}`, "info");
-  };
-
-  const sendLoginOtpToast = () => {
-    if (!pendingLogin) return;
-    toast("Login OTP sent to your mobile", "info");
   };
 
   const openForgotPassword = () => {
@@ -162,19 +104,6 @@ function SignIn() {
     toast("Invalid OTP — try 123456 for demo", "warn");
   };
 
-  const verifyLoginOtp = () => {
-    if (!pendingLogin) return;
-    if (!isValidDemoOtp(loginOtp)) {
-      toast("Invalid OTP — try 123456 for demo", "warn");
-      return;
-    }
-    const { displayName, contact } = pendingLogin;
-    setLoginOtpOpen(false);
-    setLoginOtp("");
-    setPendingLogin(null);
-    completeSignIn(displayName, contact.identifier);
-  };
-
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const contact = resolveIdentifier(identifier);
@@ -187,17 +116,7 @@ function SignIn() {
       return;
     }
 
-    const displayName = displayNameForContact(contact);
-
-    if (contact.channel === "phone") {
-      setPendingLogin({ displayName, contact });
-      setLoginOtp("");
-      setLoginOtpOpen(true);
-      toast("Login OTP sent to your mobile", "info");
-      return;
-    }
-
-    completeSignIn(displayName, contact.identifier);
+    completeSignIn(displayNameForContact(contact), contact.identifier);
   };
 
   return (
@@ -205,26 +124,6 @@ function SignIn() {
       overlay={
         <>
           <Toasts />
-          <OtpVerifySheet
-            open={loginOtpOpen}
-            onClose={() => {
-              setLoginOtpOpen(false);
-              setLoginOtp("");
-              setPendingLogin(null);
-            }}
-            title="Verify mobile"
-            description={
-              <>
-                Enter the 6-digit OTP sent to your mobile{" "}
-                <b className="text-[var(--iz-txt)]">{pendingLogin?.contact.identifier}</b>
-              </>
-            }
-            otp={loginOtp}
-            onOtpChange={setLoginOtp}
-            onVerify={verifyLoginOtp}
-            onResend={sendLoginOtpToast}
-            verifyLabel="Verify & sign in"
-          />
           <OtpVerifySheet
             open={forgotOpen}
             onClose={() => setForgotOpen(false)}

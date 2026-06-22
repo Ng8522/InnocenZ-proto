@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneFrame } from "@/components/Brand";
 import { IzSheet } from "@/components/iz/Sheet";
 import { Toasts } from "@/components/Toasts";
+import { isValidDemoOtp, OtpVerifySheet } from "@/components/auth/OtpVerifySheet";
 import { useStore } from "@/lib/store";
 import { getPrAgencyById, PR_AGENCIES, DEFAULT_TIED_AGENCY_ID } from "@/lib/pr-demo";
 import {
@@ -670,12 +671,16 @@ function RegisterPage() {
   const toast = useStore((s) => s.toast);
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otp, setOtp] = useState("");
   const [draft, setDraft] = useState<RegisterDraft>(() => buildDemoRegisterDraft());
   const profilePhotoRef = useRef<HTMLInputElement>(null);
 
   const patch = (partial: Partial<RegisterDraft>) => setDraft((d) => ({ ...d, ...partial }));
 
   const fillDemo = () => {
+    setPhoneVerified(false);
     setDraft(buildDemoRegisterDraft());
     toast("Demo data filled — tap Continue through each step", "info");
   };
@@ -702,6 +707,7 @@ function RegisterPage() {
   };
 
   const onPhoneNumberChange = (raw: string) => {
+    setPhoneVerified(false);
     patch({ phoneNumber: raw.replace(/\D/g, "").slice(0, 15) });
   };
 
@@ -786,6 +792,23 @@ function RegisterPage() {
 
   const goNext = () => {
     if (!validateStep(step)) return;
+    if (step === 1 && fullPhone && !phoneVerified) {
+      setOtp("");
+      setOtpOpen(true);
+      toast("OTP sent to your mobile", "info");
+      return;
+    }
+    setStep((s) => Math.min(s + 1, STEPS.length));
+  };
+
+  const verifyRegistrationOtp = () => {
+    if (!isValidDemoOtp(otp)) {
+      toast("Invalid OTP — try 123456 for demo", "warn");
+      return;
+    }
+    setPhoneVerified(true);
+    setOtpOpen(false);
+    setOtp("");
     setStep((s) => Math.min(s + 1, STEPS.length));
   };
 
@@ -852,7 +875,29 @@ function RegisterPage() {
   const current = STEPS[step - 1];
 
   return (
-    <PhoneFrame overlay={<Toasts />}>
+    <PhoneFrame
+      overlay={
+        <>
+          <Toasts />
+          <OtpVerifySheet
+            open={otpOpen}
+            onClose={() => setOtpOpen(false)}
+            title="Verify mobile"
+            description={
+              <>
+                Enter the 6-digit OTP sent to{" "}
+                <b className="text-[var(--iz-txt)]">{fullPhone}</b>
+              </>
+            }
+            otp={otp}
+            onOtpChange={setOtp}
+            onVerify={verifyRegistrationOtp}
+            onResend={() => toast("OTP sent to your mobile", "info")}
+            verifyLabel="Verify & continue"
+          />
+        </>
+      }
+    >
       <div className="iz-welcome iz-reg flex flex-1 flex-col">
         <div className="flex justify-end">
           <button type="button" onClick={fillDemo} className="iz-chip w-fit">
@@ -919,7 +964,10 @@ function RegisterPage() {
                   <select
                     className="iz-select iz-phone-field__dial"
                     value={draft.phoneDialCode}
-                    onChange={(e) => patch({ phoneDialCode: e.target.value })}
+                    onChange={(e) => {
+                      setPhoneVerified(false);
+                      patch({ phoneDialCode: e.target.value });
+                    }}
                     aria-label="Country code"
                   >
                     {PHONE_DIAL_CODES.map(({ code, label }) => (

@@ -12,7 +12,16 @@ import type {
 import { DEFAULT_AGENCY_OWNER, OUTLET_COMMISSION_RULES } from "@/lib/agency-demo";
 import type { HistRow, PrPaymentVoucher } from "@/lib/pr-demo";
 import { formatPrDisplayName } from "@/lib/pr-demo";
-import { deriveShiftHistoryStatus } from "@/lib/pr-payment-history";
+import { getPayrollWeekSundayIso } from "@/lib/demo-clock";
+import {
+  deriveShiftHistoryStatus,
+  histRowsFromInboxPv,
+  isPayrollWeekFromInboxPv,
+  isPayrollWeekHiddenInHistory,
+  isPrPaymentInboxPv,
+  isShiftHiddenInHistory,
+  pvForPayrollDate,
+} from "@/lib/pr-payment-history";
 import { shiftRowIncomeBreakdown } from "@/lib/pr-weekly-payment";
 import { filterShiftHistoryThroughToday, prepareShiftHistoryForDisplay, sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
 import type { ShiftRequest } from "@/lib/store";
@@ -180,7 +189,7 @@ export function shiftHistoryForPr(rows: ShiftHistoryRow[], prId: string): ShiftH
   return prepareShiftHistoryForDisplay(rows).filter((r) => r.prId === prId);
 }
 
-/** PR History shifts tab — same records as agency/outlet transaction log */
+/** PR History shifts tab — sealed log + inbox PV rows; disputed weeks hidden. */
 export function shiftHistoryToHistRows(
   rows: ShiftHistoryRow[],
   prId?: string,
@@ -189,22 +198,58 @@ export function shiftHistoryToHistRows(
   const list = prId
     ? prepareShiftHistoryForDisplay(rows).filter((r) => r.prId === prId)
     : prepareShiftHistoryForDisplay(rows);
-  return list.map((row) => {
-    const [y, m, d] = row.dateIso.split("-").map(Number);
-    const { st, pill } = deriveShiftHistoryStatus(row.dateIso, vouchers);
-    const income = shiftRowIncomeBreakdown(row);
-    return {
-      d: [y, m, d] as [number, number, number],
-      venue: row.outlet,
-      wages: Math.round(income.wages),
-      sales: row.totalPayout,
-      table: Math.round(income.tables),
-      drinks: row.totalDrinks,
-      tips: row.totalTips,
-      st,
-      pill,
-      durationHours: row.durationHours,
-    };
+
+  const disputedWeeks = new Set(
+    vouchers
+      .filter((pv) => pv.weekStartIso && pv.status === "DISPUTED")
+      .map((pv) => pv.weekStartIso!),
+  );
+  const inboxWeeks = new Set(
+    vouchers
+      .filter((pv) => pv.weekStartIso && pv.status === "SENT")
+      .map((pv) => pv.weekStartIso!),
+  );
+
+  const shiftRows: HistRow[] = list
+    .filter((row) => {
+      const weekSun = getPayrollWeekSundayIso(row.dateIso);
+      if (disputedWeeks.has(weekSun) || isPayrollWeekHiddenInHistory(weekSun, vouchers)) {
+        return false;
+      }
+      if (inboxWeeks.has(weekSun) || isPayrollWeekFromInboxPv(weekSun, vouchers)) {
+        return false;
+      }
+      if (isShiftHiddenInHistory(row.dateIso, vouchers)) return false;
+      const pv = pvForPayrollDate(row.dateIso, vouchers);
+      if (pv && isPrPaymentInboxPv(pv)) return false;
+      return true;
+    })
+    .map((row) => {
+      const [y, m, d] = row.dateIso.split("-").map(Number);
+      const { st, pill } = deriveShiftHistoryStatus(row.dateIso, vouchers);
+      const income = shiftRowIncomeBreakdown(row);
+      return {
+        d: [y, m, d] as [number, number, number],
+        venue: row.outlet,
+        wages: Math.round(income.wages),
+        sales: row.totalPayout,
+        table: Math.round(income.tables),
+        drinks: row.totalDrinks,
+        tips: row.totalTips,
+        st,
+        pill,
+        durationHours: row.durationHours,
+      };
+    });
+
+  const inboxRows = vouchers
+    .filter((pv) => pv.weekStartIso && pv.status === "SENT")
+    .flatMap((pv) => histRowsFromInboxPv(pv));
+
+  return [...shiftRows, ...inboxRows].sort((a, b) => {
+    const ak = `${a.d[0]}-${String(a.d[1]).padStart(2, "0")}-${String(a.d[2]).padStart(2, "0")}`;
+    const bk = `${b.d[0]}-${String(b.d[1]).padStart(2, "0")}-${String(b.d[2]).padStart(2, "0")}`;
+    return bk.localeCompare(ak);
   });
 }
 

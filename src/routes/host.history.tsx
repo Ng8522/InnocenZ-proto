@@ -19,6 +19,9 @@ import {
   receiptPvCalcNote,
   receiptBelongsToPvLabel,
   receiptStatusLabel,
+  receiptStatusPillVariant,
+  receiptShiftDetails,
+  effectiveReceiptScanStatus,
   type HistRow,
   type PrPaymentVoucher,
   type PrReceiptScan,
@@ -44,16 +47,21 @@ import {
   X,
 } from "lucide-react";
 import { PrPaymentHistoryPanel } from "@/components/pr/PrPaymentHistoryPanel";
-import { shiftHistoryStatusLabel, isPaymentHistoryPv } from "@/lib/pr-payment-history";
+import {
+  shiftHistoryStatusLabel,
+  isPaymentHistoryPv,
+  isPayrollWeekHiddenInHistory,
+  disputedPayrollWeekPvs,
+  pvRowDateToIso,
+} from "@/lib/pr-payment-history";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { HistPayrollWeekSection } from "@/components/pr/HistPayrollWeekSection";
 import { IzCard, IzPill, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCalendar";
 import { parseDateInputMs, parseScannedAtMs } from "@/lib/payroll-filters";
-import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
-import { isReceiptFromPastShift } from "@/lib/receipt-scan-utils";
+import { isReceiptFromPastShift, receiptDateIso } from "@/lib/receipt-scan-utils";
 import { isReceiptHiddenInHistory } from "@/lib/history-demo-sync";
-import { getPayrollWeekSundayIso } from "@/lib/demo-clock";
+import { getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/demo-clock";
 import { payrollWeekRangeLabel } from "@/lib/pr-weekly-payment";
 
 type HistTab = "shifts" | "receipts" | "payment";
@@ -288,19 +296,26 @@ type ReceiptFilters = {
   date: string;
   timeFrom: string;
   timeTo: string;
-  shiftSessionId: string;
   outlet: string;
   category: ReceiptItemCategory | "";
   status: ReceiptScanStatus | "";
   commission: string;
 };
 
+const RECEIPT_STATUS_FILTER_OPTIONS: { value: ReceiptScanStatus | ""; label: string }[] = [
+  { value: "", label: "Any status" },
+  { value: "attached", label: "On shift" },
+  { value: "pending", label: "Pending" },
+  { value: "in_pv", label: "In PV" },
+  { value: "paid", label: "Paid" },
+  { value: "disputed", label: "Disputed" },
+];
+
 const EMPTY_RECEIPT_FILTERS: ReceiptFilters = {
   query: "",
   date: "",
   timeFrom: "",
   timeTo: "",
-  shiftSessionId: "",
   outlet: "",
   category: "",
   status: "",
@@ -341,12 +356,20 @@ function receiptShiftInfo(
   scan: PrReceiptScan,
   pvById: Record<string, PrPaymentVoucher>,
   pvByShiftId: Record<string, PrPaymentVoucher>,
+  shiftByKey: Map<string, ShiftHistoryRow>,
 ) {
+  const dateIso = receiptDateIso(scan);
+  const hist = shiftByKey.get(`${dateIso}|${scan.outlet}`);
   const pv =
     (scan.pvId ? pvById[scan.pvId] : undefined) ??
     (scan.shiftSessionId ? pvByShiftId[scan.shiftSessionId] : undefined);
+  const details = receiptShiftDetails(scan, pv);
+  const inferred =
+    hist?.durationHours && details.shiftTime === "—"
+      ? inferNightShiftWindow(hist.durationHours)
+      : null;
   return {
-    shiftWindow: pv?.shiftTime ?? null,
+    shiftWindow: pv?.shiftTime ?? (details.shiftTime !== "—" ? details.shiftTime : inferred?.window ?? null),
     timeIn: pv?.timeIn ?? null,
     timeOut: pv?.timeOut ?? null,
     sessionLabel: scan.shiftSessionId ? formatShiftSessionLabel(scan.shiftSessionId) : null,
@@ -433,6 +456,9 @@ function receiptSearchBlob(scan: PrReceiptScan) {
     scan.pvId,
     scan.pvLineDesc,
     scan.status,
+    scan.pvStatus,
+    effectiveReceiptScanStatus(scan),
+    receiptStatusLabel(effectiveReceiptScanStatus(scan)),
     scan.items.map((i) => i.label).join(" "),
     formatRM(scan.totalLogged),
     formatRM(scan.totalCommission),
@@ -454,10 +480,9 @@ function matchesReceiptFilters(scan: PrReceiptScan, filters: ReceiptFilters) {
     if (fromMs != null && eventMs < fromMs) return false;
     if (toMs != null && eventMs > toMs) return false;
   }
-  if (filters.shiftSessionId && scan.shiftSessionId !== filters.shiftSessionId) return false;
   if (filters.outlet && scan.outlet !== filters.outlet) return false;
   if (filters.category && !scan.items.some((i) => i.category === filters.category)) return false;
-  if (filters.status && scan.status !== filters.status) return false;
+  if (filters.status && effectiveReceiptScanStatus(scan) !== filters.status) return false;
   const comm = parseFilterNum(filters.commission);
   if (comm !== null && scan.totalCommission !== comm) return false;
   return true;
@@ -469,7 +494,6 @@ function receiptFilterCount(filters: ReceiptFilters) {
   if (filters.date) n++;
   if (filters.date && filters.timeFrom) n++;
   if (filters.date && filters.timeTo) n++;
-  if (filters.shiftSessionId) n++;
   if (filters.outlet) n++;
   if (filters.category) n++;
   if (filters.status) n++;
@@ -484,7 +508,7 @@ type PaymentHistFilters = {
   timeTo: string;
   shiftSessionId: string;
   outlet: string;
-  status: "" | "PAID" | "SIGNED";
+  status: "" | "PAID" | "SIGNED" | "DISPUTED";
   net: string;
 };
 
@@ -727,10 +751,7 @@ function pvFilterCount(filters: PvFilters) {
 }
 
 function receiptStatusPill(status: ReceiptScanStatus) {
-  if (status === "paid") return "green" as const;
-  if (status === "in_pv") return "amber" as const;
-  if (status === "attached") return "amber" as const;
-  return "ink" as const;
+  return receiptStatusPillVariant(status);
 }
 
 function HistoryPage() {
@@ -756,25 +777,33 @@ function HistoryPage() {
     () => filterReceiptScansForPrProfile(prReceiptScans, profile, prSubRole, myVouchers),
     [prReceiptScans, profile, prSubRole, myVouchers],
   );
-  const pastShiftReceipts = useMemo(
-    () =>
-      myReceiptScans.filter(
-        (s) =>
-          !isReceiptHiddenInHistory(s, myVouchers) &&
-          isReceiptFromPastShift(s, shiftHistory, prId, {
-            todayIso: DEFAULT_ROSTER_DATE_ISO,
-            checkedIn,
-            checkedOut,
-            activeOutlet: prActiveShift?.outlet ?? null,
-          }),
-      ),
-    [myReceiptScans, myVouchers, shiftHistory, prId, checkedIn, checkedOut, prActiveShift?.outlet],
-  );
-
   const histRows = useMemo(
     () => shiftHistoryToHistRows(shiftHistory, prId, myVouchers),
     [shiftHistory, prId, myVouchers],
   );
+  const pastShiftReceipts = useMemo(() => {
+    const histDateKeys = new Set(histRows.map((r) => dateKey(r.d)));
+    return myReceiptScans.filter(
+      (s) =>
+        !isReceiptHiddenInHistory(s, myVouchers) &&
+        (histDateKeys.has(dateKey(s.date)) ||
+          isReceiptFromPastShift(s, shiftHistory, prId, {
+            todayIso: getLiveTodayIso(),
+            checkedIn,
+            checkedOut,
+            activeOutlet: prActiveShift?.outlet ?? null,
+          })),
+    );
+  }, [
+    myReceiptScans,
+    myVouchers,
+    shiftHistory,
+    prId,
+    histRows,
+    checkedIn,
+    checkedOut,
+    prActiveShift?.outlet,
+  ]);
   const histDateOptions = useMemo(
     () =>
       [...new Map(histRows.map((r) => [dateKey(r.d), r.d])).entries()]
@@ -859,13 +888,24 @@ function HistoryPage() {
     () => [...new Set(pastShiftReceipts.map((s) => s.outlet))].sort(),
     [pastShiftReceipts],
   );
-  const receiptDateOptions = useMemo(
-    () =>
-      [...new Map(pastShiftReceipts.map((s) => [dateKey(s.date), s.date])).entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, d]) => ({ key, label: fmtHistDate(d[0], d[1], d[2]) })),
-    [pastShiftReceipts],
-  );
+  const receiptDateOptions = useMemo(() => {
+    const map = new Map<string, [number, number, number]>();
+    for (const s of pastShiftReceipts) map.set(dateKey(s.date), s.date);
+    for (const r of histRows) map.set(dateKey(r.d), r.d);
+    for (const pv of myVouchers) {
+      if (pv.status !== "DISPUTED" || !pv.weekStartIso) continue;
+      const year = parseInt(pv.weekStartIso.slice(0, 4), 10);
+      for (const row of pv.rows) {
+        const iso = pvRowDateToIso(row, year);
+        if (!iso) continue;
+        const [y, m, d] = iso.split("-").map(Number);
+        map.set(iso, [y, m, d]);
+      }
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, d]) => ({ key, label: fmtHistDate(d[0], d[1], d[2]) }));
+  }, [pastShiftReceipts, histRows, myVouchers]);
   const pvById = useMemo(() => Object.fromEntries(myVouchers.map((p) => [p.id, p])), [myVouchers]);
   const pvByShiftId = useMemo(() => {
     const map: Record<string, PrPaymentVoucher> = {};
@@ -874,13 +914,6 @@ function HistoryPage() {
     }
     return map;
   }, [myVouchers]);
-  const receiptShiftOptions = useMemo(
-    () =>
-      [...new Set(pastShiftReceipts.map((s) => s.shiftSessionId).filter(Boolean) as string[])]
-        .sort()
-        .map((id) => ({ value: id, label: formatShiftSessionLabel(id) })),
-    [pastShiftReceipts],
-  );
 
   const setTab = (next: HistTab) => navigate({ to: "/host/history", search: { tab: next } });
 
@@ -963,9 +996,36 @@ function HistoryPage() {
   const currentPayrollWeekStart = getPayrollWeekSundayIso();
 
   const shiftRowsByCycle = useMemo(
-    () => groupHistRowsByPayrollWeek(filteredRows),
-    [filteredRows],
+    () =>
+      groupHistRowsByPayrollWeek(filteredRows).filter(
+        (cycle) => !isPayrollWeekHiddenInHistory(cycle.weekStart, myVouchers),
+      ),
+    [filteredRows, myVouchers],
   );
+
+  const disputedShiftWeeks = useMemo(
+    () => disputedPayrollWeekPvs(myVouchers),
+    [myVouchers],
+  );
+
+  const historyWeekEntries = useMemo(() => {
+    type Entry =
+      | { kind: "shifts"; weekStart: string; cycle: HistPayrollWeekGroup }
+      | { kind: "disputed"; weekStart: string; pv: PrPaymentVoucher };
+    const entries: Entry[] = [
+      ...shiftRowsByCycle.map((cycle) => ({
+        kind: "shifts" as const,
+        weekStart: cycle.weekStart,
+        cycle,
+      })),
+      ...disputedShiftWeeks.map((pv) => ({
+        kind: "disputed" as const,
+        weekStart: pv.weekStartIso ?? "",
+        pv,
+      })),
+    ];
+    return entries.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+  }, [shiftRowsByCycle, disputedShiftWeeks]);
 
   const filteredReceipts = useMemo(
     () => pastShiftReceipts.filter((s) => matchesReceiptFilters(s, receiptFilters)),
@@ -1098,7 +1158,7 @@ function HistoryPage() {
               </div>
 
               {histOutletOptions.length > 1 ? (
-                <div className="iz-grid2 mb-2.5">
+                <div className="iz-grid2 iz-hist-shift-filter-grid mb-2.5">
                   <div className="min-w-0">
                     <PvDateTimeFilter
                       compact
@@ -1172,7 +1232,7 @@ function HistoryPage() {
             </div>
           </IzCard>
 
-          {filteredRows.length === 0 ? (
+          {filteredRows.length === 0 && disputedShiftWeeks.length === 0 ? (
             <IzCard flat className="mt-3 py-8 text-center">
               <p className="iz-sm iz-muted">No shifts match your filters.</p>
               <button
@@ -1185,7 +1245,41 @@ function HistoryPage() {
             </IzCard>
           ) : (
             <div className="iz-hist-shift-list mt-3">
-              {shiftRowsByCycle.map((cycle) => {
+              {historyWeekEntries.map((entry) => {
+                if (entry.kind === "disputed") {
+                  const pv = entry.pv;
+                  return (
+                    <IzCard
+                      key={`disputed-${pv.id}`}
+                      flat
+                      className="mb-2.5 border border-[rgba(255,107,107,.35)] bg-[var(--iz-red-bg)] !p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="iz-tiny iz-muted2 tracking-widest">PAYROLL WEEK · DISPUTED</p>
+                          <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">{pv.cycle}</p>
+                          <p className="iz-tiny mt-1 text-[var(--iz-red)]">
+                            Shift lines held while dispute is open — amounts frozen on Payment until agency
+                            resolves.
+                          </p>
+                        </div>
+                        <IzPill variant="red">DISPUTED</IzPill>
+                      </div>
+                      <p className="iz-tiny iz-muted mt-2">
+                        {pv.outlet} · {formatRM(pv.net)}
+                        {pv.disputedAt ? ` · raised ${pv.disputedAt}` : ""}
+                      </p>
+                      <Link
+                        to="/host/PaymentVoucher"
+                        search={{ pvId: pv.id }}
+                        className="iz-btn iz-btn-soft iz-btn-sm mt-2.5 inline-flex w-full justify-center"
+                      >
+                        View dispute on Payment
+                      </Link>
+                    </IzCard>
+                  );
+                }
+                const cycle = entry.cycle;
                 const isCurrentWeek = cycle.weekStart === currentPayrollWeekStart;
                 return (
                   <HistPayrollWeekSection
@@ -1296,7 +1390,7 @@ function HistoryPage() {
           setReceiptFilterOpen={setReceiptFilterOpen}
           receiptOutlets={receiptOutlets}
           receiptDateOptions={receiptDateOptions}
-          receiptShiftOptions={receiptShiftOptions}
+          shiftByKey={histShiftByKey}
           pvById={pvById}
           pvByShiftId={pvByShiftId}
           onClear={() => {
@@ -1354,6 +1448,7 @@ function DatePickerField({
   defaultMonth?: Date;
 }) {
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const selectedLabel = dateOptions.find((o) => o.key === value)?.label;
   const selected = dateFromKey(value);
   const allowedKeys = new Set(dateOptions.map((o) => o.key));
@@ -1367,8 +1462,22 @@ function DatePickerField({
     if (open) setViewMonth(selected ?? defaultMonth);
   }, [open, selected, defaultMonth]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
   return (
-    <div className={compact ? "iz-field !mb-0" : "iz-field"}>
+    <div
+      ref={rootRef}
+      className={
+        compact ? "iz-hist-date-picker-wrap iz-field !mb-0" : "iz-hist-date-picker-wrap iz-field"
+      }
+    >
       <label className={compact ? "!text-[10px]" : undefined}>Date</label>
       <button
         type="button"
@@ -1410,7 +1519,7 @@ function DatePickerField({
         )}
       </button>
       {open && (
-        <div className="iz-hist-cal">
+        <div className="iz-hist-cal iz-hist-cal--popover">
           <HistDateCalendar
             selected={selected}
             viewMonth={viewMonth}
@@ -1974,6 +2083,7 @@ function PaymentHistorySection({
               { value: "", label: "Any status" },
               { value: "PAID", label: "Paid" },
               { value: "SIGNED", label: "Signed" },
+              { value: "DISPUTED", label: "Disputed" },
             ]}
           />
           <FilterNumberInput
@@ -2019,7 +2129,7 @@ function ReceiptScansSection({
   setReceiptFilterOpen,
   receiptOutlets,
   receiptDateOptions,
-  receiptShiftOptions,
+  shiftByKey,
   pvById,
   pvByShiftId,
   onClear,
@@ -2034,7 +2144,7 @@ function ReceiptScansSection({
   setReceiptFilterOpen: (v: boolean) => void;
   receiptOutlets: string[];
   receiptDateOptions: { key: string; label: string }[];
-  receiptShiftOptions: { value: string; label: string }[];
+  shiftByKey: Map<string, ShiftHistoryRow>;
   pvById: Record<string, PrPaymentVoucher>;
   pvByShiftId: Record<string, PrPaymentVoucher>;
   onClear: () => void;
@@ -2098,14 +2208,13 @@ function ReceiptScansSection({
           ]}
         />
         <GenericSelectField
-          label="Shift"
+          label="Status"
           compact
-          value={filters.shiftSessionId}
-          onChange={(shiftSessionId) => setFilters((p) => ({ ...p, shiftSessionId }))}
-          options={[
-            { value: "", label: "Any shift" },
-            ...receiptShiftOptions.map((o) => ({ value: o.value, label: o.label })),
-          ]}
+          value={filters.status}
+          onChange={(status) =>
+            setFilters((p) => ({ ...p, status: status as ReceiptScanStatus | "" }))
+          }
+          options={RECEIPT_STATUS_FILTER_OPTIONS}
         />
       </div>
 
@@ -2157,15 +2266,13 @@ function ReceiptScansSection({
               <X className="h-3 w-3" />
             </button>
           )}
-          {filters.shiftSessionId && (
+          {filters.status && (
             <button
               type="button"
               className="iz-hist-chip"
-              onClick={() => setFilters((p) => ({ ...p, shiftSessionId: "" }))}
+              onClick={() => setFilters((p) => ({ ...p, status: "" }))}
             >
-              Shift:{" "}
-              {receiptShiftOptions.find((o) => o.value === filters.shiftSessionId)?.label ??
-                filters.shiftSessionId}
+              Status: {receiptStatusLabel(filters.status)}
               <X className="h-3 w-3" />
             </button>
           )}
@@ -2202,7 +2309,8 @@ function ReceiptScansSection({
             <tbody>
               {scans.map((scan) => {
                 const [y, m, d] = scan.date;
-                const shift = receiptShiftInfo(scan, pvById, pvByShiftId);
+                const shift = receiptShiftInfo(scan, pvById, pvByShiftId, shiftByKey);
+                const displayStatus = effectiveReceiptScanStatus(scan);
                 return (
                   <tr key={scan.id}>
                     <td>
@@ -2250,8 +2358,8 @@ function ReceiptScansSection({
                       {formatRM(scan.totalCommission)}
                     </td>
                     <td>
-                      <IzPill variant={receiptStatusPill(scan.status)}>
-                        {receiptStatusLabel(scan.status)}
+                      <IzPill variant={receiptStatusPill(displayStatus)}>
+                        {receiptStatusLabel(displayStatus)}
                       </IzPill>
                     </td>
                   </tr>
@@ -2282,15 +2390,6 @@ function ReceiptScansSection({
             defaultMonth={receiptDefaultMonth}
           />
           <GenericSelectField
-            label="Shift"
-            value={receiptDraft.shiftSessionId}
-            onChange={(shiftSessionId) => setReceiptDraft((p) => ({ ...p, shiftSessionId }))}
-            options={[
-              { value: "", label: "Any shift" },
-              ...receiptShiftOptions.map((o) => ({ value: o.value, label: o.label })),
-            ]}
-          />
-          <GenericSelectField
             label="Outlet"
             value={receiptDraft.outlet}
             onChange={(outlet) => setReceiptDraft((p) => ({ ...p, outlet }))}
@@ -2298,6 +2397,14 @@ function ReceiptScansSection({
               { value: "", label: "Any outlet" },
               ...receiptOutlets.map((v) => ({ value: v, label: v })),
             ]}
+          />
+          <GenericSelectField
+            label="Status"
+            value={receiptDraft.status}
+            onChange={(status) =>
+              setReceiptDraft((p) => ({ ...p, status: status as ReceiptScanStatus | "" }))
+            }
+            options={RECEIPT_STATUS_FILTER_OPTIONS}
           />
           <GenericSelectField
             label="Item category"
@@ -2310,19 +2417,6 @@ function ReceiptScansSection({
               { value: "drinks", label: "Drinks" },
               { value: "tips", label: "Tips" },
               { value: "tables", label: "Tables" },
-            ]}
-          />
-          <GenericSelectField
-            label="PV status"
-            value={receiptDraft.status}
-            onChange={(status) =>
-              setReceiptDraft((p) => ({ ...p, status: status as ReceiptScanStatus | "" }))
-            }
-            options={[
-              { value: "", label: "Any status" },
-              { value: "pending", label: "Pending (not in PV)" },
-              { value: "in_pv", label: "In PV" },
-              { value: "paid", label: "Paid" },
             ]}
           />
           <FilterNumberInput

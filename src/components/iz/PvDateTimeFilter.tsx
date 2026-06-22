@@ -2,7 +2,7 @@ import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCal
 import { IzTimeInput } from "@/components/iz/ui";
 import { dateFromIsoKey, isoKeyFromDate } from "@/lib/pv-list-filters";
 import { Calendar, ChevronDown, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 function DatePickerField({
   value,
@@ -18,6 +18,7 @@ function DatePickerField({
   defaultMonth?: Date;
 }) {
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const selectedLabel = dateOptions.find((o) => o.key === value)?.label;
   const selected = dateFromIsoKey(value);
   const allowedKeys = new Set(dateOptions.map((o) => o.key));
@@ -28,8 +29,17 @@ function DatePickerField({
     if (open) setViewMonth(selected ?? defaultMonth);
   }, [open, selected, defaultMonth]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
   return (
-    <div className={compact ? "iz-field !mb-0" : "iz-field"}>
+    <div ref={rootRef} className={compact ? "iz-hist-date-picker-wrap iz-field !mb-0" : "iz-hist-date-picker-wrap iz-field"}>
       <label className={compact ? "!text-[10px]" : undefined}>Date</label>
       <button
         type="button"
@@ -69,7 +79,7 @@ function DatePickerField({
         )}
       </button>
       {open && (
-        <div className="iz-hist-cal">
+        <div className="iz-hist-cal iz-hist-cal--popover">
           <HistDateCalendar
             selected={selected}
             viewMonth={viewMonth}

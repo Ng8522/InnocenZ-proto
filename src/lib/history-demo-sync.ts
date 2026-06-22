@@ -15,6 +15,7 @@ import {
   type PrProfile,
   type PrReceiptScan,
   type PrPvRow,
+  type ReceiptScanStatus,
 } from "@/lib/pr-demo";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 import {
@@ -24,6 +25,7 @@ import {
   pvRowsFromWeeklySummary,
   syncWeeklyPvWithSummary,
 } from "@/lib/pr-weekly-payment";
+import { isPrPaymentInboxPv, pvForPayrollDate, pvRowDateToIso } from "@/lib/pr-payment-history";
 import { receiptDateIso } from "@/lib/receipt-scan-utils";
 
 function ymdFromIso(iso: string): [number, number, number] {
@@ -52,6 +54,148 @@ function histScanPrefix(prId: string) {
   return `rc-hist-${prId}-`;
 }
 
+function pvScanPrefix() {
+  return "rc-pv-";
+}
+
+/** Demo seed scans replaced on every ledger rebuild — PV rows are authoritative. */
+const DEMO_MANAGED_RECEIPT_IDS = new Set(["rc-luna-w2-d", "rc-luna-1", "rc-luna-2"]);
+
+function commissionCategoryFromDesc(desc: string): "drinks" | "tips" | "tables" | "others" | null {
+  const d = desc.toLowerCase();
+  if (d.includes("daily wage")) return null;
+  if (d.includes("drink")) return "drinks";
+  if (d.includes("tip")) return "tips";
+  if (d.includes("table")) return "tables";
+  if (d.includes("commission") || d.includes("other")) return "others";
+  return null;
+}
+
+function pvCommissionItems(
+  category: "drinks" | "tips" | "tables" | "others",
+  amount: number,
+  qty: number,
+): PrReceiptScan["items"] {
+  if (category === "drinks") {
+    const unitQty = Math.max(1, qty || Math.round(amount / RECEIPT_COMMISSION_RULES.drinkPerUnit));
+    return [
+      {
+        label: "Drinks commission",
+        qty: unitQty,
+        unitPrice: RECEIPT_COMMISSION_RULES.drinkPerUnit,
+        amount,
+        category: "drinks",
+      },
+    ];
+  }
+  if (category === "tips") {
+    return [{ label: "Tips", qty: 1, unitPrice: amount, amount, category: "tips" }];
+  }
+  if (category === "tables") {
+    const unitQty = Math.max(1, qty || Math.round(amount / RECEIPT_COMMISSION_RULES.tablePerUnit));
+    return [
+      {
+        label: "VIP table",
+        qty: unitQty,
+        unitPrice: RECEIPT_COMMISSION_RULES.tablePerUnit,
+        amount,
+        category: "tables",
+      },
+    ];
+  }
+  return [{ label: "Others", qty: 1, unitPrice: amount, amount, category: "other" }];
+}
+
+/** Receipt scans from PV commission lines — same amounts as Shifts + Payment tabs. */
+function pvReceiptDatesAreSealed(pv: PrPaymentVoucher): boolean {
+  return (
+    pv.status === "SENT" ||
+    pv.status === "SIGNED" ||
+    pv.status === "PAID" ||
+    pv.status === "DISPUTED"
+  );
+}
+
+export function buildReceiptScansFromPaymentVouchers(
+  pvs: PrPaymentVoucher[],
+  prId: string,
+  profile: PrProfile,
+): PrReceiptScan[] {
+  const todayIso = getLiveTodayIso();
+  const out: PrReceiptScan[] = [];
+  const usedLinkedIds = new Set<string>();
+
+  for (const pv of pvs) {
+    if (pv.prName !== profile.name) continue;
+    const sealed = pvReceiptDatesAreSealed(pv);
+    const year = pv.weekStartIso
+      ? parseInt(pv.weekStartIso.slice(0, 4), 10)
+      : parseInt(pv.issued.match(/\d{4}/)?.[0] ?? String(new Date().getFullYear()), 10);
+
+    for (const row of pv.rows) {
+      const category = commissionCategoryFromDesc(row.desc);
+      if (!category || row.amt <= 0) continue;
+      const iso = pvRowDateToIso(row, year);
+      if (!iso || (!sealed && iso > todayIso)) continue;
+
+      const ymd = ymdFromIso(iso);
+      const [y, m, d] = ymd;
+      const dateLabel = fmtDtable(y, m, d);
+      const sessionId = shiftSessionId(row.outlet, iso);
+      const linkedId = row.receiptIds?.[0];
+      const id =
+        linkedId && !usedLinkedIds.has(linkedId)
+          ? (usedLinkedIds.add(linkedId), linkedId)
+          : `${pvScanPrefix()}${pv.id}-${row.i}`;
+      const items = pvCommissionItems(category, row.amt, row.qty);
+      const comm = calcReceiptCommissions(items);
+      const drinkCommission = category === "drinks" ? row.amt : 0;
+      const tipCommission = category === "tips" ? row.amt : 0;
+      const tableCommission = category === "tables" ? row.amt : 0;
+
+      out.push({
+        id,
+        receiptRef: receiptRefFor(row.outlet, iso, row.i),
+        scannedAt: `${dateLabel} ${y} · ${22}:${String((10 + row.i) % 60).padStart(2, "0")}`,
+        date: ymd,
+        outlet: row.outlet,
+        prCode: "PR-0001",
+        prName: profile.name,
+        prId,
+        shiftSessionId: sessionId,
+        pvId: pv.id,
+        pvLineDesc: row.desc,
+        pvStatus: pv.status,
+        items,
+        totalLogged: row.amt,
+        drinkCommission: drinkCommission || comm.drinkCommission,
+        tipCommission: tipCommission || comm.tipCommission,
+        tableCommission: tableCommission || comm.tableCommission,
+        totalCommission: row.amt,
+        status: receiptStatusFromPv({ status: "pending" } as PrReceiptScan, pv),
+      });
+    }
+  }
+
+  return out;
+}
+
+function dateInPvWeek(iso: string, pvs: PrPaymentVoucher[]): boolean {
+  return pvs.some(
+    (p) => p.weekStartIso && p.weekEndIso && iso >= p.weekStartIso && iso <= p.weekEndIso,
+  );
+}
+
+function mergeReceiptScansById(...groups: PrReceiptScan[][]): PrReceiptScan[] {
+  const byId = new Map<string, PrReceiptScan>();
+  for (const group of groups) {
+    for (const scan of group) {
+      byId.set(scan.id, scan);
+    }
+  }
+  return [...byId.values()];
+}
+
 /** Drop shift-history synced ledger rows so they can be rebuilt from the current log. */
 function stripShiftHistorySyncedLedger(
   scans: PrReceiptScan[],
@@ -59,16 +203,23 @@ function stripShiftHistorySyncedLedger(
   prId: string,
   profileName: string,
 ) {
+  const inboxWeeks = new Set(
+    pvs
+      .filter(
+        (p) =>
+          p.prName === profileName && p.weekStartIso && isPrPaymentInboxPv(p),
+      )
+      .map((p) => p.weekStartIso!),
+  );
   return {
-    scans: scans.filter((s) => !s.id.startsWith(histScanPrefix(prId))),
-    pvs: pvs.filter(
-      (p) =>
-        !(
-          p.prName === profileName &&
-          p.weekStartIso &&
-          (p.status === "PAID" || p.status === "SIGNED")
-        ),
+    scans: scans.filter(
+      (s) => !s.id.startsWith(histScanPrefix(prId)) && !s.id.startsWith(pvScanPrefix()),
     ),
+    pvs: pvs.filter((p) => {
+      if (p.prName !== profileName || !p.weekStartIso) return true;
+      if (inboxWeeks.has(p.weekStartIso) && !isPrPaymentInboxPv(p)) return false;
+      return !(p.status === "PAID" || p.status === "SIGNED");
+    }),
   };
 }
 
@@ -195,9 +346,13 @@ function attachReceiptIdsToPvRows(rows: PrPvRow[], scans: PrReceiptScan[], year:
     const desc = row.desc.toLowerCase();
     const ids = dayScans
       .filter((s) => {
-        if (desc.includes("drink")) return s.drinkCommission > 0;
-        if (desc.includes("tip")) return s.tipCommission > 0;
-        if (desc.includes("table")) return s.tableCommission > 0;
+        if (s.pvLineDesc && s.pvLineDesc === row.desc) return true;
+        if (desc.includes("drink")) return s.drinkCommission === row.amt;
+        if (desc.includes("tip")) return s.tipCommission === row.amt;
+        if (desc.includes("table")) return s.tableCommission === row.amt;
+        if (desc.includes("other") || row.desc === "Others") {
+          return s.totalCommission === row.amt && s.items.some((i) => i.category === "other");
+        }
         return false;
       })
       .map((s) => s.id);
@@ -299,6 +454,77 @@ export function buildWeeklyPvsFromShiftHistory(
   return pvs;
 }
 
+function receiptStatusFromPv(
+  scan: PrReceiptScan,
+  pv: PrPaymentVoucher,
+): ReceiptScanStatus {
+  if (pv.status === "DISPUTED") return "disputed";
+  if (pv.status === "PAID") return "paid";
+  if (pv.status === "SIGNED" || pv.status === "SENT") return "in_pv";
+  if (pv.status === "PENDING_REVIEW") return "pending";
+  if (scan.status === "attached") return "attached";
+  return "pending";
+}
+
+function scanBelongsToProfile(scan: PrReceiptScan, prId: string, profileName: string): boolean {
+  if (scan.prId) return scan.prId === prId;
+  return scan.prName === profileName;
+}
+
+function filterScansForPvAuthoritativeWeeks(
+  scans: PrReceiptScan[],
+  pvScans: PrReceiptScan[],
+  sealedPvs: PrPaymentVoucher[],
+  prId: string,
+  profileName: string,
+): PrReceiptScan[] {
+  const pvScanIds = new Set(pvScans.map((s) => s.id));
+  return scans.filter((s) => {
+    if (DEMO_MANAGED_RECEIPT_IDS.has(s.id)) return false;
+    if (!scanBelongsToProfile(s, prId, profileName)) return true;
+    const iso = receiptDateIso(s);
+    if (!dateInPvWeek(iso, sealedPvs)) return true;
+    return pvScanIds.has(s.id);
+  });
+}
+
+function attachReceiptIdsToAllPvs(
+  pvs: PrPaymentVoucher[],
+  scans: PrReceiptScan[],
+  profileName: string,
+): PrPaymentVoucher[] {
+  return pvs.map((pv) => {
+    if (pv.prName !== profileName || !pv.weekStartIso) return pv;
+    const year = parseInt(pv.weekStartIso.slice(0, 4), 10);
+    const rows = attachReceiptIdsToPvRows(pv.rows, scans, year);
+    const receiptIds = [...new Set(rows.flatMap((r) => r.receiptIds ?? []))];
+    return { ...pv, rows, receiptIds };
+  });
+}
+
+/** Attach shift session ids from sealed checkout rows — keeps History aligned with shifts. */
+function enrichReceiptScansFromShiftHistory(
+  scans: PrReceiptScan[],
+  rows: ShiftHistoryRow[],
+  prId: string,
+): PrReceiptScan[] {
+  const bySlot = new Map<string, ShiftHistoryRow>();
+  for (const row of rows) {
+    if (row.prId === prId) bySlot.set(`${row.dateIso}|${row.outlet}`, row);
+  }
+  return scans.map((scan) => {
+    if (scan.prId && scan.prId !== prId) return scan;
+    const dateIso = receiptDateIso(scan);
+    const hist = bySlot.get(`${dateIso}|${scan.outlet}`);
+    if (!hist) return scan;
+    const sessionId = shiftSessionId(scan.outlet, dateIso);
+    return {
+      ...scan,
+      shiftSessionId: scan.shiftSessionId ?? sessionId,
+    };
+  });
+}
+
 export function syncReceiptScansWithPvs(
   scans: PrReceiptScan[],
   pvs: PrPaymentVoucher[],
@@ -307,38 +533,27 @@ export function syncReceiptScansWithPvs(
   return scans.map((scan) => {
     if (scan.prId && scan.prId !== prId) return scan;
     const dateIso = receiptDateIso(scan);
-    const weekSun = getPayrollWeekSundayIso(dateIso);
     const pv =
       (scan.pvId ? pvs.find((p) => p.id === scan.pvId) : undefined) ??
-      pvs.find((p) => p.weekStartIso === weekSun && p.prName === scan.prName);
+      pvForPayrollDate(dateIso, pvs.filter((p) => p.prName === scan.prName));
 
-    if (!pv) return scan;
-
-    let status = scan.status;
-    if (pv.status === "PAID") status = "paid";
-    else if (pv.status === "SIGNED" || pv.status === "SENT") status = "in_pv";
+    if (!pv) {
+      if (scan.status === "attached") return scan;
+      return scan;
+    }
 
     return {
       ...scan,
       pvId: pv.id,
       pvStatus: pv.status,
-      status,
+      status: receiptStatusFromPv(scan, pv),
     };
   });
 }
 
-/** Hide receipts tied to an open PV dispute (PR + agency still reviewing). */
-export function isReceiptHiddenInHistory(scan: PrReceiptScan, pvs: PrPaymentVoucher[]): boolean {
-  if (scan.pvStatus === "DISPUTED") return true;
-  if (!scan.pvId) return false;
-  const pv = pvs.find((p) => p.id === scan.pvId);
-  if (!pv || pv.status !== "DISPUTED") return false;
-  const disputedIds = new Set(
-    pv.rows
-      .filter((r) => r.ref?.toLowerCase().includes("disput"))
-      .flatMap((r) => r.receiptIds ?? []),
-  );
-  return disputedIds.has(scan.id);
+/** Receipt scans tab — past sealed shifts only (disputed receipts stay visible with status badge). */
+export function isReceiptHiddenInHistory(_scan: PrReceiptScan, _pvs: PrPaymentVoucher[]): boolean {
+  return false;
 }
 
 export function mergeHistoryDemoLedger(opts: {
@@ -352,8 +567,29 @@ export function mergeHistoryDemoLedger(opts: {
   const profile = opts.profile ?? { name: "Luna", ic: "950312-14-8821" } as PrProfile;
 
   const stripped = stripShiftHistorySyncedLedger(opts.scans, opts.pvs, prId, profile.name);
-  const extraScans = buildReceiptScansFromShiftHistory(opts.shiftHistory, prId, profile, []);
-  let scans = [...stripped.scans, ...extraScans];
+  const minePvs = stripped.pvs.filter((p) => p.prName === profile.name);
+  const sealedPvs = minePvs.filter(pvReceiptDatesAreSealed);
+
+  const pvScans = buildReceiptScansFromPaymentVouchers(minePvs, prId, profile);
+  const baseScans = filterScansForPvAuthoritativeWeeks(
+    stripped.scans,
+    pvScans,
+    sealedPvs,
+    prId,
+    profile.name,
+  );
+  const shiftScans = buildReceiptScansFromShiftHistory(
+    opts.shiftHistory,
+    prId,
+    profile,
+    [],
+  ).filter((scan) => !dateInPvWeek(receiptDateIso(scan), minePvs));
+
+  let scans = enrichReceiptScansFromShiftHistory(
+    mergeReceiptScansById(baseScans, shiftScans, pvScans),
+    opts.shiftHistory,
+    prId,
+  );
 
   const extraPvs = buildWeeklyPvsFromShiftHistory(
     opts.shiftHistory,
@@ -362,8 +598,20 @@ export function mergeHistoryDemoLedger(opts: {
     profile,
     stripped.pvs,
   );
-  const pvs = [...stripped.pvs, ...extraPvs];
+  let pvs = [...stripped.pvs, ...extraPvs];
 
   scans = syncReceiptScansWithPvs(scans, pvs, prId);
+  pvs = attachReceiptIdsToAllPvs(pvs, scans, profile.name);
   return { scans, pvs };
+}
+
+/** Rebuild receipt scans + PV receipt links after inbox/dispute/sign actions. */
+export function syncStoreHistoryLedger(
+  shiftHistory: ShiftHistoryRow[],
+  scans: PrReceiptScan[],
+  pvs: PrPaymentVoucher[],
+  profile: PrProfile = { name: "Luna", ic: "950312-14-8821" },
+  prId: string = TIED_DEMO_ROSTER_PR_ID,
+): { scans: PrReceiptScan[]; pvs: PrPaymentVoucher[] } {
+  return mergeHistoryDemoLedger({ shiftHistory, scans, pvs, prId, profile });
 }

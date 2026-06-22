@@ -34,7 +34,13 @@ function PaymentHistoryCard({
         <div className="min-w-0 flex-1 text-left">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-sora text-sm font-bold text-[var(--iz-txt)]">{record.weekLabel}</span>
-            <IzPill variant={record.status === "PAID" ? "green" : "amber"}>{record.status}</IzPill>
+            <IzPill
+              variant={
+                record.status === "PAID" ? "green" : record.status === "DISPUTED" ? "red" : "amber"
+              }
+            >
+              {record.status}
+            </IzPill>
           </div>
           <p className="iz-tiny iz-muted2 mt-0.5">
             {record.pvId} · {record.outlet}

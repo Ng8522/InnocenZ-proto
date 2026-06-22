@@ -144,7 +144,7 @@ export function HistDateCalendar({
           month_caption: "hidden",
           nav: "hidden",
         }}
-        className={className ?? "iz-hist-cal-picker rounded-[14px] border-0 bg-transparent p-0 text-[var(--iz-txt)]"}
+        className={className ?? "iz-hist-cal-picker w-full rounded-[14px] border-0 bg-transparent p-0 text-[var(--iz-txt)]"}
       />
       <p className="iz-tiny iz-muted2 mt-1 px-1">Only dates with records are selectable.</p>
     </>

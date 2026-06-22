@@ -110,7 +110,7 @@ import {
   withShiftFinancialDefaults,
   type OutletPnlSynced,
 } from "@/lib/outlet-financial-sync";
-import { mergeHistoryDemoLedger } from "@/lib/history-demo-sync";
+import { mergeHistoryDemoLedger, syncStoreHistoryLedger } from "@/lib/history-demo-sync";
 import {
   mergeShiftHistory,
   prepareShiftHistoryForDisplay,
@@ -1472,7 +1472,13 @@ export const useStore = create<StoreState>()(
             closedShift: closed,
           },
           prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).map((r) =>
-            scanIds.has(r.id) ? { ...r, shiftSessionId: shift.id, status: "attached" as const } : r,
+            scanIds.has(r.id)
+              ? {
+                  ...r,
+                  shiftSessionId: shift.id,
+                  status: "pending" as const,
+                }
+              : r,
           ),
         }));
         get().toast(
@@ -1765,8 +1771,8 @@ export const useStore = create<StoreState>()(
         if (!pv) return;
         const stamp = formatPvSignTimestamp();
         const bankRef = `INZ-TRF-${Date.now().toString(36).toUpperCase().slice(-8)}`;
-        set((st) => ({
-          prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
+        set((st) => {
+          const nextPvs = (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
             p.id === id
               ? {
                   ...p,
@@ -1777,16 +1783,17 @@ export const useStore = create<StoreState>()(
                   bankRef,
                 }
               : p,
-          ),
-          prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).map((s) => {
-            const linked =
-              pv.receiptIds?.includes(s.id) ||
-              s.pvId === id ||
-              pv.rows.some((r) => r.receiptIds?.includes(s.id));
-            if (!linked) return s;
-            return { ...s, pvId: id, pvStatus: "PAID" as const, status: "paid" as const };
-          }),
-        }));
+          );
+          const ledger = syncStoreHistoryLedger(
+            st.shiftHistory,
+            st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS,
+            nextPvs,
+          );
+          return {
+            prPaymentVouchers: ledger.pvs,
+            prReceiptScans: ledger.scans,
+          };
+        });
         const prId = prIdForPayeeName(pv.prName, pv.prIc, get().agencyPRs);
         get().pushNotify({
           type: "pv_signed",
@@ -1826,8 +1833,8 @@ export const useStore = create<StoreState>()(
           hour: "2-digit",
           minute: "2-digit",
         });
-        set((st) => ({
-          prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
+        set((st) => {
+          const nextPvs = (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
             p.id === id
               ? {
                   ...p,
@@ -1839,8 +1846,17 @@ export const useStore = create<StoreState>()(
                   rows,
                 }
               : p,
-          ),
-        }));
+          );
+          const ledger = syncStoreHistoryLedger(
+            st.shiftHistory,
+            st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS,
+            nextPvs,
+          );
+          return {
+            prPaymentVouchers: ledger.pvs,
+            prReceiptScans: ledger.scans,
+          };
+        });
         get().pushNotify({
           type: "dispute_raised",
           pvId: id,
@@ -2237,11 +2253,20 @@ export const useStore = create<StoreState>()(
           get().toast("Blocked — duplicate payment (Golden Audit Σ≠0)", "warn");
           return;
         }
-        set((st) => ({
-          prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
+        set((st) => {
+          const nextPvs = (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
             p.id === id ? { ...p, status: "SENT" as const } : p,
-          ),
-        }));
+          );
+          const ledger = syncStoreHistoryLedger(
+            st.shiftHistory,
+            st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS,
+            nextPvs,
+          );
+          return {
+            prPaymentVouchers: ledger.pvs,
+            prReceiptScans: ledger.scans,
+          };
+        });
         const prId = prIdForPayeeName(pv.prName, pv.prIc, get().agencyPRs);
         get().pushNotify({
           type: "pv_sent",
@@ -2253,8 +2278,8 @@ export const useStore = create<StoreState>()(
         get().toast(`PV sent to ${pv.prName} · awaiting PR e-signature`, "success");
       },
       resolveAgencyPvDispute: (id) => {
-        set((st) => ({
-          prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
+        set((st) => {
+          const nextPvs = (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
             p.id === id
               ? {
                   ...p,
@@ -2264,8 +2289,17 @@ export const useStore = create<StoreState>()(
                   disputedAt: undefined,
                 }
               : p,
-          ),
-        }));
+          );
+          const ledger = syncStoreHistoryLedger(
+            st.shiftHistory,
+            st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS,
+            nextPvs,
+          );
+          return {
+            prPaymentVouchers: ledger.pvs,
+            prReceiptScans: ledger.scans,
+          };
+        });
         get().toast("Dispute resolved — PV re-sent to PR", "success");
       },
       raiseAgencyPvFromHistory: (shiftHistoryId) => {

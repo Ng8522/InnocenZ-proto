@@ -1615,7 +1615,18 @@ export interface PrReceiptItem {
   category: ReceiptItemCategory;
 }
 
-export type ReceiptScanStatus = "attached" | "pending" | "in_pv" | "paid";
+export type ReceiptScanStatus = "attached" | "pending" | "in_pv" | "paid" | "disputed";
+
+/** Resolved badge/filter status — prefers PV dispute over scan lifecycle. */
+export function effectiveReceiptScanStatus(scan: PrReceiptScan): ReceiptScanStatus {
+  if (scan.pvStatus === "DISPUTED" || scan.status === "disputed") return "disputed";
+  if (scan.status === "attached") return "attached";
+  if (scan.status === "paid" || scan.pvStatus === "PAID") return "paid";
+  if (scan.status === "in_pv" || scan.pvStatus === "SENT" || scan.pvStatus === "SIGNED") {
+    return "in_pv";
+  }
+  return scan.status === "pending" ? "pending" : scan.status;
+}
 
 export type ReceiptLogSource = "ocr" | "manual";
 export type ReceiptAgencyVerification = "pending" | "approved" | "rejected";
@@ -1912,7 +1923,18 @@ export function receiptStatusLabel(status: ReceiptScanStatus) {
   if (status === "attached") return "ON SHIFT";
   if (status === "in_pv") return "IN PV";
   if (status === "paid") return "PAID";
+  if (status === "disputed") return "DISPUTED";
   return "PENDING";
+}
+
+export function receiptStatusPillVariant(
+  status: ReceiptScanStatus,
+): "green" | "amber" | "red" | "ink" {
+  if (status === "paid") return "green";
+  if (status === "disputed") return "red";
+  if (status === "in_pv") return "amber";
+  if (status === "attached") return "amber";
+  return "ink";
 }
 
 export function isManualSelfLog(scan: PrReceiptScan) {

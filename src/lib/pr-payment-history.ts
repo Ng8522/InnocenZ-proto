@@ -1,12 +1,169 @@
 import type { HistRow, PrPaymentVoucher, PrPvRow } from "@/lib/pr-demo";
+import { RECEIPT_COMMISSION_RULES } from "@/lib/pr-demo";
+import { getPayrollWeekSundayIso, addDaysToIso } from "@/lib/demo-clock";
 import { buildWeeklyPaymentSummary, syncWeeklyPvWithSummary } from "@/lib/pr-weekly-payment";
+
+const PV_STATUS_PRIORITY: Record<PrPaymentVoucher["status"], number> = {
+  DISPUTED: 5,
+  SENT: 4,
+  PENDING_REVIEW: 3,
+  SIGNED: 2,
+  PAID: 1,
+};
+
+export function pvRowDateToIso(row: PrPvRow, year: number): string | null {
+  const m = row.date.trim().match(/^(\d{1,2})\s+([A-Za-z]+)/);
+  if (!m) return null;
+  const day = parseInt(m[1], 10);
+  const mon = m[2].slice(0, 3).toLowerCase();
+  const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const mi = months.findIndex((x) => x === mon);
+  if (mi < 0) return null;
+  return `${year}-${String(mi + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Weekly PV covering a shift night (Sun–Sat payroll week). Prefers inbox/dispute over settled PVs. */
+export function pvForPayrollDate(
+  dateIso: string,
+  pvs: PrPaymentVoucher[],
+): PrPaymentVoucher | undefined {
+  const matches = pvs.filter(
+    (p) => p.weekStartIso && p.weekEndIso && dateIso >= p.weekStartIso && dateIso <= p.weekEndIso,
+  );
+  if (!matches.length) return undefined;
+  return matches.sort(
+    (a, b) => (PV_STATUS_PRIORITY[b.status] ?? 0) - (PV_STATUS_PRIORITY[a.status] ?? 0),
+  )[0];
+}
+
+export function pvForPayrollWeek(
+  weekStartIso: string,
+  pvs: PrPaymentVoucher[],
+): PrPaymentVoucher | undefined {
+  const matches = pvs.filter((p) => p.weekStartIso === weekStartIso);
+  if (!matches.length) return undefined;
+  return matches.sort(
+    (a, b) => (PV_STATUS_PRIORITY[b.status] ?? 0) - (PV_STATUS_PRIORITY[a.status] ?? 0),
+  )[0];
+}
+
+/** Payroll week with an open PV dispute — shift cards hidden until agency resolves. */
+export function isPayrollWeekHiddenInHistory(
+  weekStartIso: string,
+  pvs: PrPaymentVoucher[],
+): boolean {
+  const weekEnd = addDaysToIso(weekStartIso, 6);
+  return pvs.some(
+    (p) =>
+      p.status === "DISPUTED" &&
+      p.weekStartIso &&
+      p.weekEndIso &&
+      p.weekStartIso <= weekEnd &&
+      p.weekEndIso >= weekStartIso,
+  );
+}
+
+/** Disputed inbox PVs — shown on History as held cards (no shift line items). */
+export function disputedPayrollWeekPvs(pvs: PrPaymentVoucher[]): PrPaymentVoucher[] {
+  return pvs
+    .filter((pv) => pv.status === "DISPUTED" && pv.weekStartIso)
+    .sort((a, b) => (b.weekStartIso ?? "").localeCompare(a.weekStartIso ?? ""));
+}
+
+/** Open dispute — hide shift + receipt history until agency resolves. */
+export function isShiftHiddenInHistory(dateIso: string, pvs: PrPaymentVoucher[]): boolean {
+  return (
+    pvForPayrollDate(dateIso, pvs)?.status === "DISPUTED" ||
+    isPayrollWeekHiddenInHistory(getPayrollWeekSundayIso(dateIso), pvs)
+  );
+}
+
+export function isReceiptWeekHiddenInHistory(dateIso: string, pvs: PrPaymentVoucher[]): boolean {
+  return isShiftHiddenInHistory(dateIso, pvs);
+}
+
+/** Sun–Sat weeks driven by Payment inbox PV (SENT) — History uses PV rows, not shift log. */
+export function isPayrollWeekFromInboxPv(weekStartIso: string, pvs: PrPaymentVoucher[]): boolean {
+  const pv = pvForPayrollWeek(weekStartIso, pvs);
+  return Boolean(pv && isPrPaymentInboxPv(pv) && pv.status === "SENT");
+}
+
+/** Inbox PV line items → History shift cards (matches Payment week summary). */
+export function histRowsFromInboxPv(pv: PrPaymentVoucher): HistRow[] {
+  if (!pv.weekStartIso || pv.status !== "SENT" || !isPrPaymentInboxPv(pv)) return [];
+
+  const year = parseInt(pv.weekStartIso.slice(0, 4), 10);
+  type DayAcc = {
+    d: [number, number, number];
+    venue: string;
+    wages: number;
+    drinksAmt: number;
+    tips: number;
+    tables: number;
+    others: number;
+  };
+  const byKey = new Map<string, DayAcc>();
+
+  for (const row of pv.rows) {
+    const iso = pvRowDateToIso(row, year);
+    if (!iso) continue;
+    const key = `${iso}|${row.outlet}`;
+    const [y, m, d] = iso.split("-").map(Number);
+    const cur =
+      byKey.get(key) ??
+      ({
+        d: [y, m, d],
+        venue: row.outlet,
+        wages: 0,
+        drinksAmt: 0,
+        tips: 0,
+        tables: 0,
+        others: 0,
+      } satisfies DayAcc);
+    const desc = row.desc.toLowerCase();
+    if (desc.includes("daily wage")) cur.wages += row.amt;
+    else if (desc.includes("drink")) cur.drinksAmt += row.amt;
+    else if (desc.includes("tip")) cur.tips += row.amt;
+    else if (desc.includes("table")) cur.tables += row.amt;
+    else cur.others += row.amt;
+    byKey.set(key, cur);
+  }
+
+  return [...byKey.values()]
+    .map((acc) => {
+      const dateIso = `${acc.d[0]}-${String(acc.d[1]).padStart(2, "0")}-${String(acc.d[2]).padStart(2, "0")}`;
+      const { st, pill } = deriveShiftHistoryStatus(dateIso, [pv]);
+      const sales = acc.wages + acc.drinksAmt + acc.tips + acc.tables + acc.others;
+      const drinkUnits =
+        acc.drinksAmt > 0
+          ? Math.max(1, Math.round(acc.drinksAmt / RECEIPT_COMMISSION_RULES.drinkPerUnit))
+          : 0;
+      return {
+        d: acc.d,
+        venue: acc.venue,
+        wages: Math.round(acc.wages),
+        sales: Math.round(sales),
+        table: Math.round(acc.tables),
+        drinks: drinkUnits,
+        tips: Math.round(acc.tips),
+        st,
+        pill,
+        durationHours: 8,
+      } satisfies HistRow;
+    })
+    .sort((a, b) => {
+      const ak = `${a.d[0]}-${String(a.d[1]).padStart(2, "0")}-${String(a.d[2]).padStart(2, "0")}`;
+      const bk = `${b.d[0]}-${String(b.d[1]).padStart(2, "0")}-${String(b.d[2]).padStart(2, "0")}`;
+      return bk.localeCompare(ak);
+    });
+}
 
 export type PaymentHistoryRecord = {
   pvId: string;
   weekLabel: string;
   weekStartIso?: string;
   weekEndIso?: string;
-  status: "PAID" | "SIGNED";
+  status: "PAID" | "SIGNED" | "DISPUTED";
   issued: string;
   paidAt?: string;
   bankRef?: string;
@@ -25,7 +182,13 @@ function rowCategory(desc: string) {
   if (d.includes("daily wage")) return "wages" as const;
   if (d.includes("withdrawal") || d.includes("advance")) return "withdrawal" as const;
   if (d.includes("deduct")) return "deduction" as const;
-  if (d.includes("commission") || d.includes("drink") || d.includes("tip") || d.includes("table")) {
+  if (
+    d.includes("commission") ||
+    d.includes("drink") ||
+    d.includes("tip") ||
+    d.includes("table") ||
+    d.includes("other")
+  ) {
     return "commission" as const;
   }
   return "other" as const;
@@ -44,7 +207,7 @@ function countShiftDays(rows: PrPvRow[]) {
 }
 
 export function isPaymentHistoryPv(pv: PrPaymentVoucher) {
-  return pv.status === "PAID" || pv.status === "SIGNED";
+  return pv.status === "PAID" || pv.status === "SIGNED" || pv.status === "DISPUTED";
 }
 
 /** PR Payment tab — actionable inbox only (signed/paid live in History → Payment) */
@@ -57,9 +220,7 @@ export function deriveShiftHistoryStatus(
   dateIso: string,
   pvs: PrPaymentVoucher[],
 ): Pick<HistRow, "st" | "pill"> {
-  const pv = pvs.find(
-    (p) => p.weekStartIso && p.weekEndIso && dateIso >= p.weekStartIso && dateIso <= p.weekEndIso,
-  );
+  const pv = pvForPayrollDate(dateIso, pvs);
   if (!pv) {
     return { st: "SEALED", pill: "ink" };
   }
@@ -108,7 +269,7 @@ export function buildPaymentHistoryRecord(pv: PrPaymentVoucher): PaymentHistoryR
     weekLabel: pv.cycle,
     weekStartIso: pv.weekStartIso,
     weekEndIso: pv.weekEndIso,
-    status: pv.status as "PAID" | "SIGNED",
+    status: pv.status as PaymentHistoryRecord["status"],
     issued: pv.issued,
     paidAt: pv.paidAt,
     bankRef: pv.bankRef,

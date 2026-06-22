@@ -1,3 +1,4 @@
+import { resolveRosterPrName } from "@/lib/agency-demo";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { fmtDateLabelFromIso } from "@/lib/pr-demo";
 
@@ -330,6 +331,37 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
 
 export function specialServiceOffer(id: string): AgencySpecialServiceOffer | undefined {
   return AGENCY_SPECIAL_SERVICE_OFFERS.find((s) => s.id === id);
+}
+
+/** Canonical PR name on service orders — agency roster match + Luna → Vicky migration. */
+export function resolveSpecialServicePrName(
+  row: Pick<SpecialServiceRecord, "prId" | "prName">,
+  agencyPRs?: { id: string; name: string }[],
+): string {
+  return resolveRosterPrName(row.prId, row.prName, agencyPRs);
+}
+
+/** Keep demo seed names after localStorage hydrate (e.g. Luna → Vicky on p1). */
+export function mergeSpecialServiceOrders(
+  persisted: SpecialServiceRecord[] | undefined,
+  seed: SpecialServiceRecord[] = SEED_SPECIAL_SERVICES,
+  agencyPRs?: { id: string; name: string }[],
+): SpecialServiceRecord[] {
+  if (!persisted?.length) return seed.map((r) => ({ ...r }));
+  const hasNewModel = persisted.some((r) => "initiatedBy" in r && "agencyAccepted" in r);
+  if (!hasNewModel) return seed.map((r) => ({ ...r }));
+
+  const seedById = Object.fromEntries(seed.map((s) => [s.id, s]));
+  const persistedIds = new Set(persisted.map((r) => r.id));
+
+  const merged = persisted.map((row) => {
+    const seedRow = seedById[row.id];
+    const base = seedRow ? { ...seedRow, ...row, prName: seedRow.prName } : row;
+    return { ...base, prName: resolveSpecialServicePrName(base, agencyPRs) };
+  });
+
+  const missingSeed = seed.filter((s) => !persistedIds.has(s.id)).map((r) => ({ ...r }));
+  return [...merged, ...missingSeed];
 }
 
 function hhmmToMinutes(value: string): number | null {

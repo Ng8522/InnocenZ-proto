@@ -116,10 +116,10 @@ import {
 import { mergeHistoryDemoLedger, syncStoreHistoryLedger } from "@/lib/history-demo-sync";
 import {
   mergeShiftHistory,
+  migrateShiftHistoryPrNames,
   prepareShiftHistoryForDisplay,
   shiftHistorySlotKey,
   type ShiftHistoryRow,
-  SEED_SHIFT_HISTORY,
 } from "@/lib/shift-history";
 import {
   buildReconciliationFromLedger,
@@ -170,6 +170,7 @@ import {
 import { buildDemoStoreReset, buildPrDemoReset } from "@/lib/demo-seed";
 import {
   SEED_SPECIAL_SERVICES,
+  mergeSpecialServiceOrders,
   specialServiceTypeLabel,
   type SpecialServiceRecord,
 } from "@/lib/special-service-demo";
@@ -4672,14 +4673,18 @@ export const useStore = create<StoreState>()(
             );
           }),
         ].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt));
+        const persistedShiftRows = migrateShiftHistoryPrNames(
+          (p?.shiftHistory ?? []).map((row) => {
+            const dateIso = migrateDemoDateIso(row.dateIso);
+            return dateIso === row.dateIso
+              ? row
+              : { ...row, dateIso, dateDisplay: fmtDateLabelFromIso(dateIso) };
+          }),
+          current.shiftHistory,
+        );
         const mergedShiftHistory = prepareShiftHistoryForDisplay(
-          mergeShiftHistory(
-            (p?.shiftHistory ?? []).map((row) => {
-              const dateIso = migrateDemoDateIso(row.dateIso);
-              return dateIso === row.dateIso
-                ? row
-                : { ...row, dateIso, dateDisplay: fmtDateLabelFromIso(dateIso) };
-            }),
+          migrateShiftHistoryPrNames(
+            mergeShiftHistory(persistedShiftRows, current.shiftHistory),
             current.shiftHistory,
           ),
         );
@@ -4781,19 +4786,22 @@ export const useStore = create<StoreState>()(
           prAvatarPhoto: migratePrPortfolioAssetPath(p?.prAvatarPhoto ?? current.prAvatarPhoto),
           prReceiptScans: mergedScans.length ? mergedScans : current.prReceiptScans,
           prActiveShift: p?.prActiveShift ?? current.prActiveShift,
-          shiftHistory: mergedShiftHistory,
+          shiftHistory: migrateShiftHistoryPrNames(
+            mergedShiftHistory,
+            current.shiftHistory,
+            mergedAgencyPRs,
+          ),
           pendingPRs: mergePendingPRs(p?.pendingPRs, current.pendingPRs),
           pendingFreelancerPayrolls: mergePendingFreelancerPayrolls(
             p?.pendingFreelancerPayrolls,
             current.pendingFreelancerPayrolls,
           ),
           agencyPRs: mergedAgencyPRs,
-          specialServiceOrders: (() => {
-            const persisted = p?.specialServiceOrders ?? [];
-            if (!persisted.length) return current.specialServiceOrders;
-            const hasNewModel = persisted.some((r) => "initiatedBy" in r && "agencyAccepted" in r);
-            return hasNewModel ? persisted : current.specialServiceOrders;
-          })(),
+          specialServiceOrders: mergeSpecialServiceOrders(
+            p?.specialServiceOrders,
+            current.specialServiceOrders,
+            mergedAgencyPRs,
+          ),
           prs: marketplacePrsFromAgency(mergedAgencyPRs),
           agencyRoster: rosterWithTiedPrAttendance(
             mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),

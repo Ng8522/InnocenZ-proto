@@ -1,5 +1,6 @@
 /** Shared shift transaction log — agency & outlet read the same records */
 
+import { resolveRosterPrName } from "@/lib/agency-demo";
 import { buildAllVelvetSeedShiftHistory } from "@/lib/velvet-week-demo";
 import { sealedShiftTotalPayout } from "@/lib/pr-weekly-payment";
 import { prepareShiftHistoryForDisplay, mergeShiftHistory, type ShiftHistoryRow } from "@/lib/shift-history-utils";
@@ -96,6 +97,21 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
 export const SEED_SHIFT_HISTORY: ShiftHistoryRow[] = prepareShiftHistoryForDisplay(
   mergeShiftHistory(buildAllVelvetSeedShiftHistory(), SEED_SHIFT_HISTORY_OTHER),
 );
+
+/** Canonical PR labels after localStorage hydrate (Luna → Vicky on p1; seed name wins). */
+export function migrateShiftHistoryPrNames(
+  rows: ShiftHistoryRow[],
+  seed: ShiftHistoryRow[] = SEED_SHIFT_HISTORY,
+  agencyPRs?: { id: string; name: string }[],
+): ShiftHistoryRow[] {
+  const seedById = Object.fromEntries(seed.map((s) => [s.id, s]));
+  return rows.map((row) => {
+    const seedRow = seedById[row.id];
+    const seedName = seedRow && seedRow.prId === row.prId ? seedRow.prName : undefined;
+    const prName = seedName ?? resolveRosterPrName(row.prId, row.prName, agencyPRs);
+    return prName === row.prName ? row : { ...row, prName };
+  });
+}
 
 export function shiftHistorySubline(row: ShiftHistoryRow, portal: "agency" | "outlet") {
   if (portal === "agency") return row.outlet;

@@ -9,9 +9,10 @@ import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { PrStatusPill } from "@/components/pr/PrOfferRow";
 import { useStore } from "@/lib/store";
 import { outletMatches } from "@/lib/portal-sync";
-import { findAgencyRosterTonight } from "@/lib/pr-session";
+import { findAgencyRosterTonight, resolvePrShiftOfferForPr } from "@/lib/pr-session";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { evaluateShiftCancellation, CANCEL_RULES } from "@/lib/pr-schedule-cancellation";
+import { findOutletShiftForPr, tierSalesTargetForPr } from "@/lib/outlet-demo";
 import { SHIFT_TODAY, fmtDFriendly, getPrRosterId, PR_SHIFT_OFFERS } from "@/lib/pr-demo";
 import {
   calcDutyWagesFromOutlet,
@@ -55,6 +56,8 @@ function AttendancePage() {
   const toast = useStore((s) => s.toast);
   const prSubRole = useStore((s) => s.prSubRole);
   const agencyPRs = useStore((s) => s.agencyPRs);
+  const shifts = useStore((s) => s.shifts);
+  const prMarketplaceApplication = useStore((s) => s.prMarketplaceApplication);
   const isFreelancer = prSubRole === "pr_free";
 
   const [holding, setHolding] = useState(false);
@@ -67,7 +70,23 @@ function AttendancePage() {
 
   const td = SHIFT_TODAY;
   const todayFriendly = fmtDFriendly(td[0], td[1], td[2]);
-  const shiftOffer = PR_SHIFT_OFFERS[acceptedShiftIndex ?? 0] ?? PR_SHIFT_OFFERS[0];
+  const prId = getPrRosterId(prSubRole);
+
+  const rosterSlot = useMemo(
+    () => findAgencyRosterTonight(agencyRoster, prId),
+    [agencyRoster, prId],
+  );
+
+  const shiftOffer = useMemo(
+    () =>
+      resolvePrShiftOfferForPr(
+        agencyRoster,
+        prId,
+        acceptedShiftIndex,
+        shifts,
+      ),
+    [agencyRoster, prId, acceptedShiftIndex, shifts],
+  );
   const venueName = shiftOffer.outlet;
   const attendanceSession = prActiveShift ?? prCheckInMeta.closedShift ?? null;
   const dutyEstimate = calcDutyWagesFromOutlet(
@@ -83,18 +102,25 @@ function AttendancePage() {
   );
   const runningPayout = shiftPayoutTotal(baseWages, shiftScans);
 
-  const prId = getPrRosterId(prSubRole);
   const prAgencyRow = agencyPRs.find((p) => p.id === prId);
+  const prTier = prAgencyRow?.trainingLevel;
+
+  const outletShift = useMemo(
+    () =>
+      findOutletShiftForPr(
+        shifts,
+        venueName,
+        prId,
+        prMarketplaceApplication?.shiftId,
+      ),
+    [shifts, venueName, prId, prMarketplaceApplication?.shiftId],
+  );
+  const tierSalesTargetRm = useMemo(
+    () => tierSalesTargetForPr(outletShift?.tierRates, prTier),
+    [outletShift?.tierRates, prTier],
+  );
 
   const gpsOutOfRange = !!prCheckInMeta.gpsFallback;
-  const rosterSlot = useMemo(() => {
-    return agencyRoster.find(
-      (s) =>
-        s.prId === prId &&
-        s.dateIso === DEFAULT_ROSTER_DATE_ISO &&
-        outletMatches(s.outlet, venueName),
-    );
-  }, [agencyRoster, prId, venueName]);
   const enRoute = rosterSlot?.status === "en-route";
 
   const cancelEval = useMemo(() => {
@@ -437,6 +463,8 @@ function AttendancePage() {
               scans={prReceiptScans}
               baseWages={baseWages}
               checkedOut={false}
+              tierSalesTargetRm={tierSalesTargetRm}
+              prTier={prTier}
             />
             <HoldButton
               label="Check out"
@@ -467,6 +495,8 @@ function AttendancePage() {
               scans={prReceiptScans}
               baseWages={baseWages}
               checkedOut
+              tierSalesTargetRm={tierSalesTargetRm}
+              prTier={prTier}
             />
             <div className="iz-pr-shift-status__summary mt-3 rounded-xl border border-[var(--iz-line)] bg-white/[0.02] p-3">
               <div className="iz-between iz-tiny">

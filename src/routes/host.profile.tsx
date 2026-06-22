@@ -6,6 +6,7 @@ import { PORTFOLIO_SLOT_COUNT, getPrProfile, getPrRosterId, type PrComcard } fro
 import { Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
 import {
   PortfolioComcardVisual,
+  StaticComcardVisual,
   canGeneratePortfolioComcard,
   portfolioPhotosForComcard,
 } from "@/components/pr/PortfolioComcardVisual";
@@ -93,7 +94,12 @@ function ProfilePage() {
     savePrProfile({
       displayName: name,
       avatarPhoto: draft.avatarPhoto,
-      comcard: { height, weight, age },
+      comcard: {
+        height,
+        weight,
+        age,
+        imageUrl: draft.comcard.imageUrl ?? prComcard.imageUrl,
+      },
       portfolio: draft.portfolio.slice(0, PORTFOLIO_SLOT_COUNT),
       languages: draft.languages,
     });
@@ -270,7 +276,12 @@ function ProfilePage() {
 
         <div className="iz-pr-account-hero__showcase">
           <div className="iz-pr-account-hero__showcase-glow" aria-hidden />
-          {hasPhotoComcard ? (
+          {comcard.imageUrl ? (
+            <StaticComcardVisual
+              src={comcard.imageUrl}
+              className="iz-pr-account-hero__comcard-visual"
+            />
+          ) : hasPhotoComcard ? (
             <PortfolioComcardVisual
               photos={portfolioComcardPhotos}
               pr={comcardPr}
@@ -284,7 +295,7 @@ function ProfilePage() {
               showStats={!editing}
             />
           )}
-          {editing && !hasPhotoComcard && photosNeededForComcard > 0 && (
+          {editing && !comcard.imageUrl && !hasPhotoComcard && photosNeededForComcard > 0 && (
             <p className="iz-pr-account-hero__comcard-hint">
               Upload <b>{photosNeededForComcard}</b> more portfolio photo
               {photosNeededForComcard !== 1 ? "s" : ""} below to generate your photo comcard.
@@ -439,7 +450,7 @@ function ProfilePage() {
   );
 }
 
-const COMCARD_DEFAULT = { height: 168, weight: 52, age: 25 };
+const COMCARD_DEFAULT = { height: 153, weight: 40, age: 24 };
 
 function ComcardInput({
   label,

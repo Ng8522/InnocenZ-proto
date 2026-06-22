@@ -1,7 +1,66 @@
-import { rosterSlotAgencyName, type AgencyManagedPR, type AgencyRosterSlot, type RosterSlotStatus } from "@/lib/agency-demo";
+import { rosterSlotAgencyName, type AgencyManagedPR, type AgencyRosterSlot, type OutletCommissionRule, type OutletPrTier, type OutletTierRateSettings, type RosterSlotStatus } from "@/lib/agency-demo";
 import { comcardPreviewFromSlot, PrComcardIdentity } from "@/components/agency/PrComcardIdentity";
+import { formatRosterShiftTime } from "@/lib/pr-session";
+import { activePrSwapForRosterSlot, type PrSwapRequest } from "@/lib/pr-features";
+import { estimateRosterSlotPayout } from "@/lib/portal-sync";
+import { findOutletShiftForRosterSlot } from "@/lib/outlet-demo";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 import { ArrowLeftRight, Pencil } from "lucide-react";
+
+type OutletShiftTierRef = {
+  outletName: string;
+  shift: string;
+  tierRates?: Record<OutletPrTier, OutletTierRateSettings>;
+};
+
+function rosterSlotDisplayPayout(
+  slot: AgencyRosterSlot,
+  profile: AgencyManagedPR | undefined,
+  outletCommissionRules: OutletCommissionRule[],
+  perDrinkRm: number,
+  outletShifts?: OutletShiftTierRef[],
+): number {
+  const outletShift = outletShifts ? findOutletShiftForRosterSlot(outletShifts, slot) : undefined;
+  return estimateRosterSlotPayout(slot, {
+    trainingLevel: profile?.trainingLevel,
+    rules: outletCommissionRules,
+    perDrinkRm,
+    shiftTierRates: outletShift?.tierRates,
+  });
+}
+
+function RosterPrNameCell({
+  slot,
+  profile,
+  prSwap,
+}: {
+  slot: AgencyRosterSlot;
+  profile?: AgencyManagedPR;
+  prSwap?: PrSwapRequest;
+}) {
+  return (
+    <>
+      <div className="iz-portal-table-pr">
+        <PrComcardIdentity
+          pr={comcardPreviewFromSlot(slot, profile)}
+          profile={profile}
+          agencyName={rosterSlotAgencyName(slot)}
+        />
+        <div className="iz-portal-table-pr-meta">
+          <span className="iz-portal-table-name">{slot.prName}</span>
+          {profile?.trainingLevel && (
+            <span className="iz-roster-tier-tag">{profile.trainingLevel}</span>
+          )}
+        </div>
+      </div>
+      {prSwap && (
+        <p className="iz-roster-swap-note mt-1">
+          Swap → {prSwap.targetOutlet}
+        </p>
+      )}
+    </>
+  );
+}
 
 const STATUS_LABEL: Record<
   RosterSlotStatus,
@@ -19,19 +78,27 @@ const STATUS_LABEL: Record<
 export function RosterShiftTable({
   slots,
   agencyPRs,
+  prSwapRequests = [],
+  outletCommissionRules,
+  perDrinkRm,
+  outletShifts,
   canAssign,
   onEdit,
   onFlagLate,
   onFlagNoShow,
-  onCancelSwap,
+  onCancelPrSwap,
 }: {
   slots: AgencyRosterSlot[];
   agencyPRs: AgencyManagedPR[];
+  prSwapRequests?: PrSwapRequest[];
+  outletCommissionRules: OutletCommissionRule[];
+  perDrinkRm: number;
+  outletShifts?: OutletShiftTierRef[];
   canAssign: boolean;
   onEdit: (id: string) => void;
   onFlagLate: (id: string) => void;
   onFlagNoShow: (id: string) => void;
-  onCancelSwap: (id: string) => void;
+  onCancelPrSwap: (swapId: string) => void;
 }) {
   if (slots.length === 0) {
     return (
@@ -72,11 +139,19 @@ export function RosterShiftTable({
                 key={slot.id}
                 slot={slot}
                 profile={prById.get(slot.prId)}
+                prSwap={activePrSwapForRosterSlot(prSwapRequests, slot.id)}
+                estPayout={rosterSlotDisplayPayout(
+                  slot,
+                  prById.get(slot.prId),
+                  outletCommissionRules,
+                  perDrinkRm,
+                  outletShifts,
+                )}
                 canAssign={canAssign}
                 onEdit={onEdit}
                 onFlagLate={onFlagLate}
                 onFlagNoShow={onFlagNoShow}
-                onCancelSwap={onCancelSwap}
+                onCancelPrSwap={onCancelPrSwap}
               />
             ))}
           </tbody>
@@ -89,11 +164,19 @@ export function RosterShiftTable({
             key={slot.id}
             slot={slot}
             profile={prById.get(slot.prId)}
+            prSwap={activePrSwapForRosterSlot(prSwapRequests, slot.id)}
+            estPayout={rosterSlotDisplayPayout(
+              slot,
+              prById.get(slot.prId),
+              outletCommissionRules,
+              perDrinkRm,
+              outletShifts,
+            )}
             canAssign={canAssign}
             onEdit={onEdit}
             onFlagLate={onFlagLate}
             onFlagNoShow={onFlagNoShow}
-            onCancelSwap={onCancelSwap}
+            onCancelPrSwap={onCancelPrSwap}
           />
         ))}
       </div>
@@ -115,19 +198,23 @@ function StatusPills({ slot }: { slot: AgencyRosterSlot }) {
 function RosterTableRow({
   slot,
   profile,
+  prSwap,
+  estPayout,
   canAssign,
   onEdit,
   onFlagLate,
   onFlagNoShow,
-  onCancelSwap,
+  onCancelPrSwap,
 }: {
   slot: AgencyRosterSlot;
   profile?: AgencyManagedPR;
+  prSwap?: import("@/lib/pr-features").PrSwapRequest;
+  estPayout: number;
   canAssign: boolean;
   onEdit: (id: string) => void;
   onFlagLate: (id: string) => void;
   onFlagNoShow: (id: string) => void;
-  onCancelSwap: (id: string) => void;
+  onCancelPrSwap: (swapId: string) => void;
 }) {
   const showFlags =
     canAssign && !slot.checkedInAt && slot.status !== "unavailable" && slot.status !== "swap-pending";
@@ -135,26 +222,14 @@ function RosterTableRow({
     canAssign && slot.status !== "swap-pending" && slot.status !== "assignment-pending";
 
   return (
-    <tr className={slot.outletSwap?.status === "pending_pr" ? "iz-roster-row--swap" : undefined}>
+    <tr className={prSwap ? "iz-roster-row--swap" : undefined}>
       <td>
-        <div className="iz-portal-table-pr">
-          <PrComcardIdentity
-            pr={comcardPreviewFromSlot(slot, profile)}
-            profile={profile}
-            agencyName={rosterSlotAgencyName(slot)}
-          />
-          <span className="iz-portal-table-name">{slot.prName}</span>
-        </div>
-        {slot.outletSwap?.status === "pending_pr" && (
-          <p className="iz-roster-swap-note mt-1">
-            Swap → {slot.outletSwap.targetOutlet}
-          </p>
-        )}
+        <RosterPrNameCell slot={slot} profile={profile} prSwap={prSwap} />
       </td>
       <td className="iz-portal-table-meta">{rosterSlotAgencyName(slot)}</td>
       <td className="iz-portal-table-meta">{slot.outlet}</td>
       <td className="iz-portal-table-meta iz-portal-table-shift">
-        {slot.shiftStart} – {slot.shiftEnd}
+        {formatRosterShiftTime(slot)}
       </td>
       <td className="iz-portal-table-meta">{slot.checkedInAt ?? "—"}</td>
       <td className="iz-portal-table-status">
@@ -163,7 +238,7 @@ function RosterTableRow({
       <td className="iz-portal-table-meta">{slot.floorDrinks ?? 0}</td>
       <td className="iz-portal-table-meta">{slot.floorTips ? formatRM(slot.floorTips) : "—"}</td>
       <td className="text-[var(--iz-gold-l)] font-semibold">
-        {formatRM(slot.estPayout ?? 0)}
+        {formatRM(estPayout)}
       </td>
       {canAssign && (
         <td>
@@ -191,8 +266,8 @@ function RosterTableRow({
                 </button>
               </>
             )}
-            {slot.outletSwap?.status === "pending_pr" && (
-              <button type="button" className="iz-roster-mini-btn" onClick={() => onCancelSwap(slot.id)}>
+            {prSwap && (
+              <button type="button" className="iz-roster-mini-btn" onClick={() => onCancelPrSwap(prSwap.id)}>
                 Cancel
               </button>
             )}
@@ -206,19 +281,23 @@ function RosterTableRow({
 function RosterShiftCard({
   slot,
   profile,
+  prSwap,
+  estPayout,
   canAssign,
   onEdit,
   onFlagLate,
   onFlagNoShow,
-  onCancelSwap,
+  onCancelPrSwap,
 }: {
   slot: AgencyRosterSlot;
   profile?: AgencyManagedPR;
+  prSwap?: import("@/lib/pr-features").PrSwapRequest;
+  estPayout: number;
   canAssign: boolean;
   onEdit: (id: string) => void;
   onFlagLate: (id: string) => void;
   onFlagNoShow: (id: string) => void;
-  onCancelSwap: (id: string) => void;
+  onCancelPrSwap: (swapId: string) => void;
 }) {
   return (
     <IzCard>
@@ -231,6 +310,9 @@ function RosterShiftCard({
           />
           <div className="min-w-0">
             <div className="font-sora text-[15px] font-bold">{slot.prName}</div>
+            {profile?.trainingLevel && (
+              <span className="iz-roster-tier-tag">{profile.trainingLevel}</span>
+            )}
             <p className="iz-tiny iz-portal-table-meta mt-0.5">{rosterSlotAgencyName(slot)}</p>
             <p className="iz-tiny iz-muted2 mt-0.5">{slot.outlet}</p>
           </div>
@@ -238,23 +320,23 @@ function RosterShiftCard({
         <StatusPills slot={slot} />
       </div>
       <div className="iz-roster-card-meta mt-2">
-        <span>{slot.shiftStart} – {slot.shiftEnd}</span>
+        <span>{formatRosterShiftTime(slot)}</span>
         {slot.checkedInAt && <span>In {slot.checkedInAt}</span>}
         <span>{slot.floorDrinks ?? 0} drinks</span>
-        <span className="text-[var(--iz-gold-l)]">{formatRM(slot.estPayout ?? 0)}</span>
+        <span className="text-[var(--iz-gold-l)]">{formatRM(estPayout)}</span>
       </div>
-      {slot.outletSwap?.status === "pending_pr" && (
+      {prSwap && (
         <div className="mt-2 rounded-lg border border-[rgba(124,107,255,.3)] bg-[rgba(124,107,255,.08)] px-2.5 py-2">
           <p className="iz-tiny iz-muted flex items-center gap-1">
             <ArrowLeftRight className="h-3 w-3 text-[var(--iz-violet)]" />
-            Swap to {slot.outletSwap.targetOutlet} — awaiting PR
+            PR swap to {prSwap.targetOutlet} — awaiting agency
           </p>
           <button
             type="button"
             className="iz-btn iz-btn-soft mt-2 w-full !py-1.5 !text-xs"
-            onClick={() => onCancelSwap(slot.id)}
+            onClick={() => onCancelPrSwap(prSwap.id)}
           >
-            Cancel request
+            Decline swap
           </button>
         </div>
       )}

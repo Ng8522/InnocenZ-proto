@@ -8,6 +8,7 @@ import {
   getPrAgencyById,
   getPrProfile,
   getPrRosterId,
+  getPvNetTotal,
   pvNeedsPrReview,
   pvStatusLabel,
   pvStatusPillVariant,
@@ -253,7 +254,7 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
 
   const sentCount = filteredVouchers.filter((p) => p.status === "SENT").length;
   const disputedCount = filteredVouchers.filter((p) => p.status === "DISPUTED").length;
-  const totalNet = filteredVouchers.reduce((sum, p) => sum + p.net, 0);
+  const totalNet = filteredVouchers.reduce((sum, p) => sum + getPvNetTotal(p), 0);
   const lastWeekInboxPv =
     previousWeekPv && isPrPaymentInboxPv(previousWeekPv) ? previousWeekPv : null;
   const currentWeekInboxPv =
@@ -444,7 +445,7 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
               key={p.id}
               title={p.id}
               subtitle={`${p.outlet} · ${p.cycle}`}
-              amount={formatRM(p.net)}
+              amount={formatRM(getPvNetTotal(p))}
               badge={
                 <PrStatusPill variant={pvStatusPillVariant(p.status)}>
                   {pvStatusLabel(p.status)}
@@ -832,7 +833,7 @@ function PvDetail({
       <IzSheet open={signOpen} onClose={() => setSignOpen(false)}>
         <div className="iz-cardttl">Sign payment voucher</div>
         <p className="iz-tiny iz-muted mb-3">
-          Draw your signature below to confirm {formatRM(pv.net)} for {pv.id}. Your sign time is
+          Draw your signature below to confirm {formatRM(getPvNetTotal(pv))} for {pv.id}. Your sign time is
           stamped on the PV and sent to your agency.
         </p>
         <PrSignaturePad
@@ -898,7 +899,7 @@ function PvDetail({
         <>
           <IzCard className="mt-2.5 border-[rgba(57,217,138,.3)] bg-[var(--iz-green-bg)]">
             <p className="iz-sm font-bold text-[var(--iz-green)]">
-              PAID · {formatRM(pv.net)} in your bank
+              PAID · {formatRM(getPvNetTotal(pv))} in your bank
             </p>
             <p className="iz-tiny iz-muted mt-1">
               Transferred {pv.paidAt ?? "—"} → {profile.bank} {profile.acc}

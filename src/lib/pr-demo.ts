@@ -41,14 +41,14 @@ export interface PrProfile {
 
 export const PR_PROFILES: Record<PrSubRole, PrProfile> = {
   pr_tied: {
-    name: "Luna",
-    first: "Luna",
+    name: "Vicky",
+    first: "Vicky",
     ic: "950312-14-8821",
     mobile: "+60 12-881 2201",
-    email: "luna@inz.my",
+    email: "vicky@inz.my",
     bank: "Maybank",
     acc: "5142 8890 1123",
-    av: "L",
+    av: "V",
     avg: "linear-gradient(135deg,#C99B4E,#8a5e22)",
     tier: "TIER V",
     rep: "4.9",
@@ -106,7 +106,7 @@ const _shiftTomorrow = addDay(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2]);
 export const PR_SHIFT_OFFERS: PrShiftOffer[] = [
   {
     outlet: "Velvet 23",
-    event: "VIP Night",
+    event: "Private VIP — Hennessy Launch",
     date: SHIFT_TODAY,
     time: "22:00 — 04:00",
     endNext: true,
@@ -247,7 +247,7 @@ export function formatPrDisplayName(prId: string, name?: string | null): string 
   return `${label} (Freelancers)`;
 }
 
-/** Roster / swap inbox — tied PR maps to Luna demo slot */
+/** Roster / swap inbox — tied PR maps to Vicky demo slot (p1) */
 export const TIED_DEMO_ROSTER_PR_ID = "p1";
 
 export function getPrRosterId(prSubRole: PrSubRole | null): string {
@@ -565,9 +565,34 @@ export function getLatestPvIssuedMs(pvs: PrPaymentVoucher[]): number {
   return Math.max(...pvs.map((p) => parsePvIssuedMs(p.issued)));
 }
 
+function isWithdrawalRow(row: PrPvRow): boolean {
+  const d = row.desc.toLowerCase();
+  return d.includes("withdrawal") || d.includes("advance");
+}
+
+/** Gross earnings from PV line items (excludes withdrawal/advance rows). */
+export function getPvRowSubtotal(pv: PrPaymentVoucher): number {
+  return pv.rows.filter((r) => !isWithdrawalRow(r)).reduce((s, r) => s + r.amt, 0);
+}
+
+/** Net payable — always derived from line items minus header deductions. */
+export function getPvNetTotal(pv: PrPaymentVoucher): number {
+  return Math.max(0, getPvRowSubtotal(pv) - pv.deduct);
+}
+
+/** Align stored subtotal/net with line items (single source of truth). */
+export function reconcilePvTotals(pv: PrPaymentVoucher): PrPaymentVoucher {
+  const subtotal = getPvRowSubtotal(pv);
+  return {
+    ...pv,
+    subtotal,
+    net: Math.max(0, subtotal - pv.deduct),
+  };
+}
+
 /** Gross sales on PV (subtotal before deductions) */
 export function getPvSalesTotal(pv: PrPaymentVoucher): number {
-  return pv.subtotal;
+  return getPvRowSubtotal(pv);
 }
 
 export type PvDateRecencyFilter = "all" | "latest" | "previous";
@@ -727,9 +752,9 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
         ref: "Sealed",
       },
     ],
-    subtotal: 1830,
+    subtotal: 1780,
     deduct: 200,
-    net: 1630,
+    net: 1580,
     status: "PENDING_REVIEW",
     ...seedFinanceHeadStamp("10 May 2026 · 09:14"),
   },
@@ -964,7 +989,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
   },
   {
     id: "PV-2026-W20-L",
-    prName: "Luna",
+    prName: "Vicky",
     prIc: "950312-14-8821",
     outlet: "Multi-outlet (2)",
     weekStartIso: "2026-05-12",
@@ -1044,19 +1069,19 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
         ref: "Advance · T+1",
       },
     ],
-    subtotal: 1048,
+    subtotal: 1200,
     deduct: 150,
-    net: 898,
+    net: 1050,
     status: "PAID",
     ...seedFinanceHeadStamp("17 May 2026 · 09:02"),
     prSignedAt: "18 May 2026 · 16:20",
-    ...seedPrSignature("Luna"),
+    ...seedPrSignature("Vicky"),
     paidAt: "19 May 2026 · 11:42",
     bankRef: "INZ-TRF-202605191142",
   },
   {
     id: "PV-2026-W19-L",
-    prName: "Luna",
+    prName: "Vicky",
     prIc: "950312-14-8821",
     outlet: "Velvet 23",
     weekStartIso: "2026-05-05",
@@ -1132,11 +1157,11 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     status: "SIGNED",
     ...seedFinanceHeadStamp("10 May 2026 · 09:14"),
     prSignedAt: "12 May 2026 · 20:05",
-    ...seedPrSignature("Luna"),
+    ...seedPrSignature("Vicky"),
   },
   {
     id: "PV-2026-0611-A",
-    prName: "Luna",
+    prName: "Vicky",
     prIc: "950312-14-8821",
     outlet: "Multi-outlet (2)",
     weekStartIso: "2026-06-15",
@@ -1359,16 +1384,16 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
         ref: "Verified",
       },
     ],
-    subtotal: 3095,
+    subtotal: 3090,
     deduct: 0,
-    net: 3095,
+    net: 3090,
     status: "SENT",
     ...seedFinanceHeadStamp("20 Jun 2026 · 09:00"),
     receiptIds: ["rc-luna-w2-d", "rc-luna-2", "rc-luna-1"],
   },
   {
     id: "PV-2026-0604-L",
-    prName: "Luna",
+    prName: "Vicky",
     prIc: "950312-14-8821",
     outlet: "Bear Lounge",
     weekStartIso: "2026-05-26",
@@ -1496,7 +1521,7 @@ function parseIsoYear(iso: string) {
 }
 
 export function remapSeedPaymentVouchers(pvs: PrPaymentVoucher[]): PrPaymentVoucher[] {
-  return pvs.map(remapSeedPaymentVoucher);
+  return pvs.map((pv) => reconcilePvTotals(remapSeedPaymentVoucher(pv)));
 }
 
 export function remapSeedReceiptScan(scan: PrReceiptScan): PrReceiptScan {
@@ -2106,7 +2131,7 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 6, 16],
     outlet: "Velvet 23",
     prCode: "PR-0001",
-    prName: "Luna",
+    prName: "Vicky",
     prId: "p1",
     shiftSessionId: "shift-2026-06-16-velvet23",
     pvId: "PV-2026-0611-A",
@@ -2126,7 +2151,7 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 6, 18],
     outlet: "Velvet 23",
     prCode: "PR-0001",
-    prName: "Luna",
+    prName: "Vicky",
     prId: "p1",
     shiftSessionId: "shift-2026-06-18-velvet",
     pvId: "PV-2026-0611-A",
@@ -2150,7 +2175,7 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 6, 3],
     outlet: "Bear Lounge",
     prCode: "PR-0001",
-    prName: "Luna",
+    prName: "Vicky",
     prId: "p1",
     shiftSessionId: "shift-2026-06-03-bearlounge",
     pvId: "PV-2026-0604-L",
@@ -2343,9 +2368,22 @@ export const HIST_ROWS: HistRow[] = [
   },
 ];
 
-export const COMCARD = { height: 168, weight: 52, age: 25 };
+export const SEED_PR_COMCARD_IMAGE = "/assets/pr-portfolio/vicky-comcard.png";
 
-export type PrComcard = typeof COMCARD;
+export type PrComcard = {
+  height: number;
+  weight: number;
+  age: number;
+  /** Pre-rendered photo comcard — when set, shown instead of 3D / generated grid */
+  imageUrl?: string;
+};
+
+export const COMCARD: PrComcard = {
+  height: 153,
+  weight: 40,
+  age: 24,
+  imageUrl: SEED_PR_COMCARD_IMAGE,
+};
 
 export const PR_LANGUAGE_OPTIONS = [
   "English",
@@ -2363,6 +2401,31 @@ export const PR_LANGUAGE_OPTIONS = [
 ] as const;
 
 export const PORTFOLIO_SLOT_COUNT = 8;
+
+/** Demo portfolio photos for Vicky (PR profile → Portfolio gallery) */
+export const SEED_PR_PORTFOLIO_PATHS = [
+  "/assets/pr-portfolio/vicky-1.png",
+  "/assets/pr-portfolio/vicky-2.png",
+  "/assets/pr-portfolio/vicky-3.png",
+  "/assets/pr-portfolio/vicky-4.png",
+] as const;
+
+/** Remap legacy Luna asset filenames saved in localStorage. */
+export function migratePrPortfolioAssetPath(path: string | null | undefined): string | null {
+  if (!path) return path ?? null;
+  return path.replace(/\/luna-/g, "/vicky-");
+}
+
+/** Profile avatar — first portfolio photo for Vicky demo */
+export const SEED_PR_AVATAR_IMAGE = SEED_PR_PORTFOLIO_PATHS[0];
+
+export function buildSeedPrPortfolio(): (string | null)[] {
+  const slots: (string | null)[] = Array.from({ length: PORTFOLIO_SLOT_COUNT }, () => null);
+  for (let i = 0; i < SEED_PR_PORTFOLIO_PATHS.length; i++) {
+    slots[i] = SEED_PR_PORTFOLIO_PATHS[i];
+  }
+  return slots;
+}
 
 export interface PrAgency {
   id: string;

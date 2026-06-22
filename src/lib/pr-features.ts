@@ -104,6 +104,18 @@ export interface PrSwapRequest {
   replacementDeclinedAt?: string;
 }
 
+/** Pending PR-initiated swap tied to a roster row (shown in agency live roster). */
+export function activePrSwapForRosterSlot(
+  swaps: PrSwapRequest[],
+  slotId: string,
+): PrSwapRequest | undefined {
+  return swaps.find(
+    (s) =>
+      s.rosterSlotId === slotId &&
+      (s.status === "pending_agency" || s.status === "pending_replacement"),
+  );
+}
+
 /** Swap blocks the requesting PR from treating the shift as active (awaiting replacement or done). */
 export function swapBlocksRequestingPrShift(
   swaps: PrSwapRequest[],
@@ -249,7 +261,7 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     id: "tied-velvet",
     agencyName: "Atlas Agency",
     outlet: "Velvet 23",
-    event: "VIP Night · Agency offer",
+    event: "Private VIP — Hennessy Launch · Agency offer",
     date: [2026, 6, 4],
     time: "22:00 — 04:00",
     endNext: true,

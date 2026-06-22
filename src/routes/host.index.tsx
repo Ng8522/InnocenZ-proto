@@ -8,7 +8,7 @@ import { PrAgencySchedulePanel } from "@/components/pr/PrAgencySchedulePanel";
 import { PrSection } from "@/components/pr/PrSection";
 import { useStore } from "@/lib/store";
 import { PR_SHIFT_OFFERS, fmtDFriendly, fmtDShort, getPrProfile, getPrRosterId, filterPvsForPrProfile, filterReceiptScansForPrProfile, pvNeedsPrReview, receiptStatusLabel } from "@/lib/pr-demo";
-import { findAgencyRosterTonight, shiftIndexForOutlet } from "@/lib/pr-session";
+import { findAgencyRosterTonight, resolvePrShiftOfferForPr, shiftIndexForOutlet } from "@/lib/pr-session";
 import { DEFAULT_ROSTER_DATE_ISO, outletPendingShiftsForPr } from "@/lib/roster-availability";
 import {
   PR_AGENCY_TIED_OFFERS,
@@ -54,6 +54,7 @@ function HostShifts() {
   const acceptSwapReplacement = useStore((s) => s.acceptSwapReplacement);
   const rejectSwapReplacement = useStore((s) => s.rejectSwapReplacement);
   const agencyRoster = useStore((s) => s.agencyRoster);
+  const shifts = useStore((s) => s.shifts);
   const prDeclinedOfferIds = useStore((s) => s.prDeclinedOfferIds);
   const prMarketplaceApplication = useStore((s) => s.prMarketplaceApplication);
   const prUpcomingShifts = useStore((s) => s.prUpcomingShifts);
@@ -112,6 +113,14 @@ function HostShifts() {
   const effectiveShiftAccepted = (shiftAccepted || rosterBooked) && !blockingSwap;
   const activeShift = useMemo(() => {
     if (!effectiveShiftAccepted) return null;
+    if (tied) {
+      return resolvePrShiftOfferForPr(
+        agencyRoster,
+        myRosterId,
+        acceptedShiftIndex,
+        shifts,
+      );
+    }
     if (acceptedShiftIndex != null) {
       return PR_SHIFT_OFFERS[acceptedShiftIndex] ?? PR_SHIFT_OFFERS[0];
     }
@@ -119,7 +128,15 @@ function HostShifts() {
       return PR_SHIFT_OFFERS[shiftIndexForOutlet(agencyTonight.outlet)] ?? PR_SHIFT_OFFERS[0];
     }
     return null;
-  }, [effectiveShiftAccepted, acceptedShiftIndex, agencyTonight]);
+  }, [
+    effectiveShiftAccepted,
+    tied,
+    agencyRoster,
+    myRosterId,
+    acceptedShiftIndex,
+    shifts,
+    agencyTonight,
+  ]);
   const firstName = (prDisplayName ?? profile.first).split(" ")[0];
 
   const myVouchers = useMemo(
@@ -352,8 +369,8 @@ function HostShifts() {
             <p className="iz-tiny iz-muted2 uppercase tracking-wide">{checkedIn ? "On duty" : "Tonight"}</p>
             <p className="font-sora mt-1 text-[16px] font-extrabold">{activeShift.outlet}</p>
             <p className="iz-tiny iz-muted mt-0.5">
-              {fmtDFriendly(activeShift.date[0], activeShift.date[1], activeShift.date[2])} · {activeShift.time} ·{" "}
-              {formatRM(activeShift.base + activeShift.comm)}
+              {activeShift.event} · {fmtDFriendly(activeShift.date[0], activeShift.date[1], activeShift.date[2])} ·{" "}
+              {activeShift.time} · {formatRM(activeShift.base + activeShift.comm)}
             </p>
             <Link to="/host/tonight" className="iz-btn iz-btn-primary iz-btn-sm mt-3 w-full">
               <MapPin className="h-3.5 w-3.5" />

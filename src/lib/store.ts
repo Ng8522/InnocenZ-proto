@@ -41,6 +41,8 @@ import {
   TIED_DEMO_ROSTER_PR_ID,
   fmtDateLabelFromIso,
   formatPvSignTimestamp,
+  reconcilePvTotals,
+  migratePrPortfolioAssetPath,
 } from "@/lib/pr-demo";
 import { writePersistedPrSubRole } from "@/lib/use-pr-sub-role";
 import { DEMO_SOS_LOCATION, type OpsNotification, type SosIncident } from "@/lib/ops-notifications";
@@ -80,6 +82,7 @@ import {
   estimateShiftLaborCost,
   snapTierWage,
   languagesFromPr,
+  syncAgencyPrFromPrPortal,
   type OutletCommissionRule,
   type OutletPrTier,
   type OutletTierRateSettings,
@@ -126,6 +129,7 @@ import {
   buildShiftHistoryRow,
   marketplacePrsFromAgency,
   rosterCheckIn,
+  syncPrAttendanceToRoster,
   rosterCheckOut,
   rosterEnRoute,
   ensureRosterSlot,
@@ -187,6 +191,7 @@ import {
   patchFreelancerPrSession,
   patchPrSessionForRole,
   findAgencyRosterTonight,
+  resolvePrShiftOfferForPr,
   shiftIndexForOutlet,
   type PrShiftSessionState,
 } from "@/lib/pr-session";
@@ -702,14 +707,66 @@ function receiptQtyDelta(items: PrReceiptScan["items"]) {
   };
 }
 
-function demoAttendanceContext(st: Pick<StoreState, "prSubRole" | "acceptedShiftIndex">) {
-  const idx = st.acceptedShiftIndex ?? 0;
-  const offer = PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
+function activePrShiftOffer(
+  st: Pick<StoreState, "prSubRole" | "acceptedShiftIndex" | "agencyRoster" | "shifts">,
+) {
+  if (st.prSubRole === "pr_free") {
+    const idx = st.acceptedShiftIndex ?? 0;
+    return PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
+  }
+  return resolvePrShiftOfferForPr(
+    st.agencyRoster,
+    getPrRosterId(st.prSubRole),
+    st.acceptedShiftIndex,
+    st.shifts,
+  );
+}
+
+function demoAttendanceContext(
+  st: Pick<StoreState, "prSubRole" | "acceptedShiftIndex" | "agencyRoster" | "shifts">,
+) {
+  const offer = activePrShiftOffer(st);
   return {
     prId: getPrRosterId(st.prSubRole),
     outlet: offer.outlet,
     dateIso: DEFAULT_ROSTER_DATE_ISO,
+    offer,
   };
+}
+
+function resolveTiedPrAttendance(st: Pick<
+  StoreState,
+  "prSubRole" | "checkedIn" | "checkedOut" | "prActiveShift" | "prSessionByRole" | "agencyPRs"
+>) {
+  const tiedCache = st.prSessionByRole?.pr_tied;
+  const liveOnTiedRole = st.prSubRole === "pr_tied";
+  const checkedIn = liveOnTiedRole ? st.checkedIn : tiedCache?.checkedIn ?? st.checkedIn;
+  const checkedOut = liveOnTiedRole ? st.checkedOut : tiedCache?.checkedOut ?? st.checkedOut;
+  const session =
+    (liveOnTiedRole ? st.prActiveShift : tiedCache?.prActiveShift) ?? st.prActiveShift;
+  if (!checkedIn || checkedOut || !session) return null;
+  const prId = TIED_DEMO_ROSTER_PR_ID;
+  const prName =
+    st.agencyPRs.find((p) => p.id === prId)?.name ??
+    getPrProfile("pr_tied").name;
+  return { prId, prName, session };
+}
+
+function rosterWithTiedPrAttendance(
+  roster: AgencyRosterSlot[],
+  st: Pick<
+    StoreState,
+    "prSubRole" | "checkedIn" | "checkedOut" | "prActiveShift" | "prSessionByRole" | "agencyPRs"
+  >,
+): AgencyRosterSlot[] {
+  const attendance = resolveTiedPrAttendance(st);
+  if (!attendance) return roster;
+  return syncPrAttendanceToRoster(roster, {
+    prId: attendance.prId,
+    prName: attendance.prName,
+    checkedIn: true,
+    session: attendance.session,
+  });
 }
 
 function applyOutletFinancialSync(
@@ -959,10 +1016,9 @@ export const useStore = create<StoreState>()(
           get().toast("Already checked in", "info");
           return;
         }
-        const idx = st.acceptedShiftIndex ?? 0;
-        const offer = PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
-        const prId = getPrRosterId(st.prSubRole);
         const ctx = demoAttendanceContext(st);
+        const offer = ctx.offer;
+        const prId = getPrRosterId(st.prSubRole);
         const pr = st.agencyPRs.find((p) => p.id === prId);
         const prName = pr?.name ?? getPrProfile(st.prSubRole).name;
         const next = rosterEnRoute(st.agencyRoster, prId, offer.outlet, {
@@ -1286,8 +1342,8 @@ export const useStore = create<StoreState>()(
         get().toast(`Swap request sent — ${sourceSlot.outlet} → ${target.outlet}`, "info");
       },
       prCheckIn: (opts) => {
-        const idx = get().acceptedShiftIndex ?? 0;
-        const offer = PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
+        const st0 = get();
+        const offer = activePrShiftOffer(st0);
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -1563,11 +1619,8 @@ export const useStore = create<StoreState>()(
         const profile = getPrProfile(st.prSubRole);
         const prId = getPrRosterId(st.prSubRole);
         const prType = st.prSubRole === "pr_free" ? "freelancer" : "agency_tied";
-        const offer =
-          st.acceptedShiftIndex != null
-            ? PR_SHIFT_OFFERS[st.acceptedShiftIndex]
-            : PR_SHIFT_OFFERS[0];
-        const outlet = st.prActiveShift?.outlet ?? offer?.outlet ?? "Velvet 23";
+        const offer = activePrShiftOffer(st);
+        const outlet = st.prActiveShift?.outlet ?? offer.outlet ?? "Velvet 23";
         const agencyName =
           st.prSubRole === "pr_free"
             ? (getPrAgencyById(st.prPayrollAgencyId)?.name ?? "Atlas Agency")
@@ -1618,10 +1671,10 @@ export const useStore = create<StoreState>()(
       },
 
       prComcard: { ...COMCARD },
-      prPortfolio: Array.from({ length: PORTFOLIO_SLOT_COUNT }, () => null),
+      prPortfolio: demoSnapshot.prPortfolio,
       prLanguages: ["English", "Mandarin", "Cantonese"],
       prDisplayName: null,
-      prAvatarPhoto: null,
+      prAvatarPhoto: demoSnapshot.prAvatarPhoto,
       prPayrollAgencyId: null,
       setPrPayrollAgency: (agencyId) => {
         const agency = getPrAgencyById(agencyId);
@@ -1683,8 +1736,15 @@ export const useStore = create<StoreState>()(
         const prId = getPrRosterId(get().prSubRole);
         const displayName = data.displayName.trim();
         set((st) => {
+          const portal = {
+            prDisplayName: displayName,
+            prAvatarPhoto: data.avatarPhoto,
+            prComcard: data.comcard,
+            prPortfolio: data.portfolio,
+            prLanguages: data.languages,
+          };
           const nextAgencyPRs = st.agencyPRs.map((p) =>
-            p.id === prId ? { ...p, name: displayName || p.name } : p,
+            syncAgencyPrFromPrPortal(p, prId, portal),
           );
           const nextRoster = st.agencyRoster.map((slot) =>
             slot.prId === prId ? { ...slot, prName: displayName || slot.prName } : slot,
@@ -1759,7 +1819,7 @@ export const useStore = create<StoreState>()(
         set((state) => {
           const all = state.prPaymentVouchers ?? SEED_PR_PVS;
           const without = existing ? all.filter((p) => p.id !== existing.id) : all;
-          return { prPaymentVouchers: [nextPv, ...without] };
+          return { prPaymentVouchers: [reconcilePvTotals(nextPv), ...without] };
         });
       },
       signPrPv: (id, signatureDataUrl) => {
@@ -2189,17 +2249,8 @@ export const useStore = create<StoreState>()(
           prPaymentVouchers: (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) => {
             if (p.id !== id) return p;
             const rows = patch.rows ?? p.rows;
-            const subtotal = rows.reduce((s, r) => s + r.amt, 0);
             const deduct = patch.deduct ?? p.deduct;
-            const net = Math.max(0, subtotal - deduct);
-            return {
-              ...p,
-              ...patch,
-              rows,
-              subtotal,
-              deduct,
-              net,
-            };
+            return reconcilePvTotals({ ...p, ...patch, rows, deduct });
           }),
         }));
         get().toast("PV updated — line items recalculated", "success");
@@ -4124,28 +4175,28 @@ export const useStore = create<StoreState>()(
       clearPostSealRatePrompt: () => set({ postSealRatePrompt: null }),
       syncLivePrCheckInToRoster: () => {
         const st = get();
-        const prId = getPrRosterId(st.prSubRole);
-        const idx = st.acceptedShiftIndex ?? 0;
-        const offer = PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
-        const outlet = st.prActiveShift?.outlet ?? offer.outlet;
-        const session = st.prActiveShift;
-
-        if (st.checkedIn && session) {
-          const pr = st.agencyPRs.find((p) => p.id === prId);
+        const attendance = resolveTiedPrAttendance(st);
+        if (attendance) {
           const checkInTime =
-            session.timeIn.match(/\d{1,2}:\d{2}/)?.[0] ??
+            attendance.session.timeIn.match(/\d{1,2}:\d{2}/)?.[0] ??
             new Date().toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
-          const next = rosterCheckIn(st.agencyRoster, prId, session.outlet, checkInTime, {
-            prName: pr?.name ?? getPrProfile(st.prSubRole).name,
-            dateIso: DEFAULT_ROSTER_DATE_ISO,
-            shift: session.shiftTime,
-          });
+          const next = rosterCheckIn(
+            st.agencyRoster,
+            attendance.prId,
+            attendance.session.outlet,
+            checkInTime,
+            {
+              prName: attendance.prName,
+              dateIso: DEFAULT_ROSTER_DATE_ISO,
+              shift: attendance.session.shiftTime,
+            },
+          );
           const match = (roster: typeof next) =>
             roster.find(
               (s) =>
-                s.prId === prId &&
+                s.prId === attendance.prId &&
                 s.dateIso === DEFAULT_ROSTER_DATE_ISO &&
-                outletMatches(s.outlet, session.outlet),
+                outletMatches(s.outlet, attendance.session.outlet),
             );
           const before = match(st.agencyRoster);
           const after = match(next);
@@ -4155,6 +4206,9 @@ export const useStore = create<StoreState>()(
           return;
         }
 
+        const offer = activePrShiftOffer(st);
+        const outlet = st.prActiveShift?.outlet ?? offer.outlet;
+        const prId = getPrRosterId(st.prSubRole);
         let changed = false;
         const next = st.agencyRoster.map((s) => {
           if (
@@ -4507,9 +4561,11 @@ export const useStore = create<StoreState>()(
             ? persistedPvs.map((pv) => {
                 const seed = seedById[pv.id];
                 if (!seed) {
+                  const prName = pv.prName === "Luna" ? "Vicky" : pv.prName;
                   if (pv.financeHeadName === LEGACY_FINANCE_HEAD_SIGNER) {
                     return {
                       ...pv,
+                      prName,
                       ...financeHeadStampFromProfile(DEFAULT_FINANCE_HEAD, pv.financeHeadSignedAt),
                     };
                   }
@@ -4520,17 +4576,18 @@ export const useStore = create<StoreState>()(
                     );
                     return {
                       ...pv,
+                      prName,
                       financeHeadSignatureDataUrl: stamp.financeHeadSignatureDataUrl,
                     };
                   }
                   if (
                     !pv.prSignatureDataUrl &&
                     (pv.prSignedAt || pv.status === "PAID" || pv.status === "SIGNED") &&
-                    pv.prName
+                    prName
                   ) {
-                    return { ...pv, prSignatureDataUrl: buildDemoESignatureDataUrl(pv.prName) };
+                    return { ...pv, prName, prSignatureDataUrl: buildDemoESignatureDataUrl(prName) };
                   }
-                  return pv;
+                  return { ...pv, prName };
                 }
                 return {
                   ...seed,
@@ -4546,8 +4603,6 @@ export const useStore = create<StoreState>()(
                   cycle: seed.weekStartIso ? seed.cycle : (pv.cycle ?? seed.cycle),
                   weekStartIso: seed.weekStartIso ?? pv.weekStartIso,
                   weekEndIso: seed.weekEndIso ?? pv.weekEndIso,
-                  subtotal: seed.weekStartIso ? seed.subtotal : (pv.subtotal ?? seed.subtotal),
-                  net: seed.weekStartIso ? seed.net : (pv.net ?? seed.net),
                   outlet: seed.weekStartIso ? seed.outlet : (pv.outlet ?? seed.outlet),
                   financeHeadName:
                     pv.financeHeadName === LEGACY_FINANCE_HEAD_SIGNER
@@ -4635,20 +4690,69 @@ export const useStore = create<StoreState>()(
         });
         const mergedPvs = demoLedger.pvs;
         const mergedScans = demoLedger.scans;
+        const portalForAgencySync = {
+          prDisplayName:
+            p?.prDisplayName === "Luna" ? null : (p?.prDisplayName ?? current.prDisplayName),
+          prAvatarPhoto: migratePrPortfolioAssetPath(p?.prAvatarPhoto ?? current.prAvatarPhoto),
+          prComcard: {
+            ...(p?.prComcard ?? current.prComcard),
+            imageUrl:
+              migratePrPortfolioAssetPath(
+                p?.prComcard?.imageUrl ?? current.prComcard.imageUrl,
+              ) ?? undefined,
+          },
+          prPortfolio: (p?.prPortfolio?.some(Boolean)
+            ? (p!.prPortfolio as (string | null)[])
+            : current.prPortfolio
+          ).map((slot) => migratePrPortfolioAssetPath(slot)),
+          prLanguages: p?.prLanguages?.length ? p.prLanguages : current.prLanguages,
+        };
+        const seedAgencyById = Object.fromEntries(demoSnapshot.agencyPRs.map((s) => [s.id, s]));
+        const mergedAgencyPRs = normalizeAgencyPrs(
+          p?.agencyPRs?.length ? p.agencyPRs : current.agencyPRs,
+        ).map((pr) => {
+          let next = syncAgencyPrFromPrPortal(pr, TIED_DEMO_ROSTER_PR_ID, portalForAgencySync);
+          const seed = seedAgencyById[pr.id];
+          if (seed && pr.id === TIED_DEMO_ROSTER_PR_ID) {
+            next = {
+              ...next,
+              name: next.name === "Luna" ? seed.name : next.name,
+              avatarPhoto:
+                migratePrPortfolioAssetPath(next.avatarPhoto ?? seed.avatarPhoto ?? null) ??
+                seed.avatarPhoto ??
+                null,
+              comcardImageUrl:
+                migratePrPortfolioAssetPath(next.comcardImageUrl ?? seed.comcardImageUrl) ??
+                seed.comcardImageUrl,
+              portfolioPhotos: (next.portfolioPhotos?.some(Boolean)
+                ? next.portfolioPhotos
+                : seed.portfolioPhotos
+              )?.map((photo) => migratePrPortfolioAssetPath(photo) ?? photo),
+            };
+          }
+          return next;
+        });
         const merged = {
           ...current,
           ...p,
           prPaymentVouchers: mergedPvs,
-          prPortfolio:
-            p?.prPortfolio && p.prPortfolio.length > 0
-              ? [
-                  ...p.prPortfolio,
-                  ...Array(Math.max(0, PORTFOLIO_SLOT_COUNT - p.prPortfolio.length)).fill(null),
-                ].slice(0, PORTFOLIO_SLOT_COUNT)
-              : current.prPortfolio,
-          prComcard: p?.prComcard ?? current.prComcard,
+          prPortfolio: (p?.prPortfolio?.some(Boolean)
+            ? [
+                ...p.prPortfolio,
+                ...Array(Math.max(0, PORTFOLIO_SLOT_COUNT - p.prPortfolio.length)).fill(null),
+              ].slice(0, PORTFOLIO_SLOT_COUNT)
+            : current.prPortfolio
+          ).map((slot) => migratePrPortfolioAssetPath(slot)),
+          prComcard: {
+            ...(p?.prComcard ?? current.prComcard),
+            imageUrl:
+              migratePrPortfolioAssetPath(
+                p?.prComcard?.imageUrl ?? current.prComcard.imageUrl,
+              ) ?? undefined,
+          },
           prLanguages: p?.prLanguages?.length ? p.prLanguages : current.prLanguages,
-          prDisplayName: p?.prDisplayName ?? current.prDisplayName,
+          prDisplayName:
+            p?.prDisplayName === "Luna" ? null : (p?.prDisplayName ?? current.prDisplayName),
           prPayrollAgencyId: p?.prPayrollAgencyId ?? current.prPayrollAgencyId,
           prNotifications: p?.prNotifications?.length ? p.prNotifications : current.prNotifications,
           opsNotifications: p?.opsNotifications ?? current.opsNotifications,
@@ -4662,7 +4766,7 @@ export const useStore = create<StoreState>()(
           prSwapRequests: mergePrSwapRequests(
             p?.prSwapRequests,
             current.prSwapRequests,
-            mergeAgencyRoster(p?.agencyRoster, current.agencyRoster),
+            mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
           ),
           prAgencyTiedAt: p?.prAgencyTiedAt ?? current.prAgencyTiedAt,
           prFreelancerPayrollLinks: p?.prFreelancerPayrollLinks ?? current.prFreelancerPayrollLinks,
@@ -4673,8 +4777,7 @@ export const useStore = create<StoreState>()(
           prFreelancerLowRatingStrikes:
             p?.prFreelancerLowRatingStrikes ?? current.prFreelancerLowRatingStrikes,
           prCheckInMeta: p?.prCheckInMeta ?? current.prCheckInMeta,
-          prLeaveRequest: p?.prLeaveRequest ?? current.prLeaveRequest,
-          prAvatarPhoto: p?.prAvatarPhoto ?? current.prAvatarPhoto,
+          prAvatarPhoto: migratePrPortfolioAssetPath(p?.prAvatarPhoto ?? current.prAvatarPhoto),
           prReceiptScans: mergedScans.length ? mergedScans : current.prReceiptScans,
           prActiveShift: p?.prActiveShift ?? current.prActiveShift,
           shiftHistory: mergedShiftHistory,
@@ -4683,17 +4786,25 @@ export const useStore = create<StoreState>()(
             p?.pendingFreelancerPayrolls,
             current.pendingFreelancerPayrolls,
           ),
-          agencyPRs: normalizeAgencyPrs(p?.agencyPRs?.length ? p.agencyPRs : current.agencyPRs),
+          agencyPRs: mergedAgencyPRs,
           specialServiceOrders: (() => {
             const persisted = p?.specialServiceOrders ?? [];
             if (!persisted.length) return current.specialServiceOrders;
             const hasNewModel = persisted.some((r) => "initiatedBy" in r && "agencyAccepted" in r);
             return hasNewModel ? persisted : current.specialServiceOrders;
           })(),
-          prs: marketplacePrsFromAgency(
-            normalizeAgencyPrs(p?.agencyPRs?.length ? p.agencyPRs : current.agencyPRs),
+          prs: marketplacePrsFromAgency(mergedAgencyPRs),
+          agencyRoster: rosterWithTiedPrAttendance(
+            mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
+            {
+              prSubRole: p?.prSubRole ?? current.prSubRole,
+              checkedIn: p?.checkedIn ?? current.checkedIn,
+              checkedOut: p?.checkedOut ?? current.checkedOut,
+              prActiveShift: p?.prActiveShift ?? current.prActiveShift,
+              prSessionByRole: p?.prSessionByRole ?? current.prSessionByRole ?? {},
+              agencyPRs: mergedAgencyPRs,
+            },
           ),
-          agencyRoster: mergeAgencyRoster(p?.agencyRoster, current.agencyRoster),
           outletCommissionRules: (() => {
             const ws = normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace);
             const legacyMult = p?.scalingTierMultipliers ?? current.scalingTierMultipliers;
@@ -4726,7 +4837,7 @@ export const useStore = create<StoreState>()(
             return recomputeAllOutletPnl(
               shifts,
               undefined,
-              mergeAgencyRoster(p?.agencyRoster, current.agencyRoster),
+              mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
               menu,
               rules,
             );

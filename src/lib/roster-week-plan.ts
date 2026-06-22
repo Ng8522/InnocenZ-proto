@@ -63,6 +63,18 @@ export function slotForPrOnDate(
   return primarySlotForPrOnDate(roster, prId, dateIso);
 }
 
+/** One row per PR per night — drops lower-priority duplicate slots (e.g. assignment-pending backup). */
+export function dedupeLiveRosterByPr(slots: AgencyRosterSlot[]): AgencyRosterSlot[] {
+  const keys = new Set(slots.map((s) => `${s.prId}|${s.dateIso}`));
+  const keptIds = new Set<string>();
+  for (const key of keys) {
+    const [prId, dateIso] = key.split("|");
+    const primary = primarySlotForPrOnDate(slots, prId, dateIso);
+    if (primary) keptIds.add(primary.id);
+  }
+  return slots.filter((s) => keptIds.has(s.id));
+}
+
 export function shiftWeek(dateIso: string, deltaWeeks: number): string {
   return format(addDays(parseISO(dateIso), deltaWeeks * 7), "yyyy-MM-dd");
 }

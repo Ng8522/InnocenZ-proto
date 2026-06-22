@@ -7,7 +7,18 @@ import {
   migrateDemoDateIso,
 } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
-import { DEFAULT_TIED_AGENCY_ID, FREELANCER_DEMO_PR_ID, fmtDateLabelFromIso, DEFAULT_PR_AGENCY_NAME, isFreelancerPrId } from "@/lib/pr-demo";
+import {
+  DEFAULT_TIED_AGENCY_ID,
+  FREELANCER_DEMO_PR_ID,
+  buildSeedPrPortfolio,
+  fmtDateLabelFromIso,
+  DEFAULT_PR_AGENCY_NAME,
+  isFreelancerPrId,
+  SEED_PR_AVATAR_IMAGE,
+  SEED_PR_COMCARD_IMAGE,
+  TIED_DEMO_ROSTER_PR_ID,
+  type PrComcard,
+} from "@/lib/pr-demo";
 
 export interface OutletCommissionRule {
   outlet: string;
@@ -504,7 +515,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
   withRosterDate({
     id: "rs1",
     prId: "p1",
-    prName: "Luna",
+    prName: "Vicky",
     outlet: "Velvet 23",
     dateIso: DEFAULT_ROSTER_DATE_ISO,
     shift: "22:00 — 04:00",
@@ -513,15 +524,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     status: "scheduled",
     floorDrinks: 0,
     floorTips: 0,
-    estPayout: 420,
-    outletSwap: {
-      targetOutlet: "Bear Lounge",
-      status: "pending_pr",
-      agencyName: "Atlas Agency",
-      agencyNote: "Relocate for lounge launch night — same shift time",
-      requestedAt: "17 Jun 2026 · 11:28",
-      requestedAtMs: Date.now() - 20 * 60 * 1000,
-    },
+    estPayout: 480,
   }),
   withRosterDate({
     id: "rs2",
@@ -535,7 +538,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     status: "en-route",
     floorDrinks: 0,
     floorTips: 0,
-    estPayout: 380,
+    estPayout: 390,
   }),
   withRosterDate({
     id: "rs3",
@@ -547,12 +550,6 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     shiftStart: "21:00",
     shiftEnd: "03:00",
     status: "swap-pending",
-    outletSwap: {
-      targetOutlet: "Mermate",
-      status: "pending_pr",
-      agencyNote: "VIP coverage — agency moving shift to Mermate",
-      requestedAt: "18 Jun 2026 · 09:15",
-    },
   }),
   withRosterDate({
     id: "rs4",
@@ -568,7 +565,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
   withRosterDate({
     id: "rs6",
     prId: "p1",
-    prName: "Luna",
+    prName: "Vicky",
     outlet: "Mermate",
     dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
     shift: "22:00 — 04:00",
@@ -580,23 +577,6 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
       agencyNote: "You are needed at Mermate Friday — lounge relaunch coverage",
       assignedAt: "18 Jun 2026 · 11:36",
       assignedAtMs: Date.now() - 12 * 60 * 1000,
-    },
-  }),
-  withRosterDate({
-    id: "rs7",
-    prId: "p1",
-    prName: "Luna",
-    outlet: "Onyx KL",
-    dateIso: DEFAULT_ROSTER_DATE_ISO,
-    shift: "21:00 — 03:00",
-    shiftStart: "21:00",
-    shiftEnd: "03:00",
-    status: "assignment-pending",
-    agencyAssignment: {
-      agencyName: "Atlas Agency",
-      agencyNote: "Same-night backup at Onyx — only if you can leave Velvet early",
-      assignedAt: "18 Jun 2026 · 14:10",
-      assignedAtMs: Date.now() - 45 * 60 * 1000,
     },
   }),
   withRosterDate({
@@ -639,20 +619,24 @@ export interface AgencyManagedPR {
   /** Consecutive shift outlet ratings below 3.0★ (most recent streak) */
   consecutiveLowRatings?: number;
   weight?: number;
+  /** Synced from PR portal profile */
+  avatarPhoto?: string | null;
+  comcardImageUrl?: string | null;
+  portfolioPhotos?: (string | null)[];
 }
 
 export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
   {
     id: "p1",
-    name: "Luna",
+    name: "Vicky",
     ic: "950312-14-8821",
     mobile: "+60 12-881 2201",
-    email: "luna@inz.my",
-    age: 26,
-    height: 168,
-    weight: 50,
+    email: "vicky@inz.my",
+    age: 24,
+    height: 153,
+    weight: 40,
     race: "Chinese",
-    languages: ["English", "Mandarin"],
+    languages: ["English", "Mandarin", "Cantonese"],
     place: "KL",
     yearsExp: 4,
     rating: 4.9,
@@ -665,6 +649,9 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     kpiScore: 92,
     kpiTier: "A",
     tiedSince: "2022-03-01",
+    avatarPhoto: SEED_PR_AVATAR_IMAGE,
+    comcardImageUrl: SEED_PR_COMCARD_IMAGE,
+    portfolioPhotos: buildSeedPrPortfolio(),
   },
   {
     id: "p2",
@@ -862,6 +849,35 @@ export function languagesFromPr(pr: Pick<AgencyManagedPR, "languages">): string[
   }
   if (typeof raw === "string") return parsePendingLanguages(raw);
   return [];
+}
+
+/** Push PR portal profile media onto the matching agency roster record */
+export function syncAgencyPrFromPrPortal(
+  agencyPr: AgencyManagedPR,
+  prId: string,
+  portal: {
+    prDisplayName: string | null;
+    prAvatarPhoto: string | null;
+    prComcard: PrComcard;
+    prPortfolio: (string | null)[];
+    prLanguages: string[];
+  },
+): AgencyManagedPR {
+  if (agencyPr.id !== prId) return agencyPr;
+  const displayName = portal.prDisplayName?.trim();
+  return {
+    ...agencyPr,
+    ...(displayName ? { name: displayName } : {}),
+    avatarPhoto: portal.prAvatarPhoto ?? agencyPr.avatarPhoto,
+    comcardImageUrl: portal.prComcard.imageUrl ?? agencyPr.comcardImageUrl,
+    portfolioPhotos: portal.prPortfolio.some(Boolean)
+      ? portal.prPortfolio
+      : agencyPr.portfolioPhotos,
+    languages: portal.prLanguages.length ? portal.prLanguages : agencyPr.languages,
+    height: portal.prComcard.height,
+    weight: portal.prComcard.weight,
+    age: portal.prComcard.age,
+  };
 }
 
 /** All distinct languages across agency PR personnel */
@@ -1171,7 +1187,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     linkedPvIds: ["PV-2026-0611-A"],
     kind: "outlet",
     lines: [
-      { label: "Daily wages", detail: "Luna · 18 Jun sealed shift", amount: 360, group: "payroll" },
+      { label: "Daily wages", detail: "Vicky · 18 Jun sealed shift", amount: 360, group: "payroll" },
       { label: "Commission – Drinks", detail: "Velvet 23 floor · tap log", amount: 2940, group: "commissions" },
       { label: "Commission – Tips", detail: "100% passthrough to PR payroll", amount: 680, group: "commissions" },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 300, group: "fees" },
@@ -1313,9 +1329,33 @@ export function nowAgencyDateTime() {
   };
 }
 
-const DEMO_LAYOUT_ROSTER_IDS = new Set(["rs3", "rs4"]);
-/** Removed from seed — drop on hydrate so PRs become free again */
-const RETIRED_DEMO_ROSTER_IDS = new Set(["rs-demo-p3", "rs-demo-p4", "rs-demo-p7"]);
+const DEMO_LAYOUT_ROSTER_IDS = new Set(["rs2", "rs3", "rs4"]);
+/** Demo slots — seed outletSwap state wins on hydrate (clears stale agency swap requests). */
+const FORCE_SEED_OUTLET_SWAP_IDS = new Set(["rs1", "rs3"]);
+/** Removed from seed — drop stale extras on hydrate */
+const RETIRED_DEMO_ROSTER_IDS = new Set(["rs-demo-p7", "rs7"]);
+
+/** Prefer canonical agency PR name over stale roster slot labels (e.g. Luna → Vicky). */
+export function resolveRosterPrName(
+  prId: string,
+  rosterName?: string,
+  agencyPRs?: { id: string; name: string }[],
+): string {
+  const canonical = agencyPRs?.find((p) => p.id === prId)?.name?.trim();
+  if (canonical) return canonical;
+  if (rosterName === "Luna" && prId === TIED_DEMO_ROSTER_PR_ID) return "Vicky";
+  return rosterName?.trim() || prId;
+}
+
+function mergeRosterSlotPrName(
+  saved: AgencyRosterSlot,
+  seedSlot: AgencyRosterSlot,
+  reassigned: boolean,
+): string {
+  if (reassigned) return saved.prName;
+  if (saved.prName === "Luna" && seedSlot.prName !== "Luna") return seedSlot.prName;
+  return saved.prName ?? seedSlot.prName;
+}
 
 /** Keep demo agency inbox (assignments / swaps) visible after localStorage hydrate */
 export function mergeAgencyRoster(
@@ -1329,7 +1369,13 @@ export function mergeAgencyRoster(
 
   if (!persisted?.length) return seed.map(normalize);
   const seedIds = new Set(seed.map((s) => s.id));
-  const extras = persisted.filter((s) => !seedIds.has(s.id) && !RETIRED_DEMO_ROSTER_IDS.has(s.id));
+  const extras = persisted
+    .filter((s) => !seedIds.has(s.id) && !RETIRED_DEMO_ROSTER_IDS.has(s.id))
+    .map((slot) =>
+      slot.prId === TIED_DEMO_ROSTER_PR_ID && slot.prName === "Luna"
+        ? { ...slot, prName: "Vicky" }
+        : slot,
+    );
   const merged = [
     ...extras,
     ...seed.map((seedSlot) => {
@@ -1347,6 +1393,7 @@ export function mergeAgencyRoster(
           status: seedSlot.status,
           dateIso,
           outlet: seedSlot.outlet,
+          prName: mergeRosterSlotPrName(saved, seedSlot, saved.prId !== seedSlot.prId),
           checkedInAt: saved.checkedInAt ?? seedSlot.checkedInAt,
           floorDrinks: saved.floorDrinks ?? seedSlot.floorDrinks,
           floorTips: saved.floorTips ?? seedSlot.floorTips,
@@ -1359,26 +1406,57 @@ export function mergeAgencyRoster(
       const keepSwapPending =
         seedSlot.outletSwap?.status === "pending_pr" &&
         saved.outletSwap?.status !== "approved";
-      const staleOnDuty = saved.status === "on-duty" && seedSlot.status !== "on-duty";
+      const preserveLiveOnDuty =
+        saved.status === "on-duty" &&
+        seedSlot.status !== "on-duty" &&
+        !!saved.checkedInAt;
+      const staleOnDuty =
+        saved.status === "on-duty" &&
+        seedSlot.status !== "on-duty" &&
+        !saved.checkedInAt;
+      const seedFloorActive =
+        seedSlot.status === "en-route" ||
+        (seedSlot.status === "on-duty" && !!seedSlot.checkedInAt);
+      const savedFloorIdle = saved.status === "scheduled" && !saved.checkedInAt;
+      const restoreSeedFloor =
+        seedFloorActive && savedFloorIdle && !preserveLiveOnDuty && !staleOnDuty;
       const reassigned = saved.prId !== seedSlot.prId;
       return normalize({
         ...seedSlot,
         ...saved,
         dateIso,
         prId: reassigned ? saved.prId : saved.prId ?? seedSlot.prId,
-        prName: reassigned ? saved.prName : saved.prName ?? seedSlot.prName,
+        prName: mergeRosterSlotPrName(saved, seedSlot, reassigned),
         status: keepAssignmentPending
           ? seedSlot.status
+          : preserveLiveOnDuty
+            ? "on-duty"
+            : staleOnDuty
+              ? seedSlot.status
+              : restoreSeedFloor
+                ? seedSlot.status
+                : saved.status,
+        checkedInAt: preserveLiveOnDuty
+          ? saved.checkedInAt
           : staleOnDuty
-            ? seedSlot.status
-            : saved.status,
-        checkedInAt: staleOnDuty ? undefined : saved.checkedInAt ?? seedSlot.checkedInAt,
-        floorDrinks: staleOnDuty ? seedSlot.floorDrinks : saved.floorDrinks ?? seedSlot.floorDrinks,
-        floorTips: staleOnDuty ? seedSlot.floorTips : saved.floorTips ?? seedSlot.floorTips,
+            ? undefined
+            : restoreSeedFloor
+              ? seedSlot.checkedInAt
+              : saved.checkedInAt ?? seedSlot.checkedInAt,
+        floorDrinks: staleOnDuty || restoreSeedFloor
+          ? seedSlot.floorDrinks
+          : saved.floorDrinks ?? seedSlot.floorDrinks,
+        floorTips: staleOnDuty || restoreSeedFloor
+          ? seedSlot.floorTips
+          : saved.floorTips ?? seedSlot.floorTips,
         agencyAssignment: keepAssignmentPending
           ? seedSlot.agencyAssignment
           : saved.agencyAssignment ?? seedSlot.agencyAssignment,
-        outletSwap: keepSwapPending ? seedSlot.outletSwap : saved.outletSwap ?? seedSlot.outletSwap,
+        outletSwap: FORCE_SEED_OUTLET_SWAP_IDS.has(seedSlot.id)
+          ? seedSlot.outletSwap
+          : keepSwapPending
+            ? seedSlot.outletSwap
+            : saved.outletSwap ?? seedSlot.outletSwap,
       });
     }),
   ];

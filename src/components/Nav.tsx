@@ -66,9 +66,9 @@ const ROLE_LABELS: Record<string, { name: string; label: string; av: string; gra
   host: { name: "PR", label: "PR", av: "P", gradient: "linear-gradient(135deg,#6b7280,#374151)" },
 
   host_tied: {
-    name: "Luna",
+    name: "Vicky",
     label: "PR \u00b7 Agency-Tied",
-    av: "L",
+    av: "V",
     gradient: "linear-gradient(135deg,#C99B4E,#8a5e22)",
   },
 

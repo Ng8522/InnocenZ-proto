@@ -53,7 +53,7 @@ function SalesPage() {
           <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Top performing PRs</h3>
           <div className="mt-3 space-y-2">
             {[
-              { name: "Luna", sales: 4200 }, { name: "Mia", sales: 3850 }, { name: "Vivi", sales: 3120 },
+              { name: "Vicky", sales: 4200 }, { name: "Mia", sales: 3850 }, { name: "Vivi", sales: 3120 },
             ].map((p) => (
               <div key={p.name} className="flex items-center gap-3">
                 <span className="w-16 text-sm">{p.name}</span>

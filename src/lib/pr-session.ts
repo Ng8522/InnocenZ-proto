@@ -1,9 +1,17 @@
 import type { AgencyRosterSlot } from "@/lib/agency-demo";
-import type { PrActiveShiftSession, PrSubRole } from "@/lib/pr-demo";
-import { PR_SHIFT_OFFERS, TIED_DEMO_ROSTER_PR_ID } from "@/lib/pr-demo";
+import {
+  parseYmdIso,
+  type PrActiveShiftSession,
+  type PrShiftOffer,
+  type PrSubRole,
+  PR_SHIFT_OFFERS,
+  TIED_DEMO_ROSTER_PR_ID,
+} from "@/lib/pr-demo";
+import { findOutletShiftForRosterSlot } from "@/lib/outlet-demo";
 import { swapBlocksRequestingPrShift } from "@/lib/pr-features";
 import { outletMatches } from "@/lib/portal-sync";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { primarySlotForPrOnDate } from "@/lib/roster-week-plan";
 export type PrMarketplaceApplicationState = {
   listingId: string;
   status: "pending" | "accepted" | "declined";
@@ -58,20 +66,86 @@ export function shiftIndexForOutlet(outlet: string): number {
   return idx >= 0 ? idx : 0;
 }
 
+const ACTIVE_ROSTER_STATUSES = new Set<AgencyRosterSlot["status"]>([
+  "on-duty",
+  "en-route",
+  "scheduled",
+  "assignment-pending",
+  "outlet-pending",
+]);
+
+function shiftEndsNextDay(shiftStart: string, shiftEnd: string): boolean {
+  const sh = Number(shiftStart.split(":")[0]);
+  const eh = Number(shiftEnd.split(":")[0]);
+  return !Number.isNaN(sh) && !Number.isNaN(eh) && eh <= sh;
+}
+
+/** Canonical shift time label — matches PR portal display. */
+export function formatRosterShiftTime(
+  slot: Pick<AgencyRosterSlot, "shift" | "shiftStart" | "shiftEnd">,
+): string {
+  return slot.shift || `${slot.shiftStart} — ${slot.shiftEnd}`;
+}
+
+export type OutletShiftRef = {
+  outletName: string;
+  shift: string;
+  event?: string;
+};
+
+/** Build PR shift card from agency roster slot (+ optional outlet shift for event name). */
+export function resolvePrShiftOfferFromRoster(
+  slot: AgencyRosterSlot | null | undefined,
+  fallbackIndex = 0,
+  outletShift?: OutletShiftRef | null,
+): PrShiftOffer {
+  const template = PR_SHIFT_OFFERS[fallbackIndex] ?? PR_SHIFT_OFFERS[0];
+  if (!slot) return template;
+
+  const outletIdx = shiftIndexForOutlet(slot.outlet);
+  const outletTemplate = outletIdx >= 0 ? PR_SHIFT_OFFERS[outletIdx] : template;
+  const [y, m, d] = parseYmdIso(slot.dateIso);
+  const comm = outletTemplate.comm;
+  const base =
+    slot.estPayout != null ? Math.max(0, slot.estPayout - comm) : outletTemplate.base;
+
+  return {
+    outlet: slot.outlet,
+    event: outletShift?.event ?? outletTemplate.event,
+    date: [y, m, d],
+    time: formatRosterShiftTime(slot),
+    endNext: shiftEndsNextDay(slot.shiftStart, slot.shiftEnd),
+    distance: outletTemplate.distance,
+    addr: outletTemplate.addr,
+    base,
+    comm,
+    vip: outletTemplate.vip,
+    rating: outletTemplate.rating,
+  };
+}
+
+export function resolvePrShiftOfferForPr(
+  roster: AgencyRosterSlot[],
+  prId: string,
+  fallbackIndex: number | null | undefined,
+  outletShifts?: OutletShiftRef[],
+  dateIso: string = DEFAULT_ROSTER_DATE_ISO,
+): PrShiftOffer {
+  const slot = findAgencyRosterTonight(roster, prId, dateIso);
+  const idx = fallbackIndex ?? (slot ? shiftIndexForOutlet(slot.outlet) : 0);
+  const outletShift =
+    slot && outletShifts ? findOutletShiftForRosterSlot(outletShifts, slot) : undefined;
+  return resolvePrShiftOfferFromRoster(slot, idx, outletShift);
+}
+
 export function findAgencyRosterTonight(
   roster: AgencyRosterSlot[],
   prId: string,
   dateIso: string = DEFAULT_ROSTER_DATE_ISO,
 ): AgencyRosterSlot | undefined {
-  return roster.find(
-    (s) =>
-      s.prId === prId &&
-      s.dateIso === dateIso &&
-      (s.status === "scheduled" ||
-        s.status === "en-route" ||
-        s.status === "on-duty" ||
-        s.status === "assignment-pending"),
-  );
+  const slot = primarySlotForPrOnDate(roster, prId, dateIso);
+  if (!slot || !ACTIVE_ROSTER_STATUSES.has(slot.status)) return undefined;
+  return slot;
 }
 
 /** Bootstrap tied PR shift flow from agency roster; freelancer starts empty. */

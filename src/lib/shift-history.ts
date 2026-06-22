@@ -50,7 +50,7 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
   },
   {
     id: "h7",
-    prName: "Luna",
+    prName: "Vicky",
     prId: "p1",
     outlet: "Mermate",
     agencyName: "Atlas Agency",
@@ -64,7 +64,7 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
   },
   {
     id: "h8",
-    prName: "Luna",
+    prName: "Vicky",
     prId: "p1",
     outlet: "Mermate",
     agencyName: "Atlas Agency",
@@ -78,7 +78,7 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
   },
   {
     id: "h9",
-    prName: "Luna",
+    prName: "Vicky",
     prId: "p1",
     outlet: "Bear Lounge",
     agencyName: "Atlas Agency",

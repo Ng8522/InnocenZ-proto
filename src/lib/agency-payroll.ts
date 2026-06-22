@@ -18,6 +18,21 @@ export function receiptBelongsToAgencyPr(scan: PrReceiptScan, pr: AgencyManagedP
   return prNameMatchesAgency(scan.prName, pr);
 }
 
+/** Canonical PR name on agency payroll — IC match + Luna → Vicky migration. */
+export function resolvePvPrName(
+  pv: Pick<PrPaymentVoucher, "prName" | "prIc">,
+  agencyPRs: AgencyManagedPR[] = [],
+): string {
+  if (pv.prIc) {
+    const byIc = agencyPRs.find((p) => p.ic === pv.prIc);
+    if (byIc?.name) return byIc.name;
+  }
+  const byName = agencyPRs.find((p) => prNameMatchesAgency(pv.prName, p));
+  if (byName?.name) return byName.name;
+  if (pv.prName === "Luna") return "Vicky";
+  return pv.prName;
+}
+
 /** Receipt scans belonging to PRs on the agency roster (or linked agency PVs). */
 export function getAgencyManagedReceiptScans(
   scans: PrReceiptScan[],

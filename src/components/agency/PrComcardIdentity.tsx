@@ -7,6 +7,7 @@ import {
   comcardWeight,
   type ComcardPreviewData,
 } from "@/components/agency/Comcard3dPreview";
+import { StaticComcardVisual } from "@/components/pr/PortfolioComcardVisual";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzPill } from "@/components/iz/ui";
 import { cn } from "@/lib/utils";
@@ -14,7 +15,10 @@ import { cn } from "@/lib/utils";
 const COMCARD_FALLBACK = { height: 165, weight: 52, age: 24 };
 
 export function toComcardPreview(
-  pr: Pick<AgencyManagedPR, "id" | "name" | "height" | "weight" | "age">,
+  pr: Pick<
+    AgencyManagedPR,
+    "id" | "name" | "height" | "weight" | "age" | "avatarPhoto" | "comcardImageUrl" | "portfolioPhotos"
+  >,
 ): ComcardPreviewData {
   return {
     id: pr.id,
@@ -22,6 +26,9 @@ export function toComcardPreview(
     height: pr.height ?? COMCARD_FALLBACK.height,
     weight: pr.weight ?? COMCARD_FALLBACK.weight,
     age: pr.age ?? COMCARD_FALLBACK.age,
+    avatarPhoto: pr.avatarPhoto,
+    comcardImageUrl: pr.comcardImageUrl,
+    portfolioPhotos: pr.portfolioPhotos,
   };
 }
 
@@ -76,7 +83,11 @@ export function PrComcardIdentity({
       <IzSheet open={open} onClose={() => setOpen(false)}>
         <div className="iz-cardttl mb-1">{pr.name}</div>
         {agencyName && <p className="iz-tiny iz-muted mb-3">{agencyName}</p>}
-        <Comcard3dPreviewVisual pr={pr} showName={false} />
+        {pr.comcardImageUrl ? (
+          <StaticComcardVisual src={pr.comcardImageUrl} />
+        ) : (
+          <Comcard3dPreviewVisual pr={pr} showName={false} />
+        )}
         <div className="mt-3 flex flex-wrap gap-1.5">
           {profile?.trainingLevel && (
             <IzPill variant="ink" className="!py-0.5 !text-[9px]">

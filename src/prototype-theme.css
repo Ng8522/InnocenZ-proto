@@ -867,6 +867,18 @@
 .iz-comcard-3d-preview--thumb .iz-comcard-3d-preview-badge {
   display: none;
 }
+.iz-comcard-3d-preview--thumb-photo {
+  width: 44px;
+  height: 58px;
+  flex-shrink: 0;
+  border-radius: 11px;
+}
+.iz-comcard-3d-preview--thumb-photo__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .iz-comcard-3d-preview--card {
   width: 100%;
 }
@@ -945,6 +957,11 @@
   outline-offset: 2px;
 }
 .iz-pr-comcard-thumb-btn--week .iz-comcard-3d-preview--thumb .iz-comcard-3d-preview-stage {
+  width: 36px;
+  height: 48px;
+  border-radius: 9px;
+}
+.iz-pr-comcard-thumb-btn--week .iz-comcard-3d-preview--thumb-photo {
   width: 36px;
   height: 48px;
   border-radius: 9px;
@@ -1160,6 +1177,19 @@
 }
 .iz-portfolio-comcard {
   width: min(100%, 268px);
+}
+.iz-static-comcard {
+  width: min(100%, 268px);
+}
+.iz-static-comcard__img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 16px;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 .iz-portfolio-comcard__frame {
   position: relative;
@@ -7591,6 +7621,32 @@ button.iz-agency-row:hover {
   font-size: 10px;
   font-weight: 600;
   color: #dcc8ff;
+}
+
+.iz-roster-tier-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(212, 175, 55, 0.16);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  color: var(--iz-gold-l);
+  font-family: "Sora", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  white-space: nowrap;
+  width: fit-content;
+  flex-shrink: 0;
+}
+
+.iz-portal-table-pr-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
 }
 
 .iz-portal-table tbody tr:last-child td {

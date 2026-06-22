@@ -256,6 +256,15 @@ export function shiftCommissionTotal(scans: PrReceiptScan[]) {
   return aggregateShiftSales(scans).commissionTotal;
 }
 
+/** Total sales logged from receipt scans (RM). */
+export function shiftSalesLogged(scans: PrReceiptScan[]) {
+  return scans.reduce((sum, scan) => sum + scan.totalLogged, 0);
+}
+
+export function shiftSalesRemaining(logged: number, targetRm: number) {
+  return Math.max(0, targetRm - logged);
+}
+
 export function shiftPayoutTotal(baseWages: number, scans: PrReceiptScan[]) {
   const sales = aggregateShiftSales(scans);
   return baseWages + sales.commissionTotal;

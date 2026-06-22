@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import type { LiveWorkforceEntry } from "@/lib/agency-demo";
+import { resolveRosterPrName } from "@/lib/agency-demo";
 import { deriveLiveWorkforce, outletMatches } from "@/lib/portal-sync";
 import { formatPrDisplayName } from "@/lib/pr-demo";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
@@ -86,11 +87,12 @@ export function LiveWorkforceTable({
   className?: string;
 }) {
   const agencyRoster = useStore((s) => s.agencyRoster);
+  const agencyPRs = useStore((s) => s.agencyPRs);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
   const workforce = useMemo(
-    () => deriveLiveWorkforce(agencyRoster, dateIso, outletCommissionRules, perDrinkRm),
-    [agencyRoster, dateIso, outletCommissionRules, perDrinkRm],
+    () => deriveLiveWorkforce(agencyRoster, dateIso, outletCommissionRules, perDrinkRm, agencyPRs),
+    [agencyRoster, dateIso, outletCommissionRules, perDrinkRm, agencyPRs],
   );
   const filtered = outletFilter
     ? workforce.filter((w) => w.outlet === outletFilter || w.outlet.includes(outletFilter))
@@ -175,6 +177,7 @@ export function LiveWorkforceList({
   outletName: string;
 }) {
   const agencyRoster = useStore((s) => s.agencyRoster);
+  const agencyPRs = useStore((s) => s.agencyPRs);
   const shifts = useStore((s) => s.shifts);
   const prs = useStore((s) => s.prs);
   const syncLivePrCheckInToRoster = useStore((s) => s.syncLivePrCheckInToRoster);
@@ -212,7 +215,10 @@ export function LiveWorkforceList({
             : ("scheduled" as const);
       list.push({
         id: slot?.id ?? prId,
-        prName: formatPrDisplayName(prId, slot?.prName ?? pr?.name),
+        prName: formatPrDisplayName(
+          prId,
+          resolveRosterPrName(prId, slot?.prName ?? pr?.name, agencyPRs),
+        ),
         status,
       });
     }
@@ -225,7 +231,7 @@ export function LiveWorkforceList({
       });
     }
 
-    return deriveLiveWorkforce(agencyRoster, dateIso, outletCommissionRules, perDrinkRm)
+    return deriveLiveWorkforce(agencyRoster, dateIso, outletCommissionRules, perDrinkRm, agencyPRs)
       .filter((w) => outletMatches(w.outlet, outletName))
       .map((w) => ({
         id: w.id,
@@ -235,7 +241,17 @@ export function LiveWorkforceList({
         ),
         status: w.status,
       }));
-  }, [tonightShift?.prs, rosterTonight, prs, agencyRoster, dateIso, outletCommissionRules, perDrinkRm, outletName]);
+  }, [
+    tonightShift?.prs,
+    rosterTonight,
+    prs,
+    agencyPRs,
+    agencyRoster,
+    dateIso,
+    outletCommissionRules,
+    perDrinkRm,
+    outletName,
+  ]);
 
   const onFloorCount = rows.filter((r) => r.status === "on-duty" || r.status === "en-route").length;
 

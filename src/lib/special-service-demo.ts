@@ -191,7 +191,7 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
   {
     id: "SS-2026-014",
     prId: "p1",
-    prName: "Luna",
+    prName: "Vicky",
     outlet: "Velvet 23",
     date: DEMO_TODAY_LABEL,
     dateIso: DEFAULT_ROSTER_DATE_ISO,
@@ -249,7 +249,7 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
   {
     id: "SS-2026-017",
     prId: "p1",
-    prName: "Luna",
+    prName: "Vicky",
     outlet: "Velvet 23",
     date: DEMO_TODAY_LABEL,
     dateIso: DEFAULT_ROSTER_DATE_ISO,

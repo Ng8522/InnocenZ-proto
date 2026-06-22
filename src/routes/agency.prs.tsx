@@ -4,6 +4,8 @@ import { AppTopbar } from "@/components/Nav";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { AgencyBroadcastSheet } from "@/components/agency/AgencyBroadcastSheet";
 import { Comcard3dPreviewCard, Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
+import { toComcardPreview } from "@/components/agency/PrComcardIdentity";
+import { StaticComcardVisual } from "@/components/pr/PortfolioComcardVisual";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import type { AgencyManagedPR } from "@/lib/agency-demo";
@@ -313,13 +315,7 @@ function AgencyManagePRs() {
                   {active ? "Active" : "Inactive"}
                 </IzPill>
                 <Comcard3dPreviewCard
-                  pr={{
-                    id: p.id,
-                    name: p.name,
-                    height: p.height,
-                    weight: p.weight,
-                    age: p.age,
-                  }}
+                  pr={toComcardPreview(p)}
                   trainingLevel={p.trainingLevel}
                   rating={p.rating}
                   languages={p.languages}
@@ -363,16 +359,7 @@ function AgencyManagePRs() {
         {comcardPreview && (
           <div className="px-1 pb-2">
             <div className="iz-cardttl mb-3">{comcardPreview.name}</div>
-            <Comcard3dPreviewVisual
-              pr={{
-                id: comcardPreview.id,
-                name: comcardPreview.name,
-                height: comcardPreview.height,
-                weight: comcardPreview.weight,
-                age: comcardPreview.age,
-              }}
-              showName={false}
-            />
+            <Comcard3dPreviewVisual pr={toComcardPreview(comcardPreview)} showName={false} />
           </div>
         )}
       </IzSheet>
@@ -540,7 +527,11 @@ function AgencyPrDetail({
 
       <IzCard className={`mt-3${editing ? " border-[rgba(217,185,122,.25)]" : ""}`}>
         <div className="flex gap-2.5">
-          <div className="iz-avatar !h-[54px] !w-[54px] shrink-0 text-xl">{avatarLetter}</div>
+          <div
+            className={`iz-avatar !h-[54px] !w-[54px] shrink-0 text-xl${detail.avatarPhoto ? " iz-avatar-photo" : ""}`}
+          >
+            {detail.avatarPhoto ? <img src={detail.avatarPhoto} alt="" /> : avatarLetter}
+          </div>
           <div className="min-w-0 flex-1">
             <div className="iz-between items-start gap-2">
               {editing ? (
@@ -587,7 +578,7 @@ function AgencyPrDetail({
       </div>
 
       <IzSectionLabel>
-        3D Comcard
+        {detail.comcardImageUrl ? "Photo comcard" : "3D Comcard"}
         {editing && <span className="ml-auto text-[var(--iz-gold-l)] normal-case tracking-normal">Editable</span>}
       </IzSectionLabel>
       <IzCard className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
@@ -597,18 +588,32 @@ function AgencyPrDetail({
             <AgencyComcardInput label="Weight (kg)" value={draft.weight} onChange={(n) => setDraft((p) => ({ ...p, weight: n }))} />
             <AgencyComcardInput label="Age" value={draft.age} onChange={(n) => setDraft((p) => ({ ...p, age: n }))} />
           </div>
+        ) : detail.comcardImageUrl ? (
+          <StaticComcardVisual src={detail.comcardImageUrl} className="mx-auto" />
         ) : (
           <Comcard3dPreviewVisual
-            pr={{
-              id: detail.id,
-              name: display.name,
-              height: display.height,
-              weight: display.weight,
-              age: display.age,
-            }}
+            pr={toComcardPreview(detail)}
           />
         )}
       </IzCard>
+
+      {(detail.portfolioPhotos?.some(Boolean) ?? false) && (
+        <>
+          <IzSectionLabel>Portfolio gallery</IzSectionLabel>
+          <IzCard>
+            <div className="grid grid-cols-4 gap-2">
+              {detail.portfolioPhotos!
+                .filter((src): src is string => Boolean(src))
+                .map((src, i) => (
+                  <div key={i} className="aspect-square overflow-hidden rounded-lg border border-[var(--iz-line)]">
+                    <img src={src} alt="" className="h-full w-full object-cover" />
+                  </div>
+                ))}
+            </div>
+            <p className="iz-tiny iz-muted2 mt-2">Synced from PR profile · {detail.name}</p>
+          </IzCard>
+        </>
+      )}
 
       <IzSectionLabel>Contact</IzSectionLabel>
       <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>

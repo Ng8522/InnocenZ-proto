@@ -5,7 +5,7 @@ import {
   formatPayeeField,
   type PvPayeeProfile,
 } from "@/lib/pv-template";
-import type { PrPaymentVoucher } from "@/lib/pr-demo";
+import { getPvNetTotal, getPvSalesTotal, type PrPaymentVoucher } from "@/lib/pr-demo";
 import type { WeeklyPaymentSummary } from "@/lib/pr-weekly-payment";
 
 export function PvSummaryView({
@@ -119,7 +119,7 @@ export function PvSummaryView({
           <tfoot>
             <tr className="iz-data-table-tot">
               <td colSpan={5}>Subtotal</td>
-              <td className="text-right">{formatRM(pv.subtotal)}</td>
+              <td className="text-right">{formatRM(getPvSalesTotal(pv))}</td>
             </tr>
             {pv.deduct > 0 && (
               <tr className="iz-data-table-tot">
@@ -133,7 +133,7 @@ export function PvSummaryView({
                   <b>Net payable</b>
                 </td>
                 <td className="text-right">
-                  <b className="text-[var(--iz-gold)]">{formatRM(pv.net)}</b>
+                  <b className="text-[var(--iz-gold)]">{formatRM(getPvNetTotal(pv))}</b>
                 </td>
               </tr>
             )}
@@ -152,7 +152,7 @@ export function PvSummaryView({
               <span className="iz-pv-summary-details-copy">
                 <span className="iz-pv-summary-hero-lbl">Net payable</span>
                 <span className="iz-pv-summary-hero-amt iz-pv-summary-hero-amt--compact">
-                  {formatRM(pv.net)}
+                  {formatRM(getPvNetTotal(pv))}
                 </span>
               </span>
               <ChevronDown className="iz-pv-summary-details-chevron h-4 w-4 shrink-0" />
@@ -174,7 +174,7 @@ export function PvSummaryView({
       <div className="iz-pv-summary">
         <div className="iz-pv-summary-hero">
           <div className="iz-pv-summary-hero-lbl">Net payable</div>
-          <div className="iz-pv-summary-hero-amt">{formatRM(pv.net)}</div>
+          <div className="iz-pv-summary-hero-amt">{formatRM(getPvNetTotal(pv))}</div>
           {weeklyNote}
         </div>
 

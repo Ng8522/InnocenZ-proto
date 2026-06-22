@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import {
   filterPvsByIssuedRecency,
   getLatestPvIssuedMs,
+  getPvNetTotal,
   getPvSalesTotal,
   parsePvIssuedMs,
   PAYROLL_CYCLE,
@@ -19,6 +20,7 @@ import {
   receiptShiftDetails,
   sortPvsBySales,
   FINANCE_HEAD_LABEL,
+  reconcilePvTotals,
   type PrPaymentVoucher,
   type PrPvRow,
   type PrPvStatus,
@@ -27,7 +29,7 @@ import {
   type PvDateRecencyFilter,
   type PvSalesSort,
 } from "@/lib/pr-demo";
-import { getAgencyManagedReceiptScans, receiptBelongsToAgencyPr, receiptsForPv, collectionOwedLines, groupCollectionLines } from "@/lib/agency-payroll";
+import { getAgencyManagedReceiptScans, receiptBelongsToAgencyPr, receiptsForPv, collectionOwedLines, groupCollectionLines, resolvePvPrName } from "@/lib/agency-payroll";
 import {
   matchesPayrollIssueDate,
   matchesPayrollRange,
@@ -73,11 +75,10 @@ export const Route = createFileRoute("/agency/pv")({
   component: AgencyPV,
   validateSearch: (search: Record<string, unknown>): { status?: PvStatusFilter; pv?: string } => {
     const status = search.status;
-    const valid: PvStatusFilter[] = ["PENDING_REVIEW", "SENT", "SIGNED", "DISPUTED", "TO_PAY"];
+    const valid: PvStatusFilter[] = ["PENDING_REVIEW", "SENT", "SIGNED", "DISPUTED", "TO_PAY", "PAID"];
     let statusFilter: PvStatusFilter | undefined;
-    if (typeof status === "string") {
-      if (status === "PAID") statusFilter = "TO_PAY";
-      else if (valid.includes(status as PvStatusFilter)) statusFilter = status as PvStatusFilter;
+    if (typeof status === "string" && valid.includes(status as PvStatusFilter)) {
+      statusFilter = status as PvStatusFilter;
     }
     const pv = typeof search.pv === "string" && search.pv.trim() ? search.pv.trim() : undefined;
     return { status: statusFilter, pv };
@@ -124,6 +125,7 @@ const PV_STATUS_FILTERS: { value: PvStatusFilter; label: string }[] = [
   { value: "DISPUTED", label: "Disputed" },
   { value: "SIGNED", label: "Signed" },
   { value: "TO_PAY", label: "To pay" },
+  { value: "PAID", label: "Paid" },
 ];
 
 type ToPayRow = {
@@ -134,21 +136,22 @@ type ToPayRow = {
   pvCount: number;
 };
 
-function buildToPayRows(pvs: PrPaymentVoucher[]): ToPayRow[] {
+function buildToPayRows(pvs: PrPaymentVoucher[], agencyPRs: AgencyManagedPR[]): ToPayRow[] {
   const byPr = new Map<string, { row: ToPayRow; outlets: Set<string> }>();
   for (const pv of pvs) {
-    const existing = byPr.get(pv.prName);
+    const prName = resolvePvPrName(pv, agencyPRs);
+    const existing = byPr.get(prName);
     if (existing) {
-      existing.row.totalNet += pv.net;
+      existing.row.totalNet += getPvNetTotal(pv);
       existing.row.pvCount += 1;
       existing.outlets.add(pv.outlet);
     } else {
-      byPr.set(pv.prName, {
+      byPr.set(prName, {
         row: {
-          prName: pv.prName,
+          prName,
           outlet: pv.outlet,
           prIc: pv.prIc,
-          totalNet: pv.net,
+          totalNet: getPvNetTotal(pv),
           pvCount: 1,
         },
         outlets: new Set([pv.outlet]),
@@ -206,7 +209,7 @@ function AgencyPV() {
   const awaiting = prPaymentVouchers.filter((p) => pvNeedsPrReview(p.status)).length;
   const disputed = prPaymentVouchers.filter((p) => p.status === "DISPUTED").length;
   const queued = prPaymentVouchers.filter((p) => p.status === "SIGNED");
-  const queuedTotal = queued.reduce((s, p) => s + p.net, 0);
+  const queuedTotal = queued.reduce((s, p) => s + getPvNetTotal(p), 0);
   const paid = prPaymentVouchers.filter((p) => p.status === "PAID").length;
 
   const agencyReceiptScans = useMemo(
@@ -233,7 +236,10 @@ function AgencyPV() {
     return sortPvsBySales(list, salesSort);
   }, [rangeFilteredPvs, statusFilter, dateFilter, salesSort, latestIssuedMs]);
 
-  const toPayRows = useMemo(() => buildToPayRows(filteredVouchers), [filteredVouchers]);
+  const toPayRows = useMemo(
+    () => buildToPayRows(filteredVouchers, agencyPRs),
+    [filteredVouchers, agencyPRs],
+  );
   const toPayTotal = useMemo(
     () => toPayRows.reduce((sum, row) => sum + row.totalNet, 0),
     [toPayRows],
@@ -297,6 +303,7 @@ function AgencyPV() {
       SIGNED: 0,
       TO_PAY: 0,
       DISPUTED: 0,
+      PAID: 0,
     };
     for (const p of rangeFilteredPvs) {
       counts[p.status] += 1;
@@ -638,7 +645,7 @@ function AgencyPV() {
             <div className="min-w-0">
               <div className="font-sora text-[15px] font-bold">{pv.id}</div>
               <p className="iz-tiny iz-muted mt-0.5">
-                {pv.prName} · {pv.outlet}
+                {resolvePvPrName(pv, agencyPRs)} · {pv.outlet}
               </p>
               {pv.prIc && <p className="iz-tiny iz-muted2">IC {pv.prIc}</p>}
               <p className="iz-tiny iz-muted2 mt-0.5">Cycle: {pv.cycle}</p>
@@ -652,7 +659,7 @@ function AgencyPV() {
             </div>
             <div className="shrink-0 text-right">
               <IzPill variant={statusPill(pv.status)}>{pvStatusLabel(pv.status)}</IzPill>
-              <div className="iz-ledger font-sora mt-1.5 text-base font-bold">{formatRM(pv.net)}</div>
+              <div className="iz-ledger font-sora mt-1.5 text-base font-bold">{formatRM(getPvNetTotal(pv))}</div>
               <p className="iz-tiny iz-muted2 mt-0.5">Net payable</p>
             </div>
           </button>
@@ -811,7 +818,7 @@ function CollectionDetailView({
                   {pv && (
                     <>
                       <IzPill variant={pvStatusPillVariant(pv.status)}>{pvStatusLabel(pv.status)}</IzPill>
-                      <span className="iz-ledger text-sm font-bold">{formatRM(pv.net)}</span>
+                      <span className="iz-ledger text-sm font-bold">{formatRM(getPvNetTotal(pv))}</span>
                     </>
                   )}
                   {pv && <ChevronRight className="h-4 w-4 text-[var(--iz-muted)]" />}
@@ -1693,13 +1700,7 @@ function PvDetail({
   const prSigPreview = pv.prSignatureDataUrl;
   const disputeDays = disputeDaysRemaining(pv.disputedAt);
   const displayPv: PrPaymentVoucher = editing
-    ? {
-        ...pv,
-        rows,
-        deduct,
-        subtotal: rows.reduce((s, r) => s + r.amt, 0),
-        net: rows.reduce((s, r) => s + r.amt, 0) - deduct,
-      }
+    ? reconcilePvTotals({ ...pv, rows, deduct })
     : pv;
 
   const saveEdit = () => {

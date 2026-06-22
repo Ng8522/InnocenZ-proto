@@ -49,6 +49,8 @@ import {
   remapSeedPaymentVouchers,
   SEED_RECEIPT_SCANS,
   COMCARD,
+  buildSeedPrPortfolio,
+  SEED_PR_AVATAR_IMAGE,
   PORTFOLIO_SLOT_COUNT,
   fmtDateLabelFromIso,
   type PrPaymentVoucher,
@@ -261,13 +263,14 @@ function buildDemoRoster(): AgencyRosterSlot[] {
   const shift = "22:00 — 04:00";
   const patched = SEED_AGENCY_ROSTER.map(cloneRosterSlot).map((slot) => {
     if (slot.id === "rs3") {
+      const { outletSwap: _swap, ...rest } = slot;
       return {
-        ...slot,
+        ...rest,
         status: "on-duty" as const,
         checkedInAt: "21:45",
         floorDrinks: 9,
         floorTips: 35,
-        estPayout: 410,
+        estPayout: 523,
       };
     }
     return slot;
@@ -284,7 +287,7 @@ function buildDemoRoster(): AgencyRosterSlot[] {
       shiftStart: "22:00",
       shiftEnd: "04:00",
       status: "scheduled",
-      estPayout: 395,
+      estPayout: 480,
     },
     {
       id: "rs-demo-p4",
@@ -297,7 +300,7 @@ function buildDemoRoster(): AgencyRosterSlot[] {
       shiftStart: "22:00",
       shiftEnd: "04:00",
       status: "scheduled",
-      estPayout: 388,
+      estPayout: 360,
     },
     {
       id: "rs-demo-p5",
@@ -310,7 +313,7 @@ function buildDemoRoster(): AgencyRosterSlot[] {
       shiftStart: "22:00",
       shiftEnd: "04:00",
       status: "scheduled",
-      estPayout: 402,
+      estPayout: 360,
     },
   ];
   return [...patched, ...velvetTonight];
@@ -359,10 +362,10 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     prPaymentVouchers: historyLedger.pvs,
     prReceiptScans: historyLedger.scans,
     prComcard: { ...COMCARD },
-    prPortfolio: Array.from({ length: PORTFOLIO_SLOT_COUNT }, () => null) as (string | null)[],
+    prPortfolio: buildSeedPrPortfolio(),
     prLanguages: ["English", "Mandarin", "Cantonese"],
     prDisplayName: null as string | null,
-    prAvatarPhoto: null as string | null,
+    prAvatarPhoto: SEED_PR_AVATAR_IMAGE,
     prPayrollAgencyId: null as string | null,
     prNotifications: [...SEED_PR_NOTIFICATIONS],
     prDeclinedOfferIds: [] as string[],
@@ -400,7 +403,7 @@ export function buildDemoStoreReset() {
     ratings: [
       {
         id: "r-demo-1",
-        pr: "Luna",
+        pr: "Vicky",
         stars: 5,
         note: "Strong upsell on VIP tables",
         tags: ["Great upsell", "Professional"],

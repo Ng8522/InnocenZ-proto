@@ -12,6 +12,7 @@ import {
   type OutletTierRateSettings,
 } from "@/lib/agency-demo";
 import { DEFAULT_PER_DRINK_RM, DEFAULT_PER_TABLE_RM } from "@/lib/outlet-financial-sync";
+import { outletMatches } from "@/lib/portal-sync";
 
 export type ShiftDestination = "agency" | "marketplace" | "both";
 
@@ -169,6 +170,56 @@ export const DEMO_SHIFT_TIER_SALES_TARGETS: Record<string, Partial<Record<Outlet
     "Tier V": 1400,
   },
 };
+
+/** Map agency PR training level to a valid outlet tier (defaults to base tier). */
+export function resolveOutletPrTier(trainingLevel?: string): OutletPrTier {
+  if (trainingLevel && OUTLET_PR_TIERS.includes(trainingLevel as OutletPrTier)) {
+    return trainingLevel as OutletPrTier;
+  }
+  return OUTLET_BASE_TIER;
+}
+
+/** Per-PR sales target (RM) from outlet shift tier rates. */
+export function tierSalesTargetForPr(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings> | undefined,
+  trainingLevel?: string,
+): number {
+  if (!tierRates) return 0;
+  const tier = resolveOutletPrTier(trainingLevel);
+  return tierRates[tier]?.targetSalesRm ?? 0;
+}
+
+export function findOutletShiftForPr<
+  T extends { id: string; outletName: string; status: string; prs: string[] },
+>(shifts: T[], outlet: string, prId: string, shiftId?: string): T | undefined {
+  if (shiftId) {
+    const byId = shifts.find((s) => s.id === shiftId);
+    if (byId && outletMatches(byId.outletName, outlet)) return byId;
+  }
+  const assigned = shifts.find(
+    (s) =>
+      outletMatches(s.outletName, outlet) &&
+      s.status !== "sealed" &&
+      s.prs.includes(prId),
+  );
+  if (assigned) return assigned;
+  return shifts.find(
+    (s) => outletMatches(s.outletName, outlet) && s.status !== "sealed",
+  );
+}
+
+/** Match outlet shift row to an agency roster assignment (outlet + shift time). */
+export function findOutletShiftForRosterSlot<
+  T extends { outletName: string; shift: string; event?: string; date?: string; status?: string },
+>(shifts: T[], slot: { outlet: string; shift: string }): T | undefined {
+  const matches = shifts.filter(
+    (s) => outletMatches(s.outletName, slot.outlet) && s.status !== "sealed",
+  );
+  if (matches.length === 0) return undefined;
+  const byTime = matches.find((s) => s.shift === slot.shift);
+  if (byTime) return byTime;
+  return matches.find((s) => s.date === "Tonight") ?? matches[0];
+}
 
 export function ensureShiftSalesTargets<T extends {
   id: string;

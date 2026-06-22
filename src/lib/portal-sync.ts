@@ -8,8 +8,16 @@ import type {
   AgencyRosterSlot,
   LiveWorkforceEntry,
   OutletCommissionRule,
+  OutletPrTier,
+  OutletTierRateSettings,
 } from "@/lib/agency-demo";
-import { DEFAULT_AGENCY_OWNER, OUTLET_COMMISSION_RULES } from "@/lib/agency-demo";
+import {
+  calcShiftPayout,
+  DEFAULT_AGENCY_OWNER,
+  OUTLET_COMMISSION_RULES,
+  resolveRosterPrName,
+} from "@/lib/agency-demo";
+import { findOutletShiftForRosterSlot, shiftHoursFromLabel } from "@/lib/outlet-demo";
 import type { HistRow, PrPaymentVoucher } from "@/lib/pr-demo";
 import { formatPrDisplayName } from "@/lib/pr-demo";
 import { getPayrollWeekSundayIso } from "@/lib/demo-clock";
@@ -47,19 +55,63 @@ export function isDefaultOutlet(name: string): boolean {
   return outletMatches(name, DEFAULT_OUTLET_CANONICAL);
 }
 
-/** Estimated roster payout using live commission rules from the store */
+export type RosterPayoutEstimateOpts = {
+  trainingLevel?: string;
+  rules?: OutletCommissionRule[];
+  perDrinkRm?: number;
+  shiftTierRates?: Record<OutletPrTier, OutletTierRateSettings>;
+};
+
+/** Estimated roster payout — wages & commission from PR training tier + live floor metrics */
+export function estimateRosterSlotPayout(
+  slot: AgencyRosterSlot,
+  opts: RosterPayoutEstimateOpts = {},
+): number {
+  const rules = opts.rules ?? OUTLET_COMMISSION_RULES;
+  const perDrinkRm = opts.perDrinkRm ?? 12;
+  const hours = shiftHoursFromLabel(slot.shift);
+  const drinkUnits = slot.floorDrinks ?? 0;
+  return calcShiftPayout(
+    {
+      outlet: slot.outlet,
+      hoursWorked: hours,
+      drinks: drinkUnits,
+      drinkSales: drinkUnits * perDrinkRm,
+      tips: slot.floorTips ?? 0,
+      tableSales: 0,
+      prTier: opts.trainingLevel,
+      shiftTierRates: opts.shiftTierRates,
+    },
+    rules,
+  ).total;
+}
+
+/** @deprecated Prefer estimateRosterSlotPayout with trainingLevel */
 export function estimateRosterPayout(
   slot: AgencyRosterSlot,
   rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
   perDrinkRm = 12,
+  trainingLevel?: string,
+  shiftTierRates?: Record<OutletPrTier, OutletTierRateSettings>,
 ): number {
-  const rule = rules.find((r) => outletMatches(r.outlet, slot.outlet)) ?? rules[0];
-  const wage = (rule?.wagePerHour ?? 60) * 6;
-  const drinks = slot.floorDrinks ?? 0;
-  const tips = slot.floorTips ?? 0;
-  const drinkPct = rule?.drinkPct ?? 8;
-  const tipPct = rule?.tipPct ?? 15;
-  return Math.round((wage + drinks * perDrinkRm * (drinkPct / 100) + tips * (tipPct / 100)) * 100) / 100;
+  return estimateRosterSlotPayout(slot, { trainingLevel, rules, perDrinkRm, shiftTierRates });
+}
+
+export function estimateRosterSlotPayoutForPr(
+  slot: AgencyRosterSlot,
+  agencyPRs: { id: string; trainingLevel?: string }[] | undefined,
+  rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
+  perDrinkRm = 12,
+  outletShifts?: { outletName: string; shift: string; tierRates?: Record<OutletPrTier, OutletTierRateSettings> }[],
+): number {
+  const profile = agencyPRs?.find((p) => p.id === slot.prId);
+  const outletShift = outletShifts ? findOutletShiftForRosterSlot(outletShifts, slot) : undefined;
+  return estimateRosterSlotPayout(slot, {
+    trainingLevel: profile?.trainingLevel,
+    rules,
+    perDrinkRm,
+    shiftTierRates: outletShift?.tierRates,
+  });
 }
 
 /** Live floor cards derived from roster — replaces static SEED_LIVE_WORKFORCE in UI */
@@ -68,6 +120,7 @@ export function deriveLiveWorkforce(
   dateIso: string = DEFAULT_ROSTER_DATE_ISO,
   rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
   perDrinkRm = 12,
+  agencyPRs?: { id: string; name: string; trainingLevel?: string }[],
 ): LiveWorkforceEntry[] {
   return roster
     .filter(
@@ -78,12 +131,12 @@ export function deriveLiveWorkforce(
     .filter((s) => s.status === "en-route" || (s.status === "on-duty" && !!s.checkedInAt))
     .map((s) => ({
       id: s.id,
-      prName: s.prName,
+      prName: resolveRosterPrName(s.prId, s.prName, agencyPRs),
       outlet: s.outlet,
       status: s.status === "on-duty" && s.checkedInAt ? "on-duty" : "en-route",
       checkIn: s.checkedInAt,
       checkOut: s.checkedOutAt,
-      estPayout: s.estPayout ?? estimateRosterPayout(s, rules, perDrinkRm),
+      estPayout: estimateRosterSlotPayoutForPr(s, agencyPRs, rules, perDrinkRm),
       drinks: s.floorDrinks ?? 0,
       tips: s.floorTips ?? 0,
     }));
@@ -440,6 +493,34 @@ export function rosterCheckOut(
       return { ...s, status: "scheduled" as const, checkedOutAt: time };
     }
     return s;
+  });
+}
+
+export type PrAttendanceRosterSync = {
+  prId: string;
+  prName: string;
+  checkedIn: boolean;
+  checkedOut?: boolean;
+  session?: {
+    outlet: string;
+    shiftTime: string;
+    timeIn: string;
+  } | null;
+  dateIso?: string;
+};
+
+/** Mirror PR portal check-in onto agency roster slots. */
+export function syncPrAttendanceToRoster(
+  roster: AgencyRosterSlot[],
+  input: PrAttendanceRosterSync,
+): AgencyRosterSlot[] {
+  if (input.checkedOut || !input.checkedIn || !input.session) return roster;
+  const checkInTime =
+    input.session.timeIn.match(/\d{1,2}:\d{2}/)?.[0] ?? input.session.timeIn;
+  return rosterCheckIn(roster, input.prId, input.session.outlet, checkInTime, {
+    prName: input.prName,
+    dateIso: input.dateIso ?? DEFAULT_ROSTER_DATE_ISO,
+    shift: input.session.shiftTime,
   });
 }
 

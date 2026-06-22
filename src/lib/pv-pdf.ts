@@ -451,7 +451,7 @@ export function buildPvBreakdownHtml(
 
     <div class="sig-row">
       <div class="sig-left">
-        <div class="sig-inner">
+      <div class="sig-inner">
           <div class="sig-role">${escapeHtml(FINANCE_HEAD_LABEL)}</div>
           <div class="sig-line">${
             fhSigned
@@ -460,8 +460,8 @@ export function buildPvBreakdownHtml(
                 : `<span class="esig">${escapeHtml(pv.financeHeadName)}</span>`
               : ""
           }</div>
-          <div class="sig-fld">
-            <span class="lbl">Name:</span>
+        <div class="sig-fld">
+          <span class="lbl">Name:</span>
             <span class="val">${escapeHtml(fhSigned ? pv.financeHeadName : "")}</span>
           </div>
           <div class="sig-fld">
@@ -483,9 +483,9 @@ export function buildPvBreakdownHtml(
           <div class="sig-fld">
             <span class="lbl">Name:</span>
             <span class="val">${escapeHtml(prOk ? payee.name : "")}</span>
-          </div>
-          <div class="sig-fld">
-            <span class="lbl">Date:</span>
+        </div>
+        <div class="sig-fld">
+          <span class="lbl">Date:</span>
             <span class="val">${escapeHtml(prOk ? (pv.prSignedAt ?? "") : "")}</span>
           </div>
         </div>

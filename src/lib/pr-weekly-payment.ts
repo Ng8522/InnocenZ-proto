@@ -8,6 +8,7 @@ import {
   fmtDtable,
   formatPvSignTimestamp,
   RECEIPT_COMMISSION_RULES,
+  reconcilePvTotals,
   type PrPaymentVoucher,
   type PrProfile,
   type PrPvRow,
@@ -373,7 +374,7 @@ export function syncWeeklyPvWithSummary(
   const rows = mergePvRowsWithSummary(pv, summary);
   const subtotal = summary.totals.net;
   const outlets = new Set(rows.map((r) => r.outlet).filter(Boolean));
-  return {
+  return reconcilePvTotals({
     ...pv,
     cycle: summary.weekLabel.replace(/\s+\d{4}$/, ""),
     outlet: outlets.size > 1 ? `Multi-outlet (${outlets.size})` : rows[0]?.outlet ?? pv.outlet,
@@ -384,7 +385,7 @@ export function syncWeeklyPvWithSummary(
     timeIn: undefined,
     timeOut: undefined,
     shiftSessionId: undefined,
-  };
+  });
 }
 
 function mergePvRowsWithSummary(pv: PrPaymentVoucher, summary: WeeklyPaymentSummary): PrPvRow[] {
@@ -616,7 +617,7 @@ export function buildSentWeeklyPv(opts: {
   const issuedLabel = format(issueDate, "d MMM yyyy");
   const dueLabel = format(addDays(issueDate, 7), "d MMM yyyy");
   const issuedStamp = formatPvSignTimestamp(issueDate);
-  return {
+  return reconcilePvTotals({
     id: opts.existing?.id ?? makeWeeklyPvId(opts.summary.weekStartIso, opts.prSuffix),
     prName: opts.profile.name,
     prIc: opts.profile.ic,
@@ -638,5 +639,5 @@ export function buildSentWeeklyPv(opts: {
     status: "SENT",
     ...seedFinanceHeadStamp(`${issuedStamp.split("·")[0]?.trim() ?? issuedLabel} · 09:00`),
     receiptIds: opts.existing?.receiptIds,
-  };
+  });
 }

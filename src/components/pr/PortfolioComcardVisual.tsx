@@ -10,6 +10,14 @@ export function canGeneratePortfolioComcard(portfolio: (string | null)[]): boole
   return portfolioPhotosForComcard(portfolio).length >= 4;
 }
 
+export function StaticComcardVisual({ src, className }: { src: string; className?: string }) {
+  return (
+    <div className={cn("iz-static-comcard", className)}>
+      <img src={src} alt="PR comcard" className="iz-static-comcard__img" />
+    </div>
+  );
+}
+
 export function PortfolioComcardVisual({
   photos,
   pr,

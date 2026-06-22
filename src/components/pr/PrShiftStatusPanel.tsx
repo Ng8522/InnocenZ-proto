@@ -15,6 +15,8 @@ import {
   shiftDurationLabel,
   shiftPayoutTotal,
   shiftCommissionRemaining,
+  shiftSalesLogged,
+  shiftSalesRemaining,
   shiftSalesTargetRm,
 } from "@/lib/pr-shift-status";
 
@@ -112,11 +114,16 @@ export function PrShiftStatusPanel({
   scans,
   baseWages,
   checkedOut,
+  tierSalesTargetRm,
+  prTier,
 }: {
   session: PrActiveShiftSession | null | undefined;
   scans: PrReceiptScan[];
   baseWages: number;
   checkedOut: boolean;
+  /** Outlet shift sales target for this PR's tier (RM) */
+  tierSalesTargetRm?: number;
+  prTier?: string;
 }) {
   const shiftScans = useMemo(() => receiptItemsForShift(session, scans), [session, scans]);
   const rows = useMemo(
@@ -125,11 +132,16 @@ export function PrShiftStatusPanel({
   );
   const commissionTotal = shiftCommissionTotal(shiftScans);
   const payout = shiftPayoutTotal(baseWages, shiftScans);
+  const useTierSalesTarget = (tierSalesTargetRm ?? 0) > 0;
   const targets = DEFAULT_SHIFT_SALES_TARGETS;
-  const targetRm = shiftSalesTargetRm(targets);
-  const remaining = shiftCommissionRemaining(commissionTotal, targets);
+  const targetRm = useTierSalesTarget ? tierSalesTargetRm! : shiftSalesTargetRm(targets);
+  const salesLogged = shiftSalesLogged(shiftScans);
+  const remaining = useTierSalesTarget
+    ? shiftSalesRemaining(salesLogged, targetRm)
+    : shiftCommissionRemaining(commissionTotal, targets);
   const targetMet = remaining <= 0;
-  const targetPct = Math.min(100, targetRm > 0 ? (commissionTotal / targetRm) * 100 : 0);
+  const progressValue = useTierSalesTarget ? salesLogged : commissionTotal;
+  const targetPct = Math.min(100, targetRm > 0 ? (progressValue / targetRm) * 100 : 0);
   const receiptRows = rows.filter((r) => r.kind === "receipt");
   const verifiedReceipts = receiptRows.filter((r) => r.verified).length;
   const pendingReceipts = receiptRows.length - verifiedReceipts;
@@ -173,6 +185,9 @@ export function PrShiftStatusPanel({
       <div className="iz-pr-shift-status__targets">
         <p className="iz-pr-shift-status__targets-label">
           {targetMet ? "Shift target" : "To target"}
+          {useTierSalesTarget && prTier ? (
+            <span className="ml-1 text-[var(--iz-muted2)]">· {prTier}</span>
+          ) : null}
         </p>
         <div className="iz-pr-shift-status__target-price">
           {targetMet ? (

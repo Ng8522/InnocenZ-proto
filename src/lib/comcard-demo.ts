@@ -16,7 +16,7 @@ export type ComcardDemoStyle = {
 
 export const DEMO_COMCARDS: Record<string, ComcardDemoStyle> = {
   p1: {
-    plate: "LUNA",
+    plate: "VICKY",
     bgFrom: "rgba(88, 28, 135, 0.55)",
     bgMid: "rgba(22, 18, 38, 0.95)",
     bgTo: "rgba(217, 185, 122, 0.22)",

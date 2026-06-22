@@ -11,6 +11,7 @@ import {
   fmtDtable,
   RECEIPT_COMMISSION_RULES,
   TIED_DEMO_ROSTER_PR_ID,
+  reconcilePvTotals,
   type PrPaymentVoucher,
   type PrProfile,
   type PrReceiptScan,
@@ -564,7 +565,7 @@ export function mergeHistoryDemoLedger(opts: {
   profile?: PrProfile;
 }): { scans: PrReceiptScan[]; pvs: PrPaymentVoucher[] } {
   const prId = opts.prId ?? TIED_DEMO_ROSTER_PR_ID;
-  const profile = opts.profile ?? { name: "Luna", ic: "950312-14-8821" } as PrProfile;
+  const profile = opts.profile ?? { name: "Vicky", ic: "950312-14-8821" } as PrProfile;
 
   const stripped = stripShiftHistorySyncedLedger(opts.scans, opts.pvs, prId, profile.name);
   const minePvs = stripped.pvs.filter((p) => p.prName === profile.name);
@@ -601,7 +602,7 @@ export function mergeHistoryDemoLedger(opts: {
   let pvs = [...stripped.pvs, ...extraPvs];
 
   scans = syncReceiptScansWithPvs(scans, pvs, prId);
-  pvs = attachReceiptIdsToAllPvs(pvs, scans, profile.name);
+  pvs = attachReceiptIdsToAllPvs(pvs, scans, profile.name).map(reconcilePvTotals);
   return { scans, pvs };
 }
 
@@ -610,7 +611,7 @@ export function syncStoreHistoryLedger(
   shiftHistory: ShiftHistoryRow[],
   scans: PrReceiptScan[],
   pvs: PrPaymentVoucher[],
-  profile: PrProfile = { name: "Luna", ic: "950312-14-8821" },
+  profile: PrProfile = { name: "Vicky", ic: "950312-14-8821" },
   prId: string = TIED_DEMO_ROSTER_PR_ID,
 ): { scans: PrReceiptScan[]; pvs: PrPaymentVoucher[] } {
   return mergeHistoryDemoLedger({ shiftHistory, scans, pvs, prId, profile });

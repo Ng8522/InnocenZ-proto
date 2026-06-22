@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { AgencyGpsPanel } from "@/components/agency/AgencyGpsPanel";
 import { RosterTimetableFilters } from "@/components/agency/RosterTimetableFilters";
 import { RosterWeeklyTimetable } from "@/components/agency/RosterWeeklyTimetable";
@@ -24,7 +24,7 @@ import {
 } from "@/lib/roster-shift-filters";
 import { getPrScheduleState } from "@/lib/roster-availability";
 import { agencyCan } from "@/lib/agency-rbac";
-import { mondayOfWeek, weekDayIsos, weekRangeLabel } from "@/lib/roster-week-plan";
+import { mondayOfWeek, weekDayIsos, weekRangeLabel, dedupeLiveRosterByPr } from "@/lib/roster-week-plan";
 import { ArrowLeftRight, Calendar, ChevronRight, MapPin, Trash2, Users, X } from "lucide-react";
 
 export const Route = createFileRoute("/agency/roster")({
@@ -53,13 +53,13 @@ function AgencyRoster() {
   const editRosterSlot = useStore((s) => s.editRosterSlot);
   const cancelRosterShift = useStore((s) => s.cancelRosterShift);
   const requestOutletSwap = useStore((s) => s.requestOutletSwap);
-  const cancelOutletSwap = useStore((s) => s.cancelOutletSwap);
   const agencySubRole = useStore((s) => s.agencySubRole);
   const prSwapRequests = useStore((s) => s.prSwapRequests);
   const approvePrSwapRequest = useStore((s) => s.approvePrSwapRequest);
   const declinePrSwapRequest = useStore((s) => s.declinePrSwapRequest);
   const demoAutoAssignPr = useStore((s) => s.demoAutoAssignPr);
   const flagRosterAttendance = useStore((s) => s.flagRosterAttendance);
+  const syncLivePrCheckInToRoster = useStore((s) => s.syncLivePrCheckInToRoster);
   const { date, time } = nowAgencyDateTime();
   const [planningDate, setPlanningDate] = useState(DEFAULT_ROSTER_DATE_ISO);
   const [shiftFilters, setShiftFilters] = useState<RosterShiftFilterState>(EMPTY_ROSTER_SHIFT_FILTERS);
@@ -72,6 +72,10 @@ function AgencyRoster() {
   const [viewMode, setViewMode] = useState<ViewMode>("live");
   const canAssign = agencyCan(agencySubRole, "assignShifts");
 
+  useEffect(() => {
+    syncLivePrCheckInToRoster();
+  }, [syncLivePrCheckInToRoster, agencyRoster.length]);
+
   const dates = useMemo(
     () => [...new Set(agencyRoster.map((s) => s.dateIso))].sort(),
     [agencyRoster],
@@ -82,7 +86,7 @@ function AgencyRoster() {
   const weekDays = useMemo(() => weekDayIsos(weekStartIso), [weekStartIso]);
 
   const dateFiltered = useMemo(
-    () => agencyRoster.filter((s) => s.dateIso === liveDateIso),
+    () => dedupeLiveRosterByPr(agencyRoster.filter((s) => s.dateIso === liveDateIso)),
     [agencyRoster, liveDateIso],
   );
 
@@ -91,8 +95,6 @@ function AgencyRoster() {
     [dateFiltered, shiftFilters],
   );
 
-  const swapCount = agencyRoster.filter((s) => s.outletSwap?.status === "pending_pr").length;
-  const assignCount = agencyRoster.filter((s) => s.status === "assignment-pending").length;
   const pendingPrSwaps = useMemo(
     () =>
       prSwapRequests.filter((s) => {
@@ -103,6 +105,8 @@ function AgencyRoster() {
       }),
     [prSwapRequests, agencyRoster],
   );
+  const swapCount = pendingPrSwaps.length;
+  const assignCount = agencyRoster.filter((s) => s.status === "assignment-pending").length;
   const swapToApprove = approveSwapId
     ? prSwapRequests.find((s) => s.id === approveSwapId && s.status === "pending_agency")
     : null;
@@ -120,6 +124,7 @@ function AgencyRoster() {
 
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
+  const shifts = useStore((s) => s.shifts);
   const workforce = useMemo(
     () => deriveLiveWorkforce(agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm),
     [agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm],
@@ -371,11 +376,15 @@ function AgencyRoster() {
         <RosterShiftTable
           slots={filtered}
           agencyPRs={agencyPRs}
+          prSwapRequests={prSwapRequests}
+          outletCommissionRules={outletCommissionRules}
+          perDrinkRm={perDrinkRm}
+          outletShifts={shifts}
           canAssign={canAssign}
           onEdit={openEdit}
           onFlagLate={(id) => flagRosterAttendance(id, "late")}
           onFlagNoShow={(id) => flagRosterAttendance(id, "no-show")}
-          onCancelSwap={cancelOutletSwap}
+          onCancelPrSwap={declinePrSwapRequest}
         />
       </OutletSection>
       )}

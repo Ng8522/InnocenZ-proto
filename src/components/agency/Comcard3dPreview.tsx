@@ -1,4 +1,5 @@
 import { IzPill } from "@/components/iz/ui";
+import { StaticComcardVisual } from "@/components/pr/PortfolioComcardVisual";
 import { getComcardDemoStyle } from "@/lib/comcard-demo";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +9,9 @@ export type ComcardPreviewData = {
   height: number;
   weight?: number;
   age: number;
+  avatarPhoto?: string | null;
+  comcardImageUrl?: string | null;
+  portfolioPhotos?: (string | null)[];
 };
 
 const DEFAULT_WEIGHT = 52;
@@ -94,6 +98,23 @@ export function Comcard3dPreviewThumb({
   const fallback: ComcardPreviewData = { name: "PR", height: 165, age: 24 };
   const data = pr ?? fallback;
 
+  if (data.comcardImageUrl) {
+    return (
+      <div
+        className={cn(
+          "iz-comcard-3d-preview iz-comcard-3d-preview--thumb iz-comcard-3d-preview--thumb-photo overflow-hidden",
+          className,
+        )}
+      >
+        <img
+          src={data.comcardImageUrl}
+          alt=""
+          className="iz-comcard-3d-preview--thumb-photo__img"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={cn("iz-comcard-3d-preview iz-comcard-3d-preview--thumb", className)}>
       <ComcardStage pr={data} variant="thumb" />
@@ -128,7 +149,11 @@ export function Comcard3dPreviewCard({
 
   return (
     <div className={cn("iz-comcard-3d-preview iz-comcard-3d-preview--card iz-comcard-3d-preview--card-compact", className)}>
-      <ComcardStage pr={pr} variant="card" />
+      {pr.comcardImageUrl ? (
+        <StaticComcardVisual src={pr.comcardImageUrl} className="!w-full" />
+      ) : (
+        <ComcardStage pr={pr} variant="card" />
+      )}
       <div className="iz-comcard-3d-preview-card-meta">
         <div className="flex items-center justify-between gap-1">
           <p className="min-w-0 truncate font-sora text-[11px] font-bold leading-tight text-[var(--iz-txt)]">
@@ -177,7 +202,11 @@ export function Comcard3dPreviewVisual({
 
   return (
     <div className={cn("iz-comcard-3d-preview", className)}>
-      <ComcardStage pr={pr} variant="full" />
+      {pr.comcardImageUrl ? (
+        <StaticComcardVisual src={pr.comcardImageUrl} className="!w-full" />
+      ) : (
+        <ComcardStage pr={pr} variant="full" />
+      )}
       {showStats && (
         <div className="iz-comcard-3d-preview-stats">
           <ComcardStat label="HEIGHT" value={`${pr.height} cm`} />

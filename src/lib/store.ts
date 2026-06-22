@@ -78,6 +78,7 @@ import {
   OUTLET_PR_TIERS,
   migrateCommissionRuleToTierIBase,
   migrateTierMultipliersToTierIBase,
+  buildDefaultTierRates,
   cloneTierRates,
   estimateShiftLaborCost,
   snapTierWage,
@@ -832,7 +833,18 @@ function ensureOutletRuleTierMultipliers(
       tierMultipliers: migrateTierMultipliersToTierIBase(partial),
     });
     if (!migrated.tierRates) {
-      return { ...migrated, wagePerHour: snapTierWage(migrated.wagePerHour) };
+      const tierBase = {
+        wagePerHour: snapTierWage(migrated.wagePerHour),
+        drinkPct: migrated.drinkPct,
+        tipPct: migrated.tipPct,
+        tablePct: migrated.tablePct,
+        otAfterHours: migrated.otAfterHours,
+      };
+      return {
+        ...migrated,
+        wagePerHour: tierBase.wagePerHour,
+        tierRates: buildDefaultTierRates(tierBase),
+      };
     }
     const baseTier = migrated.tierRates[OUTLET_BASE_TIER] ?? {
       wagePerHour: migrated.wagePerHour,

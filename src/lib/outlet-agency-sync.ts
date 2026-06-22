@@ -1,11 +1,14 @@
-import type { OutletCommissionRule, OutletPrTier, OutletTierRateSettings } from "@/lib/agency-demo";
 import {
+  buildDefaultTierRates,
   cloneTierRates,
   deriveTierMultipliersFromRates,
   getOutletRule,
   migrateCommissionRuleToTierIBase,
   normalizeTierRates,
   OUTLET_BASE_TIER,
+  type OutletCommissionRule,
+  type OutletPrTier,
+  type OutletTierRateSettings,
 } from "@/lib/agency-demo";
 import type { OutletWorkspaceSettings } from "@/lib/outlet-demo";
 import { workspaceBaseRates } from "@/lib/outlet-demo";
@@ -40,17 +43,29 @@ export function syncCommissionRulesFromWorkspace(
   );
 }
 
+function tierBaseFromRule(rule: OutletCommissionRule): OutletTierRateSettings {
+  return {
+    wagePerHour: rule.wagePerHour,
+    drinkPct: rule.drinkPct,
+    tipPct: rule.tipPct,
+    tablePct: rule.tablePct,
+    otAfterHours: rule.otAfterHours,
+  };
+}
+
 /** Tier rates for an outlet — workspace wins for the logged-in outlet, else commission rules. */
 export function resolveOutletTierRates(
   outlet: string,
   rules: OutletCommissionRule[],
   workspace?: Pick<OutletWorkspaceSettings, "outletName" | "tierRates">,
 ): Record<OutletPrTier, OutletTierRateSettings> {
-  if (workspace && outletMatches(outlet, workspace.outletName)) {
+  if (workspace && outletMatches(outlet, workspace.outletName) && workspace.tierRates) {
     return cloneTierRates(workspace.tierRates);
   }
   const rule = migrateCommissionRuleToTierIBase(getOutletRule(outlet, rules));
-  return cloneTierRates(rule.tierRates as Record<OutletPrTier, OutletTierRateSettings>);
+  const tierBase = tierBaseFromRule(rule);
+  if (!rule.tierRates) return buildDefaultTierRates(tierBase);
+  return normalizeTierRates(tierBase, rule.tierRates);
 }
 
 /** Pull agency commission rule for this outlet back into workspace settings. */

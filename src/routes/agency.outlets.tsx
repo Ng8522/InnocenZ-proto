@@ -35,7 +35,8 @@ import {
 export const Route = createFileRoute("/agency/outlets")({
   component: AgencyManageOutlets,
   validateSearch: (search: Record<string, unknown>) => ({
-    outlet: typeof search.outlet === "string" && search.outlet.trim() ? search.outlet.trim() : undefined,
+    outlet:
+      typeof search.outlet === "string" && search.outlet.trim() ? search.outlet.trim() : undefined,
   }),
 });
 
@@ -87,7 +88,9 @@ function AgencyManageOutlets() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
+          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">
+            Access restricted
+          </h2>
         </header>
         <IzCard className="text-center">
           <p className="iz-sm iz-muted">Finance role cannot manage outlets.</p>
@@ -126,10 +129,8 @@ function AgencyManageOutlets() {
 
       <IzCard flat className="border-[var(--iz-line2)]">
         <p className="iz-tiny iz-muted2 leading-relaxed">
-          <b className="text-[var(--iz-muted)]">Posted</b> shifts come from outlet bookings.
-          {" "}
-          <b className="text-[var(--iz-violet-l)]">Outlet offers</b> are tied agency listings.
-          {" "}
+          <b className="text-[var(--iz-muted)]">Posted</b> shifts come from outlet bookings.{" "}
+          <b className="text-[var(--iz-violet-l)]">Outlet offers</b> are tied agency listings.{" "}
           <b className="text-[var(--iz-amber)]">Awaiting PR</b> slots need assignment on roster.
         </p>
       </IzCard>
@@ -273,20 +274,26 @@ function AgencyOutletDetail({
       </button>
 
       <header className="mb-3">
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-violet-l)]">{summary.outlet}</h2>
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-violet-l)]">
+          {summary.outlet}
+        </h2>
         <p className="iz-tiny iz-muted mt-0.5">
-          Wage RM{summary.rule.wagePerHour}/hr · Drinks {summary.rule.drinkPct}% · Tips {summary.rule.tipPct}% · Table{" "}
-          {summary.rule.tablePct}%
+          Wage RM{summary.rule.wagePerHour}/hr · Drinks {summary.rule.drinkPct}% · Tips{" "}
+          {summary.rule.tipPct}% · Table {summary.rule.tablePct}%
         </p>
       </header>
 
       <div className="mb-3 grid grid-cols-2 gap-2">
         <IzCard flat className="!p-3 text-center">
-          <div className="font-sora text-xl font-extrabold text-[var(--iz-amber)]">{shifts.length}</div>
+          <div className="font-sora text-xl font-extrabold text-[var(--iz-amber)]">
+            {shifts.length}
+          </div>
           <div className="iz-tiny iz-muted2">Open shifts</div>
         </IzCard>
         <IzCard flat className="!p-3 text-center">
-          <div className="font-sora text-xl font-extrabold text-[var(--iz-green)]">{summary.scheduledTonight}</div>
+          <div className="font-sora text-xl font-extrabold text-[var(--iz-green)]">
+            {summary.scheduledTonight}
+          </div>
           <div className="iz-tiny iz-muted2">PRs tonight</div>
         </IzCard>
       </div>
@@ -312,7 +319,10 @@ function AgencyOutletDetail({
         )}
       </OutletSection>
 
-      <Link to="/agency/roster" className="iz-btn iz-btn-primary mt-4 flex w-full items-center justify-center gap-1.5">
+      <Link
+        to="/agency/roster"
+        className="iz-btn iz-btn-primary mt-4 flex w-full items-center justify-center gap-1.5"
+      >
         Assign on roster
         <ChevronRight className="h-4 w-4" />
       </Link>
@@ -377,12 +387,8 @@ function OutletShiftCard({ shift }: { shift: AgencyOutletAvailableShift }) {
       </summary>
 
       <div className="border-t border-[var(--iz-line)] px-3.5 pb-3.5 pt-2">
-        {shift.languages && (
-          <p className="iz-tiny iz-muted">Languages · {shift.languages}</p>
-        )}
-        {shift.briefing && (
-          <p className="iz-tiny iz-muted2 mt-1">{shift.briefing}</p>
-        )}
+        {shift.languages && <p className="iz-tiny iz-muted">Languages · {shift.languages}</p>}
+        {shift.briefing && <p className="iz-tiny iz-muted2 mt-1">{shift.briefing}</p>}
         <ShiftTierWagesStrip tierRates={shift.tierRates} compact />
       </div>
     </details>

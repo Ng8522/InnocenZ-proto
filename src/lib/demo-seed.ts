@@ -365,6 +365,7 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     prPortfolio: buildSeedPrPortfolio(),
     prLanguages: ["English", "Mandarin", "Cantonese"],
     prDisplayName: null as string | null,
+    prEmail: null as string | null,
     prAvatarPhoto: SEED_PR_AVATAR_IMAGE,
     prPayrollAgencyId: null as string | null,
     prNotifications: [...SEED_PR_NOTIFICATIONS],

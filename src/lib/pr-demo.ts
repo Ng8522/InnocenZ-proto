@@ -45,7 +45,7 @@ export const PR_PROFILES: Record<PrSubRole, PrProfile> = {
     first: "Vicky",
     ic: "950312-14-8821",
     mobile: "+60 12-881 2201",
-    email: "vicky@inz.my",
+    email: "Vicky@inz.my",
     bank: "Maybank",
     acc: "5142 8890 1123",
     av: "V",

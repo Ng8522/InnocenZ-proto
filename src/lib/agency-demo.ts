@@ -631,7 +631,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     name: "Vicky",
     ic: "950312-14-8821",
     mobile: "+60 12-881 2201",
-    email: "vicky@inz.my",
+    email: "Vicky@inz.my",
     age: 24,
     height: 153,
     weight: 40,
@@ -857,6 +857,7 @@ export function syncAgencyPrFromPrPortal(
   prId: string,
   portal: {
     prDisplayName: string | null;
+    prEmail: string | null;
     prAvatarPhoto: string | null;
     prComcard: PrComcard;
     prPortfolio: (string | null)[];
@@ -865,9 +866,11 @@ export function syncAgencyPrFromPrPortal(
 ): AgencyManagedPR {
   if (agencyPr.id !== prId) return agencyPr;
   const displayName = portal.prDisplayName?.trim();
+  const email = portal.prEmail?.trim();
   return {
     ...agencyPr,
     ...(displayName ? { name: displayName } : {}),
+    ...(email ? { email } : {}),
     avatarPhoto: portal.prAvatarPhoto ?? agencyPr.avatarPhoto,
     comcardImageUrl: portal.prComcard.imageUrl ?? agencyPr.comcardImageUrl,
     portfolioPhotos: portal.prPortfolio.some(Boolean)

@@ -5,7 +5,7 @@ import type {
   CollectionLineItem,
 } from "@/lib/agency-demo";
 import type { PrPaymentVoucher, PrReceiptScan } from "@/lib/pr-demo";
-import { pvStatusLabel, type PrPvStatus } from "@/lib/pr-demo";
+import { getPvNetTotal, pvStatusLabel, type PrPvStatus } from "@/lib/pr-demo";
 
 function prNameMatchesAgency(scanName: string, pr: AgencyManagedPR): boolean {
   const sn = scanName.trim().toLowerCase();
@@ -34,13 +34,82 @@ export function resolvePvPrName(
   return pv.prName;
 }
 
-export function pvBelongsToAgencyPr(pv: Pick<PrPaymentVoucher, "prName" | "prIc">, agencyPRs: AgencyManagedPR[]): boolean {
+export function pvBelongsToAgencyPr(
+  pv: Pick<PrPaymentVoucher, "prName" | "prIc">,
+  agencyPRs: AgencyManagedPR[] = [],
+): boolean {
   if (pv.prIc && agencyPRs.some((p) => p.ic === pv.prIc)) return true;
   return agencyPRs.some((p) => prNameMatchesAgency(pv.prName, p));
 }
 
-export function getAgencyManagedPvs(pvs: PrPaymentVoucher[], agencyPRs: AgencyManagedPR[]): PrPaymentVoucher[] {
+export function getAgencyManagedPvs(
+  pvs: PrPaymentVoucher[],
+  agencyPRs: AgencyManagedPR[] = [],
+): PrPaymentVoucher[] {
   return pvs.filter((pv) => pvBelongsToAgencyPr(pv, agencyPRs));
+}
+
+export type AgencyToPayRow = {
+  prName: string;
+  outlet: string;
+  prIc?: string;
+  totalNet: number;
+  pvCount: number;
+};
+
+/** Group signed PVs by PR — matches Payroll → To pay → Payment queue. */
+export function buildAgencyToPayRows(
+  pvs: PrPaymentVoucher[],
+  agencyPRs: AgencyManagedPR[] = [],
+): AgencyToPayRow[] {
+  const byPr = new Map<string, { row: AgencyToPayRow; outlets: Set<string> }>();
+  for (const pv of pvs) {
+    const prName = resolvePvPrName(pv, agencyPRs);
+    const existing = byPr.get(prName);
+    if (existing) {
+      existing.row.totalNet += getPvNetTotal(pv);
+      existing.row.pvCount += 1;
+      existing.outlets.add(pv.outlet);
+    } else {
+      byPr.set(prName, {
+        row: {
+          prName,
+          outlet: pv.outlet,
+          prIc: pv.prIc,
+          totalNet: getPvNetTotal(pv),
+          pvCount: 1,
+        },
+        outlets: new Set([pv.outlet]),
+      });
+    }
+  }
+  return [...byPr.values()]
+    .map(({ row, outlets }) => ({
+      ...row,
+      outlet: outlets.size > 1 ? `Multi-outlet (${outlets.size})` : row.outlet,
+    }))
+    .sort((a, b) => b.totalNet - a.totalNet);
+}
+
+/** Signed PV net total — same figure as Payroll → To pay → Payment queue. */
+export function agencyPrToPayTotal(
+  pvs: PrPaymentVoucher[] = [],
+  agencyPRs: AgencyManagedPR[] = [],
+): number {
+  return buildAgencyToPayRows(
+    pvs.filter((pv) => pv.status === "SIGNED"),
+    agencyPRs,
+  ).reduce((sum, row) => sum + row.totalNet, 0);
+}
+
+export function agencyPrToPayCount(
+  pvs: PrPaymentVoucher[] = [],
+  agencyPRs: AgencyManagedPR[] = [],
+): number {
+  return buildAgencyToPayRows(
+    pvs.filter((pv) => pv.status === "SIGNED"),
+    agencyPRs,
+  ).length;
 }
 
 export function resolvePvPrId(

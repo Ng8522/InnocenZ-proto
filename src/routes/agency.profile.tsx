@@ -5,7 +5,6 @@ import { useStore } from "@/lib/store";
 import type { AgencyFinanceHead, AgencyOwnerSettings } from "@/lib/agency-demo";
 import { getAgencySubscriptionPlan } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { signOutToWelcome } from "@/lib/go-welcome";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { Building2, Camera, Mail, Pencil, Phone, Shield, User, X } from "lucide-react";
 
@@ -288,14 +287,6 @@ function AgencyProfile() {
           )}
         </div>
       )}
-
-      <button
-        type="button"
-        className="mt-4 w-full rounded-full border border-[var(--iz-red)] py-3 text-sm font-semibold text-[var(--iz-red)]"
-        onClick={signOutToWelcome}
-      >
-        Sign out
-      </button>
     </div>
   );
 }

@@ -120,7 +120,7 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
           const prTierById = Object.fromEntries(agencyPRs.map((pr) => [pr.id, pr.trainingLevel]));
           const targetSales = outletShiftTargetSalesForShift(s, tierRates);
           const actualCost = outletShiftActualLaborCost(s, tierRates, prTierById);
-          const cutLoss = outletShiftCutLoss(targetSales, s.liveSales);
+          const cutLoss = outletShiftCutLoss(s.estimatedCost, actualCost);
           const { demand: staffingDemand, supplied } = outletShiftDemandSupplied(s);
           const adjustmentsLabel = outletShiftCutLossAdjustmentsLabel(s);
 

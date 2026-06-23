@@ -175,6 +175,7 @@ import {
   migrateShiftTierRates,
   resolveShiftTierRates,
   shiftHoursFromLabel,
+  outletShiftEffectiveDemand,
   outletUnfilledDemandSlots,
   type OutletDrinkPrice,
 } from "@/lib/outlet-demo";
@@ -4597,7 +4598,7 @@ export const useStore = create<StoreState>()(
           });
         }
         get().toast(
-          `${valid.length} PR${valid.length === 1 ? "" : "s"} released early · sales target updated`,
+          `${valid.length} PR${valid.length === 1 ? "" : "s"} released early · labor plan updated`,
           "success",
         );
       },
@@ -4610,13 +4611,22 @@ export const useStore = create<StoreState>()(
           get().toast("No open demand slots to cut", "warn");
           return;
         }
+        const demand = outletShiftEffectiveDemand(shift);
+        const laborCut = demand > 0 ? Math.round((shift.estimatedCost / demand) * cut) : 0;
         set((st) => ({
-          shifts: st.shifts.map((sh) =>
-            sh.id === shiftId ? { ...sh, demandCut: (sh.demandCut ?? 0) + cut } : sh,
-          ),
+          shifts: st.shifts.map((sh) => {
+            if (sh.id !== shiftId) return sh;
+            const slotDemand = outletShiftEffectiveDemand(sh);
+            const perSlot = slotDemand > 0 ? sh.estimatedCost / slotDemand : 0;
+            return {
+              ...sh,
+              demandCut: (sh.demandCut ?? 0) + cut,
+              estimatedCost: Math.max(0, sh.estimatedCost - Math.round(perSlot * cut)),
+            };
+          }),
         }));
         get().toast(
-          `Cut ${cut} open slot${cut === 1 ? "" : "s"} from tonight's sales target`,
+          `Cut ${cut} open slot${cut === 1 ? "" : "s"} · planned labor reduced by RM ${laborCut.toLocaleString("en-MY")}`,
           "success",
         );
       },

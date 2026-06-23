@@ -4909,9 +4909,38 @@ button.iz-pr-offer-row:hover {
     padding: 24px 28px 28px;
   }
 
+  .iz-sheet--dialog.iz-sheet--rating {
+    width: min(580px, calc(100vw - 48px));
+    min-height: 360px;
+    max-height: min(88vh, 720px);
+    padding: 28px 28px 32px;
+  }
+
   .iz-sheet-wrap--overlay .iz-sheet-grab {
     display: none;
   }
+}
+
+.iz-sheet--dialog.iz-sheet--rating {
+  left: 50%;
+  right: auto;
+  top: 50%;
+  bottom: auto;
+  width: min(580px, calc(100vw - 40px));
+  min-height: 320px;
+  max-height: min(88vh, 720px);
+  border-radius: 24px;
+  border-bottom: 1px solid var(--iz-line2);
+  padding: 28px 28px 32px;
+  transform: translate(-50%, -50%);
+  animation: iz-modal-pop 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  box-shadow:
+    0 0 0 1px rgba(217, 185, 122, 0.08),
+    0 32px 80px -24px rgba(0, 0, 0, 0.85);
+}
+
+.iz-sheet-wrap--overlay .iz-sheet--rating .iz-sheet-grab {
+  display: none;
 }
 
 @keyframes iz-modal-pop {
@@ -7768,18 +7797,27 @@ button.iz-agency-row:hover {
   flex-shrink: 0;
 }
 
-.iz-portal-header-badge {
-  display: inline-flex;
+.iz-portal-sidebar-logout {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--iz-line);
-  background: var(--iz-glass2);
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--iz-muted);
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 117, 117, 0.28);
+  background: rgba(255, 117, 117, 0.06);
+  color: var(--iz-red);
   font-family: "Sora", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+}
+
+.iz-portal-sidebar-logout:hover {
+  border-color: rgba(255, 117, 117, 0.45);
+  background: rgba(255, 117, 117, 0.1);
 }
 
 .iz-portal-viewport {
@@ -8535,7 +8573,70 @@ button.iz-agency-row:hover {
   border-top: 1px solid var(--iz-line);
   color: var(--iz-muted2);
 }
-.iz-reg-pending-back {
-  min-width: 120px;
+/* ── Desktop portal sign-in (outlet + agency) ── */
+.iz-portal-auth {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(280px, 1.05fr) minmax(360px, 0.95fr);
+  background: #03020a;
+  background-image:
+    radial-gradient(1100px 700px at 70% -10%, rgba(124, 58, 237, 0.12), transparent 60%),
+    radial-gradient(800px 500px at -10% 110%, rgba(217, 185, 122, 0.06), transparent 55%);
+  color: var(--iz-txt);
+  font-family: "Manrope", sans-serif;
+}
+
+.iz-portal-auth-brand {
+  display: flex;
+  align-items: center;
   justify-content: center;
+  padding: 48px 40px;
+  border-right: 1px solid var(--iz-line);
+  background: linear-gradient(180deg, rgba(14, 8, 23, 0.98) 0%, rgba(8, 5, 15, 0.99) 100%);
+}
+
+.iz-portal-auth-brand-inner {
+  width: 100%;
+  max-width: 420px;
+}
+
+.iz-portal-auth-logo {
+  margin-left: 0 !important;
+}
+
+.iz-portal-auth-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 32px;
+}
+
+.iz-portal-auth-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 8px 4px;
+  animation: iz-fade 0.4s ease;
+}
+
+.iz-portal-auth-card .iz-logo-tile {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .iz-portal-auth {
+    grid-template-columns: 1fr;
+  }
+
+  .iz-portal-auth-brand {
+    display: none;
+  }
+
+  .iz-portal-auth-main {
+    min-height: 100dvh;
+    padding: 28px 22px 32px;
+  }
+
+  .iz-portal-auth-card .iz-logo-tile {
+    display: flex;
+  }
 }

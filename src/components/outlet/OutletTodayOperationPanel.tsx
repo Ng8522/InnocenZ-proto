@@ -315,15 +315,9 @@ export function OutletTodayOperationPanel({
       </IzSheet>
 
       {openPr && openPrData && canRate && (
-        <div
-          className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm"
-          onClick={() => setOpenPr(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="iz-card mx-auto w-full max-w-[392px] rounded-b-none rounded-t-[28px] !mb-0"
-          >
-            <div className="mb-3 flex items-center gap-3">
+        <IzSheet open onClose={() => setOpenPr(null)} rating>
+          <div className="iz-outlet-rate-sheet">
+            <div className="mb-4 flex items-center gap-3">
               <Comcard3dPreviewThumb
                 pr={
                   agencyPrById.get(openPrData.id)
@@ -331,24 +325,24 @@ export function OutletTodayOperationPanel({
                     : comcardPreviewFromSlot({ prId: openPrData.id, prName: openPrData.name })
                 }
               />
-              <h3 className="font-sora text-base font-bold">Rate {openPrData.name}</h3>
+              <h3 className="font-sora text-lg font-bold">Rate {openPrData.name}</h3>
             </div>
-            <div className="flex justify-center gap-1.5">
+            <div className="flex justify-center gap-2">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button key={n} type="button" onClick={() => setStars(n)}>
                   <Star
-                    className={`h-7 w-7 ${n <= stars ? "fill-[var(--iz-gold)] text-[var(--iz-gold)]" : "text-[var(--iz-muted2)]"}`}
+                    className={`h-8 w-8 ${n <= stars ? "fill-[var(--iz-gold)] text-[var(--iz-gold)]" : "text-[var(--iz-muted2)]"}`}
                   />
                 </button>
               ))}
             </div>
-            <div className="mt-3 flex flex-wrap justify-center gap-1">
+            <div className="mt-4 flex flex-wrap justify-center gap-1.5">
               {PR_RATING_TAGS.map((tag) => (
                 <button
                   key={tag}
                   type="button"
                   onClick={() => toggleTag(tag)}
-                  className={`iz-pill !text-[9px] ${tags.includes(tag) ? "iz-pill-violet" : "iz-pill-ink"}`}
+                  className={`iz-pill !text-[10px] ${tags.includes(tag) ? "iz-pill-violet" : "iz-pill-ink"}`}
                 >
                   {tag}
                 </button>
@@ -358,7 +352,7 @@ export function OutletTodayOperationPanel({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Optional note"
-              className="mt-3 h-16 w-full rounded-xl border border-[var(--iz-line2)] bg-white/[0.03] p-3 text-sm outline-none"
+              className="mt-4 h-24 w-full rounded-xl border border-[var(--iz-line2)] bg-white/[0.03] p-3.5 text-sm outline-none"
             />
             <button
               type="button"
@@ -366,12 +360,12 @@ export function OutletTodayOperationPanel({
                 ratePr(openPr, stars, note, tags.length > 0 ? tags : undefined);
                 setOpenPr(null);
               }}
-              className="iz-btn iz-btn-primary mt-3"
+              className="iz-btn iz-btn-primary mt-4 w-full"
             >
               Submit
             </button>
           </div>
-        </div>
+        </IzSheet>
       )}
     </div>
   );

@@ -35,11 +35,13 @@ function SheetContent({
   children,
   mode,
   wide,
+  rating,
 }: {
   onClose: () => void;
   children: ReactNode;
   mode: MountMode;
   wide?: boolean;
+  rating?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -53,7 +55,7 @@ function SheetContent({
     <div className={`iz-sheet-wrap open iz-sheet-wrap--${mode}`}>
       <button type="button" className="iz-sheet-bg" aria-label="Close" onClick={onClose} />
       <div
-        className={`iz-sheet${mode === "overlay" ? " iz-sheet--dialog" : ""}${wide ? " iz-sheet--wide" : ""}`}
+        className={`iz-sheet${mode === "overlay" ? " iz-sheet--dialog" : ""}${wide ? " iz-sheet--wide" : ""}${rating ? " iz-sheet--rating" : ""}`}
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
@@ -70,11 +72,13 @@ export function IzSheet({
   onClose,
   children,
   wide = false,
+  rating = false,
 }: {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  rating?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -85,7 +89,7 @@ export function IzSheet({
 
   const mount = resolveSheetMount();
   const sheet = (
-    <SheetContent onClose={onClose} mode={mount.mode} wide={wide}>
+    <SheetContent onClose={onClose} mode={mount.mode} wide={wide} rating={rating}>
       {children}
     </SheetContent>
   );

@@ -28,7 +28,7 @@ import {
   type PvDateRecencyFilter,
   type PvSalesSort,
 } from "@/lib/pr-demo";
-import { getAgencyManagedReceiptScans, receiptBelongsToAgencyPr, receiptsForPv, collectionOwedLines, groupCollectionLines, resolvePvPrName, agencyPvStatusLabel, AGENCY_PV_STATUS_LABELS } from "@/lib/agency-payroll";
+import { getAgencyManagedReceiptScans, receiptBelongsToAgencyPr, receiptsForPv, collectionOwedLines, groupCollectionLines, resolvePvPrName, agencyPvStatusLabel, AGENCY_PV_STATUS_LABELS, buildAgencyToPayRows } from "@/lib/agency-payroll";
 import {
   matchesPayrollIssueDate,
   matchesPayrollRange,
@@ -125,44 +125,6 @@ const PV_STATUS_FILTERS: { value: PvStatusFilter; label: string }[] = [
   { value: "TO_PAY", label: "To pay" },
 ];
 
-type ToPayRow = {
-  prName: string;
-  outlet: string;
-  prIc?: string;
-  totalNet: number;
-  pvCount: number;
-};
-
-function buildToPayRows(pvs: PrPaymentVoucher[], agencyPRs: AgencyManagedPR[]): ToPayRow[] {
-  const byPr = new Map<string, { row: ToPayRow; outlets: Set<string> }>();
-  for (const pv of pvs) {
-    const prName = resolvePvPrName(pv, agencyPRs);
-    const existing = byPr.get(prName);
-    if (existing) {
-      existing.row.totalNet += getPvNetTotal(pv);
-      existing.row.pvCount += 1;
-      existing.outlets.add(pv.outlet);
-    } else {
-      byPr.set(prName, {
-        row: {
-          prName,
-          outlet: pv.outlet,
-          prIc: pv.prIc,
-          totalNet: getPvNetTotal(pv),
-          pvCount: 1,
-        },
-        outlets: new Set([pv.outlet]),
-      });
-    }
-  }
-  return [...byPr.values()]
-    .map(({ row, outlets }) => ({
-      ...row,
-      outlet: outlets.size > 1 ? `Multi-outlet (${outlets.size})` : row.outlet,
-    }))
-    .sort((a, b) => b.totalNet - a.totalNet);
-}
-
 const PV_DATE_FILTERS: { value: PvDateRecencyFilter; label: string }[] = [
   { value: "all", label: "All dates" },
   { value: "latest", label: "Latest issue date" },
@@ -244,7 +206,7 @@ function AgencyPV() {
   }, [rangeFilteredPvs, statusFilter, dateFilter, salesSort, latestIssuedMs]);
 
   const toPayRows = useMemo(
-    () => buildToPayRows(filteredVouchers, agencyPRs),
+    () => buildAgencyToPayRows(filteredVouchers, agencyPRs),
     [filteredVouchers, agencyPRs],
   );
   const toPayTotal = useMemo(

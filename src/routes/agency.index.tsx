@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { nowAgencyDateTime, OUTLET_NAMES } from "@/lib/agency-demo";
+import { agencyPrToPayTotal } from "@/lib/agency-payroll";
+import { LIVE_SEED_PR_PVS } from "@/lib/pr-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { shouldShowWeeklyReconciliation } from "@/lib/reconciliation-weekly";
 import { AlertTriangle } from "lucide-react";
@@ -16,12 +18,14 @@ export const Route = createFileRoute("/agency/")({
 function AgencyHub() {
   const agencySubRole = useStore((s) => s.agencySubRole);
   const agencyPRs = useStore((s) => s.agencyPRs);
+  const prPaymentVouchers = useStore((s) => s.prPaymentVouchers);
   const reconciliation = useStore((s) => s.agencyReconciliation);
   const confirmAgencyReconciliation = useStore((s) => s.confirmAgencyReconciliation);
   const syncReconciliationFromLedger = useStore((s) => s.syncReconciliationFromLedger);
-  const pendingPayoutTotal = useStore((s) =>
-    s.agencyCollections.filter((c) => c.status === "PENDING").reduce((sum, c) => sum + c.amount, 0),
-  );
+  const prToPayTotal = useMemo(() => {
+    const pvs = prPaymentVouchers?.length ? prPaymentVouchers : LIVE_SEED_PR_PVS;
+    return agencyPrToPayTotal(pvs, agencyPRs ?? []);
+  }, [prPaymentVouchers, agencyPRs]);
   const totalPrs = agencyPRs.filter((p) => !p.detached).length;
   const totalOutlets = OUTLET_NAMES.length;
   const { date, time } = nowAgencyDateTime();
@@ -49,10 +53,10 @@ function AgencyHub() {
           <div className="l">Total outlets</div>
           <div className="n">{totalOutlets}</div>
         </div>
-        <div className="iz-portal-kpi">
-          <div className="l">Pending payouts</div>
-          <div className="n text-[var(--iz-gold-l)]">{formatRM(pendingPayoutTotal)}</div>
-        </div>
+        <Link to="/agency/pv" search={{ status: "TO_PAY" }} className="iz-portal-kpi no-underline">
+          <div className="l">Pending payout</div>
+          <div className="n text-[var(--iz-gold-l)]">{formatRM(prToPayTotal)}</div>
+        </Link>
       </div>
 
       <div className="iz-portal-home-grid">

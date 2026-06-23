@@ -46,6 +46,7 @@ const STATUS_LABEL: Record<RosterSlotStatus, { label: string; variant: "green" |
   unavailable: { label: "Unavailable", variant: "red" },
   "swap-pending": { label: "Swap pending", variant: "violet" },
   "assignment-pending": { label: "Awaiting PR", variant: "amber" },
+  "outlet-request-pending": { label: "Outlet request", variant: "amber" },
   "outlet-pending": { label: "Awaiting outlet", variant: "amber" },
 };
 
@@ -66,6 +67,7 @@ function AgencyRoster() {
   const demoAutoAssignPr = useStore((s) => s.demoAutoAssignPr);
   const flagRosterAttendance = useStore((s) => s.flagRosterAttendance);
   const syncLivePrCheckInToRoster = useStore((s) => s.syncLivePrCheckInToRoster);
+  const syncOutletRequestRoster = useStore((s) => s.syncOutletRequestRoster);
   const { date, time } = nowAgencyDateTime();
   const [planningDate, setPlanningDate] = useState(DEFAULT_ROSTER_DATE_ISO);
   const [shiftFilters, setShiftFilters] = useState<RosterShiftFilterState>(EMPTY_ROSTER_SHIFT_FILTERS);
@@ -113,6 +115,7 @@ function AgencyRoster() {
   );
   const swapCount = pendingPrSwaps.length;
   const assignCount = agencyRoster.filter((s) => s.status === "assignment-pending").length;
+  const outletRequestCount = agencyRoster.filter((s) => s.status === "outlet-request-pending").length;
   const swapToApprove = approveSwapId
     ? prSwapRequests.find((s) => s.id === approveSwapId && s.status === "pending_agency")
     : null;
@@ -131,6 +134,12 @@ function AgencyRoster() {
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
   const shifts = useStore((s) => s.shifts);
+  const shiftApplicants = useStore((s) => s.shiftApplicants);
+
+  useEffect(() => {
+    syncOutletRequestRoster();
+  }, [syncOutletRequestRoster, shifts, shiftApplicants]);
+
   const workforce = useMemo(
     () => deriveLiveWorkforce(agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm),
     [agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm],
@@ -193,6 +202,9 @@ function AgencyRoster() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
+          {outletRequestCount > 0 && (
+            <IzPill variant="amber">{outletRequestCount} outlet request{outletRequestCount !== 1 ? "s" : ""}</IzPill>
+          )}
           {assignCount > 0 && <IzPill variant="amber">{assignCount} assign</IzPill>}
           {swapCount > 0 && (
             <IzPill variant="violet">
@@ -294,7 +306,8 @@ function AgencyRoster() {
             <IzCard flat className="iz-roster-planning-hint">
               <p className="iz-tiny iz-muted">
                 Weekly planning — assign outlet-posted shifts to PRs per day. Only open shifts from
-                outlets appear; each assignment awaits PR approval.
+                outlets appear; each assignment awaits PR approval. Days without a posted shift still
+                open the picker so you can see what is available.
               </p>
               <button
                 type="button"

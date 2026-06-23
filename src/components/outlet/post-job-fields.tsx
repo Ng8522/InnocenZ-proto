@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { format, startOfToday } from "date-fns";
-import { CalendarIcon, Check, ChevronDown, Minus, Pencil, Plus, Star, X } from "lucide-react";
+import { CalendarIcon, Check, ChevronDown, Minus, Pencil, Plus, X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { IzCard, IzSelect } from "@/components/iz/ui";
@@ -12,22 +12,34 @@ import { cn } from "@/lib/utils";
 import {
   buildDefaultTierRates,
   cloneTierRates,
+  collectAgencyPrLanguages,
   estimateShiftLaborCost,
   getOutletRule,
+  languagesFromPr,
   normalizeOutletTierMultipliers,
   OUTLET_BASE_TIER,
   OUTLET_PR_TIERS,
   snapTierWage,
   tierWageFromMultiplier,
+  type AgencyManagedPR,
   type OutletPrTier,
   type OutletTierRateSettings,
 } from "@/lib/agency-demo";
-import type { OutletWorkspaceSettings } from "@/lib/outlet-demo";
+import type { OutletDrinkPrice, OutletWorkspaceSettings } from "@/lib/outlet-demo";
 import {
+  cloneDrinkMenu,
   DRESS_CODE_OPTIONS,
+  drinkMenuPriceRange,
   SHIFT_DESTINATION_LABELS,
+  SHIFT_EVENT_KIND_LABELS,
+  SHIFT_SPECIAL_EVENT_OPTIONS,
+  formatShiftDrinkPricingSummary,
+  formatShiftEventTypeSummary,
   type ShiftDestination,
+  type ShiftEventKind,
+  type ShiftSpecialEventType,
 } from "@/lib/outlet-demo";
+import { OutletDrinkMenuEditor } from "@/components/outlet/OutletDrinkMenuEditor";
 
 const DEFAULT_DRAFT_TIER_BASE: OutletTierRateSettings = {
   wagePerHour: 60,
@@ -43,32 +55,23 @@ export function draftTierRatesFromWorkspace(
   return cloneTierRates(ws.tierRates);
 }
 
-export const LANG_OPTIONS = ["English", "Mandarin", "Cantonese", "Others"] as const;
-
-export const OTHER_LANG_HINTS = [
-  "Japanese",
-  "Korean",
-  "Thai",
-  "Hindi",
-  "Tamil",
-  "Tagalog",
-  "French",
-  "German",
-  "Spanish",
-  "Arabic",
-  "Portuguese",
-  "Bahasa Indonesia",
-  "Vietnamese",
-  "Bengali",
-  "Punjabi",
-  "Hokkien",
-  "Teochew",
-];
+export function languagesForPrIds(prIds: string[], agencyPRs: AgencyManagedPR[]): string[] {
+  const set = new Set<string>();
+  for (const id of prIds) {
+    const pr = agencyPRs.find((p) => p.id === id);
+    if (pr) languagesFromPr(pr).forEach((lang) => set.add(lang));
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
 
 export type DraftShift = {
   id: string;
   jobDate: Date;
   event: string;
+  eventKind: ShiftEventKind;
+  specialEventType?: ShiftSpecialEventType;
+  /** Event-specific drink prices — only used when eventKind is special */
+  eventDrinkMenu?: OutletDrinkPrice[];
   langs: string[];
   otherLang: string;
   starTiers: number[];
@@ -83,19 +86,29 @@ export type DraftShift = {
 
 export function newDraftShift(
   partial?: Partial<Omit<DraftShift, "id">>,
-  workspaceTierRates?: Record<OutletPrTier, OutletTierRateSettings>,
+  workspace?: Pick<OutletWorkspaceSettings, "tierRates" | "drinkMenu">,
 ): DraftShift {
   const tierRates = partial?.tierRates
     ? cloneTierRates(partial.tierRates)
-    : workspaceTierRates
-      ? cloneTierRates(workspaceTierRates)
+    : workspace?.tierRates
+      ? cloneTierRates(workspace.tierRates)
       : buildDefaultTierRates(DEFAULT_DRAFT_TIER_BASE);
   const basePay = tierRates[OUTLET_BASE_TIER].wagePerHour;
+  const eventKind = partial?.eventKind ?? "normal";
+  const workspaceDrinks = workspace?.drinkMenu ?? [];
+  const eventDrinkMenu =
+    partial?.eventDrinkMenu ??
+    (eventKind === "special" && workspaceDrinks.length > 0
+      ? cloneDrinkMenu(workspaceDrinks)
+      : undefined);
   return {
     id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     jobDate: partial?.jobDate ?? startOfToday(),
     event: partial?.event ?? "Private VIP - Hennessy Launch",
-    langs: partial?.langs ? [...partial.langs] : ["English", "Mandarin"],
+    eventKind,
+    specialEventType: partial?.specialEventType ?? "vip",
+    eventDrinkMenu,
+    langs: partial?.langs ? [...partial.langs] : [],
     otherLang: partial?.otherLang ?? "",
     starTiers: partial?.starTiers ? [...partial.starTiers] : [4, 5],
     shiftTime: partial?.shiftTime ?? "22:00 - 04:00",
@@ -178,22 +191,23 @@ export function formatJobDate(d: Date): string {
   return format(d, "EEE d MMM");
 }
 
+export function isoFromJobDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function starTierToMinRating(tier: number): number {
   if (tier >= 5) return 4.5;
   if (tier >= 4) return 4;
   return tier;
 }
 
-export function buildLanguagesLabel(selected: string[], otherText: string): string {
-  const parts = selected.filter((l) => l !== "Others");
-  if (selected.includes("Others") && otherText.trim()) {
-    parts.push(otherText.trim());
-  }
+export function buildLanguagesLabel(selected: string[], otherText = ""): string {
+  const parts = [...selected];
+  if (otherText.trim()) parts.push(otherText.trim());
   return parts.join(" / ");
-}
-
-export function formatStarTiers(tiers: number[]): string {
-  return tiers.map((t) => `${t}★`).join(", ");
 }
 
 /** Base rate on post-shift form — multiples of 5 only (40, 45, 50 …). */
@@ -332,41 +346,30 @@ export function JobDatePicker({ value, onChange }: { value: Date; onChange: (d: 
 }
 
 export function JobLanguagePicker({
+  options,
   selected,
   onSelectedChange,
-  otherText,
-  onOtherTextChange,
 }: {
+  options: string[];
   selected: string[];
   onSelectedChange: (langs: string[]) => void;
-  otherText: string;
-  onOtherTextChange: (text: string) => void;
 }) {
-  const othersOn = selected.includes("Others");
-
-  const hints = useMemo(() => {
-    const q = otherText.trim().toLowerCase();
-    if (!q) return OTHER_LANG_HINTS.slice(0, 6);
-    return OTHER_LANG_HINTS.filter((h) => h.toLowerCase().includes(q)).slice(0, 6);
-  }, [otherText]);
-
-  const toggle = (lang: (typeof LANG_OPTIONS)[number]) => {
-    if (lang === "Others") {
-      if (selected.includes("Others")) {
-        onSelectedChange(selected.filter((l) => l !== "Others"));
-        onOtherTextChange("");
-      } else {
-        onSelectedChange([...selected, "Others"]);
-      }
-      return;
-    }
+  const toggle = (lang: string) => {
     onSelectedChange(selected.includes(lang) ? selected.filter((l) => l !== lang) : [...selected, lang]);
   };
+
+  if (options.length === 0) {
+    return (
+      <p className="text-[11px] text-[var(--iz-muted)] text-right">
+        Select PRs below to pull languages from their profiles.
+      </p>
+    );
+  }
 
   return (
     <div className="flex w-full max-w-[220px] flex-col items-end gap-2">
       <div className="flex flex-wrap justify-end gap-1.5">
-        {LANG_OPTIONS.map((l) => (
+        {options.map((l) => (
           <button
             key={l}
             type="button"
@@ -377,82 +380,6 @@ export function JobLanguagePicker({
           </button>
         ))}
       </div>
-      {othersOn && (
-        <div className="relative w-full">
-          <input
-            type="text"
-            value={otherText}
-            onChange={(e) => onOtherTextChange(e.target.value)}
-            placeholder="Type a language…"
-            list="other-lang-hints"
-            autoComplete="off"
-            className="w-full rounded-xl border border-[var(--iz-line)] bg-[var(--iz-violet-ink)] px-3 py-2 text-right text-sm outline-none placeholder:text-[var(--iz-muted)] focus:border-[var(--iz-gold)]"
-          />
-          <datalist id="other-lang-hints">
-            {OTHER_LANG_HINTS.map((h) => (
-              <option key={h} value={h} />
-            ))}
-          </datalist>
-          {otherText.trim().length > 0 && hints.length > 0 && (
-            <ul className="absolute right-0 top-full z-10 mt-1 max-h-32 w-full overflow-y-auto rounded-xl border border-[var(--iz-line)] bg-[var(--iz-panel2)] py-1 shadow-lg">
-              {hints.map((h) => (
-                <li key={h}>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-1.5 text-right text-xs text-[var(--iz-txt)] hover:bg-[var(--iz-violet-ink)]"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => onOtherTextChange(h)}
-                  >
-                    {h}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function JobStarPicker({
-  selected,
-  onChange,
-}: {
-  selected: number[];
-  onChange: (tiers: number[]) => void;
-}) {
-  const toggle = (tier: number) => {
-    if (selected.includes(tier)) {
-      onChange(selected.length <= 1 ? selected : selected.filter((t) => t !== tier));
-    } else {
-      onChange([...selected, tier].sort((a, b) => a - b));
-    }
-  };
-
-  return (
-    <div className="flex flex-wrap items-center justify-end gap-1">
-      {[1, 2, 3, 4, 5].map((tier) => {
-        const on = selected.includes(tier);
-        return (
-          <button
-            key={tier}
-            type="button"
-            onClick={() => toggle(tier)}
-            className={cn(
-              "iz-pill flex items-center gap-0.5 !px-2 !py-1 !text-[11px]",
-              on ? "iz-pill-gold" : "iz-pill-ink",
-            )}
-            aria-pressed={on}
-            aria-label={`${tier} star tier`}
-          >
-            <Star
-              className={cn("h-3 w-3", on ? "fill-[var(--iz-gold)] text-[var(--iz-gold)]" : "text-[var(--iz-muted)]")}
-            />
-            {tier}
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -640,21 +567,23 @@ export function ShiftTimePicker({
 export function DraftPrPicker({
   selected,
   onSelectedChange,
-  starTiers,
   quantity,
+  excludePrIds,
 }: {
   selected: string[];
   onSelectedChange: (prIds: string[]) => void;
-  starTiers: number[];
   quantity: number;
+  /** PRs already on the shift or pending request — hidden from the picker */
+  excludePrIds?: string[];
 }) {
   const prs = useStore((s) => s.prs);
   const toast = useStore((s) => s.toast);
-  const minRating = starTiers.length > 0 ? Math.min(...starTiers.map(starTierToMinRating)) : 4.5;
+
+  const blocked = useMemo(() => new Set(excludePrIds ?? []), [excludePrIds]);
 
   const candidates = useMemo(
-    () => [...prs].sort((a, b) => b.rating - a.rating).filter((p) => p.rating >= minRating),
-    [prs, minRating],
+    () => [...prs].filter((p) => !blocked.has(p.id)).sort((a, b) => b.rating - a.rating),
+    [prs, blocked],
   );
 
   const toggle = (prId: string) => {
@@ -683,7 +612,7 @@ export function DraftPrPicker({
         )}
       </div>
       {candidates.length === 0 ? (
-        <p className="text-[11px] text-[var(--iz-muted)]">No PRs match this star tier — lower the preferred profile.</p>
+        <p className="text-[11px] text-[var(--iz-muted)]">No PRs available to select.</p>
       ) : (
         <IzHScroll className="-mx-4 flex gap-2 pb-1 pl-2 pr-4">
           {candidates.map((p) => {
@@ -777,6 +706,16 @@ function SummaryLine({ label, value, stacked }: { label: string; value: string; 
   );
 }
 
+function DraftDrinkPricingSummary({ shift }: { shift: DraftShift }) {
+  const workspaceMenu = useStore((s) => s.outletWorkspace.drinkMenu ?? []);
+  return (
+    <SummaryLine
+      label="Drink prices"
+      value={formatShiftDrinkPricingSummary(shift, workspaceMenu)}
+    />
+  );
+}
+
 export function DraftShiftSummary({
   shift,
   title,
@@ -813,6 +752,11 @@ export function DraftShiftSummary({
         </div>
       </div>
       <SummaryLine label="Date" value={formatJobDate(shift.jobDate)} />
+      <SummaryLine
+        label="Event type"
+        value={formatShiftEventTypeSummary(shift.eventKind, shift.specialEventType)}
+      />
+      <DraftDrinkPricingSummary shift={shift} />
       <SummaryLine label="Event" value={shift.event} stacked />
       <SummaryLine label="Time" value={shift.shiftTime} />
       <SummaryLine label="People needed" value={String(shift.quantity)} />
@@ -822,7 +766,6 @@ export function DraftShiftSummary({
         stacked
       />
       <SummaryLine label="Languages" value={buildLanguagesLabel(shift.langs, shift.otherLang) || "—"} />
-      <SummaryLine label="Preferred profile" value={formatStarTiers(shift.starTiers)} />
       <div className="border-b border-[var(--iz-line)] py-2.5 last:border-0">
         <span className="text-xs text-[var(--iz-muted)]">Pay & sales targets by tier</span>
         <ShiftTierWagesStrip tierRates={shift.tierRates} compact />
@@ -848,10 +791,21 @@ export function DraftShiftEditor({
   title: string;
   onDone?: () => void;
 }) {
-  const prs = useStore((s) => s.prs);
+  const agencyPRs = useStore((s) => s.agencyPRs);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const [activeTier, setActiveTier] = useState<OutletPrTier>(OUTLET_BASE_TIER);
+
+  const languageOptions = useMemo(() => collectAgencyPrLanguages(agencyPRs), [agencyPRs]);
+  const pickerOptions = useMemo(
+    () => (shift.prIds.length > 0 ? languagesForPrIds(shift.prIds, agencyPRs) : languageOptions),
+    [shift.prIds, agencyPRs, languageOptions],
+  );
+  const pickerSelected = useMemo(() => {
+    const valid = shift.langs.filter((l) => pickerOptions.includes(l));
+    if (valid.length > 0) return valid;
+    return shift.prIds.length > 0 ? pickerOptions : [];
+  }, [shift.langs, pickerOptions, shift.prIds.length]);
 
   const tierMultipliers = useMemo(
     () =>
@@ -894,6 +848,77 @@ export function DraftShiftEditor({
       <FormRow label="Date">
         <JobDatePicker value={shift.jobDate} onChange={(jobDate) => onChange({ jobDate })} />
       </FormRow>
+      <FormRow label="Event type" alignTop>
+        <div className="flex w-full min-w-0 flex-col items-end gap-2">
+          <div className="flex flex-nowrap justify-end gap-1">
+            {(Object.keys(SHIFT_EVENT_KIND_LABELS) as ShiftEventKind[]).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                onClick={() =>
+                  onChange({
+                    eventKind: kind,
+                    specialEventType: kind === "special" ? shift.specialEventType ?? "vip" : undefined,
+                    eventDrinkMenu:
+                      kind === "special"
+                        ? shift.eventDrinkMenu ?? cloneDrinkMenu(outletWorkspace.drinkMenu ?? [])
+                        : undefined,
+                  })
+                }
+                className={`iz-pill !text-[10px] ${shift.eventKind === kind ? "iz-pill-violet" : "iz-pill-ink"}`}
+              >
+                {SHIFT_EVENT_KIND_LABELS[kind]}
+              </button>
+            ))}
+          </div>
+          {shift.eventKind === "special" && (
+            <IzHScroll className="flex w-full justify-end gap-1 pb-0.5">
+              {SHIFT_SPECIAL_EVENT_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => onChange({ specialEventType: option.id })}
+                  className={`iz-pill shrink-0 whitespace-nowrap !text-[10px] ${
+                    shift.specialEventType === option.id ? "iz-pill-gold" : "iz-pill-ink"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </IzHScroll>
+          )}
+        </div>
+      </FormRow>
+      <FormRow label="Drink prices" stacked alignTop>
+        {shift.eventKind === "special" ? (
+          <div className="w-full min-w-0">
+            <p className="mb-2 text-[10px] text-[var(--iz-muted)]">
+              Set drink prices for this special event. Normal events always use Workspace prices.
+            </p>
+            <OutletDrinkMenuEditor
+              drinks={shift.eventDrinkMenu ?? []}
+              onChange={(eventDrinkMenu) => onChange({ eventDrinkMenu })}
+            />
+            <button
+              type="button"
+              className="iz-chip mt-2 w-full text-[11px]"
+              onClick={() =>
+                onChange({ eventDrinkMenu: cloneDrinkMenu(outletWorkspace.drinkMenu ?? []) })
+              }
+            >
+              Reset to workspace prices
+            </button>
+          </div>
+        ) : (
+          <p className="text-right text-sm text-[var(--iz-txt)]">
+            From Workspace
+            {(() => {
+              const range = drinkMenuPriceRange(outletWorkspace.drinkMenu ?? []);
+              return ` · RM ${range.min}–${range.max}`;
+            })()}
+          </p>
+        )}
+      </FormRow>
       <FormRow label="Event" stacked>
         <JobEventInput value={shift.event} onChange={(event) => onChange({ event })} />
       </FormRow>
@@ -911,20 +936,9 @@ export function DraftShiftEditor({
       </FormRow>
       <FormRow label="Languages" alignTop>
         <JobLanguagePicker
-          selected={shift.langs}
-          onSelectedChange={(langs) => onChange({ langs })}
-          otherText={shift.otherLang}
-          onOtherTextChange={(otherLang) => onChange({ otherLang })}
-        />
-      </FormRow>
-      <FormRow label="Preferred profile">
-        <JobStarPicker
-          selected={shift.starTiers}
-          onChange={(starTiers) => {
-            const minRating = starTiers.length > 0 ? Math.min(...starTiers.map(starTierToMinRating)) : 0;
-            const prIds = shift.prIds.filter((id) => (prs.find((p) => p.id === id)?.rating ?? 0) >= minRating);
-            onChange({ starTiers, prIds });
-          }}
+          options={pickerOptions}
+          selected={pickerSelected}
+          onSelectedChange={(langs) => onChange({ langs, otherLang: "" })}
         />
       </FormRow>
       <FormRow label="Pay by PR tier" stacked alignTop last={false}>
@@ -984,8 +998,13 @@ export function DraftShiftEditor({
       <FormRow label="Select PRs" stacked last>
         <DraftPrPicker
           selected={shift.prIds}
-          onSelectedChange={(prIds) => onChange({ prIds })}
-          starTiers={shift.starTiers}
+          onSelectedChange={(prIds) =>
+            onChange({
+              prIds,
+              langs: languagesForPrIds(prIds, agencyPRs),
+              otherLang: "",
+            })
+          }
           quantity={shift.quantity}
         />
       </FormRow>

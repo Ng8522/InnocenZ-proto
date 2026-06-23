@@ -6173,8 +6173,16 @@ button.iz-pr-offer-row:hover {
   justify-content: center;
   border-style: dashed;
   border-color: var(--iz-line);
-  color: var(--iz-muted2);
+  color: var(--iz-muted);
   background: transparent;
+}
+
+.iz-roster-week-cell--empty svg {
+  opacity: 0.9;
+}
+
+.iz-roster-week-cell--empty.iz-roster-week-cell--no-shifts svg {
+  opacity: 0.55;
 }
 
 .iz-roster-week-cell--empty:not(:disabled):hover {

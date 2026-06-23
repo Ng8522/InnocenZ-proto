@@ -136,7 +136,11 @@ export function HistDateCalendar({
   onSelectDay: (date: Date) => void;
   className?: string;
 }) {
-  const today = localTodayDate();
+  const viewYear = viewMonth.getFullYear();
+  const viewMonthIndex = viewMonth.getMonth();
+
+  const isInViewMonth = (date: Date) =>
+    date.getFullYear() === viewYear && date.getMonth() === viewMonthIndex;
 
   const DayButton = useMemo(() => {
     function HistDayButton(props: ComponentProps<typeof CalendarDayButton>) {
@@ -146,6 +150,7 @@ export function HistDateCalendar({
           onClick={(e) => {
             props.onClick?.(e);
             if (props.modifiers.disabled || props.modifiers.outside) return;
+            if (!isInViewMonth(props.day.date)) return;
             if (!isDateSelectableForFilter(props.day.date)) return;
             onSelectDay(props.day.date);
           }}
@@ -153,7 +158,7 @@ export function HistDateCalendar({
       );
     }
     return HistDayButton;
-  }, [onSelectDay]);
+  }, [onSelectDay, viewYear, viewMonthIndex]);
 
   return (
     <>
@@ -171,7 +176,7 @@ export function HistDateCalendar({
         startMonth={navBounds.startMonth}
         endMonth={navBounds.endMonth}
         selected={selected}
-        disabled={{ after: today }}
+        disabled={(date) => !isInViewMonth(date) || !isDateSelectableForFilter(date)}
         components={{ DayButton }}
         classNames={{
           month_caption: "hidden",

@@ -7,6 +7,7 @@ const BLOCKING_STATUSES = new Set<AgencyRosterSlot["status"]>([
   "en-route",
   "scheduled",
   "assignment-pending",
+  "outlet-request-pending",
   "outlet-pending",
   "swap-pending",
 ]);

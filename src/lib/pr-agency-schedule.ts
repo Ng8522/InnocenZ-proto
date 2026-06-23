@@ -1,11 +1,11 @@
-import type { AgencyRosterSlot } from "@/lib/agency-demo";
+﻿import type { AgencyRosterSlot } from "@/lib/agency-demo";
 import { DEFAULT_PR_AGENCY_NAME, fmtHistDate } from "@/lib/pr-demo";
 import type { PrUpcomingShift } from "@/lib/pr-features";
 import { addDaysToIso, getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
 
-/** Atlas payroll cycle window — agency publishes shifts here (live Sun through +3 weeks). */
+/** Atlas payroll cycle window ΓÇö agency publishes shifts here (live Sun through +3 weeks). */
 export function getAgencyScheduleFromIso(): string {
   return getPayrollWeekSundayIso();
 }
@@ -35,7 +35,7 @@ function ymdFromIso(iso: string): [number, number, number] {
   return [y, m, d];
 }
 
-/** Future shifts — roster assignments, swaps, bookings + outlet-confirmed upcoming list. */
+/** Future shifts ΓÇö roster assignments, swaps, bookings + outlet-confirmed upcoming list. */
 export function buildPrUpcomingEvents(
   prId: string,
   roster: AgencyRosterSlot[],
@@ -58,7 +58,7 @@ export function buildPrUpcomingEvents(
         date: dateYmd,
         time: slot.shift,
         kind: "assignment",
-        detail: slot.agencyAssignment.agencyNote ?? "Agency assignment — decline with reason if you cannot work",
+        detail: slot.agencyAssignment.agencyNote ?? "Agency assignment — approve or decline in schedule",
       });
       covered.add(key);
       continue;
@@ -71,7 +71,7 @@ export function buildPrUpcomingEvents(
         date: dateYmd,
         time: slot.shift,
         kind: "swap",
-        detail: `Move to ${slot.outletSwap.targetOutlet} — ${slot.outletSwap.agencyNote ?? "agency swap request"}`,
+        detail: `Move to ${slot.outletSwap.targetOutlet} ΓÇö ${slot.outletSwap.agencyNote ?? "agency swap request"}`,
       });
       covered.add(key);
       continue;
@@ -84,7 +84,7 @@ export function buildPrUpcomingEvents(
         date: dateYmd,
         time: slot.shift,
         kind: "pending",
-        detail: `${slot.outlet} requested you — pending agency assignment approval`,
+        detail: `${slot.outlet} must confirm your slot on their roster`,
       });
       covered.add(key);
       continue;
@@ -104,7 +104,7 @@ export function buildPrUpcomingEvents(
           kind: slot.status === "swap-pending" ? "pending" : "confirmed",
           detail:
             slot.status === "swap-pending"
-              ? "Swap in progress — awaiting outlet confirmation"
+              ? "Swap in progress ΓÇö awaiting outlet confirmation"
               : "Scheduled on agency roster",
         });
         covered.add(key);
@@ -127,8 +127,8 @@ export function buildPrUpcomingEvents(
       kind: up.status === "confirmed" ? "confirmed" : "pending",
       detail:
         up.status === "confirmed"
-          ? "Agency assigned this shift on your roster"
-          : `${up.outlet} requested you — pending agency assignment approval`,
+          ? `${up.outlet} confirmed you on their bookings roster`
+          : "Atlas proposed — outlet has not confirmed yet",
     });
   }
 
@@ -285,17 +285,22 @@ function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
   const agency = slot.agencyAssignment?.agencyName ?? slot.outletSwap?.agencyName ?? DEFAULT_PR_AGENCY_NAME;
 
   if (slot.status === "assignment-pending") {
+    const outletRequested = slot.agencyAssignment?.requestedByOutlet;
     return {
       id: slot.id,
       dateIso: slot.dateIso,
       dateLabel: fmtHistDate(y, m, d),
       outlet: slot.outlet,
       time: slot.shift,
-      statusLabel: "Agency assignment",
+      statusLabel: outletRequested ? "Outlet shift offer" : "Agency assignment",
       statusVariant: "amber",
-      source: "agency",
-      sourceLabel: agency,
-      sourceDetail: slot.agencyAssignment?.agencyNote ?? "Atlas assigned you — decline with reason if you cannot work",
+      source: outletRequested ? "outlet" : "agency",
+      sourceLabel: outletRequested ? slot.outlet : agency,
+      sourceDetail:
+        slot.agencyAssignment?.agencyNote ??
+        (outletRequested
+          ? `${slot.outlet} requested you — Atlas approved · accept or decline`
+          : "Atlas assigned you — approve or decline"),
       slot,
     };
   }
@@ -309,9 +314,9 @@ function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
       time: slot.shift,
       statusLabel: "Awaiting agency",
       statusVariant: "amber",
-      source: "agency",
-      sourceLabel: agency,
-      sourceDetail: `${slot.outlet} requested you — pending agency assignment approval`,
+      source: "outlet",
+      sourceLabel: slot.outlet,
+      sourceDetail: `${slot.outlet} must confirm your slot on their roster`,
       slot,
     };
   }
@@ -327,7 +332,7 @@ function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
       statusVariant: "amber",
       source: "agency",
       sourceLabel: agency,
-      sourceDetail: `Move to ${slot.outletSwap.targetOutlet} — ${slot.outletSwap.agencyNote ?? "agency request"}`,
+      sourceDetail: `Move to ${slot.outletSwap.targetOutlet} ΓÇö ${slot.outletSwap.agencyNote ?? "agency request"}`,
       slot,
     };
   }
@@ -395,13 +400,13 @@ function resolveUpcomingEntry(up: PrUpcomingShift): TimetableEntry {
     source: "agency",
     sourceLabel: DEFAULT_PR_AGENCY_NAME,
     sourceDetail: confirmed
-      ? "Agency assigned this shift on your roster"
-      : `${up.outlet} requested you — pending agency assignment approval`,
+      ? `${up.outlet} confirmed you on their bookings roster`
+      : "Atlas proposed this shift — outlet has not confirmed yet",
     upcoming: up,
   };
 }
 
-/** One row per shift — labels whether data came from Atlas Agency or the outlet roster */
+/** One row per shift ΓÇö labels whether data came from Atlas Agency or the outlet roster */
 export function buildTimetableEntries(
   prId: string,
   roster: AgencyRosterSlot[],

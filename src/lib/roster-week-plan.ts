@@ -1,17 +1,30 @@
-import { addDays, format, parseISO, startOfWeek } from "date-fns";
+import { addDays, format, startOfWeek } from "date-fns";
 import type { AgencyRosterSlot } from "@/lib/agency-demo";
 
+/** Parse yyyy-MM-dd in local time — avoids UTC midnight shifting the calendar day */
+export function parseLocalIso(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function formatLocalIso(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export function mondayOfWeek(dateIso: string): string {
-  return format(startOfWeek(parseISO(dateIso), { weekStartsOn: 1 }), "yyyy-MM-dd");
+  return formatLocalIso(startOfWeek(parseLocalIso(dateIso), { weekStartsOn: 1 }));
 }
 
 export function weekDayIsos(weekStartIso: string): string[] {
-  const start = parseISO(weekStartIso);
-  return Array.from({ length: 7 }, (_, i) => format(addDays(start, i), "yyyy-MM-dd"));
+  const start = parseLocalIso(weekStartIso);
+  return Array.from({ length: 7 }, (_, i) => formatLocalIso(addDays(start, i)));
 }
 
 export function weekRangeLabel(weekStartIso: string): string {
-  const start = parseISO(weekStartIso);
+  const start = parseLocalIso(weekStartIso);
   const end = addDays(start, 6);
   if (start.getMonth() === end.getMonth()) {
     return `${format(start, "d")}–${format(end, "d MMM yyyy")}`;
@@ -20,7 +33,7 @@ export function weekRangeLabel(weekStartIso: string): string {
 }
 
 export function dayColumnLabel(dateIso: string): { dow: string; dom: string } {
-  const d = parseISO(dateIso);
+  const d = parseLocalIso(dateIso);
   return { dow: format(d, "EEE"), dom: format(d, "d MMM") };
 }
 
@@ -29,6 +42,7 @@ const SLOT_DISPLAY_PRIORITY: AgencyRosterSlot["status"][] = [
   "en-route",
   "scheduled",
   "assignment-pending",
+  "outlet-request-pending",
   "outlet-pending",
   "swap-pending",
   "unavailable",
@@ -76,5 +90,5 @@ export function dedupeLiveRosterByPr(slots: AgencyRosterSlot[]): AgencyRosterSlo
 }
 
 export function shiftWeek(dateIso: string, deltaWeeks: number): string {
-  return format(addDays(parseISO(dateIso), deltaWeeks * 7), "yyyy-MM-dd");
+  return formatLocalIso(addDays(parseLocalIso(dateIso), deltaWeeks * 7));
 }

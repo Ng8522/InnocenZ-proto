@@ -422,7 +422,8 @@ export type RosterSlotStatus =
   | "unavailable"
   | "swap-pending"
   | "assignment-pending"
-  | "outlet-pending";
+  | "outlet-pending"
+  | "outlet-request-pending";
 
 /** Agency roster UI — en-route is shown as scheduled (only Scheduled / On duty labels). */
 export function rosterPageDisplayStatus(status: RosterSlotStatus): RosterSlotStatus {
@@ -442,6 +443,9 @@ export interface AgencyAssignmentMeta {
   eventDemand?: number;
   /** PRs already assigned to this event. */
   eventSupplied?: number;
+  /** Linked outlet shift applicant row when outlet requested this PR */
+  shiftApplicantId?: string;
+  requestedByOutlet?: boolean;
 }
 
 export interface AgencyRosterSlot {
@@ -1493,6 +1497,10 @@ export function mergeAgencyRoster(
       }
       const keepAssignmentPending =
         seedSlot.status === "assignment-pending" && saved.status !== "scheduled";
+      const keepOutletRequestPending =
+        seedSlot.status === "outlet-request-pending" &&
+        saved.status !== "scheduled" &&
+        saved.status !== "assignment-pending";
       const keepSwapPending =
         seedSlot.outletSwap?.status === "pending_pr" &&
         saved.outletSwap?.status !== "approved";
@@ -1517,7 +1525,9 @@ export function mergeAgencyRoster(
         dateIso,
         prId: reassigned ? saved.prId : saved.prId ?? seedSlot.prId,
         prName: mergeRosterSlotPrName(saved, seedSlot, reassigned),
-        status: keepAssignmentPending
+        status: keepOutletRequestPending
+          ? seedSlot.status
+          : keepAssignmentPending
           ? seedSlot.status
           : preserveLiveOnDuty
             ? "on-duty"
@@ -1539,7 +1549,7 @@ export function mergeAgencyRoster(
         floorTips: staleOnDuty || restoreSeedFloor
           ? seedSlot.floorTips
           : saved.floorTips ?? seedSlot.floorTips,
-        agencyAssignment: keepAssignmentPending
+        agencyAssignment: keepOutletRequestPending || keepAssignmentPending
           ? seedSlot.agencyAssignment
           : saved.agencyAssignment ?? seedSlot.agencyAssignment,
         outletSwap: FORCE_SEED_OUTLET_SWAP_IDS.has(seedSlot.id)

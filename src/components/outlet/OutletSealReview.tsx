@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+﻿import { useMemo } from "react";
 import { calcShiftPayout } from "@/lib/agency-demo";
 import { shiftHoursFromLabel } from "@/lib/outlet-demo";
 import type { ShiftRequest } from "@/lib/store";
@@ -56,10 +56,10 @@ export function OutletSealReview({
 
   return (
     <IzSheet open={open} onClose={onClose}>
-      <div className="iz-cardttl">Seal shift · per-PR review</div>
+      <div className="iz-cardttl">Seal shift ┬╖ per-PR review</div>
       {shift && (
         <p className="iz-tiny iz-muted mt-1">
-          {shift.event} · {shift.date} · {shift.shift}
+          {shift.event} ┬╖ {shift.date} ┬╖ {shift.shift}
         </p>
       )}
       <div className="mt-3 space-y-2">

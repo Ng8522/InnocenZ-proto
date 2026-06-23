@@ -19,6 +19,16 @@ export function outletPendingShiftsForPr(
     .sort((a, b) => a.dateIso.localeCompare(b.dateIso) || a.outlet.localeCompare(b.outlet));
 }
 
+/** Agency-approved assignments awaiting PR accept or decline */
+export function pendingAgencyAssignmentsForPr(
+  roster: AgencyRosterSlot[],
+  prId: string,
+): AgencyRosterSlot[] {
+  return roster
+    .filter((s) => s.prId === prId && s.status === "assignment-pending" && isDemoDateOnOrAfter(s.dateIso))
+    .sort((a, b) => a.dateIso.localeCompare(b.dateIso) || a.outlet.localeCompare(b.outlet));
+}
+
 export type PrScheduleState = "free" | "booked" | "unavailable";
 
 /** km from PR home base (place) to outlet — demo matrix */
@@ -41,7 +51,7 @@ export function getPrScheduleState(
   const slots = roster.filter((s) => s.prId === prId && s.dateIso === dateIso);
   if (slots.length === 0) return "free";
   if (slots.some((s) => s.status === "unavailable")) return "unavailable";
-  if (slots.some((s) => s.status === "outlet-pending" || s.status === "assignment-pending")) return "booked";
+  if (slots.some((s) => s.status === "outlet-pending" || s.status === "assignment-pending" || s.status === "outlet-request-pending")) return "booked";
   return "booked";
 }
 

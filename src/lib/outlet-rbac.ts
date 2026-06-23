@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, History, Home, Plus, Sparkles, Zap } from "lucide-react";
+import { BarChart3, History, Home, Plus, Zap } from "lucide-react";
 
 /** Matches Module 10 outlet columns: Owner, Finance, Ops Head */
 export type OutletSubRole = "outlet_owner" | "outlet_finance" | "outlet_ops";
@@ -82,15 +82,19 @@ export type OutletNavItem = { to: string; label: string; icon: LucideIcon; permi
 const ALL_NAV: OutletNavItem[] = [
   { to: "/outlet", label: "Home", icon: Home, permission: "viewLiveDashboard" },
   { to: "/outlet/bookings", label: "Post Job", icon: Plus, permission: "postJob" },
-  { to: "/outlet/special-service", label: "Services", icon: Sparkles, permission: "orderSpecialService" },
+  { to: "/outlet/ratings", label: "Future Operations", icon: Zap, permission: "viewLiveDashboard" },
   { to: "/outlet/history", label: "History", icon: History, permission: "viewHistory" },
-  { to: "/outlet/ratings", label: "Today Operation", icon: Zap, permission: "ratePrs" },
   { to: "/outlet/billing", label: "Reports", icon: BarChart3, permission: "viewBilling" },
 ];
 
 export function getOutletNavItems(role: OutletSubRole | null | undefined): OutletNavItem[] {
   const r = role ?? "outlet_owner";
-  return ALL_NAV.filter((item) => outletCan(r, item.permission));
+  return ALL_NAV.filter((item) => {
+    if (item.to === "/outlet/bookings") {
+      return outletCan(r, "postJob") || outletCan(r, "orderSpecialService");
+    }
+    return outletCan(r, item.permission);
+  });
 }
 
 export function getOutletDefaultRoute(role: OutletSubRole | null | undefined): string {
@@ -104,10 +108,14 @@ export function canAccessOutletPath(role: OutletSubRole | null | undefined, path
   if (pathname === "/outlet" || pathname === "/outlet/") {
     return outletCan(r, "viewLiveDashboard");
   }
-  if (pathname.startsWith("/outlet/bookings")) return outletCan(r, "postJob");
-  if (pathname.startsWith("/outlet/special-service")) return outletCan(r, "orderSpecialService");
+  if (pathname.startsWith("/outlet/bookings")) {
+    return outletCan(r, "postJob") || outletCan(r, "orderSpecialService");
+  }
+  if (pathname.startsWith("/outlet/special-service")) {
+    return outletCan(r, "orderSpecialService") || outletCan(r, "postJob");
+  }
   if (pathname.startsWith("/outlet/history")) return outletCan(r, "viewHistory");
-  if (pathname.startsWith("/outlet/ratings")) return outletCan(r, "ratePrs");
+  if (pathname.startsWith("/outlet/ratings")) return outletCan(r, "viewLiveDashboard");
   if (pathname.startsWith("/outlet/billing")) {
     return outletCan(r, "viewBilling") || outletCan(r, "viewSalesDashboard");
   }

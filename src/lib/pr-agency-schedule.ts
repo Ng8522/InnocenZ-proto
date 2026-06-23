@@ -1,11 +1,11 @@
-import type { AgencyRosterSlot } from "@/lib/agency-demo";
+﻿import type { AgencyRosterSlot } from "@/lib/agency-demo";
 import { DEFAULT_PR_AGENCY_NAME, fmtHistDate } from "@/lib/pr-demo";
 import type { PrUpcomingShift } from "@/lib/pr-features";
 import { addDaysToIso, getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
 
-/** Atlas payroll cycle window — agency publishes shifts here (live Sun through +3 weeks). */
+/** Atlas payroll cycle window ΓÇö agency publishes shifts here (live Sun through +3 weeks). */
 export function getAgencyScheduleFromIso(): string {
   return getPayrollWeekSundayIso();
 }
@@ -35,7 +35,7 @@ function ymdFromIso(iso: string): [number, number, number] {
   return [y, m, d];
 }
 
-/** Future shifts — roster assignments, swaps, bookings + outlet-confirmed upcoming list. */
+/** Future shifts ΓÇö roster assignments, swaps, bookings + outlet-confirmed upcoming list. */
 export function buildPrUpcomingEvents(
   prId: string,
   roster: AgencyRosterSlot[],
@@ -71,7 +71,7 @@ export function buildPrUpcomingEvents(
         date: dateYmd,
         time: slot.shift,
         kind: "swap",
-        detail: `Move to ${slot.outletSwap.targetOutlet} — ${slot.outletSwap.agencyNote ?? "agency swap request"}`,
+        detail: `Move to ${slot.outletSwap.targetOutlet} ΓÇö ${slot.outletSwap.agencyNote ?? "agency swap request"}`,
       });
       covered.add(key);
       continue;
@@ -104,7 +104,7 @@ export function buildPrUpcomingEvents(
           kind: slot.status === "swap-pending" ? "pending" : "confirmed",
           detail:
             slot.status === "swap-pending"
-              ? "Swap in progress — awaiting outlet confirmation"
+              ? "Swap in progress ΓÇö awaiting outlet confirmation"
               : "Scheduled on agency roster",
         });
         covered.add(key);
@@ -332,7 +332,7 @@ function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
       statusVariant: "amber",
       source: "agency",
       sourceLabel: agency,
-      sourceDetail: `Move to ${slot.outletSwap.targetOutlet} — ${slot.outletSwap.agencyNote ?? "agency request"}`,
+      sourceDetail: `Move to ${slot.outletSwap.targetOutlet} ΓÇö ${slot.outletSwap.agencyNote ?? "agency request"}`,
       slot,
     };
   }
@@ -406,7 +406,7 @@ function resolveUpcomingEntry(up: PrUpcomingShift): TimetableEntry {
   };
 }
 
-/** One row per shift — labels whether data came from Atlas Agency or the outlet roster */
+/** One row per shift ΓÇö labels whether data came from Atlas Agency or the outlet roster */
 export function buildTimetableEntries(
   prId: string,
   roster: AgencyRosterSlot[],
@@ -437,16 +437,17 @@ export function buildTimetableEntries(
   return entries.sort((a, b) => a.dateIso.localeCompare(b.dateIso) || a.outlet.localeCompare(b.outlet));
 }
 
+export function entryCanCancel(entry: TimetableEntry, baselineIso = getLiveTodayIso()): boolean {
+  if (entry.dateIso < baselineIso) return false;
+  if (entry.slot) {
+    const s = entry.slot.status;
+    if (["on-duty", "en-route", "unavailable"].includes(s)) return false;
+    return ["scheduled", "assignment-pending", "outlet-pending", "swap-pending"].includes(s);
+  }
+  return Boolean(entry.upcoming);
+}
+
+/** @deprecated use entryCanCancel */
 export function entryCanDecline(entry: TimetableEntry): boolean {
-  return entry.slot?.status === "assignment-pending";
-}
-
-export function entryCanAccept(entry: TimetableEntry): boolean {
-  return entry.slot?.status === "assignment-pending";
-}
-
-export function entryCanCancel(entry: TimetableEntry): boolean {
-  const st = entry.slot?.status;
-  if (!st) return Boolean(entry.upcoming?.status === "confirmed");
-  return st === "scheduled" || st === "swap-pending" || st === "outlet-pending";
+  return entryCanCancel(entry);
 }

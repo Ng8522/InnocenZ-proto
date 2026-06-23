@@ -2,18 +2,12 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { IzCard, formatRM } from "@/components/iz/ui";
 import { PrWeeklyPaymentGrid } from "@/components/pr/PrWeeklyPaymentGrid";
-import { PrPvDisputeSheet } from "@/components/pr/PrPvDisputeSheet";
 import { PrStatusPill } from "@/components/pr/PrOfferRow";
 import { pvNeedsPrReview, pvStatusLabel, pvStatusPillVariant } from "@/lib/pr-demo";
 import type { PrPaymentVoucher } from "@/lib/pr-demo";
-import { isPrPaymentActionPv } from "@/lib/pr-payment-history";
-import { buildWeeklyDisputeMessage, pvHasOpenDisputes, type WeeklyDisputeTarget, type WeeklyPaymentSummary } from "@/lib/pr-weekly-payment";
+import { isPrPaymentInboxPv } from "@/lib/pr-payment-history";
+import type { WeeklyPaymentSummary } from "@/lib/pr-weekly-payment";
 import { cn } from "@/lib/utils";
-
-function weekTotalRm(summary: WeeklyPaymentSummary): number {
-  const n = summary.totals.net;
-  return Number.isFinite(n) ? n : 0;
-}
 
 export function PrWeeklyPaymentWeekCard({
   title,
@@ -22,8 +16,6 @@ export function PrWeeklyPaymentWeekCard({
   defaultOpen = true,
   pv,
   onOpenPv,
-  onDispute,
-  onWithdrawDispute,
 }: {
   title: string;
   summary: WeeklyPaymentSummary;
@@ -31,74 +23,10 @@ export function PrWeeklyPaymentWeekCard({
   defaultOpen?: boolean;
   pv?: PrPaymentVoucher | null;
   onOpenPv?: (id: string) => void;
-  onDispute?: (reason: string, photoDataUrls?: string[], targets?: WeeklyDisputeTarget[]) => void;
-  onWithdrawDispute?: (targets: WeeklyDisputeTarget[]) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const [disputeSheetOpen, setDisputeSheetOpen] = useState(false);
-  const [disputeMode, setDisputeMode] = useState<"dispute" | "withdraw">("dispute");
-  const [disputeReason, setDisputeReason] = useState("");
-  const [disputePhotos, setDisputePhotos] = useState<string[]>([]);
-  const [disputeTargets, setDisputeTargets] = useState<WeeklyDisputeTarget[]>([]);
-  const [activeDisputeKey, setActiveDisputeKey] = useState<string | null>(null);
-
-  const needsReview = Boolean(pv && (pvNeedsPrReview(pv.status) || pv.status === "DISPUTED"));
-  const actionPv = pv && isPrPaymentActionPv(pv) ? pv : null;
-  const canDispute = Boolean(weekPhase === "issued" && actionPv && needsReview && onDispute);
-  const hasOpenDisputes = Boolean(pv && pvHasOpenDisputes(pv, summary));
-
-  const openDisputeForDay = (targets: WeeklyDisputeTarget[]) => {
-    if (!canDispute || targets.length === 0) return;
-    const text = targets.map((t) => buildWeeklyDisputeMessage(t)).join("\n\n");
-    setDisputeMode("dispute");
-    setDisputeTargets(targets);
-    setDisputeReason(text);
-    if (targets.length === 1) {
-      const t = targets[0];
-      setActiveDisputeKey(`${t.dateIso}-${t.incomeKey}`);
-    } else {
-      setActiveDisputeKey(null);
-    }
-    setDisputeSheetOpen(true);
-  };
-
-  const openWithdrawForDay = (targets: WeeklyDisputeTarget[]) => {
-    if (!actionPv || !onWithdrawDispute || targets.length === 0) return;
-    setDisputeMode("withdraw");
-    setDisputeTargets(targets);
-    setDisputeReason("");
-    if (targets.length === 1) {
-      const t = targets[0];
-      setActiveDisputeKey(`${t.dateIso}-${t.incomeKey}`);
-    } else {
-      setActiveDisputeKey(null);
-    }
-    setDisputeSheetOpen(true);
-  };
-
-  const closeDisputeSheet = () => {
-    setDisputeSheetOpen(false);
-    setDisputeTargets([]);
-    setActiveDisputeKey(null);
-  };
-
-  const submitDispute = () => {
-    if (!onDispute || !disputeReason.trim()) return;
-    onDispute(
-      disputeReason,
-      disputePhotos.length ? disputePhotos : undefined,
-      disputeTargets.length ? disputeTargets : undefined,
-    );
-    closeDisputeSheet();
-    setDisputeReason("");
-    setDisputePhotos([]);
-  };
-
-  const submitWithdraw = () => {
-    if (!onWithdrawDispute || disputeTargets.length === 0) return;
-    onWithdrawDispute(disputeTargets);
-    closeDisputeSheet();
-  };
+  const needsReview = Boolean(pv && pvNeedsPrReview(pv.status));
+  const inboxPv = pv && isPrPaymentInboxPv(pv) ? pv : null;
 
   return (
     <section
@@ -118,7 +46,7 @@ export function PrWeeklyPaymentWeekCard({
           <span className="iz-collapsible-section__title">{title}</span>
           {!open && (
             <span className="iz-collapsible-section__hint">
-              {summary.weekLabel} · {formatRM(weekTotalRm(summary))} · {summary.verifiedDayCount}/7 verified
+              {summary.weekLabel} · {formatRM(summary.totals.net)} · {summary.verifiedDayCount}/7 verified
             </span>
           )}
           <span className="iz-collapsible-section__action">{open ? "Tap to collapse" : "Tap to expand"}</span>
@@ -148,44 +76,57 @@ export function PrWeeklyPaymentWeekCard({
                 </p>
               </div>
             </div>
-            <PrWeeklyPaymentGrid
-              summary={summary}
-              large
-              weekPhase={weekPhase}
-              interactive={canDispute || Boolean(onWithdrawDispute && actionPv)}
-              onDisputeDay={openDisputeForDay}
-              onWithdrawDay={openWithdrawForDay}
-              activeDisputeKey={activeDisputeKey}
-            />
-            <p className="iz-tiny iz-muted2 mt-2 text-center">
-              PV issued every Sunday · Total{" "}
-              <b className="text-[var(--iz-gold)]">{formatRM(weekTotalRm(summary))}</b>
-            </p>
-            {actionPv && needsReview && !hasOpenDisputes && (
+            <PrWeeklyPaymentGrid summary={summary} large weekPhase={weekPhase} />
+            {weekPhase === "open" && !summary.pvReady ? (
+              <p className="iz-tiny iz-muted2 mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-2">
+                Totals include every <b>checked-out</b> shift this week (pending lines still count). Your weekly
+                PV is issued on{" "}
+                <b className="text-[var(--iz-gold-l)]">{summary.issueDayLabel} (Sun)</b> — dispute any wrong line
+                before then. Week total so far:{" "}
+                <b className="text-[var(--iz-gold)]">{formatRM(summary.totals.net)}</b>
+              </p>
+            ) : weekPhase === "open" && summary.pvReady && inboxPv ? (
+              <button
+                type="button"
+                className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-full"
+                onClick={() => onOpenPv?.(inboxPv.id)}
+              >
+                Open this week&apos;s PV · {formatRM(inboxPv.net)}
+              </button>
+            ) : weekPhase === "issued" ? (
+              <p className="iz-tiny iz-muted2 mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-2">
+                PV issued on <b className="text-[var(--iz-gold-l)]">{summary.issueDayLabel} (Sun)</b> ·{" "}
+                {needsReview ? (
+                  <>
+                    <b className="text-[var(--iz-amber)]">awaiting your review</b> — dispute any wrong line
+                    before signing.
+                  </>
+                ) : (
+                  <>week total <b className="text-[var(--iz-gold)]">{formatRM(summary.totals.net)}</b></>
+                )}
+              </p>
+            ) : null}
+            {weekPhase === "issued" && inboxPv && needsReview && (
               <button
                 type="button"
                 className="iz-btn iz-btn-primary iz-btn-sm mt-2 w-full"
-                onClick={() => onOpenPv?.(actionPv.id)}
+                onClick={() => onOpenPv?.(inboxPv.id)}
               >
-                Review &amp; sign · {formatRM(weekTotalRm(summary))}
+                Review &amp; sign · {formatRM(inboxPv.net)}
+              </button>
+            )}
+            {weekPhase === "issued" && inboxPv && !needsReview && inboxPv.status === "DISPUTED" && (
+              <button
+                type="button"
+                className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-full"
+                onClick={() => onOpenPv?.(inboxPv.id)}
+              >
+                View dispute · {formatRM(inboxPv.net)}
               </button>
             )}
           </IzCard>
         </div>
       )}
-
-      <PrPvDisputeSheet
-        open={disputeSheetOpen}
-        onClose={closeDisputeSheet}
-        mode={disputeMode}
-        targets={disputeTargets}
-        reason={disputeReason}
-        onReasonChange={setDisputeReason}
-        photos={disputePhotos}
-        onPhotosChange={setDisputePhotos}
-        onSubmit={submitDispute}
-        onWithdraw={submitWithdraw}
-      />
     </section>
   );
 }

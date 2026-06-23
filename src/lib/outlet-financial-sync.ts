@@ -10,8 +10,7 @@ import {
 import { floorTipsForOutletFromRoster } from "@/lib/portal-sync";
 import type { ShiftRequest } from "@/lib/store";
 
-import type { OutletDrinkPrice } from "@/lib/outlet-demo";
-import type { ShiftRequest } from "@/lib/store";
+import { averageDrinkPrice, effectiveShiftDrinkMenu, type OutletDrinkPrice } from "@/lib/outlet-demo";
 
 export const DEFAULT_PER_DRINK_RM = 120;
 export const DEFAULT_PER_TABLE_RM = 100;
@@ -56,22 +55,18 @@ export function computeDrinkSales(
   return drinkUnits * perDrinkRm;
 }
 
-/** Live floor sales = drink sales + table units × per-table */
+/** Live floor sales = drink sales only */
 export function computeShiftLiveSales(
   shift: {
     drinkUnits?: number;
     drinkUnitCounts?: Record<string, number>;
-    tableUnits?: number;
+    legacyDrinkSalesRm?: number;
     perDrinkRm?: number;
-    perTableRm?: number;
   },
   drinkMenu: OutletDrinkPrice[] = [],
 ): number {
-  const tableUnits = shift.tableUnits ?? DEFAULT_TABLE_UNITS;
-  const perTableRm = shift.perTableRm ?? DEFAULT_PER_TABLE_RM;
   const drinkSales = computeDrinkSales(shift, drinkMenu);
-  const raw = drinkSales + tableUnits * perTableRm;
-  return Math.round(raw * 100) / 100;
+  return Math.round(drinkSales * 100) / 100;
 }
 
 export function floorTipsForOutlet(outletName: string, roster: AgencyRosterSlot[] = []): number {
@@ -93,20 +88,18 @@ export interface OutletPnlSynced extends OutletPnlRow {
 
 export function withShiftFinancialDefaults(
   shift: ShiftRequest,
-  drinkMenu: OutletDrinkPrice[] = [],
+  workspaceDrinkMenu: OutletDrinkPrice[] = [],
 ): ShiftRequest {
-  const perDrinkRm = shift.perDrinkRm ?? DEFAULT_PER_DRINK_RM;
-  const perTableRm = shift.perTableRm ?? DEFAULT_PER_TABLE_RM;
+  const drinkMenu = effectiveShiftDrinkMenu(shift, workspaceDrinkMenu);
+  const perDrinkRm = shift.perDrinkRm ?? averageDrinkPrice(drinkMenu);
   const drinkUnits = totalDrinkUnits(shift);
-  const tableUnits = shift.tableUnits ?? DEFAULT_TABLE_UNITS;
   const live = computeShiftLiveSales({ ...shift, drinkUnits }, drinkMenu);
   const anchorLiveSales = shift.anchorLiveSales ?? live;
   return {
     ...shift,
     perDrinkRm,
-    perTableRm,
     drinkUnits,
-    tableUnits,
+    tableUnits: 0,
     anchorLiveSales,
     liveSales: live,
   };
@@ -121,18 +114,15 @@ export function buildSyncedOutletPnlRow(
   commissionRules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
 ): OutletPnlSynced {
   const rule = getOutletRule(seedRow.outlet, commissionRules);
+  const shiftMenu = effectiveShiftDrinkMenu(shift, drinkMenu);
   const s = withShiftFinancialDefaults(shift, drinkMenu);
   const drinkUnits = totalDrinkUnits(s);
-  const tableUnits = s.tableUnits!;
-  const perDrinkRm = s.perDrinkRm!;
-  const perTableRm = s.perTableRm!;
-  const liveFloorGross = computeShiftLiveSales(s, drinkMenu);
+  const liveFloorGross = computeShiftLiveSales(s, shiftMenu);
   const anchorLive = s.anchorLiveSales ?? liveFloorGross;
   const grossDelta = liveFloorGross - anchorLive;
   const grossRevenue = Math.round((seedRow.grossRevenue + grossDelta) * 100) / 100;
 
-  const drinkSales = computeDrinkSales(s, drinkMenu);
-  const tableSales = tableUnits * perTableRm;
+  const drinkSales = computeDrinkSales(s, shiftMenu);
   const tips = floorTipsForOutlet(s.outletName, roster);
   const payout = calcShiftPayout(
     {
@@ -141,7 +131,7 @@ export function buildSyncedOutletPnlRow(
       drinks: drinkUnits,
       drinkSales,
       tips,
-      tableSales,
+      tableSales: 0,
       shiftTierRates: s.tierRates,
     },
     commissionRules,
@@ -155,7 +145,7 @@ export function buildSyncedOutletPnlRow(
     anchorLive,
     s,
     roster,
-    drinkMenu,
+    shiftMenu,
     commissionRules,
   );
   const prPayout = Math.round((prWages + prCommission) * 100) / 100;
@@ -190,11 +180,7 @@ function calcAnchorCommission(
   commissionRules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
 ) {
   const perDrink = shift.perDrinkRm ?? DEFAULT_PER_DRINK_RM;
-  const perTable = shift.perTableRm ?? DEFAULT_PER_TABLE_RM;
-  const totalUnit = perDrink + perTable || 1;
-  const drinkShare = perDrink / totalUnit;
-  const drinkUnits = (anchorLive * drinkShare) / perDrink;
-  const tableUnits = (anchorLive * (1 - drinkShare)) / perTable;
+  const drinkUnits = perDrink > 0 ? anchorLive / perDrink : 0;
   const payout = calcShiftPayout(
     {
       outlet,
@@ -202,7 +188,7 @@ function calcAnchorCommission(
       drinks: drinkUnits,
       drinkSales: computeDrinkSales({ ...shift, drinkUnits }, drinkMenu),
       tips: floorTipsForOutlet(shift.outletName, roster),
-      tableSales: tableUnits * perTable,
+      tableSales: 0,
       shiftTierRates: shift.tierRates,
     },
     commissionRules,

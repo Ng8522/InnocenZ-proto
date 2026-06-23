@@ -238,27 +238,27 @@ export function AppTopbar({
 
   const resolvedBackTo = backTo ?? getAutoBackTo(pathname);
   const isPortalShell = pathname.startsWith("/outlet") || pathname.startsWith("/agency");
-  const isPrPortal = pathname.startsWith("/host");
 
   if (isPortalShell && onBack == null) {
     return null;
   }
 
-  const hasExplicitBack = backTo != null || backLabel != null;
-
   const showBack =
-    !hideBack &&
-    (isPortalShell
-      ? onBack != null
-      : isPrPortal
-        ? hasExplicitBack
-        : onBack != null || resolvedBackTo != null);
+    !hideBack && (isPortalShell ? onBack != null : onBack != null || resolvedBackTo != null);
+
+  const goWelcome = () => {
+    goToWelcome();
+  };
+
+  const isPrPortal = pathname.startsWith("/host");
 
   return (
-    <header
-      className={`iz-topbar${isPortalShell ? " iz-topbar--minimal" : ""}${!showBack ? " iz-topbar--no-back" : ""}`}
-    >
-      {showBack && <PortalBackButton backTo={backTo} backLabel={backLabel} onBack={onBack} />}
+    <header className={`iz-topbar${isPortalShell ? " iz-topbar--minimal" : ""}`}>
+      {showBack ? (
+        <PortalBackButton backTo={backTo} backLabel={backLabel} onBack={onBack} />
+      ) : (
+        <span className="iz-topbar-spacer" aria-hidden />
+      )}
 
       {!isPortalShell && (
         <>

@@ -8,28 +8,25 @@ import {
   SHIFT_TODAY,
   buildDemoReceiptDraft,
   buildDemoReceiptDraftForCategory,
-  buildManualReceiptItems,
-  buildDrinkSelfLogItems,
-  manualSelfLogTotal,
   buildDemoReceiptRef,
   fmtHistDate,
   getPrProfile,
   getPrRosterId,
   receiptPvCalcNote,
   calcReceiptCommissions,
-  receiptScanCategory,
+  receiptPrimaryCategory,
   isManualSelfLog,
   isSelfLogPendingAgency,
 } from "@/lib/pr-demo";
-import { getDrinkMenuForOutlet } from "@/lib/outlet-demo";
-import { Camera, Check, History, PenLine, Shield, Droplets, RotateCcw, Minus, Plus } from "lucide-react";
+import { Camera, Check, History, PenLine, Shield, Droplets, RotateCcw } from "lucide-react";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 
-type ScanCategory = "drinks" | "tips";
+type ScanCategory = "drinks" | "tips" | "tables";
 
 const SCAN_CATEGORY_LABEL: Record<ScanCategory, string> = {
   drinks: "Drinks",
   tips: "Tips",
+  tables: "Tables",
 };
 
 export const Route = createFileRoute("/host/scan")({
@@ -37,7 +34,8 @@ export const Route = createFileRoute("/host/scan")({
     search: Record<string, unknown>,
   ): { category?: ScanCategory; blurry?: boolean; rescan?: string; edit?: string } => {
     const raw = search.category;
-    const category = raw === "drinks" || raw === "tips" ? (raw as ScanCategory) : undefined;
+    const category =
+      raw === "drinks" || raw === "tips" || raw === "tables" ? (raw as ScanCategory) : undefined;
     const blurry = search.blurry === true || search.blurry === "true" || search.blurry === "1";
     const rescan = typeof search.rescan === "string" ? search.rescan : undefined;
     const edit = typeof search.edit === "string" ? search.edit : undefined;
@@ -83,54 +81,22 @@ function ReceiptScanPage() {
   });
   const [manualAmount, setManualAmount] = useState("");
   const [manualNote, setManualNote] = useState("Receipt water-damaged / OCR unreadable");
-  const [selectedDrinkId, setSelectedDrinkId] = useState("");
-  const [drinkQty, setDrinkQty] = useState(1);
 
   const outlet = prActiveShift?.outlet ?? PR_SHIFT_OFFERS[0].outlet;
-  const drinkMenu = useMemo(() => getDrinkMenuForOutlet(outlet), [outlet]);
-  const selectedDrink = useMemo(
-    () => drinkMenu.find((d) => d.id === selectedDrinkId),
-    [drinkMenu, selectedDrinkId],
-  );
   const shiftDate = prActiveShift?.date ?? SHIFT_TODAY;
-  const scanCategory: ScanCategory = (() => {
-    if (category) return category;
-    const fromScan = replaceScan
-      ? receiptScanCategory(replaceScan)
-      : editScan
-        ? receiptScanCategory(editScan)
-        : "drinks";
-    return fromScan;
-  })();
+  const scanCategory: ScanCategory =
+    category ?? (replaceScan ? receiptPrimaryCategory(replaceScan) : editScan ? receiptPrimaryCategory(editScan) : "drinks");
 
   useEffect(() => {
     if (!editScan) return;
     if (!isManualSelfLog(editScan) || !isSelfLogPendingAgency(editScan)) {
       return;
     }
-    const cat = receiptScanCategory(editScan);
-    if (cat === "tips") {
-      setManualAmount(String(editScan.totalLogged));
-    } else {
-      const drinkItem = editScan.items.find((i) => i.category === "drinks");
-      if (drinkItem) {
-        const match =
-          drinkMenu.find((d) => d.name === drinkItem.label) ??
-          drinkMenu.find((d) => d.priceRm === drinkItem.unitPrice);
-        if (match) setSelectedDrinkId(match.id);
-        setDrinkQty(Math.max(1, drinkItem.qty));
-      }
-    }
+    setManualAmount(String(editScan.totalLogged));
     setManualNote(editScan.manualReason ?? "Receipt water-damaged / OCR unreadable");
     setPendingReceiptRef(editScan.receiptRef);
     setPhase("manual");
-  }, [editScan, drinkMenu]);
-
-  useEffect(() => {
-    if (scanCategory !== "drinks" || drinkMenu.length === 0) return;
-    if (selectedDrinkId && drinkMenu.some((d) => d.id === selectedDrinkId)) return;
-    setSelectedDrinkId(drinkMenu[0].id);
-  }, [scanCategory, drinkMenu, selectedDrinkId]);
+  }, [editScan]);
 
   const draft = useMemo(() => {
     if (category) {
@@ -146,20 +112,16 @@ function ReceiptScanPage() {
   }, [profile, outlet, prId, category, pendingReceiptRef]);
 
   const manualAmountNum = parseFloat(manualAmount.replace(/,/g, "")) || 0;
-  const drinksTotal = useMemo(() => {
-    if (!selectedDrink || drinkQty < 1) return 0;
-    return manualSelfLogTotal(buildDrinkSelfLogItems(selectedDrink, drinkQty));
-  }, [selectedDrink, drinkQty]);
   const manualPreview = useMemo(() => {
-    if (scanCategory === "drinks") {
-      if (!selectedDrink || drinkQty < 1) return null;
-      return calcReceiptCommissions(buildDrinkSelfLogItems(selectedDrink, drinkQty));
-    }
     if (manualAmountNum <= 0) return null;
-    return calcReceiptCommissions(buildManualReceiptItems(scanCategory, manualAmountNum));
-  }, [manualAmountNum, scanCategory, selectedDrink, drinkQty]);
-  const manualSubmitTotal = scanCategory === "drinks" ? drinksTotal : manualAmountNum;
-  const canSubmitManual = scanCategory === "drinks" ? drinksTotal > 0 : manualAmountNum > 0;
+    const items =
+      scanCategory === "drinks"
+        ? [{ label: "Self-log · drinks", qty: 1, unitPrice: manualAmountNum, amount: manualAmountNum, category: "drinks" as const }]
+        : scanCategory === "tips"
+          ? [{ label: "Self-log · tips", qty: 1, unitPrice: manualAmountNum, amount: manualAmountNum, category: "tips" as const }]
+          : [{ label: "Self-log · table", qty: 1, unitPrice: manualAmountNum, amount: manualAmountNum, category: "tables" as const }];
+    return calcReceiptCommissions(items);
+  }, [manualAmountNum, scanCategory]);
 
   const categoryLabel = category ? SCAN_CATEGORY_LABEL[category] : SCAN_CATEGORY_LABEL[scanCategory];
   const replaceScanId = replaceScan?.id ?? (editScan ? editScan.id : undefined);
@@ -194,22 +156,13 @@ function ReceiptScanPage() {
   };
 
   const confirmManualLog = () => {
-    if (!canSubmitManual) return;
+    if (manualAmountNum <= 0) return;
     if (editScan && isSelfLogPendingAgency(editScan)) {
-      if (scanCategory === "drinks") {
-        updateReceiptSelfLog(editScan.id, {
-          drinkId: selectedDrinkId,
-          drinkQty,
-          reason: manualNote.trim() || undefined,
-          category: "drinks",
-        });
-      } else {
-        updateReceiptSelfLog(editScan.id, {
-          amount: manualAmountNum,
-          reason: manualNote.trim() || undefined,
-          category: scanCategory,
-        });
-      }
+      updateReceiptSelfLog(editScan.id, {
+        amount: manualAmountNum,
+        reason: manualNote.trim() || undefined,
+        category: scanCategory,
+      });
       setLoggedId(editScan.id);
       setPhase("logged");
       return;
@@ -222,15 +175,12 @@ function ReceiptScanPage() {
       prName: draft.prName,
       prId: draft.prId,
       items: [],
-      totalLogged: manualSubmitTotal,
+      totalLogged: manualAmountNum,
       replaceScanId,
       manualSelfLog: {
         reason: manualNote.trim() || "OCR unreadable — water / blur on receipt",
         category: scanCategory,
-        amount: manualSubmitTotal,
-        ...(scanCategory === "drinks"
-          ? { drinkId: selectedDrinkId, drinkQty }
-          : {}),
+        amount: manualAmountNum,
       },
     });
     if (!id) return;
@@ -285,9 +235,7 @@ function ReceiptScanPage() {
       <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">{pageTitle}</h2>
       <p className="iz-tiny iz-muted mt-0.5">
         {editScan
-          ? scanCategory === "drinks"
-            ? "Update drink, quantity, or note — agency is notified again for verification."
-            : "Update amount or note — agency is notified again for verification."
+          ? "Update amount or note — agency is notified again for verification."
           : replaceScan
             ? "Replace the wrong scan with a new OCR read or self-log."
             : "Receipts scanned between Time-In and Time-Out attach to one PV for that shift only."}
@@ -383,9 +331,7 @@ function ReceiptScanPage() {
                     Manual self-log
                   </IzPill>
                   <p className="iz-tiny iz-muted2">
-                    {scanCategory === "drinks"
-                      ? "Select the drink sold and quantity — agency must verify before it counts toward your PV."
-                      : "Key in the amount yourself — agency must verify before it counts toward your PV."}
+                    Key in the amount yourself — agency must verify before it counts toward your PV.
                   </p>
                 </div>
               )}
@@ -396,83 +342,16 @@ function ReceiptScanPage() {
             <div className="iz-self-log-callout mt-3">
               <PenLine className="h-4 w-4 shrink-0 text-[var(--iz-gold-l)]" />
               <div>
-                <p className="iz-sm font-bold text-[var(--iz-gold-l)]">
-                  {scanCategory === "drinks"
-                    ? "Self-log drinks sold"
-                    : "Self-log the amount manually"}
-                </p>
+                <p className="iz-sm font-bold text-[var(--iz-gold-l)]">Self-log the amount manually</p>
                 <p className="iz-tiny iz-muted2 mt-0.5">
-                  {scanCategory === "drinks"
-                    ? `When OCR fails, pick a drink from ${outlet}'s menu, enter how many were sold, and submit. Your agency receives a notification to verify.`
-                    : "When OCR fails (water, blur, faded print), enter the total yourself. Your agency receives a notification to verify."}
+                  When OCR fails (water, blur, faded print), enter the total yourself. Your agency receives a
+                  notification to verify.
                 </p>
               </div>
             </div>
           )}
 
-          {phase === "manual" && scanCategory === "drinks" && (
-            <div className="iz-self-log-form mt-3">
-              <label className="iz-self-log-form__label">Drink · {outlet}</label>
-              <div className="iz-self-log-drink-grid mt-2">
-                {drinkMenu.map((drink) => (
-                  <button
-                    key={drink.id}
-                    type="button"
-                    className={`iz-self-log-drink-option${selectedDrinkId === drink.id ? " iz-self-log-drink-option--selected" : ""}`}
-                    onClick={() => setSelectedDrinkId(drink.id)}
-                  >
-                    <span className="iz-self-log-drink-option__name">{drink.name}</span>
-                    <span className="iz-self-log-drink-option__price">{formatRM(drink.priceRm)} each</span>
-                  </button>
-                ))}
-              </div>
-              <label className="iz-self-log-form__label mt-3">Quantity sold</label>
-              <div className="iz-self-log-qty mt-2">
-                <button
-                  type="button"
-                  className="iz-chip flex h-9 w-9 shrink-0 items-center justify-center !p-0"
-                  onClick={() => setDrinkQty((q) => Math.max(1, q - 1))}
-                  disabled={drinkQty <= 1}
-                  aria-label="Decrease quantity"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-                <span className="iz-self-log-qty__value">{drinkQty}</span>
-                <button
-                  type="button"
-                  className="iz-chip flex h-9 w-9 shrink-0 items-center justify-center !p-0"
-                  onClick={() => setDrinkQty((q) => q + 1)}
-                  aria-label="Increase quantity"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-              {selectedDrink && drinkQty >= 1 && (
-                <p className="iz-self-log-total mt-3">
-                  {formatRM(selectedDrink.priceRm)} × {drinkQty} ={" "}
-                  <b className="text-[var(--iz-gold-l)]">{formatRM(drinksTotal)}</b>
-                </p>
-              )}
-              <label className="iz-self-log-form__label mt-3" htmlFor="self-log-note">
-                Note for agency (optional)
-              </label>
-              <textarea
-                id="self-log-note"
-                className="iz-self-log-form__note"
-                rows={2}
-                value={manualNote}
-                onChange={(e) => setManualNote(e.target.value)}
-              />
-              {manualPreview && drinksTotal > 0 && (
-                <p className="iz-tiny iz-muted2 mt-2">
-                  Commission preview:{" "}
-                  <b className="text-[var(--iz-gold-l)]">{formatRM(manualPreview.totalCommission)}</b>
-                </p>
-              )}
-            </div>
-          )}
-
-          {phase === "manual" && scanCategory === "tips" && (
+          {phase === "manual" && (
             <div className="iz-self-log-form mt-3">
               <label className="iz-self-log-form__label" htmlFor="self-log-amount">
                 Amount to self-log ({SCAN_CATEGORY_LABEL[scanCategory]})
@@ -545,6 +424,13 @@ function ReceiptScanPage() {
                         <td className="text-right">{formatRM(draft.tipCommission)}</td>
                       </tr>
                     )}
+                    {draft.tableCommission > 0 && (
+                      <tr>
+                        <td>Tables</td>
+                        <td className="iz-muted">Per table × RM{RECEIPT_COMMISSION_RULES.tablePerUnit}</td>
+                        <td className="text-right">{formatRM(draft.tableCommission)}</td>
+                      </tr>
+                    )}
                     <tr className="iz-data-table-tot">
                       <td colSpan={2}>
                         <b>Total commission (→ PV line)</b>
@@ -561,8 +447,7 @@ function ReceiptScanPage() {
                 className="iz-tiny mt-2 font-semibold text-[var(--iz-amber)]"
                 onClick={() => setPhase("manual")}
               >
-                OCR looks wrong?{" "}
-                {scanCategory === "drinks" ? "Self-log drinks instead" : "Self-log manually instead"}
+                OCR looks wrong? Self-log manually instead
               </button>
             </IzCard>
           )}
@@ -588,7 +473,7 @@ function ReceiptScanPage() {
               <p className="iz-tiny iz-muted mt-1">{receiptPvCalcNote(loggedScan)}</p>
               {loggedScan.logSource === "manual" && isSelfLogPendingAgency(loggedScan) && (
                 <p className="iz-tiny text-[var(--iz-amber)] mt-1">
-                  Pending agency verification in Payment — shows as <b>Pending verification</b> on your status table until approved.
+                  Pending agency verification — shows as <b>Self-log</b> on your status table until approved.
                 </p>
               )}
               <p className="iz-tiny text-[var(--iz-gold-l)] mt-1">
@@ -606,8 +491,7 @@ function ReceiptScanPage() {
                 Retry scan
               </button>
               <button type="button" className="iz-btn iz-btn-primary" onClick={() => setPhase("manual")}>
-                <PenLine className="h-4 w-4" />{" "}
-                {scanCategory === "drinks" ? "Self-log drinks" : "Self-log amount"}
+                <PenLine className="h-4 w-4" /> Self-log amount
               </button>
             </div>
           )}
@@ -617,12 +501,12 @@ function ReceiptScanPage() {
               type="button"
               className="iz-btn iz-btn-primary mt-3 w-full iz-self-log-form__submit"
               onClick={confirmManualLog}
-              disabled={!canSubmitManual}
+              disabled={manualAmountNum <= 0}
             >
               <PenLine className="h-4 w-4" />
               {editScan
-                ? `Save changes · ${canSubmitManual ? formatRM(manualSubmitTotal) : scanCategory === "drinks" ? "select drink" : "enter amount"}`
-                : `Submit self-log · ${canSubmitManual ? formatRM(manualSubmitTotal) : scanCategory === "drinks" ? "select drink" : "enter amount"}`}
+                ? `Save changes · ${manualAmountNum > 0 ? formatRM(manualAmountNum) : "enter amount"}`
+                : `Submit self-log · ${manualAmountNum > 0 ? formatRM(manualAmountNum) : "enter amount"}`}
             </button>
           )}
 

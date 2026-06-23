@@ -23,8 +23,6 @@ export const Route = createFileRoute("/host/profile")({
 
 type ProfileDraft = {
   displayName: string;
-  icName: string;
-  mobile: string;
   email: string;
   avatarPhoto: string | null;
   comcard: PrComcard;
@@ -33,17 +31,17 @@ type ProfileDraft = {
 };
 
 function buildProfileDraft(
-  account: ReturnType<typeof resolvePrAccountFields>,
+  u: ReturnType<typeof getPrProfile>,
+  prDisplayName: string | null,
+  prEmail: string | null,
   prAvatarPhoto: string | null,
   prComcard: PrComcard,
   prPortfolio: (string | null)[],
   prLanguages: string[],
 ): ProfileDraft {
   return {
-    displayName: account.displayName,
-    icName: account.icName,
-    mobile: account.mobile,
-    email: account.email,
+    displayName: prDisplayName ?? u.name,
+    email: prEmail ?? u.email,
     avatarPhoto: prAvatarPhoto,
     comcard: { ...prComcard },
     portfolio: [...prPortfolio],
@@ -60,10 +58,7 @@ function ProfilePage() {
   const prPortfolio = useStore((s) => s.prPortfolio);
   const prLanguages = useStore((s) => s.prLanguages);
   const prDisplayName = useStore((s) => s.prDisplayName);
-  const prIcName = useStore((s) => s.prIcName);
-  const prMobile = useStore((s) => s.prMobile);
   const prEmail = useStore((s) => s.prEmail);
-  const agencyPRs = useStore((s) => s.agencyPRs);
   const prAvatarPhoto = useStore((s) => s.prAvatarPhoto);
   const savePrProfile = useStore((s) => s.savePrProfile);
   const signOut = useStore((s) => s.signOut);
@@ -71,18 +66,10 @@ function ProfilePage() {
 
   const u = getPrProfile(prSubRole);
   const tied = prSubRole !== "pr_free";
-  const agencyPr = agencyPRs.find((p) => p.id === getPrRosterId(prSubRole));
-  const account = resolvePrAccountFields(prSubRole, {
-    prDisplayName,
-    prIcName,
-    prMobile,
-    prEmail,
-    agencyPr,
-  });
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfileDraft>(() =>
-    buildProfileDraft(account, prAvatarPhoto, prComcard, prPortfolio, prLanguages),
+    buildProfileDraft(u, prDisplayName, prEmail, prAvatarPhoto, prComcard, prPortfolio, prLanguages),
   );
 
   const portfolioFileRef = useRef<HTMLInputElement>(null);
@@ -90,12 +77,12 @@ function ProfilePage() {
   const uploadSlotRef = useRef<number>(0);
 
   const startEdit = () => {
-    setDraft(buildProfileDraft(account, prAvatarPhoto, prComcard, prPortfolio, prLanguages));
+    setDraft(buildProfileDraft(u, prDisplayName, prEmail, prAvatarPhoto, prComcard, prPortfolio, prLanguages));
     setEditing(true);
   };
 
   const cancelEdit = () => {
-    setDraft(buildProfileDraft(account, prAvatarPhoto, prComcard, prPortfolio, prLanguages));
+    setDraft(buildProfileDraft(u, prDisplayName, prEmail, prAvatarPhoto, prComcard, prPortfolio, prLanguages));
     setEditing(false);
   };
 
@@ -103,16 +90,6 @@ function ProfilePage() {
     const name = draft.displayName.trim();
     if (!name) {
       toast("Enter your display name", "warn");
-      return;
-    }
-    const icName = draft.icName.trim();
-    if (!icName) {
-      toast("Enter your IC name (legal full name)", "warn");
-      return;
-    }
-    const mobile = draft.mobile.trim();
-    if (!mobile) {
-      toast("Enter your mobile number", "warn");
       return;
     }
     const email = draft.email.trim();
@@ -129,8 +106,6 @@ function ProfilePage() {
     }
     savePrProfile({
       displayName: name,
-      icName,
-      mobile,
       email,
       avatarPhoto: draft.avatarPhoto,
       comcard: {
@@ -145,10 +120,8 @@ function ProfilePage() {
     setEditing(false);
   };
 
-  const displayName = editing ? draft.displayName : account.displayName;
-  const icName = editing ? draft.icName : account.icName;
-  const mobile = editing ? draft.mobile : account.mobile;
-  const email = editing ? draft.email : account.email;
+  const displayName = editing ? draft.displayName : (prDisplayName ?? u.name);
+  const email = editing ? draft.email : (prEmail ?? u.email);
   const avatarPhoto = editing ? draft.avatarPhoto : prAvatarPhoto;
   const avatarLetter = displayName.trim()[0]?.toUpperCase() ?? u.av;
   const comcard = editing ? draft.comcard : prComcard;
@@ -300,28 +273,6 @@ function ProfilePage() {
                   />
                 </div>
                 <div className="iz-field iz-pr-account-hero__name-field !mb-0 mt-2">
-                  <label className="!text-[9px]">IC name (legal full name)</label>
-                  <input
-                    type="text"
-                    value={draft.icName}
-                    maxLength={80}
-                    placeholder="As printed on IC / passport"
-                    autoComplete="name"
-                    onChange={(e) => setDraft((p) => ({ ...p, icName: e.target.value }))}
-                  />
-                </div>
-                <div className="iz-field iz-pr-account-hero__name-field !mb-0 mt-2">
-                  <label className="!text-[9px]">Mobile</label>
-                  <input
-                    type="tel"
-                    value={draft.mobile}
-                    maxLength={24}
-                    placeholder="+60 12-345 6789"
-                    autoComplete="tel"
-                    onChange={(e) => setDraft((p) => ({ ...p, mobile: e.target.value }))}
-                  />
-                </div>
-                <div className="iz-field iz-pr-account-hero__name-field !mb-0 mt-2">
                   <label className="!text-[9px]">Email</label>
                   <input
                     type="email"
@@ -336,9 +287,7 @@ function ProfilePage() {
             ) : (
               <>
                 <h1 className="iz-pr-account-hero__name">{displayName}</h1>
-                <p className="iz-pr-account-hero__email">{icName}</p>
-                <p className="iz-tiny iz-muted2 mt-0.5">{mobile}</p>
-                <p className="iz-tiny iz-muted2">{email}</p>
+                <p className="iz-pr-account-hero__email">{email}</p>
               </>
             )}
             <div className="iz-pr-account-hero__meta">
@@ -348,14 +297,9 @@ function ProfilePage() {
               <span className="iz-pr-account-hero__meta-text">
                 {tied ? "Agency-Tied · Atlas Agency" : "Freelancer"}
               </span>
-              <span className="iz-pr-account-hero__meta-ic">IC {account.ic}</span>
+              <span className="iz-pr-account-hero__meta-ic">IC {u.ic}</span>
             </div>
-            {editing && tied && (
-              <p className="iz-pr-account-hero__hint">
-                IC name and mobile sync to Atlas Agency when you save. Tap the camera on your photo to upload a new picture.
-              </p>
-            )}
-            {editing && !tied && (
+            {editing && (
               <p className="iz-pr-account-hero__hint">Tap the camera on your photo to upload a new picture.</p>
             )}
           </div>

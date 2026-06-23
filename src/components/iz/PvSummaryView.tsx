@@ -14,15 +14,12 @@ export function PvSummaryView({
   weekSummary,
   className,
   collapseNetDetails = false,
-  hideSignatureDetails = false,
 }: {
   pv: PrPaymentVoucher;
   payee: PvPayeeProfile;
   weekSummary?: WeeklyPaymentSummary | null;
   className?: string;
   collapseNetDetails?: boolean;
-  /** Hide Finance Head / PR e-sign rows while a dispute is open */
-  hideSignatureDetails?: boolean;
 }) {
   const isWeekly = Boolean(pv.weekStartIso && weekSummary);
   const weeklyNote =
@@ -64,10 +61,10 @@ export function PvSummaryView({
           value={isWeekly ? `${pv.receiptIds.length} this week` : `${pv.receiptIds.length} on this shift`}
         />
       )}
-      {!hideSignatureDetails && pv.financeHeadSignedAt && (
+      {pv.financeHeadSignedAt && (
         <SummaryRow label="Finance Head" value={`${pv.financeHeadName} · ${pv.financeHeadSignedAt}`} />
       )}
-      {!hideSignatureDetails && pv.prSignedAt && <SummaryRow label="PR signed" value={pv.prSignedAt} />}
+      {pv.prSignedAt && <SummaryRow label="PR signed" value={pv.prSignedAt} />}
       {pv.paidAt && <SummaryRow label="Paid" value={pv.paidAt} />}
       {pv.bankRef && <SummaryRow label="Bank ref" value={pv.bankRef} />}
     </div>

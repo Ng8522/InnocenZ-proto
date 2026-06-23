@@ -16,16 +16,24 @@ import {
   filterReceiptScansForPrProfile,
   fmtHistDate,
   getPrProfile,
+  receiptPvCalcNote,
+  receiptBelongsToPvLabel,
+  receiptStatusLabel,
+  receiptStatusPillVariant,
+  receiptShiftDetails,
+  effectiveReceiptScanStatus,
   type HistRow,
   type PrPaymentVoucher,
   type PrReceiptScan,
   type PvLineRecord,
+  type ReceiptItemCategory,
+  type ReceiptScanStatus,
   getPrRosterId,
 } from "@/lib/pr-demo";
 import { shiftHistoryToHistRows } from "@/lib/portal-sync";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 import { downloadPvBreakdownCsv, downloadPvBreakdownPdf } from "@/lib/pv-pdf";
-import { payeeFromPrPortal } from "@/lib/pv-template";
+import { payeeFromProfile } from "@/lib/pv-template";
 import { usePrPortalReady } from "@/lib/use-pr-sub-role";
 import {
   Calendar,
@@ -33,31 +41,36 @@ import {
   Clock,
   Download,
   Filter,
+  Receipt,
   Search,
   Wallet,
   X,
 } from "lucide-react";
-import { PaymentHistStatusChips, PrPaymentHistoryPanel } from "@/components/pr/PrPaymentHistoryPanel";
+import { PrPaymentHistoryPanel } from "@/components/pr/PrPaymentHistoryPanel";
 import {
   shiftHistoryStatusLabel,
   isPaymentHistoryPv,
   isPayrollWeekHiddenInHistory,
   disputedPayrollWeekPvs,
+  pvRowDateToIso,
 } from "@/lib/pr-payment-history";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { HistPayrollWeekSection } from "@/components/pr/HistPayrollWeekSection";
 import { IzCard, IzPill, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCalendar";
 import { parseDateInputMs, parseScannedAtMs } from "@/lib/payroll-filters";
-import { getPayrollWeekSundayIso } from "@/lib/demo-clock";
+import { isReceiptFromPastShift, receiptDateIso } from "@/lib/receipt-scan-utils";
+import { isReceiptHiddenInHistory } from "@/lib/history-demo-sync";
+import { getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/demo-clock";
 import { payrollWeekRangeLabel } from "@/lib/pr-weekly-payment";
 
-type HistTab = "shifts" | "payment";
+type HistTab = "shifts" | "receipts" | "payment";
 
 export const Route = createFileRoute("/host/history")({
   validateSearch: (search: Record<string, unknown>): { tab: HistTab; pvId?: string } => {
     const tab = search.tab;
     const pvId = typeof search.pvId === "string" ? search.pvId : undefined;
+    if (tab === "receipts") return { tab: "receipts", pvId };
     if (tab === "payment" || tab === "pv") return { tab: "payment", pvId };
     return { tab: "shifts", pvId };
   },
@@ -72,7 +85,7 @@ type HistFilters = {
   status: HistRow["st"] | "";
   wages: string;
   sales: string;
-  others: string;
+  tables: string;
   drinks: string;
 };
 
@@ -85,7 +98,7 @@ const EMPTY_FILTERS: HistFilters = {
   status: "",
   wages: "",
   sales: "",
-  others: "",
+  tables: "",
   drinks: "",
 };
 
@@ -131,12 +144,12 @@ function rowSearchBlob(row: HistRow) {
     row.venue,
     row.wages,
     row.sales,
-    row.others,
+    row.table,
     row.drinks,
     row.st,
     formatRM(row.wages),
     formatRM(row.sales),
-    formatRM(row.others),
+    formatRM(row.table),
     formatRM(row.drinks),
     formatRM(row.tips),
   ]
@@ -156,8 +169,8 @@ function matchesFilters(row: HistRow, filters: HistFilters) {
   if (wages !== null && row.wages !== wages) return false;
   const sales = parseFilterNum(filters.sales);
   if (sales !== null && row.sales !== sales) return false;
-  const others = parseFilterNum(filters.others);
-  if (others !== null && row.others !== others) return false;
+  const tables = parseFilterNum(filters.tables);
+  if (tables !== null && row.table !== tables) return false;
   const drinks = parseFilterNum(filters.drinks);
   if (drinks !== null && row.drinks !== drinks) return false;
   return true;
@@ -217,7 +230,7 @@ function activeFilterCount(filters: HistFilters) {
   if (filters.status) n++;
   if (parseFilterNum(filters.wages) !== null) n++;
   if (parseFilterNum(filters.sales) !== null) n++;
-  if (parseFilterNum(filters.others) !== null) n++;
+  if (parseFilterNum(filters.tables) !== null) n++;
   if (parseFilterNum(filters.drinks) !== null) n++;
   return n;
 }
@@ -293,6 +306,91 @@ function inferNightShiftWindow(durationHours: number) {
   };
 }
 
+type ReceiptFilters = {
+  query: string;
+  date: string;
+  timeFrom: string;
+  timeTo: string;
+  outlet: string;
+  category: ReceiptItemCategory | "";
+  status: ReceiptScanStatus | "";
+  commission: string;
+};
+
+const RECEIPT_STATUS_FILTER_OPTIONS: { value: ReceiptScanStatus | ""; label: string }[] = [
+  { value: "", label: "Any status" },
+  { value: "attached", label: "On shift" },
+  { value: "pending", label: "Pending" },
+  { value: "in_pv", label: "In PV" },
+  { value: "paid", label: "Paid" },
+  { value: "disputed", label: "Disputed" },
+];
+
+const EMPTY_RECEIPT_FILTERS: ReceiptFilters = {
+  query: "",
+  date: "",
+  timeFrom: "",
+  timeTo: "",
+  outlet: "",
+  category: "",
+  status: "",
+  commission: "",
+};
+
+function formatShiftSessionLabel(id: string): string {
+  const m = id.match(/^shift-(\d{4})-(\d{2})-(\d{2})-(.+)$/i);
+  if (!m) return id;
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  const mon = monthNames[parseInt(m[2], 10) - 1] ?? m[2];
+  const venue = m[4]
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return `${parseInt(m[3], 10)} ${mon} · ${venue}`;
+}
+
+function scanTimeLabel(scannedAt: string): string {
+  const m = scannedAt.match(/·\s*(\d{1,2}:\d{2})/);
+  return m ? m[1] : scannedAt;
+}
+
+function receiptShiftInfo(
+  scan: PrReceiptScan,
+  pvById: Record<string, PrPaymentVoucher>,
+  pvByShiftId: Record<string, PrPaymentVoucher>,
+  shiftByKey: Map<string, ShiftHistoryRow>,
+) {
+  const dateIso = receiptDateIso(scan);
+  const hist = shiftByKey.get(`${dateIso}|${scan.outlet}`);
+  const pv =
+    (scan.pvId ? pvById[scan.pvId] : undefined) ??
+    (scan.shiftSessionId ? pvByShiftId[scan.shiftSessionId] : undefined);
+  const details = receiptShiftDetails(scan, pv);
+  const inferred =
+    hist?.durationHours && details.shiftTime === "—"
+      ? inferNightShiftWindow(hist.durationHours)
+      : null;
+  return {
+    shiftWindow: pv?.shiftTime ?? (details.shiftTime !== "—" ? details.shiftTime : inferred?.window ?? null),
+    timeIn: pv?.timeIn ?? null,
+    timeOut: pv?.timeOut ?? null,
+    sessionLabel: scan.shiftSessionId ? formatShiftSessionLabel(scan.shiftSessionId) : null,
+  };
+}
+
 type PvFilters = {
   query: string;
   pvId: string;
@@ -359,13 +457,72 @@ function pvLineEventMs(
   return 0;
 }
 
+function receiptSearchBlob(scan: PrReceiptScan) {
+  const [y, m, d] = scan.date;
+  return [
+    scan.receiptRef,
+    scan.id,
+    scan.pvId,
+    scan.shiftSessionId,
+    fmtHistDate(y, m, d),
+    scan.scannedAt,
+    scan.outlet,
+    scan.prCode,
+    scan.pvId,
+    scan.pvLineDesc,
+    scan.status,
+    scan.pvStatus,
+    effectiveReceiptScanStatus(scan),
+    receiptStatusLabel(effectiveReceiptScanStatus(scan)),
+    scan.items.map((i) => i.label).join(" "),
+    formatRM(scan.totalLogged),
+    formatRM(scan.totalCommission),
+    receiptPvCalcNote(scan),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function matchesReceiptFilters(scan: PrReceiptScan, filters: ReceiptFilters) {
+  if (filters.query.trim() && !receiptSearchBlob(scan).includes(filters.query.trim().toLowerCase()))
+    return false;
+  if (filters.date && dateKey(scan.date) !== filters.date) return false;
+  if (filters.date && (filters.timeFrom || filters.timeTo)) {
+    const eventMs = parseScannedAtMs(scan.scannedAt);
+    if (!eventMs) return false;
+    const fromMs = parseDateInputMs(filters.date, filters.timeFrom || "00:00");
+    const toMs = parseDateInputMs(filters.date, filters.timeTo || "23:59");
+    if (fromMs != null && eventMs < fromMs) return false;
+    if (toMs != null && eventMs > toMs) return false;
+  }
+  if (filters.outlet && scan.outlet !== filters.outlet) return false;
+  if (filters.category && !scan.items.some((i) => i.category === filters.category)) return false;
+  if (filters.status && effectiveReceiptScanStatus(scan) !== filters.status) return false;
+  const comm = parseFilterNum(filters.commission);
+  if (comm !== null && scan.totalCommission !== comm) return false;
+  return true;
+}
+
+function receiptFilterCount(filters: ReceiptFilters) {
+  let n = 0;
+  if (filters.query.trim()) n++;
+  if (filters.date) n++;
+  if (filters.date && filters.timeFrom) n++;
+  if (filters.date && filters.timeTo) n++;
+  if (filters.outlet) n++;
+  if (filters.category) n++;
+  if (filters.status) n++;
+  if (parseFilterNum(filters.commission) !== null) n++;
+  return n;
+}
+
 type PaymentHistFilters = {
   query: string;
   date: string;
   timeFrom: string;
   timeTo: string;
   outlet: string;
-  status: "" | "PAID" | "SIGNED";
+  status: "" | "PAID" | "SIGNED" | "DISPUTED";
   net: string;
 };
 
@@ -373,6 +530,7 @@ const PAYMENT_HIST_STATUS_OPTIONS: { value: PaymentHistFilters["status"]; label:
   { value: "", label: "Any status" },
   { value: "PAID", label: "Paid" },
   { value: "SIGNED", label: "Signed" },
+  { value: "DISPUTED", label: "Disputed" },
 ];
 
 const EMPTY_PAYMENT_HIST_FILTERS: PaymentHistFilters = {
@@ -603,6 +761,10 @@ function pvFilterCount(filters: PvFilters) {
   return n;
 }
 
+function receiptStatusPill(status: ReceiptScanStatus) {
+  return receiptStatusPillVariant(status);
+}
+
 function HistoryPage() {
   const { tab, pvId: searchPvId } = Route.useSearch();
   const navigate = useNavigate();
@@ -610,25 +772,13 @@ function HistoryPage() {
   const isFreelancer = prSubRole === "pr_free";
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
-  const prDisplayName = useStore((s) => s.prDisplayName);
-  const prIcName = useStore((s) => s.prIcName);
-  const prMobile = useStore((s) => s.prMobile);
-  const agencyPRs = useStore((s) => s.agencyPRs);
   const shiftHistory = useStore((s) => s.shiftHistory);
+  const checkedIn = useStore((s) => s.checkedIn);
+  const checkedOut = useStore((s) => s.checkedOut);
+  const prActiveShift = useStore((s) => s.prActiveShift);
   const toast = useStore((s) => s.toast);
   const profile = getPrProfile(prSubRole);
   const prId = getPrRosterId(prSubRole);
-  const agencyPr = agencyPRs.find((p) => p.id === prId);
-  const portalPayee = useMemo(
-    () =>
-      payeeFromPrPortal(prSubRole, profile, {
-        prDisplayName,
-        prIcName,
-        prMobile,
-        agencyPr,
-      }),
-    [prSubRole, profile, prDisplayName, prIcName, prMobile, agencyPr],
-  );
 
   const myVouchers = useMemo(
     () => filterPvsForPrProfile(prPaymentVouchers, profile, prSubRole),
@@ -642,6 +792,29 @@ function HistoryPage() {
     () => shiftHistoryToHistRows(shiftHistory, prId, myVouchers),
     [shiftHistory, prId, myVouchers],
   );
+  const pastShiftReceipts = useMemo(() => {
+    const histDateKeys = new Set(histRows.map((r) => dateKey(r.d)));
+    return myReceiptScans.filter(
+      (s) =>
+        !isReceiptHiddenInHistory(s, myVouchers) &&
+        (histDateKeys.has(dateKey(s.date)) ||
+          isReceiptFromPastShift(s, shiftHistory, prId, {
+            todayIso: getLiveTodayIso(),
+            checkedIn,
+            checkedOut,
+            activeOutlet: prActiveShift?.outlet ?? null,
+          })),
+    );
+  }, [
+    myReceiptScans,
+    myVouchers,
+    shiftHistory,
+    prId,
+    histRows,
+    checkedIn,
+    checkedOut,
+    prActiveShift?.outlet,
+  ]);
   const histDateOptions = useMemo(
     () =>
       [...new Map(histRows.map((r) => [dateKey(r.d), r.d])).entries()]
@@ -663,6 +836,10 @@ function HistoryPage() {
   const [filters, setFilters] = useState<HistFilters>(EMPTY_FILTERS);
   const [draft, setDraft] = useState<HistFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  const [receiptFilters, setReceiptFilters] = useState<ReceiptFilters>(EMPTY_RECEIPT_FILTERS);
+  const [receiptDraft, setReceiptDraft] = useState<ReceiptFilters>(EMPTY_RECEIPT_FILTERS);
+  const [receiptFilterOpen, setReceiptFilterOpen] = useState(false);
 
   const [paymentFilters, setPaymentFilters] = useState<PaymentHistFilters>(EMPTY_PAYMENT_HIST_FILTERS);
   const [paymentDraft, setPaymentDraft] = useState<PaymentHistFilters>(EMPTY_PAYMENT_HIST_FILTERS);
@@ -712,6 +889,44 @@ function HistoryPage() {
   const paymentDefaultMonth =
     dateFromKey(paymentDateOptions[paymentDateOptions.length - 1]?.key ?? "") ??
     new Date(2026, 5, 1);
+
+  const receiptOutlets = useMemo(
+    () => [...new Set(pastShiftReceipts.map((s) => s.outlet))].sort(),
+    [pastShiftReceipts],
+  );
+  const receiptOutletFilterOptions = useMemo(
+    () => [
+      { value: "", label: "Any outlet" },
+      ...receiptOutlets.map((v) => ({ value: v, label: v })),
+    ],
+    [receiptOutlets],
+  );
+  const receiptDateOptions = useMemo(() => {
+    const map = new Map<string, [number, number, number]>();
+    for (const s of pastShiftReceipts) map.set(dateKey(s.date), s.date);
+    for (const r of histRows) map.set(dateKey(r.d), r.d);
+    for (const pv of myVouchers) {
+      if (pv.status !== "DISPUTED" || !pv.weekStartIso) continue;
+      const year = parseInt(pv.weekStartIso.slice(0, 4), 10);
+      for (const row of pv.rows) {
+        const iso = pvRowDateToIso(row, year);
+        if (!iso) continue;
+        const [y, m, d] = iso.split("-").map(Number);
+        map.set(iso, [y, m, d]);
+      }
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, d]) => ({ key, label: fmtHistDate(d[0], d[1], d[2]) }));
+  }, [pastShiftReceipts, histRows, myVouchers]);
+  const pvById = useMemo(() => Object.fromEntries(myVouchers.map((p) => [p.id, p])), [myVouchers]);
+  const pvByShiftId = useMemo(() => {
+    const map: Record<string, PrPaymentVoucher> = {};
+    for (const pv of myVouchers) {
+      if (pv.shiftSessionId) map[pv.shiftSessionId] = pv;
+    }
+    return map;
+  }, [myVouchers]);
 
   const setTab = (next: HistTab) => navigate({ to: "/host/history", search: { tab: next } });
 
@@ -825,7 +1040,13 @@ function HistoryPage() {
     return entries.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
   }, [shiftRowsByCycle, disputedShiftWeeks]);
 
+  const filteredReceipts = useMemo(
+    () => pastShiftReceipts.filter((s) => matchesReceiptFilters(s, receiptFilters)),
+    [pastShiftReceipts, receiptFilters],
+  );
+
   const filterCount = activeFilterCount(filters);
+  const receiptFilterCountN = receiptFilterCount(receiptFilters);
   const paymentFilterCountN = paymentHistFilterCount(paymentFilters);
 
   const openFilters = () => {
@@ -843,9 +1064,10 @@ function HistoryPage() {
     setDraft(EMPTY_FILTERS);
   };
 
-  const anyFilterOpen = filterOpen || paymentFilterOpen;
+  const anyFilterOpen = filterOpen || receiptFilterOpen || paymentFilterOpen;
   const closeFilters = () => {
     setFilterOpen(false);
+    setReceiptFilterOpen(false);
     setPaymentFilterOpen(false);
   };
 
@@ -871,6 +1093,14 @@ function HistoryPage() {
           onClick={() => setTab("shifts")}
         >
           Shifts
+        </button>
+        <button
+          type="button"
+          className={tab === "receipts" ? "active" : ""}
+          onClick={() => setTab("receipts")}
+        >
+          <Receipt className="mr-1 inline h-3.5 w-3.5" />
+          Receipt scans
         </button>
         <button
           type="button"
@@ -920,7 +1150,7 @@ function HistoryPage() {
               </div>
 
               <HistRecordsFilterBar
-                searchPlaceholder="Search wages, sales, others, drinks…"
+                searchPlaceholder="Search wages, sales, tables, drinks…"
                 searchAriaLabel="Search shift history"
                 query={filters.query}
                 onQueryChange={(query) => setFilters((prev) => ({ ...prev, query }))}
@@ -1108,10 +1338,10 @@ function HistoryPage() {
               </div>
               <div className="iz-grid2">
                 <FilterNumberInput
-                  label="Others (RM)"
+                  label="Tables (RM)"
                   placeholder="e.g. 180"
-                  value={draft.others}
-                  onChange={(v) => setDraft((prev) => ({ ...prev, others: v }))}
+                  value={draft.tables}
+                  onChange={(v) => setDraft((prev) => ({ ...prev, tables: v }))}
                 />
                 <FilterNumberInput
                   label="Drinks"
@@ -1140,6 +1370,28 @@ function HistoryPage() {
         </>
       )}
 
+      {tab === "receipts" && (
+        <ReceiptScansSection
+          scans={filteredReceipts}
+          filters={receiptFilters}
+          setFilters={setReceiptFilters}
+          filterCount={receiptFilterCountN}
+          receiptDraft={receiptDraft}
+          setReceiptDraft={setReceiptDraft}
+          receiptFilterOpen={receiptFilterOpen}
+          setReceiptFilterOpen={setReceiptFilterOpen}
+          outletOptions={receiptOutletFilterOptions}
+          receiptDateOptions={receiptDateOptions}
+          shiftByKey={histShiftByKey}
+          pvById={pvById}
+          pvByShiftId={pvByShiftId}
+          onClear={() => {
+            setReceiptFilters(EMPTY_RECEIPT_FILTERS);
+            setReceiptDraft(EMPTY_RECEIPT_FILTERS);
+          }}
+        />
+      )}
+
       {tab === "payment" && (
         <PaymentHistorySection
           vouchers={filteredPaymentVouchers}
@@ -1159,11 +1411,11 @@ function HistoryPage() {
             setPaymentDraft(EMPTY_PAYMENT_HIST_FILTERS);
           }}
           onDownloadPdf={(pv) => {
-            downloadPvBreakdownPdf(pv, portalPayee, myReceiptScans);
+            downloadPvBreakdownPdf(pv, payeeFromProfile(profile), myReceiptScans);
             toast("Payment voucher opened — use Print → Save as PDF", "success");
           }}
           onDownloadCsv={(pv) => {
-            downloadPvBreakdownCsv(pv, portalPayee);
+            downloadPvBreakdownCsv(pv, payeeFromProfile(profile));
             toast("Payment voucher Excel downloaded", "success");
           }}
         />
@@ -1313,8 +1565,8 @@ function FilterChips({
   if (wages !== null) chips.push({ key: "wages", label: `Wages: ${formatRM(wages)}` });
   const sales = parseFilterNum(filters.sales);
   if (sales !== null) chips.push({ key: "sales", label: `Sales: ${formatRM(sales)}` });
-  const others = parseFilterNum(filters.others);
-  if (others !== null) chips.push({ key: "others", label: `Others: ${formatRM(others)}` });
+  const tables = parseFilterNum(filters.tables);
+  if (tables !== null) chips.push({ key: "tables", label: `Tables: ${formatRM(tables)}` });
   const drinks = parseFilterNum(filters.drinks);
   if (drinks !== null) chips.push({ key: "drinks", label: `Drinks: ${formatRM(drinks)}` });
 
@@ -1407,16 +1659,16 @@ function HistShiftCard({
           <span className="v text-[var(--iz-gold-l)]">{formatRM(row.wages)}</span>
         </div>
         <div className="iz-hist-shift-metric">
+          <span className="l">Tables</span>
+          <span className="v">{formatRM(row.table)}</span>
+        </div>
+        <div className="iz-hist-shift-metric">
           <span className="l">Drinks</span>
           <span className="v">{formatRM(row.drinks)}</span>
         </div>
         <div className="iz-hist-shift-metric">
           <span className="l">Tips</span>
           <span className="v">{formatRM(row.tips)}</span>
-        </div>
-        <div className="iz-hist-shift-metric">
-          <span className="l">Others</span>
-          <span className="v">{formatRM(row.others)}</span>
         </div>
       </div>
     </IzCard>
@@ -1576,6 +1828,15 @@ function PaymentHistorySection({
             ...paymentOutlets.map((v) => ({ value: v, label: v })),
           ]}
         />
+        <GenericSelectField
+          label="Status"
+          compact
+          value={filters.status}
+          onChange={(status) =>
+            setFilters((p) => ({ ...p, status: status as PaymentHistFilters["status"] }))
+          }
+          options={PAYMENT_HIST_STATUS_OPTIONS}
+        />
       </div>
 
       <div className="mb-2.5">
@@ -1671,8 +1932,6 @@ function PaymentHistorySection({
         <PrPaymentHistoryPanel
           vouchers={vouchers}
           hideHeader
-          statusFilter={filters.status}
-          onStatusFilterChange={(status) => setFilters((p) => ({ ...p, status }))}
           onDownloadPdf={onDownloadPdf}
           onDownloadCsv={onDownloadCsv}
         />
@@ -1706,9 +1965,13 @@ function PaymentHistorySection({
               ...paymentOutlets.map((v) => ({ value: v, label: v })),
             ]}
           />
-          <PaymentHistStatusChips
+          <GenericSelectField
+            label="Status"
             value={paymentDraft.status}
-            onChange={(status) => setPaymentDraft((p) => ({ ...p, status }))}
+            onChange={(status) =>
+              setPaymentDraft((p) => ({ ...p, status: status as PaymentHistFilters["status"] }))
+            }
+            options={PAYMENT_HIST_STATUS_OPTIONS}
           />
           <FilterNumberInput
             label="Net paid (RM)"
@@ -1733,6 +1996,267 @@ function PaymentHistorySection({
           onClick={() => {
             onClear();
             setPaymentFilterOpen(false);
+          }}
+        >
+          Clear & close
+        </button>
+      </IzSheet>
+    </>
+  );
+}
+
+function ReceiptScansSection({
+  scans,
+  filters,
+  setFilters,
+  filterCount,
+  receiptDraft,
+  setReceiptDraft,
+  receiptFilterOpen,
+  setReceiptFilterOpen,
+  outletOptions,
+  receiptDateOptions,
+  shiftByKey,
+  pvById,
+  pvByShiftId,
+  onClear,
+}: {
+  scans: PrReceiptScan[];
+  filters: ReceiptFilters;
+  setFilters: Dispatch<SetStateAction<ReceiptFilters>>;
+  filterCount: number;
+  receiptDraft: ReceiptFilters;
+  setReceiptDraft: Dispatch<SetStateAction<ReceiptFilters>>;
+  receiptFilterOpen: boolean;
+  setReceiptFilterOpen: (v: boolean) => void;
+  outletOptions: { value: string; label: string }[];
+  receiptDateOptions: { key: string; label: string }[];
+  shiftByKey: Map<string, ShiftHistoryRow>;
+  pvById: Record<string, PrPaymentVoucher>;
+  pvByShiftId: Record<string, PrPaymentVoucher>;
+  onClear: () => void;
+}) {
+  const receiptDefaultMonth =
+    dateFromKey(receiptDateOptions[receiptDateOptions.length - 1]?.key ?? "") ??
+    new Date(2026, 5, 1);
+
+  return (
+    <>
+      <div className="iz-between mb-2.5 mt-4">
+        <div className="iz-sect-label !m-0">Receipt scan records</div>
+        <button
+          type="button"
+          className="iz-btn iz-btn-soft iz-btn-sm relative -mt-2"
+          onClick={() => {
+            setReceiptDraft(filters);
+            setReceiptFilterOpen(true);
+          }}
+        >
+          <Filter className="h-3.5 w-3.5" />
+          Filter
+          {filterCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--iz-gold)] px-1 text-[10px] font-bold text-[#1f1208]">
+              {filterCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      <HistRecordsFilterBar
+        searchPlaceholder="Search receipt ID, outlet, PV, items…"
+        searchAriaLabel="Search receipt scans"
+        query={filters.query}
+        onQueryChange={(query) => setFilters((prev) => ({ ...prev, query }))}
+        outletValue={filters.outlet}
+        onOutletChange={(outlet) => setFilters((prev) => ({ ...prev, outlet }))}
+        outletOptions={outletOptions}
+        statusValue={filters.status}
+        onStatusChange={(status) =>
+          setFilters((prev) => ({ ...prev, status: status as ReceiptScanStatus | "" }))
+        }
+        statusOptions={RECEIPT_STATUS_FILTER_OPTIONS}
+        date={filters.date}
+        timeFrom={filters.timeFrom}
+        timeTo={filters.timeTo}
+        onDateChange={(date) =>
+          setFilters((prev) => ({ ...prev, date, ...(!date ? { timeFrom: "", timeTo: "" } : {}) }))
+        }
+        onTimeFromChange={(timeFrom) => setFilters((prev) => ({ ...prev, timeFrom }))}
+        onTimeToChange={(timeTo) => setFilters((prev) => ({ ...prev, timeTo }))}
+        dateOptions={receiptDateOptions}
+        defaultMonth={receiptDefaultMonth}
+      />
+
+      {filterCount > 0 && (
+        <HistInlineFilterChips
+          date={filters.date}
+          timeFrom={filters.timeFrom}
+          timeTo={filters.timeTo}
+          dateOptions={receiptDateOptions}
+          outlet={filters.outlet}
+          statusLabel={filters.status ? receiptStatusLabel(filters.status) : undefined}
+          onClearDate={() => setFilters((p) => ({ ...p, date: "", timeFrom: "", timeTo: "" }))}
+          onClearTimeFrom={() => setFilters((p) => ({ ...p, timeFrom: "" }))}
+          onClearTimeTo={() => setFilters((p) => ({ ...p, timeTo: "" }))}
+          onClearOutlet={() => setFilters((p) => ({ ...p, outlet: "" }))}
+          onClearStatus={() => setFilters((p) => ({ ...p, status: "" }))}
+          onClearAll={onClear}
+        />
+      )}
+
+      {scans.length === 0 ? (
+        <IzCard flat className="py-8 text-center">
+          <p className="iz-sm iz-muted">No receipt scans match your filters.</p>
+        </IzCard>
+      ) : (
+        <div className="iz-data-table-wrap">
+          <table className="iz-data-table">
+            <thead>
+              <tr>
+                <th>Date / ID</th>
+                <th>Scan time</th>
+                <th>Shift</th>
+                <th>Belongs to PV</th>
+                <th>Outlet</th>
+                <th>Items</th>
+                <th className="text-right">Logged</th>
+                <th className="text-right">Comm.</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scans.map((scan) => {
+                const [y, m, d] = scan.date;
+                const shift = receiptShiftInfo(scan, pvById, pvByShiftId, shiftByKey);
+                const displayStatus = effectiveReceiptScanStatus(scan);
+                return (
+                  <tr key={scan.id}>
+                    <td>
+                      <div className="font-semibold">{fmtHistDate(y, m, d)}</div>
+                      <div className="iz-tiny iz-muted2">{scan.receiptRef}</div>
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-1 font-semibold text-[var(--iz-gold-l)]">
+                        <Clock className="h-3 w-3 shrink-0 opacity-80" />
+                        {scanTimeLabel(scan.scannedAt)}
+                      </div>
+                      <div className="iz-tiny iz-muted2 mt-0.5">{scan.scannedAt}</div>
+                    </td>
+                    <td className="max-w-[120px]">
+                      {shift.shiftWindow ? (
+                        <div className="font-semibold">{shift.shiftWindow}</div>
+                      ) : (
+                        <div className="iz-tiny iz-muted2">—</div>
+                      )}
+                      {shift.timeIn && (
+                        <div className="iz-tiny iz-muted2 mt-0.5">
+                          In {shift.timeIn.split("·").pop()?.trim()}
+                          {shift.timeOut ? ` · Out ${shift.timeOut.split("·").pop()?.trim()}` : ""}
+                        </div>
+                      )}
+                      {shift.sessionLabel && (
+                        <div className="iz-tiny iz-muted2 mt-0.5">{shift.sessionLabel}</div>
+                      )}
+                    </td>
+                    <td className="max-w-[120px]">
+                      <div className="font-sora text-[12px] font-bold text-[var(--iz-gold-l)]">
+                        {receiptBelongsToPvLabel(scan)}
+                      </div>
+                    </td>
+                    <td>{scan.outlet}</td>
+                    <td className="max-w-[100px]">
+                      {scan.items.map((i) => (
+                        <div key={i.label + i.qty} className="iz-tiny">
+                          {i.qty}× {i.label}
+                        </div>
+                      ))}
+                    </td>
+                    <td className="text-right">{formatRM(scan.totalLogged)}</td>
+                    <td className="text-right font-semibold text-[var(--iz-gold-l)]">
+                      {formatRM(scan.totalCommission)}
+                    </td>
+                    <td>
+                      <IzPill variant={receiptStatusPill(displayStatus)}>
+                        {receiptStatusLabel(displayStatus)}
+                      </IzPill>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <IzSheet open={receiptFilterOpen} onClose={() => setReceiptFilterOpen(false)}>
+        <div className="iz-cardttl">Filter receipt scans</div>
+        <div className="space-y-3">
+          <PvDateTimeFilter
+            date={receiptDraft.date}
+            timeFrom={receiptDraft.timeFrom}
+            timeTo={receiptDraft.timeTo}
+            onDateChange={(date) =>
+              setReceiptDraft((p) => ({
+                ...p,
+                date,
+                ...(!date ? { timeFrom: "", timeTo: "" } : {}),
+              }))
+            }
+            onTimeFromChange={(timeFrom) => setReceiptDraft((p) => ({ ...p, timeFrom }))}
+            onTimeToChange={(timeTo) => setReceiptDraft((p) => ({ ...p, timeTo }))}
+            dateOptions={receiptDateOptions}
+            defaultMonth={receiptDefaultMonth}
+          />
+          <GenericSelectField
+            label="Outlet"
+            value={receiptDraft.outlet}
+            onChange={(outlet) => setReceiptDraft((p) => ({ ...p, outlet }))}
+            options={outletOptions}
+          />
+          <GenericSelectField
+            label="Status"
+            value={receiptDraft.status}
+            onChange={(status) =>
+              setReceiptDraft((p) => ({ ...p, status: status as ReceiptScanStatus | "" }))
+            }
+            options={RECEIPT_STATUS_FILTER_OPTIONS}
+          />
+          <GenericSelectField
+            label="Item category"
+            value={receiptDraft.category}
+            onChange={(category) =>
+              setReceiptDraft((p) => ({ ...p, category: category as ReceiptItemCategory | "" }))
+            }
+            options={[
+              { value: "", label: "Any category" },
+              { value: "drinks", label: "Drinks" },
+              { value: "tips", label: "Tips" },
+              { value: "tables", label: "Tables" },
+            ]}
+          />
+          <FilterNumberInput
+            label="Total commission (RM)"
+            placeholder="e.g. 90"
+            value={receiptDraft.commission}
+            onChange={(v) => setReceiptDraft((p) => ({ ...p, commission: v }))}
+          />
+        </div>
+        <button
+          type="button"
+          className="iz-btn iz-btn-primary mt-4"
+          onClick={() => {
+            setFilters(receiptDraft);
+            setReceiptFilterOpen(false);
+          }}
+        >
+          Apply filters
+        </button>
+        <button
+          type="button"
+          className="iz-btn iz-btn-soft mt-2.5"
+          onClick={() => {
+            onClear();
+            setReceiptFilterOpen(false);
           }}
         >
           Clear & close

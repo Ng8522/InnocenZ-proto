@@ -13,6 +13,7 @@ import {
   HistDateCalendar,
   isoKeyFromDate,
 } from "@/components/iz/HistDateCalendar";
+import { shiftHistorySubline } from "@/lib/shift-history";
 import { fmtDateLabelFromIso } from "@/lib/pr-demo";
 import { format, parseISO } from "date-fns";
 import { getLiveTodayIso } from "@/lib/demo-clock";
@@ -96,7 +97,7 @@ export function ShiftHistoryLog({
   const primaryLabel = agencyByVenue ? "OUTLET" : "NAME";
   const thirdLabel = agencyByVenue ? "PR" : portal === "agency" ? "OUTLET" : "PR AGENCY";
   const venueLabel = portal === "agency" ? "outlet" : "agency";
-  const showPrDetail = portal === "agency" && groupBy === "pr";
+  const showPrDetail = !agencyByVenue;
   const showVenueDetail = agencyByVenue;
 
   const prRollups = useMemo(
@@ -135,6 +136,8 @@ export function ShiftHistoryLog({
     () => sortShiftHistoryDesc(detailPrVenueRollup?.shifts ?? []),
     [detailPrVenueRollup],
   );
+  const detailPrShifts = useMemo(() => sortShiftHistoryDesc(detailPrRows), [detailPrRows]);
+  const detailOutletName = detailPrRows[0]?.outlet ?? "";
 
   const openPrDetail = (prId: string) => {
     setDetailPrVenue(null);
@@ -271,23 +274,59 @@ export function ShiftHistoryLog({
               <button
                 type="button"
                 className="iz-chip mb-2 !px-2 !py-1 !text-[10px]"
-                onClick={detailPrVenue ? () => setDetailPrVenue(null) : closePrDetail}
+                onClick={
+                  portal === "outlet" || !detailPrVenue
+                    ? closePrDetail
+                    : () => setDetailPrVenue(null)
+                }
               >
-                {detailPrVenue ? "← All outlets" : "← Back to log"}
+                {portal === "outlet" || !detailPrVenue ? "← Back to log" : "← All outlets"}
               </button>
               <p className="iz-tiny iz-muted2 uppercase">
-                {detailPrVenue
+                {portal === "outlet" || detailPrVenue
                   ? `Shift log · ${detailPr.prName}`
                   : `Earned breakdown by ${venueLabel}`}
               </p>
-              <h3>{detailPrVenue ?? detailPr.prName}</h3>
+              <h3>{portal === "outlet" ? detailOutletName || detailPr.prName : (detailPrVenue ?? detailPr.prName)}</h3>
             </div>
             <button type="button" className="iz-sheet-close" onClick={closePrDetail} aria-label="Close">
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          {detailPrVenue && detailPrVenueRollup ? (
+          {portal === "outlet" ? (
+            <>
+              <IzCard flat className="!mb-3">
+                <p className="iz-tiny iz-muted">
+                  {detailPrShifts.length} shift{detailPrShifts.length !== 1 ? "s" : ""} at{" "}
+                  {detailOutletName} · {detailPr.prName}
+                  {detailPr.venues.length === 1 ? ` · ${detailPr.venues[0]}` : ""}
+                </p>
+                <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet mt-2">
+                  <div className="iz-txn-metric earned">
+                    <div className="label">Total earned</div>
+                    <div className="value iz-ledger">{formatRM(detailTotals.totalPayout)}</div>
+                  </div>
+                  <div className="iz-txn-metric">
+                    <div className="label">Total drinks</div>
+                    <div className="value">{detailTotals.totalDrinks}</div>
+                  </div>
+                  <div className="iz-txn-metric">
+                    <div className="label">Total tips</div>
+                    <div className="value iz-ledger">{formatRM(detailTotals.totalTips)}</div>
+                  </div>
+                </div>
+              </IzCard>
+
+              <div className="space-y-2">
+                {detailPrShifts.map((shift) => (
+                  <ShiftHistoryShiftCard key={shift.id} row={shift} portal={portal} />
+                ))}
+              </div>
+
+              <p className="iz-tiny iz-muted2 mt-3 text-center">Outlet view · PR ↔ outlet shift history</p>
+            </>
+          ) : detailPrVenue && detailPrVenueRollup ? (
             <>
               <IzCard flat className="!mb-3">
                 <p className="iz-tiny iz-muted">
@@ -312,7 +351,7 @@ export function ShiftHistoryLog({
 
               <div className="space-y-2">
                 {detailPrVenueShifts.map((shift) => (
-                  <ShiftHistoryShiftCard key={shift.id} row={shift} />
+                  <ShiftHistoryShiftCard key={shift.id} row={shift} portal={portal} />
                 ))}
               </div>
             </>
@@ -459,13 +498,19 @@ export function ShiftHistoryLog({
   );
 }
 
-function ShiftHistoryShiftCard({ row }: { row: ShiftHistoryRow }) {
+function ShiftHistoryShiftCard({
+  row,
+  portal = "agency",
+}: {
+  row: ShiftHistoryRow;
+  portal?: "agency" | "outlet";
+}) {
   return (
     <IzCard flat>
       <div className="iz-between items-start gap-2">
         <div>
           <p className="font-sora text-sm font-bold">{row.dateDisplay}</p>
-          <p className="iz-tiny iz-muted mt-0.5">{row.outlet}</p>
+          <p className="iz-tiny iz-muted mt-0.5">{shiftHistorySubline(row, portal)}</p>
         </div>
         <div className="text-right">
           <div className="font-sora text-sm font-bold text-[var(--iz-gold-l)]">

@@ -13,6 +13,7 @@ import {
   groupOutletShiftsTodayFuture,
   outletShiftSourceLabel,
   outletShiftEventTypeLabel,
+  outletShiftIsSpecialEvent,
   outletShiftStaffingLabel,
   summarizeOutletDemandTodayFuture,
   type AgencyOutletAvailableShift,
@@ -335,7 +336,7 @@ function AgencyOutletDetail({
         </h2>
         <p className="iz-tiny iz-muted mt-0.5">
           Wage RM{summary.rule.wagePerHour}/hr · Drinks {summary.rule.drinkPct}% · Tips{" "}
-          {summary.rule.tipPct}%
+          {summary.rule.tipPct}% · Table {summary.rule.tablePct}%
         </p>
       </header>
 
@@ -513,7 +514,8 @@ function OutletShiftCard({ shift }: { shift: AgencyOutletAvailableShift }) {
     shift.source === "assignment-pending" ? "amber" : "ink";
   const targetPay = formatTierWageRange(shift.tierRates);
   const salesTargets = formatTierSalesTargets(shift.tierRates);
-  const eventType = outletShiftEventTypeLabel(shift.vip);
+  const eventType = outletShiftEventTypeLabel(shift);
+  const isSpecialEvent = outletShiftIsSpecialEvent(shift);
   const staffing = outletShiftStaffingLabel(shift.destination);
 
   return (
@@ -550,12 +552,8 @@ function OutletShiftCard({ shift }: { shift: AgencyOutletAvailableShift }) {
             </OutletShiftMetric>
             <OutletShiftMetric
               label="Event type"
-              tone={shift.vip ? "violet" : "ink"}
-              title={
-                shift.vip
-                  ? "Very Important Person — premium table / host coverage"
-                  : "Standard floor / host coverage"
-              }
+              tone={isSpecialEvent ? "gold" : "ink"}
+              title={eventType}
             >
               {eventType}
             </OutletShiftMetric>

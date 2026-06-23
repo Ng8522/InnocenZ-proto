@@ -107,8 +107,6 @@ export type WeeklyPaymentSummary = {
   issueDayIso: string;
   pvReady: boolean;
   dayOutlets: (string | undefined)[];
-  /** Per amount cell — true when that income line is disputed */
-  disputedCells: boolean[][];
 };
 
 export type WeeklyDisputeTarget = {
@@ -121,8 +119,6 @@ export type WeeklyDisputeTarget = {
   outlet?: string;
 };
 
-export type WeeklyIncomeKey = WeeklyIncomeRow["key"];
-
 export type WeeklyDayBreakdown = {
   wages: number;
   drinks: number;
@@ -131,18 +127,7 @@ export type WeeklyDayBreakdown = {
   others: number;
   status: WeeklyDayStatus;
   outlet?: string;
-  /** Per-line dispute flags from PV row refs */
-  disputedLines: Partial<Record<WeeklyIncomeKey, boolean>>;
 };
-
-function incomeKeyFromDesc(desc: string): WeeklyIncomeKey {
-  const lower = desc.toLowerCase();
-  if (lower.includes("daily wage")) return "wages";
-  if (lower.includes("drink")) return "drinks";
-  if (lower.includes("tip")) return "tips";
-  if (lower.includes("table")) return "others";
-  return "others";
-}
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -301,134 +286,20 @@ export function applyDisputeTargetsToRows(
   );
 }
 
-function clearedRefForPvRow(row: PrPvRow): string {
-  return row.desc.toLowerCase().includes("daily wage") ? "Sealed" : "Verified";
-}
-
-/** Restore disputed line items after the PR withdraws a mistaken dispute */
-export function clearDisputeTargetsFromRows(
-  rows: PrPvRow[],
-  targets: WeeklyDisputeTarget[],
-  year: number,
-): PrPvRow[] {
-  if (!targets.length) return rows;
-  return rows.map((row) => {
-    if (!targets.some((t) => rowMatchesDisputeTarget(row, t, year))) return row;
-    if (!row.ref?.toLowerCase().includes("disput")) return row;
-    return { ...row, ref: clearedRefForPvRow(row) };
-  });
-}
-
-export function pvRowsHaveDisputes(rows: PrPvRow[]): boolean {
-  return rows.some((row) => row.ref?.toLowerCase().includes("disput"));
-}
-
-export function pvHasOpenDisputes(
-  pv: Pick<PrPaymentVoucher, "status" | "rows">,
-  summary?: WeeklyPaymentSummary | null,
-): boolean {
-  if (pv.status === "DISPUTED") return true;
-  if (pvRowsHaveDisputes(pv.rows)) return true;
-  return Boolean(summary?.disputedCells?.some((row) => row.some(Boolean)));
-}
-
-/** Drop dispute reason blocks for withdrawn line items */
-export function removeDisputeLinesForTargets(
-  reason: string | undefined,
-  targets: WeeklyDisputeTarget[],
-): string | undefined {
-  if (!reason?.trim() || !targets.length) return reason?.trim() || undefined;
-  const blocks = reason.split(/\n{2,}/).filter((block) => {
-    const trimmed = block.trim();
-    if (!trimmed || trimmed === "---") return false;
-    return !targets.some(
-      (t) =>
-        trimmed.includes(`${t.dayLabel} ${t.dateLabel}`) && trimmed.includes(t.incomeLabel),
-    );
-  });
-  const next = blocks.join("\n\n").trim();
-  return next || undefined;
-}
-
 function emptyWeekBreakdown(): WeeklyDayBreakdown {
-  return {
-    wages: 0,
-    drinks: 0,
-    tips: 0,
-    tables: 0,
-    others: 0,
-    status: "empty",
-    disputedLines: {},
-  };
+  return { wages: 0, drinks: 0, tips: 0, tables: 0, others: 0, status: "empty" };
 }
 
 function addRowToBreakdown(b: WeeklyDayBreakdown, row: PrPvRow) {
   const desc = row.desc.toLowerCase();
-  const key = incomeKeyFromDesc(row.desc);
   if (desc.includes("daily wage")) b.wages += row.amt;
   else if (desc.includes("drink")) b.drinks += row.amt;
   else if (desc.includes("tip")) b.tips += row.amt;
-  else if (desc.includes("table")) b.others += row.amt;
+  else if (desc.includes("table")) b.tables += row.amt;
   else b.others += row.amt;
   b.outlet = row.outlet;
-  if (row.ref?.toLowerCase().includes("disput")) {
-    b.disputedLines[key] = true;
-    b.status = "disputed";
-  } else if (b.status !== "disputed") {
-    b.status = "verified";
-  }
-}
-
-function recomputeDayStatus(b: WeeklyDayBreakdown): WeeklyDayStatus {
-  const total = b.wages + b.drinks + b.tips + b.others;
-  if (total <= 0) return "empty";
-  if (Object.values(b.disputedLines).some(Boolean)) return "disputed";
-  return b.status === "pending" ? "pending" : "verified";
-}
-
-function shiftHistoryRowForDay(
-  shiftHistory: ShiftHistoryRow[],
-  prId: string,
-  dateIso: string,
-  isCurrentWeek: boolean,
-): ShiftHistoryRow | undefined {
-  let row = pickSealedHistoryRow(shiftHistory, prId, dateIso);
-  if (!row && !isCurrentWeek) {
-    row = shiftHistory.find((r) => r.prId === prId && r.dateIso === dateIso);
-  }
-  return row;
-}
-
-function weekHasShiftHistoryForPr(
-  columns: WeeklyDayColumn[],
-  shiftHistory: ShiftHistoryRow[],
-  prId: string,
-  isCurrentWeek: boolean,
-): boolean {
-  return columns.some((col) => {
-    if (col.isFuture) return false;
-    return Boolean(shiftHistoryRowForDay(shiftHistory, prId, col.dateIso, isCurrentWeek));
-  });
-}
-
-/** Apply dispute flags from PV rows onto shift-history amounts (does not change totals). */
-function applyPvDisputeMarkersToDayMap(
-  dayMap: Map<string, WeeklyDayBreakdown>,
-  pvRows: PrPvRow[],
-  year: number,
-  weekStartIso: string,
-  weekEndIso: string,
-) {
-  for (const row of pvRows) {
-    if (!row.ref?.toLowerCase().includes("disput")) continue;
-    const iso = parseRowDateIso(row, year);
-    if (!iso || iso < weekStartIso || iso > weekEndIso) continue;
-    const b = dayMap.get(iso);
-    if (!b) continue;
-    b.disputedLines[incomeKeyFromDesc(row.desc)] = true;
-    b.status = "disputed";
-    dayMap.set(iso, b);
-  }
+  if (row.ref?.toLowerCase().includes("disput")) b.status = "disputed";
+  else if (b.status !== "disputed") b.status = "verified";
 }
 
 function scansForHistoryRow(row: ShiftHistoryRow, scans: PrReceiptScan[]): PrReceiptScan[] {
@@ -453,14 +324,10 @@ export function shiftRowIncomeBreakdown(
   const raw = sealedShiftCommissionRm(row);
   const fitted = fitIncomeToPayout(row.totalPayout, raw.drinks, raw.tips, raw.tables);
   return {
-    wages: fitted.wages,
-    drinks: fitted.drinks,
-    tips: fitted.tips,
-    tables: 0,
-    others: fitted.tables,
+    ...fitted,
+    others: 0,
     status: allVerified ? "verified" : "pending",
     outlet: row.outlet,
-    disputedLines: {},
   };
 }
 
@@ -530,9 +397,8 @@ function computeVerifiedTotals(
   for (let i = 0; i < columns.length; i++) {
     if (dayStatus[i] !== "verified") continue;
     for (const row of rows) {
-      const v = row.cells[i] ?? 0;
-      totals[row.key] = (totals[row.key] ?? 0) + v;
-      totals.net += v;
+      totals[row.key] += row.cells[i];
+      totals.net += row.cells[i];
     }
   }
   return totals;
@@ -627,17 +493,7 @@ export function buildWeeklyPaymentSummary(opts: {
   const pvMatchesWeek = opts.pv?.weekStartIso === weekStartIso;
   const pvReady = isWeekPvIssued(weekEndIso, reference);
   const isCurrentWeek = weekStartIso === getWeekBounds(reference).startIso;
-  const hasShiftHistorySource = Boolean(
-    opts.shiftHistory?.length &&
-      opts.prId &&
-      weekHasShiftHistoryForPr(columns, opts.shiftHistory, opts.prId, isCurrentWeek),
-  );
-  /** Issued past weeks: sealed shift history is the amount source; PV rows carry disputes + receipt links. */
-  const pvIsAuthoritative =
-    pvMatchesWeek &&
-    pvReady &&
-    (opts.pv?.rows?.length ?? 0) > 0 &&
-    !(hasShiftHistorySource && !isCurrentWeek);
+  const pvIsAuthoritative = pvMatchesWeek && pvReady && (opts.pv?.rows?.length ?? 0) > 0;
 
   if (pvIsAuthoritative) {
     for (const [iso, b] of breakdownsFromPvRows(opts.pv!.rows, year, weekStartIso, weekEndIso)) {
@@ -648,14 +504,15 @@ export function buildWeeklyPaymentSummary(opts: {
   if (opts.shiftHistory?.length && opts.prId && !pvIsAuthoritative) {
     for (const col of columns) {
       if (col.isFuture) continue;
-      const row = shiftHistoryRowForDay(opts.shiftHistory, opts.prId, col.dateIso, isCurrentWeek);
+      let row = pickSealedHistoryRow(opts.shiftHistory, opts.prId, col.dateIso);
+      if (!row && !isCurrentWeek) {
+        row = opts.shiftHistory.find(
+          (r) => r.prId === opts.prId && r.dateIso === col.dateIso,
+        );
+      }
       if (!row) continue;
       dayMap.set(col.dateIso, breakdownFromHistoryRow(row, opts.scans ?? []));
     }
-  }
-
-  if (pvMatchesWeek && opts.pv?.rows?.length && !pvIsAuthoritative) {
-    applyPvDisputeMarkersToDayMap(dayMap, opts.pv.rows, year, weekStartIso, weekEndIso);
   }
 
   // Current week before PV issue: only real check-out rows — never seed venue history or scans alone.
@@ -670,38 +527,25 @@ export function buildWeeklyPaymentSummary(opts: {
     for (const [iso, b] of checkoutOnly) dayMap.set(iso, b);
   }
 
-  if (isCurrentWeek) {
-    for (const iso of opts.disputedDates ?? []) {
+  for (const iso of opts.disputedDates ?? []) {
+    const b = dayMap.get(iso);
+    if (b) b.status = "disputed";
+  }
+
+  if (pvMatchesWeek && opts.pv) {
+    for (const iso of disputedDateIsosFromPv(opts.pv)) {
       const b = dayMap.get(iso);
       if (b) b.status = "disputed";
     }
-
-    if (pvMatchesWeek && opts.pv) {
-      for (const iso of disputedDateIsosFromPv(opts.pv)) {
-        const b = dayMap.get(iso);
-        if (b) b.status = "disputed";
-      }
-    }
-  } else {
-    // Issued week: default verified, but keep PR-disputed lines from PV rows.
-    for (const b of dayMap.values()) {
-      if (b.wages + b.drinks + b.tips + b.others > 0 && b.status !== "disputed") {
-        b.status = "verified";
-      }
-    }
-  }
-
-  for (const b of dayMap.values()) {
-    b.status = recomputeDayStatus(b);
   }
 
   const dayStatus: WeeklyDayStatus[] = columns.map((col) => {
     const b = dayMap.get(col.dateIso);
-    if (!b || b.wages + b.drinks + b.tips + b.others === 0) return "empty";
+    if (!b || (b.wages + b.drinks + b.tips + b.tables + b.others === 0)) return "empty";
     return b.status;
   });
 
-  const rowKeys: WeeklyIncomeRow["key"][] = ["wages", "drinks", "tips", "others"];
+  const rowKeys: WeeklyIncomeRow["key"][] = ["wages", "drinks", "tips", "tables", "others"];
   const rowLabels: Record<WeeklyIncomeRow["key"], string> = {
     wages: "Daily wages",
     drinks: "Drinks",
@@ -715,10 +559,6 @@ export function buildWeeklyPaymentSummary(opts: {
     label: rowLabels[key],
     cells: columns.map((col) => dayMap.get(col.dateIso)?.[key] ?? 0),
   }));
-
-  const disputedCells = rows.map((row) =>
-    columns.map((col) => Boolean(dayMap.get(col.dateIso)?.disputedLines[row.key])),
-  );
 
   const totals = rows.reduce(
     (acc, row) => {
@@ -748,7 +588,6 @@ export function buildWeeklyPaymentSummary(opts: {
     issueDayIso: bounds.issueDayIso,
     pvReady,
     dayOutlets,
-    disputedCells,
   };
 }
 
@@ -764,6 +603,7 @@ export function pvRowsFromWeeklySummary(
     const wages = summary.rows.find((r) => r.key === "wages")?.cells[idx] ?? 0;
     const drinks = summary.rows.find((r) => r.key === "drinks")?.cells[idx] ?? 0;
     const tips = summary.rows.find((r) => r.key === "tips")?.cells[idx] ?? 0;
+    const tables = summary.rows.find((r) => r.key === "tables")?.cells[idx] ?? 0;
     const others = summary.rows.find((r) => r.key === "others")?.cells[idx] ?? 0;
     const status = summary.dayStatus[idx];
     if (status === "empty") continue;
@@ -788,6 +628,9 @@ export function pvRowsFromWeeklySummary(
     }
     if (tips > 0) {
       rows.push({ i: i++, date: dateLabel, day, outlet, desc: "Commission – Tips", qty: 1, amt: tips, ref });
+    }
+    if (tables > 0) {
+      rows.push({ i: i++, date: dateLabel, day, outlet, desc: "Commission – Tables", qty: 1, amt: tables, ref });
     }
     if (others > 0) {
       rows.push({ i: i++, date: dateLabel, day, outlet, desc: "Others", qty: 1, amt: others, ref });

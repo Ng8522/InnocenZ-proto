@@ -1,11 +1,30 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
+import type { ShiftRequest } from "@/lib/store";
+import { outletHomeShiftRequests } from "@/lib/agency-outlet-shifts";
+import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
 import { outletCan } from "@/lib/outlet-rbac";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzCard, IzPill } from "@/components/iz/ui";
 import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
 import { OutletSealReview } from "@/components/outlet/OutletSealReview";
-import { SHIFT_DESTINATION_LABELS, resolveShiftTierRates } from "@/lib/outlet-demo";
+import { OutletTodayOperationPanel } from "@/components/outlet/OutletTodayOperationPanel";
+import { DraftPrPicker } from "@/components/outlet/post-job-fields";
+import {
+  SHIFT_DESTINATION_LABELS,
+  formatOutletShiftDualMetric,
+  formatOutletShiftMetricAmount,
+  formatShiftDrinkPricingSummary,
+  formatShiftEventTypeSummary,
+  outletShiftActualLaborCost,
+  outletShiftCutLoss,
+  outletShiftCutLossAdjustmentsLabel,
+  outletShiftDemandSupplied,
+  outletShiftTargetSalesForShift,
+  resolveShiftTierRates,
+  shiftDrinkMenuDetailLines,
+} from "@/lib/outlet-demo";
+import { OutletCutLossActions } from "@/components/outlet/OutletCutLossActions";
 import { formatTierSalesTargets, formatTierWageRange } from "@/lib/agency-demo";
 import { ShiftTierWagesStrip } from "@/components/outlet/ShiftTierWagesStrip";
 import { Check, CheckCircle2, ChevronDown, Clock, Lock, PlayCircle, Trash2, X } from "lucide-react";
@@ -18,10 +37,13 @@ const STATUS_META = {
   draft: { tone: "iz-pill-violet", icon: Clock, label: "Draft" },
 } as const;
 
-export function OutletBookings() {
+export function OutletBookings({ variant = "home" }: { variant?: "home" | "future" }) {
   const outletSubRole = useStore((s) => s.outletSubRole);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
-  const { shifts, sealShift, confirmShift, deleteShift, shiftApplicants, respondToApplicant } =
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const agencyRoster = useStore((s) => s.agencyRoster);
+  const agencyPRs = useStore((s) => s.agencyPRs);
+  const { shifts, sealShift, confirmShift, deleteShift, shiftApplicants, respondToApplicant, requestOutletPrsForShift } =
     useStore();
   const canLogSales = outletCan(outletSubRole, "logSales");
   const canConfirm = outletCan(outletSubRole, "confirmShift");
@@ -29,13 +51,51 @@ export function OutletBookings() {
   const canDelete = outletCan(outletSubRole, "postJob");
   const canStaff = outletCan(outletSubRole, "manageShiftStaffing");
 
+  const visibleShifts = useMemo(
+    () =>
+      outletHomeShiftRequests({
+        shifts,
+        outletName: outletWorkspace.outletName,
+        roster: agencyRoster,
+        tiedOffers: PR_AGENCY_TIED_OFFERS,
+        commissionRules: outletCommissionRules,
+        outletWorkspace,
+      }),
+    [shifts, outletWorkspace, agencyRoster, outletCommissionRules],
+  );
+
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [sealTargetId, setSealTargetId] = useState<string | null>(null);
-  const defaultOpen = shifts.find((s) => s.date === "Tonight")?.id ?? shifts[0]?.id;
-  const deleteTarget = deleteTargetId ? shifts.find((s) => s.id === deleteTargetId) : null;
-  const sealTarget = sealTargetId ? shifts.find((s) => s.id === sealTargetId) : null;
 
-  if (shifts.length === 0) {
+  const liveShift =
+    visibleShifts.find((s) => s.status === "confirmed" && s.date === "Tonight") ??
+    visibleShifts.find((s) => s.status === "confirmed");
+  const futureShifts = liveShift
+    ? visibleShifts.filter((s) => s.id !== liveShift.id)
+    : visibleShifts;
+
+  const defaultOpenId =
+    variant === "home" ? liveShift?.id : futureShifts[0]?.id;
+  const deleteTarget = deleteTargetId ? visibleShifts.find((s) => s.id === deleteTargetId) : null;
+  const sealTarget = sealTargetId ? visibleShifts.find((s) => s.id === sealTargetId) : null;
+
+  if (variant === "home" && !liveShift) {
+    return (
+      <p className="iz-tiny iz-muted rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
+        No live shift tonight — check Future Operations for upcoming events.
+      </p>
+    );
+  }
+
+  if (variant === "future" && futureShifts.length === 0) {
+    return (
+      <p className="iz-tiny iz-muted rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
+        No upcoming shifts — use Post Job to create one.
+      </p>
+    );
+  }
+
+  if (visibleShifts.length === 0) {
     return (
       <p className="iz-tiny iz-muted rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
         No shifts yet — use Post Job to create one.
@@ -43,36 +103,50 @@ export function OutletBookings() {
     );
   }
 
-  return (
-    <>
-      <div className="space-y-2">
-        {shifts.map((s) => {
+  const renderShiftCard = (s: (typeof visibleShifts)[number], hideLogSales = false) => {
           const meta = STATUS_META[s.status] ?? STATUS_META.draft;
           const StatusIcon = meta.icon;
+          const showApplicantActions = variant !== "future";
           const applicants = shiftApplicants.filter((a) => a.shiftId === s.id && a.status === "pending");
+          const outletRequests = applicants.filter((a) => a.source === "outlet_request");
+          const freelancerApplicants = applicants.filter((a) => a.source !== "outlet_request");
+          const visibleApplicants = showApplicantActions ? freelancerApplicants : outletRequests;
+          const drinkLines = shiftDrinkMenuDetailLines(s, outletWorkspace.drinkMenu ?? []);
+          const eventTypeLabel = formatShiftEventTypeSummary(s.eventKind ?? "normal", s.specialEventType);
+          const drinkPricingLabel = formatShiftDrinkPricingSummary(s, outletWorkspace.drinkMenu ?? []);
           const tierRates = resolveShiftTierRates(s, outletWorkspace);
           const targetPay = formatTierWageRange(tierRates);
           const salesTargets = formatTierSalesTargets(tierRates);
-          const summaryRight = `RM ${s.liveSales.toLocaleString()} sales`;
+          const prTierById = Object.fromEntries(agencyPRs.map((pr) => [pr.id, pr.trainingLevel]));
+          const targetSales = outletShiftTargetSalesForShift(s, tierRates);
+          const actualCost = outletShiftActualLaborCost(s, tierRates, prTierById);
+          const cutLoss = outletShiftCutLoss(targetSales, s.liveSales);
+          const { demand: staffingDemand, supplied } = outletShiftDemandSupplied(s);
+          const adjustmentsLabel = outletShiftCutLossAdjustmentsLabel(s);
 
           return (
             <details
               key={s.id}
               className="iz-outlet-booking-card group"
-              open={s.id === defaultOpen}
+              open={s.id === defaultOpenId}
             >
               <summary className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-semibold">{s.event}</span>
+                    {s.eventKind === "special" && (
+                      <IzPill variant="gold" className="shrink-0 !py-0.5 !text-[9px]">
+                        {formatShiftEventTypeSummary(s.eventKind, s.specialEventType)}
+                      </IzPill>
+                    )}
                     <span className={cn("iz-pill shrink-0 !py-0.5 !text-[9px]", meta.tone)}>
                       <StatusIcon className="mr-0.5 inline h-2.5 w-2.5" />
                       {meta.label}
                     </span>
                   </div>
-                  <p className="iz-tiny iz-muted mt-0.5 truncate">
-                    {s.date} · {s.filled}/{s.quantity} PRs · {targetPay}
-                    {salesTargets ? ` · ${salesTargets}` : ""} · {summaryRight}
+                  <p className="iz-tiny iz-muted mt-0.5 truncate group-open:hidden">
+                    {s.date} · {supplied}/{s.quantity} PRs · {targetPay}
+                    {salesTargets ? ` · ${salesTargets}` : ""} · RM {s.liveSales.toLocaleString()} sales
                   </p>
                 </div>
                 <ChevronDown className="h-4 w-4 shrink-0 text-[var(--iz-muted)] transition-transform group-open:rotate-180" />
@@ -80,6 +154,28 @@ export function OutletBookings() {
 
               <div className="border-t border-[var(--iz-line)] px-3.5 pb-3.5 pt-2">
                 <p className="iz-tiny iz-muted2">{s.shift}</p>
+                <div className="mt-1 space-y-0.5">
+                  <p className="iz-tiny iz-muted2">
+                    <span className="text-[var(--iz-muted)]">Event type · </span>
+                    {eventTypeLabel}
+                  </p>
+                  <p className="iz-tiny iz-muted2">
+                    <span className="text-[var(--iz-muted)]">Drink prices · </span>
+                    {drinkPricingLabel}
+                  </p>
+                  {s.eventKind === "special" && drinkLines.length > 0 && (
+                    <p className="iz-tiny iz-muted2 leading-relaxed">
+                      {drinkLines.map((d, i) => (
+                        <span key={d.name}>
+                          {i > 0 ? " · " : null}
+                          <span className={d.changed ? "text-[var(--iz-gold)]" : undefined}>
+                            {d.name} RM {d.priceRm}
+                          </span>
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                </div>
                 {(s.dressCode || s.destination) && (
                   <p className="iz-tiny iz-muted2 mt-0.5">
                     {[s.dressCode, s.destination && SHIFT_DESTINATION_LABELS[s.destination]]
@@ -88,48 +184,92 @@ export function OutletBookings() {
                   </p>
                 )}
 
-                <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-center text-[10px]">
-                  <Metric label="Filled" value={`${s.filled}/${s.quantity}`} />
-                  <Metric label="Cost" value={`${(s.estimatedCost / 1000).toFixed(1)}k`} gold />
-                  <Metric label="Sales" value={`${(s.liveSales / 1000).toFixed(1)}k`} green />
+                <div className="mt-2.5 grid grid-cols-4 gap-1.5 text-center text-[10px]">
+                  <Metric
+                    label="Demand/Supplied"
+                    value={`${staffingDemand}/${supplied}`}
+                  />
+                  <Metric
+                    label="Target Cost/ Actual Cost"
+                    value={formatOutletShiftDualMetric(s.estimatedCost, actualCost)}
+                    gold
+                  />
+                  <Metric
+                    label="Target Sales/ Actual Sales"
+                    value={formatOutletShiftDualMetric(targetSales, s.liveSales)}
+                    green
+                  />
+                  <Metric
+                    label="Cutlost"
+                    value={formatOutletShiftMetricAmount(cutLoss)}
+                    red={cutLoss > 0}
+                  />
                 </div>
+                {adjustmentsLabel && (
+                  <p className="iz-tiny iz-muted2 -mt-1 text-center">
+                    Posted {s.quantity} · {adjustmentsLabel}
+                  </p>
+                )}
+
+                {canStaff && s.status === "confirmed" && showApplicantActions && (
+                  <OutletCutLossActions shift={s} />
+                )}
 
                 <ShiftTierWagesStrip tierRates={tierRates} compact />
 
-                {canStaff && applicants.length > 0 && s.status !== "sealed" && (
+                {canStaff && visibleApplicants.length > 0 && s.status !== "sealed" && (
                   <div className="mt-2.5 space-y-1.5 rounded-xl bg-white/[0.02] p-2">
                     <p className="text-[10px] font-semibold text-[var(--iz-muted)]">
-                      Applicants · {applicants.length}
+                      {showApplicantActions ? "Applicants" : "Requested PRs"} · {visibleApplicants.length}
                     </p>
-                    {applicants.map((a) => (
+                    {!showApplicantActions && (
+                      <p className="text-[10px] leading-snug text-[var(--iz-muted2)]">
+                        Your agency approves or declines each request.
+                      </p>
+                    )}
+                    {visibleApplicants.map((a) => (
                       <div key={a.id} className="flex items-center justify-between gap-2">
                         <span className="text-xs">
                           {a.prName} · {a.rating}★
                         </span>
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => respondToApplicant(a.id, true)}
-                            className="iz-topbar-action h-8 w-8 shrink-0 !text-[var(--iz-green)] hover:!text-[var(--iz-green)]"
-                            aria-label={`Accept ${a.prName}`}
-                          >
-                            <Check className="h-4 w-4" strokeWidth={2.5} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => respondToApplicant(a.id, false)}
-                            className="iz-topbar-action h-8 w-8 shrink-0"
-                            aria-label={`Decline ${a.prName}`}
-                          >
-                            <X className="h-4 w-4" strokeWidth={2.5} />
-                          </button>
-                        </div>
+                        {showApplicantActions ? (
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => respondToApplicant(a.id, true)}
+                              className="iz-topbar-action h-8 w-8 shrink-0 !text-[var(--iz-green)] hover:!text-[var(--iz-green)]"
+                              aria-label={`Accept ${a.prName}`}
+                            >
+                              <Check className="h-4 w-4" strokeWidth={2.5} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => respondToApplicant(a.id, false)}
+                              className="iz-topbar-action h-8 w-8 shrink-0"
+                              aria-label={`Decline ${a.prName}`}
+                            >
+                              <X className="h-4 w-4" strokeWidth={2.5} />
+                            </button>
+                          </div>
+                        ) : (
+                          <IzPill variant="amber" className="!py-0.5 !text-[9px]">
+                            Pending agency
+                          </IzPill>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
 
-                {canLogSales && s.status === "confirmed" && (
+                {variant === "future" && canStaff && s.status !== "sealed" && (
+                  <FutureShiftPrRequest
+                    shift={s}
+                    pendingApplicants={outletRequests}
+                    onRequest={requestOutletPrsForShift}
+                  />
+                )}
+
+                {canLogSales && s.status === "confirmed" && !hideLogSales && (
                   <OutletShiftSalesPanel shiftId={s.id} compact collapsible />
                 )}
                 {canLogSales && s.status === "sealed" && (
@@ -147,7 +287,7 @@ export function OutletBookings() {
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   )}
-                  {canConfirm && s.status !== "confirmed" && s.status !== "sealed" && (
+                  {canConfirm && showApplicantActions && s.status !== "confirmed" && s.status !== "sealed" && (
                     <button
                       type="button"
                       onClick={() => confirmShift(s.id)}
@@ -173,8 +313,20 @@ export function OutletBookings() {
                 </div>
               </div>
             </details>
-          );
-        })}
+    );
+  };
+
+  return (
+    <>
+      <div className="space-y-2">
+        {variant === "home" && liveShift && renderShiftCard(liveShift, true)}
+        {variant === "home" && liveShift && (
+          <OutletTodayOperationPanel
+            shift={liveShift}
+            outletName={outletWorkspace.outletName}
+          />
+        )}
+        {variant === "future" && futureShifts.map((s) => renderShiftCard(s))}
       </div>
 
       <IzSheet open={deleteTarget !== null} onClose={() => setDeleteTargetId(null)}>
@@ -215,26 +367,89 @@ export function OutletBookings() {
   );
 }
 
+function FutureShiftPrRequest({
+  shift,
+  pendingApplicants,
+  onRequest,
+}: {
+  shift: ShiftRequest;
+  pendingApplicants: { prId: string }[];
+  onRequest: (shiftId: string, prIds: string[]) => void;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const excludePrIds = useMemo(
+    () => [...shift.prs, ...pendingApplicants.map((a) => a.prId)],
+    [shift.prs, pendingApplicants],
+  );
+  const remainingSlots = Math.max(
+    0,
+    outletShiftDemandSupplied(shift).openSlots - pendingApplicants.length,
+  );
+
+  if (remainingSlots === 0) {
+    return (
+      <p className="iz-tiny iz-muted2 mt-2.5 rounded-xl border border-dashed border-[var(--iz-line)] px-3 py-2.5 text-center">
+        All PR slots filled or pending agency approval.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-2.5 border-t border-[var(--iz-line)] pt-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
+        Select PRs
+      </p>
+      <p className="mt-0.5 text-[10px] leading-snug text-[var(--iz-muted2)]">
+        Tap to choose PRs to request · agency approves before the PR is notified
+      </p>
+      <div className="mt-2">
+        <DraftPrPicker
+          selected={selected}
+          onSelectedChange={setSelected}
+          quantity={remainingSlots}
+          excludePrIds={excludePrIds}
+        />
+      </div>
+      <button
+        type="button"
+        disabled={selected.length === 0}
+        onClick={() => {
+          onRequest(shift.id, selected);
+          setSelected([]);
+        }}
+        className="iz-btn iz-btn-primary iz-btn-sm mt-2 w-full disabled:opacity-40"
+      >
+        Request selected PR{selected.length !== 1 ? "s" : ""}
+      </button>
+    </div>
+  );
+}
+
 function Metric({
   label,
   value,
   gold,
   green,
+  red,
 }: {
   label: string;
   value: string;
   gold?: boolean;
   green?: boolean;
+  red?: boolean;
 }) {
   return (
     <div className="rounded-lg bg-white/[0.03] px-1 py-1.5">
-      <div className="text-[var(--iz-muted)]">{label}</div>
+      <div className="text-[8px] font-semibold uppercase leading-tight tracking-wide text-[var(--iz-muted)]">
+        {label}
+      </div>
       <div
         className={cn(
-          "font-sora mt-0.5 text-xs font-bold",
+          "font-sora mt-0.5 text-[11px] font-bold leading-tight",
           gold && "text-[var(--iz-gold)]",
           green && "text-[var(--iz-green)]",
-          !gold && !green && "text-[var(--iz-txt)]",
+          red && "text-[var(--iz-red)]",
+          !gold && !green && !red && "text-[var(--iz-txt)]",
         )}
       >
         {value}

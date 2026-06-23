@@ -1,7 +1,7 @@
 import { getOutletRule, type AgencyRosterSlot } from "@/lib/agency-demo";
 import type { PrShiftOffer } from "@/lib/pr-demo";
-import { DEFAULT_PR_AGENCY_NAME, formatRMPlain } from "@/lib/pr-demo";
 import { OUTLET_GPS, mapsDirectionsUrl, type GeoCoord } from "@/lib/gps-locations";
+import { formatRMPlain } from "@/lib/pr-demo";
 import { shiftHoursFromLabel } from "@/lib/outlet-demo";
 
 export type PrShiftOutletBrief = {
@@ -60,20 +60,6 @@ const OUTLET_META: Record<
 };
 
 const DEFAULT_META = OUTLET_META["Velvet 23"];
-
-/** Check-in hero — agency assigns; outlets may request PRs but cannot assign directly. */
-export function getPrCheckInAssignmentLabel(slot: AgencyRosterSlot | undefined): string {
-  if (!slot) return "Tonight's shift";
-  const agency =
-    slot.agencyAssignment?.agencyName ?? slot.outletSwap?.agencyName ?? DEFAULT_PR_AGENCY_NAME;
-  if (slot.status === "outlet-pending") {
-    return "Outlet requested you · pending agency & PR approval";
-  }
-  if (slot.status === "assignment-pending") {
-    return `Agency assigned · ${agency} · pending approval`;
-  }
-  return `Agency assigned · ${agency}`;
-}
 
 export function getPrShiftOutletBrief(
   offer: PrShiftOffer,

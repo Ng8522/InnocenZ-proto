@@ -34,7 +34,7 @@ import {
   recomputeAllOutletPnl,
   withShiftFinancialDefaults,
 } from "@/lib/outlet-financial-sync";
-import { marketplacePrsFromAgency } from "@/lib/portal-sync";
+import { marketplacePrsFromAgency, mergeOutletRequestRosterSlots } from "@/lib/portal-sync";
 import {
   DEMO_RECONCILIATION_WEEK,
   recomputeWeeklyReconciliation,
@@ -65,6 +65,7 @@ import {
 } from "@/lib/pr-features";
 import type { Booking, PV, ShiftRequest } from "@/lib/store";
 import { addDaysToIso } from "@/lib/demo-clock";
+import { resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 
 const DEMO_BOOKINGS: Booking[] = [
@@ -154,6 +155,10 @@ function buildDemoShifts(): ShiftRequest[] {
       targets,
     );
   const tonightTiers = tierRatesFor(50, DEMO_SHIFT_TIER_SALES_TARGETS.s1);
+  const vipEventDrinks = DEFAULT_OUTLET_WORKSPACE.drinkMenu.map((d) => ({
+    ...d,
+    priceRm: d.id === "hennessy" ? 450 : d.id === "champagne" ? 550 : Math.round(d.priceRm * 1.25),
+  }));
   const ladiesTiers = tierRatesFor(55, DEMO_SHIFT_TIER_SALES_TARGETS.s2);
   const corporateTiers = tierRatesFor(45, DEMO_SHIFT_TIER_SALES_TARGETS.s3);
   const mermateThuTiers = tierRatesFor(45, DEMO_SHIFT_TIER_SALES_TARGETS.s4);
@@ -175,12 +180,14 @@ function buildDemoShifts(): ShiftRequest[] {
       filled: 11,
       languages: "English / Mandarin",
       event: "Private VIP — Hennessy Launch",
+      eventKind: "special",
+      specialEventType: "vip",
+      eventDrinkMenu: vipEventDrinks,
       preferredRating: 4.5,
       preferredStarTiers: [4, 5],
       estimatedCost: 3840,
       liveSales: 0,
       drinkUnits: 8,
-      tableUnits: 3,
       status: "confirmed",
       prs: ["p1", "p2", "p3", "p4", "p5"],
       payPerHour: tonightTiers["Tier I"].wagePerHour,
@@ -430,7 +437,7 @@ function buildDemoShifts(): ShiftRequest[] {
       quantity: 15,
       filled: 9,
       languages: "English / Mandarin",
-      event: "Sunday lounge",
+      event: "Friday lounge",
       preferredRating: 4.2,
       estimatedCost: 2700,
       liveSales: 0,
@@ -480,6 +487,26 @@ function buildDemoShifts(): ShiftRequest[] {
       destination: "both",
     }),
     withShiftFinancialDefaults({
+      id: "s17",
+      outletName: "Velvet 23",
+      date: demoShiftDateLabel(4),
+      shift: "21:00 — 03:00",
+      quantity: 16,
+      filled: 10,
+      languages: "English / Mandarin",
+      event: "Saturday champagne",
+      preferredRating: 4.9,
+      preferredStarTiers: [4, 5],
+      estimatedCost: 3520,
+      liveSales: 0,
+      status: "open",
+      prs: [],
+      payPerHour: tonightTiers["Tier I"].wagePerHour,
+      tierRates: tonightTiers,
+      dressCode: "Black dress code",
+      destination: "agency",
+    }),
+    withShiftFinancialDefaults({
       id: "s16",
       outletName: "Mermate",
       date: demoShiftDateLabel(6),
@@ -499,7 +526,12 @@ function buildDemoShifts(): ShiftRequest[] {
       destination: "agency",
     }),
   ];
-  return raw.map((s) => ({ ...s, liveSales: computeShiftLiveSales(s) }));
+  return raw.map((s) => ({
+    ...s,
+    filled: s.prs?.length ?? 0,
+    liveSales: computeShiftLiveSales(s),
+    dateIso: s.dateIso ?? resolveOutletShiftDateIso(s.date, s.dateIso, DEFAULT_ROSTER_DATE_ISO),
+  }));
 }
 
 function cloneRosterSlot(slot: AgencyRosterSlot): AgencyRosterSlot {
@@ -525,8 +557,8 @@ function clonePaymentVoucher(pv: PrPaymentVoucher): PrPaymentVoucher {
 }
 
 const DEMO_APPLICANTS: ShiftApplicant[] = [
-  { id: "app-s2-p5", shiftId: "s2", prId: "p5", prName: "Nina", rating: 4.6, status: "pending" },
-  { id: "app-s2-p6", shiftId: "s2", prId: "p6", prName: "Yuki", rating: 4.4, status: "pending" },
+  { id: "app-s2-p5", shiftId: "s2", prId: "p5", prName: "Nina", rating: 4.6, status: "pending", source: "freelancer" },
+  { id: "app-s2-p6", shiftId: "s2", prId: "p6", prName: "Yuki", rating: 4.4, status: "pending", source: "freelancer" },
   {
     id: "app-s2-p7",
     shiftId: "s2",
@@ -534,6 +566,7 @@ const DEMO_APPLICANTS: ShiftApplicant[] = [
     prName: "Chen Wei",
     rating: 4.2,
     status: "pending",
+    source: "freelancer",
   },
 ];
 
@@ -644,8 +677,6 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     prPortfolio: buildSeedPrPortfolio(),
     prLanguages: ["English", "Mandarin", "Cantonese"],
     prDisplayName: null as string | null,
-    prIcName: null as string | null,
-    prMobile: null as string | null,
     prEmail: null as string | null,
     prAvatarPhoto: SEED_PR_AVATAR_IMAGE,
     prPayrollAgencyId: null as string | null,
@@ -669,7 +700,7 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
 
 export function buildDemoStoreReset() {
   const shifts = buildDemoShifts();
-  const agencyRoster = buildDemoRoster();
+  const agencyRoster = mergeOutletRequestRosterSlots(buildDemoRoster(), shifts, DEMO_APPLICANTS);
   const outletPnl = recomputeAllOutletPnl(shifts, undefined, agencyRoster);
 
   return {

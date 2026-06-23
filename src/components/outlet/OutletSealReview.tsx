@@ -30,7 +30,7 @@ export function OutletSealReview({
       const roster = agencyRoster.find((s) => s.prId === prId && s.status === "on-duty");
       const drinks = Math.round(drinkUnits / perPr);
       const drinkSales = drinks * (shift.perDrinkRm ?? 120);
-      const tips = roster?.floorTips ?? Math.round(drinkSales * 0.15);
+      const tips = roster?.floorTips ?? 0;
       const payout = calcShiftPayout({
         outlet: shift.outletName,
         hoursWorked: hours,

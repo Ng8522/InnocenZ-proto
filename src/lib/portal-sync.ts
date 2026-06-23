@@ -17,7 +17,7 @@ import {
   OUTLET_COMMISSION_RULES,
   resolveRosterPrName,
 } from "@/lib/agency-demo";
-import { findOutletShiftForRosterSlot, shiftHoursFromLabel } from "@/lib/outlet-demo";
+import { findOutletShiftForRosterSlot, outletShiftDemandSupplied, shiftHoursFromLabel } from "@/lib/outlet-demo";
 import type { HistRow, PrPaymentVoucher } from "@/lib/pr-demo";
 import { formatPrDisplayName } from "@/lib/pr-demo";
 import { getPayrollWeekSundayIso } from "@/lib/demo-clock";
@@ -34,6 +34,10 @@ import { shiftRowIncomeBreakdown } from "@/lib/pr-weekly-payment";
 import { filterShiftHistoryThroughToday, prepareShiftHistoryForDisplay, sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
 import type { ShiftRequest } from "@/lib/store";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { addDaysToIso } from "@/lib/demo-clock";
+import { resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
+import type { ShiftApplicant } from "@/lib/outlet-demo";
+import { DEFAULT_PR_AGENCY_NAME } from "@/lib/pr-demo";
 
 /** Canonical outlet for the demo outlet portal (Velvet 23) */
 export const DEFAULT_OUTLET_CANONICAL = "Velvet 23";
@@ -307,13 +311,13 @@ export function shiftHistoryToHistRows(
       const [y, m, d] = row.dateIso.split("-").map(Number);
       const { st, pill } = deriveShiftHistoryStatus(row.dateIso, vouchers);
       const income = shiftRowIncomeBreakdown(row);
-      const total = income.wages + income.drinks + income.tips + income.others;
+      const total = income.wages + income.drinks + income.tips + income.tables;
       return {
         d: [y, m, d] as [number, number, number],
         venue: row.outlet,
         wages: Math.round(income.wages),
         sales: Math.round(total),
-        others: Math.round(income.others),
+        table: Math.round(income.tables),
         drinks: Math.round(income.drinks),
         tips: Math.round(income.tips),
         st,
@@ -379,9 +383,82 @@ export function parseShiftWindow(shift: string): { shiftStart: string; shiftEnd:
   return { shiftStart: parts[0] ?? "22:00", shiftEnd: parts[1] ?? "04:00" };
 }
 
-export function shiftDateIso(shiftDate: string): string {
-  if (shiftDate === "Tonight") return DEFAULT_ROSTER_DATE_ISO;
-  return DEFAULT_ROSTER_DATE_ISO;
+export function shiftDateIso(shiftDate: string, dateIso?: string): string {
+  return resolveOutletShiftDateIso(shiftDate, dateIso, DEFAULT_ROSTER_DATE_ISO);
+}
+
+/** Roster cell when an outlet requests a specific PR for a posted shift */
+export function outletRequestRosterSlotFromApplicant(
+  app: ShiftApplicant,
+  shift: ShiftRequest,
+): AgencyRosterSlot {
+  const { shiftStart, shiftEnd } = parseShiftWindow(shift.shift);
+  const dateIso = shiftDateIso(shift.date, shift.dateIso);
+  const stamp = new Date().toLocaleString("en-MY", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const { demand, supplied } = outletShiftDemandSupplied(shift);
+  return {
+    id: `rs-outlet-req-${app.id}`,
+    prId: app.prId,
+    prName: app.prName,
+    outlet: canonicalOutlet(shift.outletName),
+    date:
+      shift.date === "Tonight" || shift.date === "Tomorrow"
+        ? formatRosterDateLabel(dateIso)
+        : shift.date,
+    dateIso,
+    shift: shift.shift,
+    shiftStart,
+    shiftEnd,
+    status: "outlet-request-pending",
+    agencyAssignment: {
+      agencyName: DEFAULT_PR_AGENCY_NAME,
+      assignedAt: stamp,
+      assignedAtMs: Date.now(),
+      agencyNote: `${shift.event} — outlet requested ${app.prName}`,
+      outletShiftId: shift.id,
+      shiftApplicantId: app.id,
+      requestedByOutlet: true,
+      eventDemand: demand,
+      eventSupplied: supplied,
+    },
+  };
+}
+
+export function buildOutletRequestRosterSlots(
+  shifts: ShiftRequest[],
+  applicants: ShiftApplicant[],
+): AgencyRosterSlot[] {
+  return applicants
+    .filter((a) => a.status === "pending" && a.source === "outlet_request")
+    .flatMap((app) => {
+      const shift = shifts.find((s) => s.id === app.shiftId);
+      if (!shift || shift.status === "sealed") return [];
+      return [outletRequestRosterSlotFromApplicant(app, shift)];
+    });
+}
+
+export function mergeOutletRequestRosterSlots(
+  roster: AgencyRosterSlot[],
+  shifts: ShiftRequest[],
+  applicants: ShiftApplicant[],
+): AgencyRosterSlot[] {
+  const pending = buildOutletRequestRosterSlots(shifts, applicants);
+  const pendingApplicantIds = new Set(
+    pending.map((p) => p.agencyAssignment?.shiftApplicantId).filter(Boolean),
+  );
+  const withoutStale = roster.filter(
+    (s) =>
+      s.status !== "outlet-request-pending" ||
+      pendingApplicantIds.has(s.agencyAssignment?.shiftApplicantId ?? ""),
+  );
+  const existingIds = new Set(withoutStale.map((s) => s.id));
+  const toAdd = pending.filter((p) => !existingIds.has(p.id));
+  return [...toAdd, ...withoutStale];
 }
 
 export interface RosterSlotSeed {

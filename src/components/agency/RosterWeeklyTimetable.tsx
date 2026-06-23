@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
 import { RotateCcw } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
 import { fmtDFriendly } from "@/lib/pr-demo";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 
 const STATUS_CELL: Record<
   RosterSlotStatus,
@@ -40,6 +40,7 @@ const STATUS_CELL: Record<
 > = {
   scheduled: { className: "iz-roster-week-cell--scheduled", label: "Scheduled" },
   "assignment-pending": { className: "iz-roster-week-cell--pending", label: "Awaiting PR" },
+  "outlet-request-pending": { className: "iz-roster-week-cell--pending", label: "Outlet request" },
   "outlet-pending": { className: "iz-roster-week-cell--pending", label: "Awaiting outlet" },
   "on-duty": { className: "iz-roster-week-cell--live", label: "On duty" },
   "en-route": { className: "iz-roster-week-cell--scheduled", label: "Scheduled" },
@@ -69,6 +70,9 @@ export function RosterWeeklyTimetable({
   onWeekChange,
 }: RosterWeeklyTimetableProps) {
   const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null);
+  const [outletRequestSlot, setOutletRequestSlot] = useState<AgencyRosterSlot | null>(null);
+  const approveOutletPrRequest = useStore((s) => s.approveOutletPrRequest);
+  const declineOutletPrRequest = useStore((s) => s.declineOutletPrRequest);
   const agencyOwner = useStore((s) => s.agencyOwner);
   const pendingFreelancerPayrolls = useStore((s) => s.pendingFreelancerPayrolls);
   const outletShifts = useStore((s) => s.shifts);
@@ -207,8 +211,9 @@ export function RosterWeeklyTimetable({
                   const state = getPrScheduleState(pr.id, roster, dateIso);
                   const slot = primarySlotForPrOnDate(roster, pr.id, dateIso);
                   const dayShifts = outletShiftsByDay[dateIso] ?? [];
-                  const canAssignCell =
-                    canAssign && state === "free" && dayShifts.some((s) => s.openSlots > 0);
+                  const openShifts = dayShifts.filter((s) => s.openSlots > 0);
+                  const canPickCell = canAssign && state === "free";
+                  const hasOpenShifts = openShifts.length > 0;
                   const slotHidden = slot && slotFiltersOn && !timetableSlotMatches(slot, filters);
                   const prDayOff = slot?.status === "unavailable" && isPrMarkedDayOff(slot);
 
@@ -236,26 +241,42 @@ export function RosterWeeklyTimetable({
                       <td key={dateIso} className="iz-roster-week-td">
                         <button
                           type="button"
-                          className={`iz-roster-week-cell iz-roster-week-cell--empty${slotHidden ? " iz-roster-week-cell--filtered" : ""}`}
-                          disabled={!canAssignCell}
-                          onClick={() => canAssignCell && setAssignTarget({ pr, dateIso })}
+                          className={`iz-roster-week-cell iz-roster-week-cell--empty${slotHidden ? " iz-roster-week-cell--filtered" : ""}${canPickCell && !hasOpenShifts ? " iz-roster-week-cell--no-shifts" : ""}`}
+                          disabled={!canPickCell}
+                          onClick={() => canPickCell && setAssignTarget({ pr, dateIso })}
                           aria-label={`Assign ${pr.name} on ${dateIso}`}
+                          title={
+                            canPickCell && !hasOpenShifts
+                              ? "No open outlet shifts this day — tap to check"
+                              : undefined
+                          }
                         >
-                          {canAssignCell ? <Plus className="h-4 w-4" /> : <span className="dash">—</span>}
+                          {canPickCell ? (
+                            <Plus className="h-4 w-4" />
+                          ) : (
+                            <span className="dash">—</span>
+                          )}
                         </button>
                       </td>
                     );
                   }
 
                   const tone = STATUS_CELL[rosterPageDisplayStatus(slot.status)] ?? STATUS_CELL.scheduled;
+                  const isOutletRequest = slot.status === "outlet-request-pending";
                   return (
                     <td key={dateIso} className="iz-roster-week-td">
                       <button
                         type="button"
                         className={`iz-roster-week-cell iz-roster-week-cell--filled ${tone.className}`}
-                        onClick={() => canAssign && onEditSlot(slot.id)}
+                        onClick={() => {
+                          if (isOutletRequest && canAssign) {
+                            setOutletRequestSlot(slot);
+                            return;
+                          }
+                          if (canAssign) onEditSlot(slot.id);
+                        }}
                         disabled={!canAssign}
-                        aria-label={`${canAssign ? "Edit" : "View"} ${pr.name} at ${slot.outlet}`}
+                        aria-label={`${canAssign ? "Review" : "View"} ${pr.name} at ${slot.outlet}`}
                       >
                         <span className="outlet">{slot.outlet}</span>
                         <span className="shift">{slot.shiftStart}–{slot.shiftEnd}</span>
@@ -271,6 +292,21 @@ export function RosterWeeklyTimetable({
           </tbody>
         </table>
       </div>
+
+      {outletRequestSlot && (
+        <OutletRequestReviewSheet
+          slot={outletRequestSlot}
+          onClose={() => setOutletRequestSlot(null)}
+          onApprove={() => {
+            approveOutletPrRequest(outletRequestSlot.id);
+            setOutletRequestSlot(null);
+          }}
+          onDecline={() => {
+            declineOutletPrRequest(outletRequestSlot.id);
+            setOutletRequestSlot(null);
+          }}
+        />
+      )}
 
       {assignTarget && (
         <AssignWeekCellSheet
@@ -290,6 +326,52 @@ function shiftWeekAnchor(weekStartIso: string, delta: number): string {
   const [y, m, d] = weekStartIso.split("-").map(Number);
   const next = new Date(y, m - 1, d + delta * 7);
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+}
+
+function OutletRequestReviewSheet({
+  slot,
+  onClose,
+  onApprove,
+  onDecline,
+}: {
+  slot: AgencyRosterSlot;
+  onClose: () => void;
+  onApprove: () => void;
+  onDecline: () => void;
+}) {
+  const note = slot.agencyAssignment?.agencyNote ?? "Outlet requested this PR for a shift";
+  return (
+    <IzSheet open onClose={onClose}>
+      <h3 className="font-sora text-lg font-bold">Outlet PR request</h3>
+      <p className="iz-tiny iz-muted mt-1">
+        <strong className="text-[var(--iz-txt)]">{slot.prName}</strong> · {slot.outlet} · {slot.date}
+      </p>
+      <p className="iz-tiny iz-muted2 mt-1">{slot.shiftStart}–{slot.shiftEnd}</p>
+      <IzPill variant="amber" className="mt-2">
+        Outlet request
+      </IzPill>
+      <p className="iz-tiny iz-muted mt-3 rounded-xl border border-dashed border-[var(--iz-line)] px-3 py-2.5">
+        {note}
+      </p>
+      <p className="iz-tiny iz-muted2 mt-2">
+        Approve to notify the PR — they must confirm before the shift locks.
+      </p>
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          className="iz-btn iz-btn-soft flex-1 !border-[var(--iz-red)] !text-[var(--iz-red)]"
+          onClick={onDecline}
+        >
+          <X className="mr-1 inline h-4 w-4" />
+          Decline
+        </button>
+        <button type="button" className="iz-btn iz-btn-primary flex-1" onClick={onApprove}>
+          <Check className="mr-1 inline h-4 w-4" />
+          Approve
+        </button>
+      </div>
+    </IzSheet>
+  );
 }
 
 function formatDateLabel(iso: string) {

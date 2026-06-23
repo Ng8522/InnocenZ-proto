@@ -3,7 +3,6 @@ import { shiftHoursFromLabel } from "@/lib/outlet-demo";
 import {
   calcReceiptCommissions,
   isManualSelfLog,
-  isSelfLogVerified,
   RECEIPT_COMMISSION_RULES,
   receiptEntryMethod,
   type PrActiveShiftSession,
@@ -129,13 +128,13 @@ export function aggregateShiftSales(scans: PrReceiptScan[]) {
 
 export function verifyReceiptScan(scan: PrReceiptScan): { ok: boolean; note: string } {
   if (isManualSelfLog(scan)) {
-    if (isSelfLogVerified(scan)) {
-      return { ok: true, note: "Verified in Payment" };
+    if (scan.agencyVerification === "approved") {
+      return { ok: true, note: "Self-log · agency verified" };
     }
     if (scan.agencyVerification === "rejected") {
-      return { ok: false, note: "Rejected in Payment" };
+      return { ok: false, note: "Self-log · rejected by agency" };
     }
-    return { ok: false, note: "Pending verification in Payment" };
+    return { ok: false, note: "Self-log · pending agency verify" };
   }
   const expected = calcReceiptCommissions(scan.items);
   const itemTotal = scan.items.reduce((s, i) => s + i.amount, 0);
@@ -207,7 +206,6 @@ export function buildShiftStatusRows(
   session: PrActiveShiftSession,
   scans: PrReceiptScan[],
   baseWages: number,
-  opts?: { freezeSelfLogVerification?: boolean },
 ): ShiftStatusRow[] {
   const duty = calcDutyWagesFromOutlet(
     session.outlet,
@@ -235,8 +233,6 @@ export function buildShiftStatusRows(
 
   for (const scan of scans) {
     const verify = verifyReceiptScan(scan);
-    const freezeSelfLog =
-      opts?.freezeSelfLogVerification && isManualSelfLog(scan);
     rows.push({
       kind: "receipt",
       id: scan.id,
@@ -247,8 +243,8 @@ export function buildShiftStatusRows(
       source: receiptEntryMethod(scan) === "manual" ? "Manual entry" : "Receipt scan",
       wagesRm: 0,
       commissionRm: scan.totalCommission,
-      verified: freezeSelfLog ? false : verify.ok,
-      verifyNote: freezeSelfLog ? "Pending verification in Payment" : verify.note,
+      verified: verify.ok,
+      verifyNote: verify.note,
       scan,
     });
   }

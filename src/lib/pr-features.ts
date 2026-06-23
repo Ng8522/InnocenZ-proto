@@ -371,24 +371,6 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     supplied: 7,
   },
   {
-    id: "tied-velvet-sat",
-    agencyName: "Atlas Agency",
-    outlet: "Velvet 23",
-    event: "Saturday champagne",
-    date: [2026, 6, 6],
-    time: "21:00 — 03:00",
-    endNext: true,
-    distance: "1.2 km",
-    addr: "Jalan Changkat, KL",
-    base: 300,
-    comm: 50,
-    vip: true,
-    rating: "4.9",
-    briefing: "High-tier tables. Black dress code. Agency pre-confirmed rate.",
-    headcount: 16,
-    supplied: 10,
-  },
-  {
     id: "tied-onyx-sat",
     agencyName: "Atlas Agency",
     outlet: "Onyx KL",
@@ -443,7 +425,22 @@ export function remapSeedUpcomingShifts(shifts: PrUpcomingShift[]): PrUpcomingSh
   return shifts.map(remapSeedUpcomingShift);
 }
 
-export const SEED_UPCOMING_SHIFTS: PrUpcomingShift[] = [];
+export const SEED_UPCOMING_SHIFTS: PrUpcomingShift[] = [
+  {
+    id: "up-1",
+    outlet: "Bear Lounge",
+    date: [2026, 6, 6],
+    time: "21:00 — 02:00",
+    status: "confirmed",
+  },
+  {
+    id: "up-2",
+    outlet: "Urban Soul",
+    date: [2026, 6, 7],
+    time: "20:00 — 01:00",
+    status: "pending",
+  },
+].map(remapSeedUpcomingShift);
 
 export const SEED_PR_NOTIFICATIONS: PrNotification[] = [
   {

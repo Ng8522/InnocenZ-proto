@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Check, Shield, AlertTriangle, Camera, FileText, PenLine, RotateCcw, Clock } from "lucide-react";
+import { Check, Shield, AlertTriangle, Camera, FileText, PenLine, RotateCcw } from "lucide-react";
 import { formatRM } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
 import { IzSheet } from "@/components/iz/Sheet";
 import { PrSection } from "@/components/pr/PrSection";
 import { ReceiptScanSlip } from "@/components/pr/ReceiptScanSlip";
-import { formatReceiptScannedTime, isManualSelfLog, isSelfLogPendingAgency, receiptScanCategory, type PrActiveShiftSession, type PrReceiptScan } from "@/lib/pr-demo";
+import { formatReceiptScannedTime, isManualSelfLog, isSelfLogPendingAgency, receiptPrimaryCategory, type PrActiveShiftSession, type PrReceiptScan } from "@/lib/pr-demo";
 import {
   DEFAULT_SHIFT_SALES_TARGETS,
   buildShiftStatusRows,
@@ -39,9 +39,23 @@ function VerifyBadge({
     );
   }
   if (scan && isManualSelfLog(scan)) {
+    if (isSelfLogPendingAgency(scan)) {
+      return (
+        <span className="iz-pr-shift-verify iz-pr-shift-verify--selflog" title={note}>
+          <PenLine className="h-3 w-3" /> Self-log
+        </span>
+      );
+    }
+    if (scan.agencyVerification === "approved") {
+      return (
+        <span className="iz-pr-shift-verify iz-pr-shift-verify--matched" title={note}>
+          <Check className="h-3 w-3" /> Verified
+        </span>
+      );
+    }
     return (
-      <span className="iz-pr-shift-verify iz-pr-shift-verify--pending" title={note}>
-        <Clock className="h-3 w-3" /> Pending verification
+      <span className="iz-pr-shift-verify iz-pr-shift-verify--review" title={note}>
+        <AlertTriangle className="h-3 w-3" /> Rejected
       </span>
     );
   }
@@ -59,9 +73,10 @@ function VerifyBadge({
   );
 }
 
-const SCAN_RECEIPT_ROWS: { category: "drinks" | "tips"; label: string }[] = [
+const SCAN_RECEIPT_ROWS: { category: "drinks" | "tips" | "tables"; label: string }[] = [
   { category: "drinks", label: "Drinks" },
   { category: "tips", label: "Tips" },
+  { category: "tables", label: "Tables" },
 ];
 
 function ShiftReceiptScanRows() {
@@ -112,7 +127,7 @@ export function PrShiftStatusPanel({
 }) {
   const shiftScans = useMemo(() => receiptItemsForShift(session, scans), [session, scans]);
   const rows = useMemo(
-    () => (session ? buildShiftStatusRows(session, shiftScans, baseWages, { freezeSelfLogVerification: true }) : []),
+    () => (session ? buildShiftStatusRows(session, shiftScans, baseWages) : []),
     [session, shiftScans, baseWages],
   );
   const commissionTotal = shiftCommissionTotal(shiftScans);
@@ -137,7 +152,7 @@ export function PrShiftStatusPanel({
     receiptRows.length === 0
       ? "Use Scan receipt — each log adds a row below"
       : pendingSelfLogs > 0
-        ? `${pendingSelfLogs} receipt${pendingSelfLogs !== 1 ? "s" : ""} pending verification in Payment`
+        ? `${pendingSelfLogs} self-log${pendingSelfLogs !== 1 ? "s" : ""} awaiting agency verify`
         : pendingReceipts > 0
           ? `${pendingReceipts} receipt${pendingReceipts !== 1 ? "s" : ""} need review`
           : `${verifiedReceipts} receipt${verifiedReceipts !== 1 ? "s" : ""} matched · PV ready`;
@@ -292,7 +307,7 @@ export function PrShiftStatusPanel({
                             to="/host/scan"
                             search={{
                               rescan: row.scan.id,
-                              category: receiptScanCategory(row.scan),
+                              category: receiptPrimaryCategory(row.scan),
                             }}
                             className="iz-pr-shift-status__action-btn"
                             title="Scan again"
@@ -317,7 +332,7 @@ export function PrShiftStatusPanel({
                   <p className="iz-tiny iz-muted2 mt-0.5">
                     {wagesFinalized
                       ? `Payout ${formatRM(payout)} · hourly wages + commission`
-                      : "Total excluding wages & OT"}
+                      : `Commission ${formatRM(commissionTotal)} · wages calculated at check-out`}
                   </p>
                 </td>
                 {wagesFinalized && (
@@ -362,7 +377,7 @@ export function PrShiftStatusPanel({
                     to="/host/scan"
                     search={{
                       rescan: viewScan.id,
-                      category: receiptScanCategory(viewScan),
+                      category: receiptPrimaryCategory(viewScan),
                     }}
                     className="iz-btn iz-btn-soft iz-btn-sm w-full"
                     onClick={() => setViewScan(null)}
@@ -380,6 +395,11 @@ export function PrShiftStatusPanel({
             {wagesFinalized
               ? "Duty time is sealed at the outlet hourly rate (wages column). Scan receipts to add rows — each receipt scan is verified for commission."
               : "Duty wages are calculated when you check out. Scan receipts to add commission rows below."}
+          </p>
+        )}
+        {receiptRows.length > 0 && (
+          <p className="iz-tiny iz-muted2 mt-2 text-center">
+            {verifiedReceipts}/{receiptRows.length} receipts verified against commission rules
           </p>
         )}
       </PrSection>

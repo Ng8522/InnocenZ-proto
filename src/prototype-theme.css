@@ -2540,104 +2540,6 @@
   font-size: 11px;
 }
 
-.iz-pay-hist-status-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.iz-pay-hist-status-chip {
-  border: 1px solid var(--iz-line);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 6px 12px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--iz-muted);
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-.iz-pay-hist-status-chip--green.iz-pay-hist-status-chip--on {
-  border-color: rgba(57, 217, 138, 0.45);
-  background: rgba(57, 217, 138, 0.12);
-  color: var(--iz-green);
-}
-.iz-pay-hist-status-chip--amber.iz-pay-hist-status-chip--on {
-  border-color: rgba(244, 183, 64, 0.45);
-  background: rgba(244, 183, 64, 0.12);
-  color: var(--iz-amber);
-}
-.iz-pay-hist-status-chip--red.iz-pay-hist-status-chip--on {
-  border-color: rgba(255, 107, 107, 0.45);
-  background: rgba(255, 107, 107, 0.12);
-  color: var(--iz-red);
-}
-.iz-pay-hist-status-chip--on:not(.iz-pay-hist-status-chip--green):not(.iz-pay-hist-status-chip--amber):not(.iz-pay-hist-status-chip--red) {
-  border-color: rgba(217, 185, 122, 0.45);
-  background: rgba(217, 185, 122, 0.12);
-  color: var(--iz-gold-l);
-}
-.iz-pay-hist-status-chip:hover {
-  border-color: rgba(217, 185, 122, 0.35);
-  color: var(--iz-txt);
-}
-
-.iz-pay-hist-stat-strip {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1px;
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid var(--iz-line);
-  background: var(--iz-line);
-}
-.iz-pay-hist-stat-cell {
-  background: var(--iz-grad-card);
-  padding: 12px 8px;
-  text-align: center;
-  border: none;
-  font: inherit;
-  color: inherit;
-}
-button.iz-pay-hist-stat-cell {
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-button.iz-pay-hist-stat-cell:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-.iz-pay-hist-stat-cell--on {
-  background: rgba(217, 185, 122, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(217, 185, 122, 0.28);
-}
-.iz-pay-hist-stat-cell .l {
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--iz-muted);
-}
-.iz-pay-hist-stat-cell .n {
-  margin-top: 4px;
-  font-family: "Sora", sans-serif;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-.iz-pay-hist-stat-cell--meta .n {
-  color: var(--iz-txt);
-  font-size: 15px;
-}
-
-.iz-pay-hist-card--green {
-  border-left: 3px solid rgba(57, 217, 138, 0.55);
-}
-.iz-pay-hist-card--amber {
-  border-left: 3px solid rgba(244, 183, 64, 0.55);
-}
-.iz-pay-hist-card--red {
-  border-left: 3px solid rgba(255, 107, 107, 0.55);
-}
-
 /* PR shift wage lines (mobile cards) */
 .iz-pr-shift-status__bar {
   margin-top: 6px;
@@ -2767,11 +2669,6 @@ button.iz-pay-hist-stat-cell:hover {
   background: rgba(244, 183, 64, 0.1);
   border: 1px solid rgba(244, 183, 64, 0.28);
 }
-.iz-pr-shift-verify--pending {
-  color: var(--iz-amber);
-  background: rgba(244, 183, 64, 0.1);
-  border: 1px solid rgba(244, 183, 64, 0.28);
-}
 .iz-pr-shift-verify--selflog {
   color: var(--iz-gold-l);
   background: rgba(232, 194, 122, 0.14);
@@ -2881,58 +2778,6 @@ button.iz-pay-hist-stat-cell:hover {
 }
 .iz-self-log-form__submit {
   box-shadow: 0 0 0 1px rgba(232, 194, 122, 0.25);
-}
-.iz-self-log-drink-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.iz-self-log-drink-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--iz-line);
-  background: rgba(0, 0, 0, 0.2);
-  color: var(--iz-txt);
-  text-align: left;
-  transition: border-color 0.15s, background 0.15s;
-}
-.iz-self-log-drink-option--selected {
-  border-color: rgba(232, 194, 122, 0.65);
-  background: linear-gradient(180deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0.04));
-  box-shadow: 0 0 0 1px rgba(232, 194, 122, 0.2);
-}
-.iz-self-log-drink-option__name {
-  font-size: 13px;
-  font-weight: 700;
-}
-.iz-self-log-drink-option__price {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--iz-gold-l);
-  white-space: nowrap;
-}
-.iz-self-log-qty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-}
-.iz-self-log-qty__value {
-  min-width: 2.5rem;
-  text-align: center;
-  font-family: "Sora", sans-serif;
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--iz-txt);
-}
-.iz-self-log-total {
-  font-size: 13px;
-  color: var(--iz-muted);
 }
 .iz-receipt-selflog-pending {
   border-color: rgba(244, 183, 64, 0.45) !important;
@@ -3780,25 +3625,6 @@ button.iz-pay-hist-stat-cell:hover {
   padding: 12px 10px;
   text-align: center;
 }
-button.iz-outlet-stat-cell {
-  width: 100%;
-  margin: 0;
-  border: none;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-button.iz-outlet-stat-cell:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-button.iz-outlet-stat-cell:active {
-  background: rgba(255, 255, 255, 0.08);
-}
-button.iz-outlet-stat-cell:focus-visible {
-  outline: 2px solid var(--iz-gold-l);
-  outline-offset: -2px;
-}
 .iz-outlet-stat-cell .l {
   font-size: 9px;
   font-weight: 600;
@@ -4050,29 +3876,6 @@ button.iz-pr-offer-row:hover {
   border-radius: 16px;
   border: 1px solid rgba(217, 185, 122, 0.22);
   background: linear-gradient(180deg, rgba(232, 194, 122, 0.08), transparent);
-}
-.iz-pr-hero__facts {
-  margin: 10px 0 0;
-  display: grid;
-  gap: 10px;
-}
-.iz-pr-hero__fact {
-  margin: 0;
-}
-.iz-pr-hero__fact-k {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--iz-muted);
-}
-.iz-pr-hero__fact-v {
-  margin: 3px 0 0;
-  font-family: "Sora", sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--iz-txt);
 }
 .iz-pr-note {
   font-size: 11px;
@@ -4458,9 +4261,6 @@ button.iz-pr-offer-row:hover {
 .iz-topbar-spacer {
   width: 30px;
 }
-.iz-topbar--no-back {
-  grid-template-columns: minmax(0, 1fr) auto;
-}
 .iz-topbar-back {
   display: inline-flex;
   align-items: center;
@@ -4572,19 +4372,22 @@ button.iz-pr-offer-row:hover {
   .iz-topbar-time {
     font-size: 12px;
   }
+  .iz-topbar-role {
+    display: none;
+  }
 }
 .iz-topbar-meta {
   min-width: 0;
   flex: 1;
-  overflow: visible;
 }
 .iz-topbar-name {
   font-family: "Sora", sans-serif;
   font-weight: 700;
   font-size: 14px;
   line-height: 1.15;
-  white-space: normal;
-  overflow: visible;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   letter-spacing: -0.2px;
   color: var(--iz-txt);
 }
@@ -4593,8 +4396,9 @@ button.iz-pr-offer-row:hover {
   color: var(--iz-muted);
   font-family: "Sora", sans-serif;
   letter-spacing: 0.3px;
-  white-space: normal;
-  overflow: visible;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin-top: 2px;
 }
 .iz-topbar-actions {
@@ -6173,8 +5977,16 @@ button.iz-pr-offer-row:hover {
   justify-content: center;
   border-style: dashed;
   border-color: var(--iz-line);
-  color: var(--iz-muted2);
+  color: var(--iz-muted);
   background: transparent;
+}
+
+.iz-roster-week-cell--empty svg {
+  opacity: 0.9;
+}
+
+.iz-roster-week-cell--empty.iz-roster-week-cell--no-shifts svg {
+  opacity: 0.55;
 }
 
 .iz-roster-week-cell--empty:not(:disabled):hover {

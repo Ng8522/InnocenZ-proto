@@ -22,46 +22,6 @@ export const PLACE_GPS: Record<string, GeoCoord> = {
 
 export const GEOFENCE_METERS = 50;
 
-export function resolveOutletGps(outlet: string): GeoCoord & { address: string } {
-  const trimmed = outlet.trim();
-  if (OUTLET_GPS[trimmed]) return OUTLET_GPS[trimmed];
-  const withoutKl = trimmed.replace(/\s+KL$/i, "").trim();
-  if (OUTLET_GPS[withoutKl]) return OUTLET_GPS[withoutKl];
-  return OUTLET_GPS["Velvet 23"];
-}
-
-export function checkWithinOutletGeofence(
-  outlet: string,
-  prCoord: GeoCoord,
-  geofenceMeters = GEOFENCE_METERS,
-): {
-  ok: boolean;
-  meters: number;
-  geofenceMeters: number;
-  outlet: string;
-  outletCoord: GeoCoord;
-  prCoord: GeoCoord;
-} {
-  const outletGps = resolveOutletGps(outlet);
-  const outletCoord = { lat: outletGps.lat, lng: outletGps.lng };
-  const meters = metersBetween(prCoord, outletCoord);
-  return {
-    ok: meters <= geofenceMeters,
-    meters,
-    geofenceMeters,
-    outlet: trimmedOutletLabel(outlet),
-    outletCoord,
-    prCoord,
-  };
-}
-
-function trimmedOutletLabel(outlet: string): string {
-  const trimmed = outlet.trim();
-  if (OUTLET_GPS[trimmed]) return trimmed;
-  const withoutKl = trimmed.replace(/\s+KL$/i, "").trim();
-  return OUTLET_GPS[withoutKl] ? withoutKl : trimmed;
-}
-
 export interface GpsTrackingRow {
   slotId: string;
   prId: string;

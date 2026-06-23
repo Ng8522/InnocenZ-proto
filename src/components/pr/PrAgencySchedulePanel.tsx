@@ -1,18 +1,25 @@
 import { Calendar as CalendarUi } from "@/components/ui/calendar";
+import { IzSheet } from "@/components/iz/Sheet";
 import { PrStatusPill } from "@/components/pr/PrOfferRow";
-import { PrShiftCancellationSheet } from "@/components/pr/PrShiftCancellationSheet";
 import type { AgencyRosterSlot } from "@/lib/agency-demo";
 import {
   getAgencyScheduleFromIso,
   getAgencyScheduleToIso,
   buildPrScheduleDays,
   buildTimetableEntries,
+  dayCanToggleAvailability,
+  entryCanAccept,
   entryCanCancel,
+  entryCanDecline,
   type ShiftDataSource,
   type TimetableEntry,
 } from "@/lib/pr-agency-schedule";
 import type { PrUpcomingShift } from "@/lib/pr-features";
-import { CANCELLATION_RULE_SUMMARY, CANCEL_RULES, evaluateShiftCancellation } from "@/lib/pr-schedule-cancellation";
+import {
+  CANCELLATION_RULE_SUMMARY,
+  CANCEL_RULES,
+  evaluateShiftCancellation,
+} from "@/lib/pr-schedule-cancellation";
 import { calendarNavBounds, dateFromIsoKey, isoKeyFromDate } from "@/components/iz/HistDateCalendar";
 import { getLiveTodayIso } from "@/lib/demo-clock";
 import { cn } from "@/lib/utils";
@@ -28,12 +35,18 @@ export function PrAgencySchedulePanel({
   prId,
   roster,
   upcoming,
+  onToggleAvailability,
   onCancelShift,
+  onAcceptAssignment,
+  onDeclineAssignment,
 }: {
   prId: string;
   roster: AgencyRosterSlot[];
   upcoming: PrUpcomingShift[];
-  onCancelShift: (entry: TimetableEntry, reason: string) => void;
+  onToggleAvailability: (dateIso: string) => void;
+  onCancelShift: (slotId: string) => void;
+  onAcceptAssignment: (slotId: string) => void;
+  onDeclineAssignment: (slotId: string) => void;
 }) {
   const scheduleDays = useMemo(
     () => buildPrScheduleDays(prId, roster, upcoming),
@@ -45,8 +58,7 @@ export function PrAgencySchedulePanel({
   const [viewMonth, setViewMonth] = useState(defaultMonth);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [selectedIso, setSelectedIso] = useState<string | null>(null);
-  const [cancelEntry, setCancelEntry] = useState<TimetableEntry | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
+  const [cancelSlotId, setCancelSlotId] = useState<string | null>(null);
 
   const navBounds = useMemo(
     () =>
@@ -80,7 +92,7 @@ export function PrAgencySchedulePanel({
     [timetableEntries, selectedIso],
   );
 
-  const cancelSlot = cancelEntry?.slot;
+  const cancelSlot = cancelSlotId ? roster.find((s) => s.id === cancelSlotId) : undefined;
   const cancelEval =
     cancelSlot &&
     evaluateShiftCancellation(
@@ -95,14 +107,14 @@ export function PrAgencySchedulePanel({
     const iso = isoKeyFromDate(date);
     const day = dayByIso.get(iso);
     if (!day || day.kind === "past") return;
-    setSelectedIso((cur) => (cur === iso ? null : iso));
-  };
 
-  const submitCancel = () => {
-    if (!cancelEntry || !cancelReason.trim()) return;
-    onCancelShift(cancelEntry, cancelReason);
-    setCancelEntry(null);
-    setCancelReason("");
+    if (dayCanToggleAvailability(day)) {
+      onToggleAvailability(iso);
+      setSelectedIso(null);
+      return;
+    }
+
+    setSelectedIso(iso);
   };
 
   return (
@@ -223,6 +235,7 @@ export function PrAgencySchedulePanel({
           className="w-full p-0"
         />
         <div className="iz-pr-cal-legend">
+          <span><i className="sw open" /> Open</span>
           <span><i className="sw assigned" /> Scheduled</span>
           <span><i className="sw pending" /> Pending</span>
           <span><i className="sw unavailable" /> Not available</span>
@@ -244,33 +257,50 @@ export function PrAgencySchedulePanel({
               <TimetableRow
                 key={entry.id}
                 entry={entry}
-                onCancel={() => setCancelEntry(entry)}
+                onAccept={() => entry.slot && onAcceptAssignment(entry.slot.id)}
+                onDecline={() => entry.slot && onDeclineAssignment(entry.slot.id)}
+                onCancel={() => entry.slot && setCancelSlotId(entry.slot.id)}
               />
             ))}
           </div>
         )}
       </div>
 
-      <PrShiftCancellationSheet
-        open={cancelEntry !== null}
-        onClose={() => {
-          setCancelEntry(null);
-          setCancelReason("");
-        }}
-        title="Cancel shift"
-        outlet={cancelEntry?.outlet ?? ""}
-        dateLine={cancelEntry?.dateLabel ?? ""}
-        shiftLine={cancelEntry?.time}
-        evaluation={cancelEval ?? null}
-        reason={cancelReason}
-        onReasonChange={setCancelReason}
-        onSubmit={submitCancel}
-        submitLabel={
-          cancelEval && cancelEval.deductionRm > 0
-            ? `Cancel & accept −RM ${cancelEval.deductionRm}`
-            : "Cancel shift"
-        }
-      />
+      <IzSheet open={cancelSlotId !== null} onClose={() => setCancelSlotId(null)}>
+        {cancelSlot && cancelEval && (
+          <>
+            <div className="iz-cardttl">Cancel {cancelSlot.outlet}?</div>
+            <p className="iz-tiny iz-muted mb-1">
+              {cancelSlot.date} · {cancelSlot.shift}
+            </p>
+            <div
+              className={cn(
+                "mb-3 rounded-xl border px-3 py-2.5",
+                cancelEval.tier === "safe"
+                  ? "border-[rgba(74,222,128,.35)] bg-[rgba(74,222,128,.08)]"
+                  : cancelEval.tier === "short_notice"
+                    ? "border-[rgba(244,183,64,.35)] bg-[rgba(244,183,64,.08)]"
+                    : "border-[rgba(255,107,107,.35)] bg-[rgba(255,107,107,.08)]",
+              )}
+            >
+              <p className="text-sm font-semibold">{cancelEval.headline}</p>
+              <p className="iz-tiny iz-muted2 mt-1">{cancelEval.detail}</p>
+            </div>
+            <button
+              type="button"
+              className="iz-btn iz-btn-danger w-full"
+              onClick={() => {
+                onCancelShift(cancelSlot.id);
+                setCancelSlotId(null);
+              }}
+            >
+              {cancelEval.deductionRm > 0
+                ? `Cancel & accept −RM ${cancelEval.deductionRm}`
+                : "Cancel shift"}
+            </button>
+          </>
+        )}
+      </IzSheet>
     </div>
   );
 }
@@ -287,9 +317,13 @@ function SourceBadge({ source, label }: { source: ShiftDataSource; label: string
 
 function TimetableRow({
   entry,
+  onAccept,
+  onDecline,
   onCancel,
 }: {
   entry: TimetableEntry;
+  onAccept: () => void;
+  onDecline: () => void;
   onCancel: () => void;
 }) {
   const slot = entry.slot;
@@ -304,28 +338,38 @@ function TimetableRow({
             <span className="font-sora text-sm font-bold">{entry.outlet}</span>
             <PrStatusPill variant={entry.statusVariant}>{entry.statusLabel}</PrStatusPill>
           </div>
-          <dl className="mt-2 space-y-1.5">
-            <div>
-              <dt className="iz-tiny iz-muted2 uppercase tracking-wide">Date</dt>
-              <dd className="iz-tiny iz-muted mt-0.5">{entry.dateLabel}</dd>
-            </div>
-            <div>
-              <dt className="iz-tiny iz-muted2 uppercase tracking-wide">Time</dt>
-              <dd className="iz-tiny iz-muted mt-0.5">{entry.time}</dd>
-            </div>
-          </dl>
+          <p className="iz-tiny iz-muted2 mt-1">
+            {entry.dateLabel} · {entry.time}
+          </p>
+          <p className="iz-tiny iz-muted mt-1 leading-snug">{entry.sourceDetail}</p>
           {slot?.payDeductionRm ? (
-            <p className="iz-tiny mt-2 text-[var(--iz-red)]">
+            <p className="iz-tiny mt-1 text-[var(--iz-red)]">
               −RM {slot.payDeductionRm} logged · {slot.cancelledAt}
             </p>
           ) : null}
         </div>
       </div>
-      {entryCanCancel(entry) && (
-        <button type="button" className="iz-btn iz-btn-danger iz-btn-sm mt-2 w-full" onClick={onCancel}>
-          Cancel
-        </button>
-      )}
+      <div className="mt-2 flex flex-wrap gap-2">
+        {entryCanAccept(entry) && (
+          <button type="button" className="iz-btn iz-btn-primary iz-btn-sm" onClick={onAccept}>
+            Accept shift
+          </button>
+        )}
+        {entryCanDecline(entry) && (
+          <button type="button" className="iz-btn iz-btn-soft iz-btn-sm" onClick={onDecline}>
+            Decline
+          </button>
+        )}
+        {entryCanCancel(entry) && entry.slot && (
+          <button
+            type="button"
+            className="iz-btn iz-btn-ghost iz-btn-sm !text-[var(--iz-red)]"
+            onClick={onCancel}
+          >
+            Cancel shift
+          </button>
+        )}
+      </div>
     </div>
   );
 }

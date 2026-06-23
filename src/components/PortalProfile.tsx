@@ -1,6 +1,6 @@
-import { useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/Nav";
 import { useStore } from "@/lib/store";
+import { signOutToWelcome } from "@/lib/go-welcome";
 import { LogOut, Shield, type LucideIcon } from "lucide-react";
 
 export function PortalProfile({
@@ -12,8 +12,7 @@ export function PortalProfile({
   defaultName: string;
   rows: { icon: LucideIcon; label: string; value: string }[];
 }) {
-  const navigate = useNavigate();
-  const { user, signOut } = useStore();
+  const { user } = useStore();
 
   return (
     <div>
@@ -46,10 +45,8 @@ export function PortalProfile({
         </div>
 
         <button
-          onClick={() => {
-            signOut();
-            navigate({ to: "/" });
-          }}
+          type="button"
+          onClick={signOutToWelcome}
           className="mt-6 flex w-full items-center justify-center gap-2 rounded-full border border-destructive/40 py-3 text-sm text-destructive"
         >
           <LogOut className="h-4 w-4" /> Sign out

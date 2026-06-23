@@ -1,7 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
+import { goToWelcome } from "@/lib/go-welcome";
 import { PORTFOLIO_SLOT_COUNT, getPrProfile, getPrRosterId, resolvePrAccountFields, type PrComcard } from "@/lib/pr-demo";
 import { Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
 import {
@@ -51,6 +52,7 @@ function buildProfileDraft(
 }
 
 function ProfilePage() {
+  const navigate = useNavigate();
   const prSubRole = useStore((s) => s.prSubRole);
   const prFreelancerLowRatingStrikes = useStore((s) => s.prFreelancerLowRatingStrikes);
   const demoFreelancerLowRatingStrike = useStore((s) => s.demoFreelancerLowRatingStrike);
@@ -64,6 +66,7 @@ function ProfilePage() {
   const agencyPRs = useStore((s) => s.agencyPRs);
   const prAvatarPhoto = useStore((s) => s.prAvatarPhoto);
   const savePrProfile = useStore((s) => s.savePrProfile);
+  const signOut = useStore((s) => s.signOut);
   const toast = useStore((s) => s.toast);
 
   const u = getPrProfile(prSubRole);
@@ -530,6 +533,25 @@ function ProfilePage() {
           </button>
         )}
       </div>
+
+      <button
+        type="button"
+        className="mt-4 w-full rounded-full border border-[var(--iz-line2)] py-3 text-sm font-semibold text-[var(--iz-txt)]"
+        onClick={() => navigate({ to: "/host/security" })}
+      >
+        Change password
+      </button>
+
+      <button
+        type="button"
+        className="mb-4 mt-4 w-full rounded-full border border-[var(--iz-red)] py-3 text-sm font-semibold text-[var(--iz-red)]"
+        onClick={() => {
+          signOut();
+          goToWelcome();
+        }}
+      >
+        Sign out
+      </button>
     </div>
   );
 }

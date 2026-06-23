@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 
 import type { LucideIcon } from "lucide-react";
 
-import { ArrowLeft, ArrowLeftRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { getShiftToday, fmtDTopbar, getPrProfile } from "@/lib/pr-demo";
 
@@ -254,10 +254,6 @@ export function AppTopbar({
         ? hasExplicitBack
         : onBack != null || resolvedBackTo != null);
 
-  const goWelcome = () => {
-    goToWelcome();
-  };
-
   return (
     <header
       className={`iz-topbar${isPortalShell ? " iz-topbar--minimal" : ""}${!showBack ? " iz-topbar--no-back" : ""}`}
@@ -304,15 +300,6 @@ export function AppTopbar({
 
           <div className="iz-topbar-actions">
             {isPrPortal && <PrNotificationBell />}
-            <button
-              type="button"
-              className="iz-topbar-action"
-              title="Switch role"
-              aria-label="Switch role"
-              onClick={goWelcome}
-            >
-              <ArrowLeftRight className="h-3.5 w-3.5" />
-            </button>
           </div>
         </>
       )}

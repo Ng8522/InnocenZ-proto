@@ -406,7 +406,64 @@ function resolveUpcomingEntry(up: PrUpcomingShift): TimetableEntry {
   };
 }
 
-/** One row per shift ΓÇö labels whether data came from Atlas Agency or the outlet roster */
+/** One row per shift — labels whether data came from Atlas Agency or the outlet roster */
+export function getUpcomingWeekRange(baselineIso = getLiveTodayIso()): {
+  fromIso: string;
+  toIso: string;
+} {
+  return {
+    fromIso: baselineIso,
+    toIso: addDaysToIso(baselineIso, 6),
+  };
+}
+
+export function formatUpcomingWeekLabel(fromIso: string, toIso: string): string {
+  const [fy, fm, fd] = fromIso.split("-").map(Number);
+  const [ty, tm, td] = toIso.split("-").map(Number);
+  if (fromIso === toIso) return fmtHistDate(fy, fm, fd);
+  if (fy === ty && fm === tm) {
+    const monthYear = fmtHistDate(fy, fm, fd).split(" ").slice(2).join(" ");
+    return `${fd}–${td} ${monthYear}`;
+  }
+  return `${fmtHistDate(fy, fm, fd)} – ${fmtHistDate(ty, tm, td)}`;
+}
+
+export function buildTimetableEntriesInRange(
+  prId: string,
+  roster: AgencyRosterSlot[],
+  upcoming: PrUpcomingShift[],
+  fromIso: string,
+  toIso: string,
+  baselineIso = DEFAULT_ROSTER_DATE_ISO,
+): TimetableEntry[] {
+  const slots = roster.filter((s) => {
+    if (s.prId !== prId || s.status === "unavailable" || s.dateIso < baselineIso) return false;
+    return s.dateIso >= fromIso && s.dateIso <= toIso;
+  });
+
+  const entries: TimetableEntry[] = slots.map(resolveSlotEntry);
+
+  for (const up of upcoming) {
+    const covered = slots.some((s) => slotHasRosterCoverage(s, up));
+    if (covered) continue;
+    const dateIso = dateKeyFromTuple(up.date);
+    if (dateIso < baselineIso || dateIso < fromIso || dateIso > toIso) continue;
+    entries.push(resolveUpcomingEntry(up));
+  }
+
+  return entries.sort((a, b) => a.dateIso.localeCompare(b.dateIso) || a.outlet.localeCompare(b.outlet));
+}
+
+export function buildUpcomingWeekTimetableEntries(
+  prId: string,
+  roster: AgencyRosterSlot[],
+  upcoming: PrUpcomingShift[],
+  baselineIso = getLiveTodayIso(),
+): TimetableEntry[] {
+  const { fromIso, toIso } = getUpcomingWeekRange(baselineIso);
+  return buildTimetableEntriesInRange(prId, roster, upcoming, fromIso, toIso, baselineIso);
+}
+
 export function buildTimetableEntries(
   prId: string,
   roster: AgencyRosterSlot[],
@@ -416,25 +473,10 @@ export function buildTimetableEntries(
 ): TimetableEntry[] {
   const y = viewMonth.getFullYear();
   const m = viewMonth.getMonth();
-
-  const slots = roster.filter((s) => {
-    if (s.prId !== prId || s.status === "unavailable" || s.dateIso < baselineIso) return false;
-    const [dy, dm] = s.dateIso.split("-").map(Number);
-    return dy === y && dm - 1 === m;
-  });
-
-  const entries: TimetableEntry[] = slots.map(resolveSlotEntry);
-
-  for (const up of upcoming) {
-    const covered = slots.some((s) => slotHasRosterCoverage(s, up));
-    if (covered) continue;
-    const [uy, um] = up.date;
-    if (uy !== y || um - 1 !== m) continue;
-    if (dateKeyFromTuple(up.date) < baselineIso) continue;
-    entries.push(resolveUpcomingEntry(up));
-  }
-
-  return entries.sort((a, b) => a.dateIso.localeCompare(b.dateIso) || a.outlet.localeCompare(b.outlet));
+  const fromIso = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const toIso = `${y}-${String(m + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return buildTimetableEntriesInRange(prId, roster, upcoming, fromIso, toIso, baselineIso);
 }
 
 export function entryCanCancel(entry: TimetableEntry, baselineIso = getLiveTodayIso()): boolean {

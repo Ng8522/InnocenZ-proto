@@ -7036,6 +7036,12 @@ button.iz-pr-offer-row:hover {
   background: rgba(255, 255, 255, 0.04);
   border: 1px dashed rgba(255, 255, 255, 0.12);
 }
+.iz-pr-cal-togglable .iz-pr-cal-day-btn {
+  cursor: pointer;
+}
+.iz-pr-cal-togglable .iz-pr-cal-day-btn:active {
+  transform: scale(0.94);
+}
 .iz-pr-cal-assigned .iz-pr-cal-day-btn {
   background: rgba(74, 222, 128, 0.15);
   border: 1px solid rgba(74, 222, 128, 0.35);

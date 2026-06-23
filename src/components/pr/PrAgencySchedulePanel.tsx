@@ -6,11 +6,15 @@ import {
   getAgencyScheduleFromIso,
   getAgencyScheduleToIso,
   buildPrScheduleDays,
-  buildTimetableEntries,
+  buildUpcomingWeekTimetableEntries,
+  formatUpcomingWeekLabel,
+  getUpcomingWeekRange,
+  dayCanToggleAvailability,
   entryCanCancel,
   type ShiftDataSource,
   type TimetableEntry,
 } from "@/lib/pr-agency-schedule";
+import { useStore } from "@/lib/store";
 import type { PrUpcomingShift } from "@/lib/pr-features";
 import { CANCELLATION_RULE_SUMMARY, CANCEL_RULES, evaluateShiftCancellation } from "@/lib/pr-schedule-cancellation";
 import { calendarNavBounds, dateFromIsoKey, isoKeyFromDate } from "@/components/iz/HistDateCalendar";
@@ -47,6 +51,7 @@ export function PrAgencySchedulePanel({
   const [selectedIso, setSelectedIso] = useState<string | null>(null);
   const [cancelEntry, setCancelEntry] = useState<TimetableEntry | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const togglePrDayAvailability = useStore((s) => s.togglePrDayAvailability);
 
   const navBounds = useMemo(
     () =>
@@ -68,16 +73,15 @@ export function PrAgencySchedulePanel({
   const maxY = navBounds.endMonth.getFullYear();
   const years = Array.from({ length: maxY - minY + 1 }, (_, i) => minY + i);
 
-  const timetableEntries = useMemo(
-    () => buildTimetableEntries(prId, roster, upcoming, viewMonth),
-    [prId, roster, upcoming, viewMonth],
+  const upcomingWeekRange = useMemo(() => getUpcomingWeekRange(), []);
+  const upcomingWeekLabel = useMemo(
+    () => formatUpcomingWeekLabel(upcomingWeekRange.fromIso, upcomingWeekRange.toIso),
+    [upcomingWeekRange],
   );
-  const visibleTimetable = useMemo(
-    () =>
-      selectedIso
-        ? timetableEntries.filter((e) => e.dateIso === selectedIso)
-        : timetableEntries,
-    [timetableEntries, selectedIso],
+
+  const upcomingWeekTimetable = useMemo(
+    () => buildUpcomingWeekTimetableEntries(prId, roster, upcoming),
+    [prId, roster, upcoming],
   );
 
   const cancelSlot = cancelEntry?.slot;
@@ -95,6 +99,12 @@ export function PrAgencySchedulePanel({
     const iso = isoKeyFromDate(date);
     const day = dayByIso.get(iso);
     if (!day || day.kind === "past") return;
+
+    if (dayCanToggleAvailability(day)) {
+      togglePrDayAvailability(iso);
+      return;
+    }
+
     setSelectedIso((cur) => (cur === iso ? null : iso));
   };
 
@@ -201,6 +211,10 @@ export function PrAgencySchedulePanel({
             unavailable: (d) => dayByIso.get(isoKeyFromDate(d))?.kind === "unavailable",
             active: (d) => dayByIso.get(isoKeyFromDate(d))?.kind === "active",
             picked: (d) => selectedIso === isoKeyFromDate(d),
+            togglable: (d) => {
+              const day = dayByIso.get(isoKeyFromDate(d));
+              return day ? dayCanToggleAvailability(day) : false;
+            },
           }}
           modifiersClassNames={{
             open: "iz-pr-cal-open",
@@ -209,6 +223,7 @@ export function PrAgencySchedulePanel({
             unavailable: "iz-pr-cal-unavailable",
             active: "iz-pr-cal-active",
             picked: "iz-pr-cal-picked",
+            togglable: "iz-pr-cal-togglable",
           }}
           classNames={{
             month_caption: "hidden",
@@ -223,24 +238,30 @@ export function PrAgencySchedulePanel({
           className="w-full p-0"
         />
         <div className="iz-pr-cal-legend">
+          <span><i className="sw open" /> Available</span>
           <span><i className="sw assigned" /> Scheduled</span>
           <span><i className="sw pending" /> Pending</span>
           <span><i className="sw unavailable" /> Not available</span>
         </div>
+        <p className="iz-tiny iz-muted2 mt-2 text-center">
+          Tap an available day to block it · tap a blocked day to reopen
+        </p>
       </div>
 
       <div className="iz-pr-schedule-timetable">
         <div className="flex items-center gap-2 mb-2">
           <Clock className="h-4 w-4 text-[var(--iz-muted2)]" />
-          <span className="text-xs font-bold uppercase tracking-wide text-[var(--iz-muted)]">Timetable</span>
+          <span className="text-xs font-bold uppercase tracking-wide text-[var(--iz-muted)]">
+            Timetable · {upcomingWeekLabel}
+          </span>
         </div>
-        {visibleTimetable.length === 0 ? (
+        {upcomingWeekTimetable.length === 0 ? (
           <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-3 py-5 text-center">
-            {selectedIso ? "No shifts on this day" : "No shifts this month"}
+            No shifts this week
           </p>
         ) : (
           <div className="iz-pr-list">
-            {visibleTimetable.map((entry) => (
+            {upcomingWeekTimetable.map((entry) => (
               <TimetableRow
                 key={entry.id}
                 entry={entry}

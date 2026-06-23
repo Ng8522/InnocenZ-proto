@@ -228,7 +228,6 @@ export function TierRatesFields({
           )}
         </div>
         {!wageOnly && !postJob && (
-          <div className="mt-2 grid grid-cols-2 gap-2">
           <div className={cn("mt-2 grid gap-2", hideTablePct ? "grid-cols-2" : "grid-cols-3")}>
             <NumField
               label="Drink %"
@@ -244,6 +243,15 @@ export function TierRatesFields({
               readOnly={readOnly}
               onChange={readOnly ? undefined : (n) => onPatchTier(activeTier, { tipPct: n })}
             />
+            {!hideTablePct && (
+              <NumField
+                label="Table %"
+                value={activeRates.tablePct}
+                suffix="%"
+                readOnly={readOnly}
+                onChange={readOnly ? undefined : (n) => onPatchTier(activeTier, { tablePct: n })}
+              />
+            )}
           </div>
         )}
       </div>

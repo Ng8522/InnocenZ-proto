@@ -58,7 +58,7 @@ export function buildPrUpcomingEvents(
         date: dateYmd,
         time: slot.shift,
         kind: "assignment",
-        detail: slot.agencyAssignment.agencyNote ?? "Agency assignment — approve or decline in schedule",
+        detail: slot.agencyAssignment.agencyNote ?? "Agency assignment — decline with reason if you cannot work",
       });
       covered.add(key);
       continue;
@@ -84,7 +84,7 @@ export function buildPrUpcomingEvents(
         date: dateYmd,
         time: slot.shift,
         kind: "pending",
-        detail: `${slot.outlet} must confirm your slot on their roster`,
+        detail: `${slot.outlet} requested you — pending agency assignment approval`,
       });
       covered.add(key);
       continue;
@@ -127,8 +127,8 @@ export function buildPrUpcomingEvents(
       kind: up.status === "confirmed" ? "confirmed" : "pending",
       detail:
         up.status === "confirmed"
-          ? `${up.outlet} confirmed you on their bookings roster`
-          : "Atlas proposed — outlet has not confirmed yet",
+          ? "Agency assigned this shift on your roster"
+          : `${up.outlet} requested you — pending agency assignment approval`,
     });
   }
 
@@ -295,7 +295,7 @@ function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
       statusVariant: "amber",
       source: "agency",
       sourceLabel: agency,
-      sourceDetail: slot.agencyAssignment?.agencyNote ?? "Atlas assigned you — approve or decline",
+      sourceDetail: slot.agencyAssignment?.agencyNote ?? "Atlas assigned you — decline with reason if you cannot work",
       slot,
     };
   }
@@ -307,11 +307,11 @@ function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
       dateLabel: fmtHistDate(y, m, d),
       outlet: slot.outlet,
       time: slot.shift,
-      statusLabel: "Awaiting outlet",
+      statusLabel: "Awaiting agency",
       statusVariant: "amber",
-      source: "outlet",
-      sourceLabel: slot.outlet,
-      sourceDetail: `${slot.outlet} must confirm your slot on their roster`,
+      source: "agency",
+      sourceLabel: agency,
+      sourceDetail: `${slot.outlet} requested you — pending agency assignment approval`,
       slot,
     };
   }
@@ -341,9 +341,9 @@ function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
       time: slot.shift,
       statusLabel: "Scheduled",
       statusVariant: "green",
-      source: "outlet",
-      sourceLabel: slot.outlet,
-      sourceDetail: "Outlet sealed this shift on their roster · synced via Atlas",
+      source: "agency",
+      sourceLabel: agency,
+      sourceDetail: "Agency assigned this shift on your roster",
       slot,
     };
   }
@@ -390,13 +390,13 @@ function resolveUpcomingEntry(up: PrUpcomingShift): TimetableEntry {
     dateLabel: fmtHistDate(y, m, d),
     outlet: up.outlet,
     time: up.time,
-    statusLabel: confirmed ? "Outlet confirmed" : "Outlet reviewing",
+    statusLabel: confirmed ? "Scheduled" : "Awaiting agency",
     statusVariant: confirmed ? "green" : "amber",
-    source: confirmed ? "outlet" : "agency",
-    sourceLabel: confirmed ? up.outlet : DEFAULT_PR_AGENCY_NAME,
+    source: "agency",
+    sourceLabel: DEFAULT_PR_AGENCY_NAME,
     sourceDetail: confirmed
-      ? `${up.outlet} confirmed you on their bookings roster`
-      : "Atlas proposed this shift — outlet has not confirmed yet",
+      ? "Agency assigned this shift on your roster"
+      : `${up.outlet} requested you — pending agency assignment approval`,
     upcoming: up,
   };
 }
@@ -432,12 +432,17 @@ export function buildTimetableEntries(
   return entries.sort((a, b) => a.dateIso.localeCompare(b.dateIso) || a.outlet.localeCompare(b.outlet));
 }
 
-export function entryCanDecline(entry: TimetableEntry): boolean {
-  return entry.slot?.status === "assignment-pending";
+export function entryCanCancel(entry: TimetableEntry, baselineIso = getLiveTodayIso()): boolean {
+  if (entry.dateIso < baselineIso) return false;
+  if (entry.slot) {
+    const s = entry.slot.status;
+    if (["on-duty", "en-route", "unavailable"].includes(s)) return false;
+    return ["scheduled", "assignment-pending", "outlet-pending", "swap-pending"].includes(s);
+  }
+  return Boolean(entry.upcoming);
 }
 
-export function entryCanCancel(entry: TimetableEntry): boolean {
-  const st = entry.slot?.status;
-  if (!st) return Boolean(entry.upcoming?.status === "confirmed");
-  return st === "scheduled" || st === "swap-pending" || st === "outlet-pending";
+/** @deprecated use entryCanCancel */
+export function entryCanDecline(entry: TimetableEntry): boolean {
+  return entryCanCancel(entry);
 }

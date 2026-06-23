@@ -3,27 +3,41 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function OutletSection({
+  id,
   title,
   hint,
   collapsible = false,
   defaultOpen = true,
+  open: openProp,
+  onOpenChange,
   children,
   trailing,
   className,
 }: {
+  id?: string;
   title: string;
   hint?: string;
   collapsible?: boolean;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
   trailing?: ReactNode;
   className?: string;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
+
+  const setOpen = (next: boolean | ((value: boolean) => boolean)) => {
+    const resolved = typeof next === "function" ? next(open) : next;
+    if (!isControlled) setInternalOpen(resolved);
+    onOpenChange?.(resolved);
+  };
 
   if (!collapsible) {
     return (
-      <section className={cn("mt-5", className)}>
+      <section id={id} className={cn("mt-5", className)}>
         <div className="flex items-center gap-2 py-0.5">
           <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
             <div className="min-w-0">
@@ -41,7 +55,7 @@ export function OutletSection({
   }
 
   return (
-    <section className={cn("iz-collapsible-section", open && "is-open", className)}>
+    <section id={id} className={cn("iz-collapsible-section", open && "is-open", className)}>
       <button
         type="button"
         className="iz-collapsible-section__trigger"

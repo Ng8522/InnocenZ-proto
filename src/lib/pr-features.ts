@@ -391,22 +391,7 @@ export function remapSeedUpcomingShifts(shifts: PrUpcomingShift[]): PrUpcomingSh
   return shifts.map(remapSeedUpcomingShift);
 }
 
-export const SEED_UPCOMING_SHIFTS: PrUpcomingShift[] = [
-  {
-    id: "up-1",
-    outlet: "Bear Lounge",
-    date: [2026, 6, 6],
-    time: "21:00 — 02:00",
-    status: "confirmed",
-  },
-  {
-    id: "up-2",
-    outlet: "Urban Soul",
-    date: [2026, 6, 7],
-    time: "20:00 — 01:00",
-    status: "pending",
-  },
-].map(remapSeedUpcomingShift);
+export const SEED_UPCOMING_SHIFTS: PrUpcomingShift[] = [];
 
 export const SEED_PR_NOTIFICATIONS: PrNotification[] = [
   {

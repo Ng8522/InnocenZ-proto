@@ -1527,12 +1527,6 @@ function PrReconciliationRow({
             <p className="iz-tiny text-right font-semibold">{formatRM(row.drinksRm)}</p>
             <p className="iz-tiny iz-muted">Tips</p>
             <p className="iz-tiny text-right font-semibold">{formatRM(row.tipsRm)}</p>
-            {row.tablesRm > 0 && (
-              <>
-                <p className="iz-tiny iz-muted">Tables</p>
-                <p className="iz-tiny text-right font-semibold">{formatRM(row.tablesRm)}</p>
-              </>
-            )}
           </div>
           <div className="iz-v-sum mt-2 !py-1">
             <span className="iz-tiny iz-muted">Payment voucher</span>

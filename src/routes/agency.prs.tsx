@@ -370,6 +370,7 @@ function AgencyManagePRs() {
 
 type AgencyPrDraft = {
   name: string;
+  icName: string;
   mobile: string;
   email: string;
   age: number;
@@ -386,6 +387,7 @@ type AgencyPrDraft = {
 function buildAgencyPrDraft(pr: AgencyManagedPR): AgencyPrDraft {
   return {
     name: pr.name ?? "",
+    icName: pr.icName ?? pr.name ?? "",
     mobile: pr.mobile ?? "",
     email: pr.email ?? "",
     age: pr.age ?? 22,
@@ -420,6 +422,7 @@ function AgencyPrDetail({
       Pick<
         AgencyManagedPR,
         | "name"
+        | "icName"
         | "mobile"
         | "email"
         | "age"
@@ -463,6 +466,11 @@ function AgencyPrDetail({
       toast("Enter PR display name", "warn");
       return;
     }
+    const icName = draft.icName.trim();
+    if (!icName) {
+      toast("Enter IC name (legal full name)", "warn");
+      return;
+    }
     if (!draft.mobile.trim()) {
       toast("Enter mobile number", "warn");
       return;
@@ -473,6 +481,7 @@ function AgencyPrDetail({
     }
     onSaveProfile(detail.id, {
       name,
+      icName,
       mobile: draft.mobile.trim(),
       email: draft.email.trim(),
       age: Math.max(18, Math.min(60, Math.round(draft.age))),
@@ -621,6 +630,10 @@ function AgencyPrDetail({
         {editing ? (
           <div className="space-y-2">
             <div className="iz-field !mb-0">
+              <label>IC name (legal full name)</label>
+              <input value={draft.icName} onChange={(e) => setDraft((p) => ({ ...p, icName: e.target.value }))} />
+            </div>
+            <div className="iz-field !mb-0">
               <label>Mobile</label>
               <input value={draft.mobile} onChange={(e) => setDraft((p) => ({ ...p, mobile: e.target.value }))} />
             </div>
@@ -631,6 +644,7 @@ function AgencyPrDetail({
           </div>
         ) : (
           <>
+            <div className="iz-v-sum"><span className="iz-muted">IC name</span><b>{display.icName}</b></div>
             <div className="iz-v-sum"><span className="iz-muted">Mobile</span><b>{display.mobile}</b></div>
             <div className="iz-v-sum"><span className="iz-muted">Email</span><b>{display.email}</b></div>
             <div className="iz-v-sum"><span className="iz-muted">IC</span><b>{detail.ic}</b></div>

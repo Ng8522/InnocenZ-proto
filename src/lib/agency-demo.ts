@@ -590,11 +590,35 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     shiftEnd: "04:30",
     status: "scheduled",
   }),
+  withRosterDate({
+    id: "rs7",
+    prId: "p1",
+    prName: "Vicky",
+    outlet: "Bear Lounge",
+    dateIso: migrateDemoDateIso("2026-06-06"),
+    shift: "21:00 — 02:00",
+    shiftStart: "21:00",
+    shiftEnd: "02:00",
+    status: "scheduled",
+  }),
+  withRosterDate({
+    id: "rs8",
+    prId: "p1",
+    prName: "Vicky",
+    outlet: "Urban Soul",
+    dateIso: migrateDemoDateIso("2026-06-07"),
+    shift: "20:00 — 01:00",
+    shiftStart: "20:00",
+    shiftEnd: "01:00",
+    status: "outlet-pending",
+  }),
 ];
 
 export interface AgencyManagedPR {
   id: string;
   name: string;
+  /** Legal full name as printed on IC / passport */
+  icName: string;
   ic: string;
   mobile: string;
   email: string;
@@ -629,6 +653,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
   {
     id: "p1",
     name: "Vicky",
+    icName: "Victoria Tan Mei Lin",
     ic: "950312-14-8821",
     mobile: "+60 12-881 2201",
     email: "Vicky@inz.my",
@@ -656,6 +681,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
   {
     id: "p2",
     name: "Mia",
+    icName: "Mia Chen Wei",
     ic: "970801-08-4412",
     mobile: "+60 16-992 1103",
     email: "mia@inz.my",
@@ -680,6 +706,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
   {
     id: "p3",
     name: "Vivi",
+    icName: "Vivian Abdullah",
     ic: "960515-10-7733",
     mobile: "+60 11-223 8890",
     email: "vivi@inz.my",
@@ -702,6 +729,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
   {
     id: "p5",
     name: "Nina",
+    icName: "Nina Aisyah Rahman",
     ic: "980220-06-5511",
     mobile: "+60 17-441 9922",
     email: "nina@inz.my",
@@ -726,6 +754,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
   {
     id: "p6",
     name: "Yuki",
+    icName: "Yuki Tanaka",
     ic: "941108-12-9901",
     mobile: "+60 19-772 3301",
     email: "yuki@inz.my",
@@ -748,6 +777,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
   {
     id: "p4",
     name: "Cici",
+    icName: "Cici Lim Jia Wen",
     ic: "990101-08-3344",
     mobile: "+60 18-220 6612",
     email: "cici@inz.my",
@@ -773,6 +803,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
   {
     id: "p7",
     name: "Chen Wei",
+    icName: "Chen Wei Ming",
     ic: "970515-10-6622",
     mobile: "+60 16-772 4410",
     email: "chen.wei@inz.my",
@@ -795,6 +826,7 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
   {
     id: "freelancer-jaya",
     name: "Jaya Nair",
+    icName: "Jaya Nair a/l Subramaniam",
     ic: "880214-10-5566",
     mobile: "+60 17-662 3391",
     email: "jaya.nair@inz.my",
@@ -857,6 +889,8 @@ export function syncAgencyPrFromPrPortal(
   prId: string,
   portal: {
     prDisplayName: string | null;
+    prIcName: string | null;
+    prMobile: string | null;
     prEmail: string | null;
     prAvatarPhoto: string | null;
     prComcard: PrComcard;
@@ -866,10 +900,14 @@ export function syncAgencyPrFromPrPortal(
 ): AgencyManagedPR {
   if (agencyPr.id !== prId) return agencyPr;
   const displayName = portal.prDisplayName?.trim();
+  const icName = portal.prIcName?.trim();
+  const mobile = portal.prMobile?.trim();
   const email = portal.prEmail?.trim();
   return {
     ...agencyPr,
     ...(displayName ? { name: displayName } : {}),
+    ...(icName ? { icName } : {}),
+    ...(mobile ? { mobile } : {}),
     ...(email ? { email } : {}),
     avatarPhoto: portal.prAvatarPhoto ?? agencyPr.avatarPhoto,
     comcardImageUrl: portal.prComcard.imageUrl ?? agencyPr.comcardImageUrl,
@@ -999,6 +1037,7 @@ export function pendingPRToManagedPR(p: PendingPR): AgencyManagedPR {
   return {
     id: p.targetPrId ?? `p-new-${p.id}`,
     name: p.name,
+    icName: p.name,
     ic: p.ic ?? "—",
     mobile: p.mobile ?? "—",
     email: p.email ?? "—",

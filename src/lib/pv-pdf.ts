@@ -11,7 +11,6 @@ import {
   payeeFromProfile,
   type PvPayeeProfile,
 } from "@/lib/pv-template";
-import { FINANCE_HEAD_LABEL } from "@/lib/pr-demo";
 
 /** @deprecated Use PV_TEMPLATE_ISSUER */
 export const PV_PDF_AGENCY = {
@@ -44,10 +43,6 @@ function csvRow(cells: (string | number)[]) {
   return cells.map(csvCell).join(",");
 }
 
-function financeHeadSigned(pv: PrPaymentVoucher) {
-  return Boolean(pv.financeHeadSignedAt?.trim());
-}
-
 function prSigned(pv: PrPaymentVoucher) {
   return Boolean(pv.prSignedAt || pv.status === "PAID" || pv.status === "SIGNED");
 }
@@ -69,7 +64,6 @@ export function buildPvBreakdownHtml(
 
   const templateLines = padPvTemplateLines(buildPvTemplateLines(pv), 5);
   const voucherDate = formatPvVoucherDate(pv.issued);
-  const fhSigned = financeHeadSigned(pv);
   const prOk = prSigned(pv);
 
   const rowHtml = templateLines
@@ -287,20 +281,19 @@ export function buildPvBreakdownHtml(
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
     }
-    /* ── Signatures — Finance Head (left) + PR (right) ── */
+    /* ── Signature — PR payee only ── */
     .sig-row {
-      display: table;
+      display: block;
       width: 100%;
       margin-top: 0;
       padding: 12px 0 8px;
+      text-align: right;
     }
-    .sig-left,
     .sig-right {
-      display: table-cell;
-      width: 50%;
+      display: inline-block;
       vertical-align: top;
+      text-align: right;
     }
-    .sig-right { text-align: right; }
     .sig-inner {
       display: inline-block;
       width: 240px;
@@ -450,26 +443,6 @@ export function buildPvBreakdownHtml(
     </div>
 
     <div class="sig-row">
-      <div class="sig-left">
-      <div class="sig-inner">
-          <div class="sig-role">${escapeHtml(FINANCE_HEAD_LABEL)}</div>
-          <div class="sig-line">${
-            fhSigned
-              ? pv.financeHeadSignatureDataUrl
-                ? `<img src="${pv.financeHeadSignatureDataUrl}" alt="Finance Head signature" />`
-                : `<span class="esig">${escapeHtml(pv.financeHeadName)}</span>`
-              : ""
-          }</div>
-        <div class="sig-fld">
-          <span class="lbl">Name:</span>
-            <span class="val">${escapeHtml(fhSigned ? pv.financeHeadName : "")}</span>
-          </div>
-          <div class="sig-fld">
-            <span class="lbl">Date:</span>
-            <span class="val">${escapeHtml(fhSigned ? (pv.financeHeadSignedAt ?? "") : "")}</span>
-          </div>
-        </div>
-      </div>
       <div class="sig-right">
         <div class="sig-inner">
           <div class="sig-role">PR (Payee)</div>
@@ -634,7 +607,6 @@ export function buildPvBreakdownSheetRows(
 ): (string | number)[][] {
   const templateLines = padPvTemplateLines(buildPvTemplateLines(pv), 5);
   const voucherDate = formatPvVoucherDate(pv.issued);
-  const fhSigned = financeHeadSigned(pv);
   const prOk = prSigned(pv);
   const rows: (string | number)[][] = [];
   const push = (...cells: (string | number)[]) => rows.push(padSheetRow(cells));
@@ -681,16 +653,10 @@ export function buildPvBreakdownSheetRows(
   push("Bank Account No.:", payee.accountNo, "", "", "");
 
   push("");
-  push(FINANCE_HEAD_LABEL, "", "PR (Payee)", "", "");
-  push("Signature:", fhSigned ? pv.financeHeadName : "", "Signature:", prOk ? payee.name : "", "");
-  push("Name:", fhSigned ? pv.financeHeadName : "", "Name:", prOk ? payee.name : "", "");
-  push(
-    "Date:",
-    fhSigned ? (pv.financeHeadSignedAt ?? "") : "",
-    "Date:",
-    prOk ? (pv.prSignedAt ?? "") : "",
-    "",
-  );
+  push("PR (Payee)", "", "", "", "");
+  push("Signature:", prOk ? payee.name : "", "", "", "");
+  push("Name:", prOk ? payee.name : "", "", "", "");
+  push("Date:", prOk ? (pv.prSignedAt ?? "") : "", "", "", "");
 
   push("");
   push(PV_TEMPLATE_DISCLAIMER, "", "", "", "");
@@ -702,7 +668,6 @@ export function buildPvBreakdownSheetRows(
 export async function buildPvBreakdownWorkbook(pv: PrPaymentVoucher, payee: PvPayeeProfile) {
   const templateLines = padPvTemplateLines(buildPvTemplateLines(pv), 5);
   const voucherDate = formatPvVoucherDate(pv.issued);
-  const fhSigned = financeHeadSigned(pv);
   const prOk = prSigned(pv);
 
   const wb = new ExcelJS.Workbook();
@@ -936,49 +901,26 @@ export async function buildPvBreakdownWorkbook(pv: PrPaymentVoucher, payee: PvPa
 
   row++;
   ws.getRow(row).height = 20;
-  pvExMerge(ws, row, 1, row, 3, FINANCE_HEAD_LABEL, {
-    bold: true,
-    size: 9,
-    align: { vertical: "middle", horizontal: "left" },
-  });
-  pvExMerge(ws, row, 4, row, 5, "PR (Payee)", {
+  pvExMerge(ws, row, 1, row, 5, "PR (Payee)", {
     bold: true,
     size: 9,
     align: { vertical: "middle", horizontal: "left" },
   });
   row++;
 
-  const sigPairs: [string, string, string, string][] = [
-    [
-      "Signature:",
-      fhSigned ? pv.financeHeadName : "",
-      "Signature:",
-      prOk ? payee.name : "",
-    ],
-    ["Name:", fhSigned ? pv.financeHeadName : "", "Name:", prOk ? payee.name : ""],
-    [
-      "Date:",
-      fhSigned ? (pv.financeHeadSignedAt ?? "") : "",
-      "Date:",
-      prOk ? (pv.prSignedAt ?? "") : "",
-    ],
+  const sigRows: [string, string][] = [
+    ["Signature:", prOk ? payee.name : ""],
+    ["Name:", prOk ? payee.name : ""],
+    ["Date:", prOk ? (pv.prSignedAt ?? "") : ""],
   ];
 
-  for (const [l1, v1, l2, v2] of sigPairs) {
-    ws.getRow(row).height = l1 === "Signature:" ? 34 : 20;
-    pvExCell(ws, row, 1, l1, { align: { vertical: "middle", horizontal: "left" } });
-    pvExMerge(ws, row, 2, row, 3, v1, {
-      fontName: l1 === "Signature:" && v1 ? "Segoe Script" : undefined,
-      size: l1 === "Signature:" && v1 ? 15 : undefined,
-      color: l1 === "Signature:" && v1 ? "FF1A1A6E" : undefined,
-      align: { horizontal: "left", vertical: "bottom", wrapText: true },
-      border: { bottom: { style: PV_EX_THIN } },
-    });
-    pvExCell(ws, row, 4, l2, { align: { vertical: "middle", horizontal: "left" } });
-    pvExCell(ws, row, 5, v2, {
-      fontName: l2 === "Signature:" && v2 ? "Segoe Script" : undefined,
-      size: l2 === "Signature:" && v2 ? 15 : undefined,
-      color: l2 === "Signature:" && v2 ? "FF1A1A6E" : undefined,
+  for (const [label, value] of sigRows) {
+    ws.getRow(row).height = label === "Signature:" ? 34 : 20;
+    pvExCell(ws, row, 1, label, { align: { vertical: "middle", horizontal: "left" } });
+    pvExMerge(ws, row, 2, row, 5, value, {
+      fontName: label === "Signature:" && value ? "Segoe Script" : undefined,
+      size: label === "Signature:" && value ? 15 : undefined,
+      color: label === "Signature:" && value ? "FF1A1A6E" : undefined,
       align: { horizontal: "left", vertical: "bottom", wrapText: true },
       border: { bottom: { style: PV_EX_THIN } },
     });

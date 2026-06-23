@@ -285,17 +285,22 @@ function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
   const agency = slot.agencyAssignment?.agencyName ?? slot.outletSwap?.agencyName ?? DEFAULT_PR_AGENCY_NAME;
 
   if (slot.status === "assignment-pending") {
+    const outletRequested = slot.agencyAssignment?.requestedByOutlet;
     return {
       id: slot.id,
       dateIso: slot.dateIso,
       dateLabel: fmtHistDate(y, m, d),
       outlet: slot.outlet,
       time: slot.shift,
-      statusLabel: "Agency assignment",
+      statusLabel: outletRequested ? "Outlet shift offer" : "Agency assignment",
       statusVariant: "amber",
-      source: "agency",
-      sourceLabel: agency,
-      sourceDetail: slot.agencyAssignment?.agencyNote ?? "Atlas assigned you — approve or decline",
+      source: outletRequested ? "outlet" : "agency",
+      sourceLabel: outletRequested ? slot.outlet : agency,
+      sourceDetail:
+        slot.agencyAssignment?.agencyNote ??
+        (outletRequested
+          ? `${slot.outlet} requested you — Atlas approved · accept or decline`
+          : "Atlas assigned you — approve or decline"),
       slot,
     };
   }
@@ -433,6 +438,10 @@ export function buildTimetableEntries(
 }
 
 export function entryCanDecline(entry: TimetableEntry): boolean {
+  return entry.slot?.status === "assignment-pending";
+}
+
+export function entryCanAccept(entry: TimetableEntry): boolean {
   return entry.slot?.status === "assignment-pending";
 }
 

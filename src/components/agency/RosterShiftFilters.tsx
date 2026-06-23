@@ -69,6 +69,7 @@ export function RosterShiftFilters({
             <option value="scheduled">Scheduled</option>
             <option value="swap-pending">Swap pending</option>
             <option value="assignment-pending">Awaiting PR</option>
+            <option value="outlet-request-pending">Outlet request</option>
             <option value="unavailable">Unavailable</option>
             <option value="late">Late flag</option>
             <option value="no-show">No-show flag</option>

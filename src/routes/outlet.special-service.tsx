@@ -1,18 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { SpecialServicePortalSection } from "@/components/special-service/SpecialServicePortalSection";
-import { IzCard } from "@/components/iz/ui";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { outletCan } from "@/lib/outlet-rbac";
 import { useStore } from "@/lib/store";
+import { IzCard } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/outlet/special-service")({
-  component: OutletSpecialService,
+  component: OutletSpecialServiceRedirect,
 });
 
-function OutletSpecialService() {
+function OutletSpecialServiceRedirect() {
   const outletSubRole = useStore((s) => s.outletSubRole);
-  const outletName = useStore((s) => s.outletWorkspace.outletName);
 
-  if (!outletCan(outletSubRole, "orderSpecialService")) {
+  if (!outletCan(outletSubRole, "orderSpecialService") && !outletCan(outletSubRole, "postJob")) {
     return (
       <div className="iz-screen">
         <header>
@@ -25,13 +23,5 @@ function OutletSpecialService() {
     );
   }
 
-  return (
-    <div className="iz-screen">
-      <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Job Posting</h2>
-        <p className="iz-tiny iz-muted mt-0.5">{outletName} · agency add-ons</p>
-      </header>
-      <SpecialServicePortalSection role="outlet" />
-    </div>
-  );
+  return <Navigate to="/outlet/bookings" search={{ tab: "services" }} replace />;
 }

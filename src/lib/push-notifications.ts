@@ -66,7 +66,7 @@ function nid(prefix: string) {
 }
 
 export type PushEvent =
-  | { type: "shift_assigned"; prId: string; prName: string; outlet: string }
+  | { type: "shift_assigned"; prId: string; prName: string; outlet: string; detail?: string }
   | { type: "shift_edit"; prId: string; prName: string; outlet: string; detail: string }
   | {
       type: "swap_update";
@@ -179,7 +179,7 @@ export function applyPushEvent(
             id: nid("n-assign"),
             kind: "assignment",
             title: "Shift assigned",
-            body: `${event.outlet} — confirm on Shifts home`,
+            body: event.detail ?? `${event.outlet} — confirm on Shifts home`,
             at,
             read: false,
             prId: event.prId,
@@ -693,7 +693,7 @@ export function applyPushEvent(
             body: `${event.serviceLabel} for ${event.prName} — accept or decline`,
             at,
             read: false,
-            href: "/outlet/special-service",
+            href: "/outlet/bookings?tab=services",
             prName: event.prName,
             outlet: event.outlet,
           },
@@ -758,7 +758,7 @@ export function applyPushEvent(
             body,
             at,
             read: false,
-            href: "/outlet/special-service",
+            href: "/outlet/bookings?tab=services",
             prName: event.prName,
             outlet: event.outlet,
           },

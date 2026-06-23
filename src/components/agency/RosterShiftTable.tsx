@@ -81,6 +81,7 @@ const STATUS_LABEL: Record<
   unavailable: { label: "Unavailable", variant: "red" },
   "swap-pending": { label: "Swap pending", variant: "violet" },
   "assignment-pending": { label: "Awaiting PR", variant: "amber" },
+  "outlet-request-pending": { label: "Outlet request", variant: "amber" },
   "outlet-pending": { label: "Awaiting outlet", variant: "amber" },
 };
 
@@ -228,7 +229,10 @@ function RosterTableRow({
   const showFlags =
     canAssign && !slot.checkedInAt && slot.status !== "unavailable" && slot.status !== "swap-pending";
   const showEdit =
-    canAssign && slot.status !== "swap-pending" && slot.status !== "assignment-pending";
+    canAssign &&
+    slot.status !== "swap-pending" &&
+    slot.status !== "assignment-pending" &&
+    slot.status !== "outlet-request-pending";
 
   return (
     <tr className={prSwap ? "iz-roster-row--swap" : undefined}>

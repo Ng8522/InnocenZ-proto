@@ -6,6 +6,7 @@ import {
   type OutletTierRateSettings,
 } from "@/lib/agency-demo";
 import { TierRatePill } from "@/components/outlet/ShiftTierWagesStrip";
+import { cn } from "@/lib/utils";
 
 function NumField({
   label,
@@ -118,6 +119,7 @@ export function TierRatesFields({
   hint,
   wageOnly,
   postJob,
+  hideTablePct,
   tierMultipliers,
 }: {
   tierRates: Record<OutletPrTier, OutletTierRateSettings>;
@@ -130,6 +132,8 @@ export function TierRatesFields({
   wageOnly?: boolean;
   /** Post Job: multiplier-scaled pay + optional sales targets per tier */
   postJob?: boolean;
+  /** Outlet workspace: hide table commission % */
+  hideTablePct?: boolean;
   tierMultipliers?: Record<OutletPrTier, number>;
 }) {
   const activeRates = tierRates[activeTier];
@@ -224,7 +228,7 @@ export function TierRatesFields({
           )}
         </div>
         {!wageOnly && !postJob && (
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <div className={cn("mt-2 grid gap-2", hideTablePct ? "grid-cols-2" : "grid-cols-3")}>
             <NumField
               label="Drink %"
               value={activeRates.drinkPct}
@@ -239,13 +243,15 @@ export function TierRatesFields({
               readOnly={readOnly}
               onChange={readOnly ? undefined : (n) => onPatchTier(activeTier, { tipPct: n })}
             />
-            <NumField
-              label="Table %"
-              value={activeRates.tablePct}
-              suffix="%"
-              readOnly={readOnly}
-              onChange={readOnly ? undefined : (n) => onPatchTier(activeTier, { tablePct: n })}
-            />
+            {!hideTablePct && (
+              <NumField
+                label="Table %"
+                value={activeRates.tablePct}
+                suffix="%"
+                readOnly={readOnly}
+                onChange={readOnly ? undefined : (n) => onPatchTier(activeTier, { tablePct: n })}
+              />
+            )}
           </div>
         )}
       </div>

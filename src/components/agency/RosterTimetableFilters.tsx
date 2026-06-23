@@ -100,6 +100,7 @@ export function RosterTimetableFilters({
             <option value="">Any status</option>
             <option value="scheduled">Scheduled</option>
             <option value="assignment-pending">Awaiting PR</option>
+            <option value="outlet-request-pending">Outlet request</option>
             <option value="on-duty">On duty</option>
             <option value="swap-pending">Swap pending</option>
             <option value="unavailable">Unavailable</option>

@@ -5,6 +5,7 @@ import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { useStore } from "@/lib/store";
 import type { OutletFinanceHead, OutletOpsHead, OutletOwnerSettings } from "@/lib/outlet-demo";
 import { outletCan } from "@/lib/outlet-rbac";
+import { signOutToWelcome } from "@/lib/go-welcome";
 import {
   Building2,
   Camera,
@@ -63,7 +64,6 @@ function OutletSettingsPage() {
   const saveOutletSettings = useStore((s) => s.saveOutletSettings);
   const sendOutletOtp = useStore((s) => s.sendOutletOtp);
   const verifyOutletOtp = useStore((s) => s.verifyOutletOtp);
-  const signOut = useStore((s) => s.signOut);
   const outletSubRole = useStore((s) => s.outletSubRole);
   const toast = useStore((s) => s.toast);
 
@@ -336,7 +336,7 @@ function OutletSettingsPage() {
       <button
         type="button"
         className="mt-4 w-full rounded-full border border-[var(--iz-red)] py-3 text-sm font-semibold text-[var(--iz-red)]"
-        onClick={signOut}
+        onClick={signOutToWelcome}
       >
         Sign out
       </button>

@@ -3,6 +3,7 @@
 import {
   buildDefaultTierRates,
   cloneTierRates,
+  estimateShiftLaborCost,
   getOutletRule,
   normalizeTierRates,
   OUTLET_BASE_TIER,
@@ -29,6 +30,79 @@ export const DRESS_CODE_OPTIONS = [
   "Smart casual",
   "Formal gown",
 ] as const;
+
+export type ShiftEventKind = "normal" | "special";
+
+export const SHIFT_EVENT_KIND_LABELS: Record<ShiftEventKind, string> = {
+  normal: "Normal event",
+  special: "Special event",
+};
+
+/** Sub-types when posting a special-event shift */
+export const SHIFT_SPECIAL_EVENT_OPTIONS = [
+  { id: "vip", label: "VIP" },
+  { id: "launch", label: "Product launch" },
+  { id: "private_table", label: "Private table buyout" },
+  { id: "brand_activation", label: "Brand activation" },
+  { id: "corporate", label: "Corporate" },
+] as const;
+
+export type ShiftSpecialEventType = (typeof SHIFT_SPECIAL_EVENT_OPTIONS)[number]["id"];
+
+export function shiftSpecialEventLabel(type: string | undefined): string {
+  return SHIFT_SPECIAL_EVENT_OPTIONS.find((o) => o.id === type)?.label ?? type ?? "";
+}
+
+export function formatShiftEventTypeSummary(
+  eventKind: ShiftEventKind,
+  specialEventType?: string,
+): string {
+  if (eventKind === "normal") return SHIFT_EVENT_KIND_LABELS.normal;
+  const sub = shiftSpecialEventLabel(specialEventType);
+  return sub ? `${SHIFT_EVENT_KIND_LABELS.special} · ${sub}` : SHIFT_EVENT_KIND_LABELS.special;
+}
+
+export function formatShiftDrinkPricingSummary(
+  shift: { eventKind?: ShiftEventKind; eventDrinkMenu?: OutletDrinkPrice[] },
+  workspaceMenu: OutletDrinkPrice[] = [],
+): string {
+  if (shift.eventKind !== "special") {
+    const menu = workspaceMenu.length > 0 ? workspaceMenu : DEFAULT_OUTLET_DRINK_MENU;
+    const range = drinkMenuPriceRange(menu);
+    return `Workspace · RM ${range.min}–${range.max}`;
+  }
+  const menu = effectiveShiftDrinkMenu(shift, workspaceMenu);
+  const range = drinkMenuPriceRange(menu);
+  return menu.length > 0 ? `Event-specific · RM ${range.min}–${range.max}` : "Event-specific";
+}
+
+export type ShiftDrinkMenuLine = {
+  name: string;
+  priceRm: number;
+  changed: boolean;
+};
+
+/** Per-drink lines for event detail — flags prices that differ from workspace */
+export function shiftDrinkMenuDetailLines(
+  shift: { eventKind?: ShiftEventKind; eventDrinkMenu?: OutletDrinkPrice[] },
+  workspaceMenu: OutletDrinkPrice[] = [],
+): ShiftDrinkMenuLine[] {
+  const menu = effectiveShiftDrinkMenu(shift, workspaceMenu);
+  const workspaceById = Object.fromEntries(
+    (workspaceMenu.length > 0 ? workspaceMenu : DEFAULT_OUTLET_DRINK_MENU).map((d) => [
+      d.id,
+      d.priceRm,
+    ]),
+  );
+  return menu.map((d) => ({
+    name: d.name,
+    priceRm: d.priceRm,
+    changed:
+      shift.eventKind === "special" &&
+      shift.eventDrinkMenu != null &&
+      workspaceById[d.id] !== d.priceRm,
+  }));
+}
 
 export const PR_RATING_TAGS = [
   "Punctual",
@@ -63,6 +137,22 @@ export function drinkMenuPriceRange(menu: OutletDrinkPrice[]): { min: number; ma
   if (menu.length === 0) return { min: DEFAULT_PER_DRINK_RM, max: DEFAULT_PER_DRINK_RM };
   const prices = menu.map((d) => d.priceRm);
   return { min: Math.min(...prices), max: Math.max(...prices) };
+}
+
+export function cloneDrinkMenu(menu: OutletDrinkPrice[]): OutletDrinkPrice[] {
+  return menu.map((d) => ({ ...d }));
+}
+
+/** Special events may override workspace drink prices; normal events always use workspace menu. */
+export function effectiveShiftDrinkMenu(
+  shift: { eventKind?: ShiftEventKind; eventDrinkMenu?: OutletDrinkPrice[] },
+  workspaceMenu: OutletDrinkPrice[] = [],
+): OutletDrinkPrice[] {
+  if (shift.eventKind === "special" && shift.eventDrinkMenu && shift.eventDrinkMenu.length > 0) {
+    return shift.eventDrinkMenu;
+  }
+  if (workspaceMenu.length > 0) return workspaceMenu;
+  return DEFAULT_OUTLET_DRINK_MENU;
 }
 
 export function workspaceBaseRates(ws: Pick<
@@ -178,6 +268,14 @@ export const DEMO_SHIFT_TIER_SALES_TARGETS: Record<string, Partial<Record<Outlet
   s10: { "Tier I": 900, "Tier II": 1050, "Tier III": 1200, "Tier IV": 1400, "Tier V": 1750 },
   s11: { "Tier I": 700, "Tier II": 850, "Tier III": 1000, "Tier IV": 1200, "Tier V": 1500 },
   s12: { "Tier I": 750, "Tier II": 900, "Tier III": 1050, "Tier IV": 1250, "Tier V": 1600 },
+  s13: { "Tier I": 800, "Tier II": 950, "Tier III": 1100, "Tier IV": 1300, "Tier V": 1650 },
+  s17: {
+    "Tier I": 900,
+    "Tier II": 1100,
+    "Tier III": 1300,
+    "Tier IV": 1600,
+    "Tier V": 2200,
+  },
   s8b: { "Tier I": 650, "Tier II": 800, "Tier III": 950, "Tier IV": 1150, "Tier V": 1450 },
 };
 
@@ -391,6 +489,8 @@ export interface OutletOpsHead {
   email: string;
 }
 
+export type ShiftApplicantSource = "freelancer" | "outlet_request";
+
 export interface ShiftApplicant {
   id: string;
   shiftId: string;
@@ -398,6 +498,8 @@ export interface ShiftApplicant {
   prName: string;
   rating: number;
   status: "pending" | "accepted" | "declined";
+  /** outlet_request = agency approval flow; freelancer = marketplace applicant */
+  source?: ShiftApplicantSource;
 }
 
 const velvetRule = getOutletRule("Velvet 23");
@@ -475,4 +577,103 @@ export function shiftHoursFromLabel(shift: string): number {
   let end = parse(segments[1]);
   if (end <= start) end += 24 * 60;
   return Math.max(1, Math.round((end - start) / 60));
+}
+
+export function formatOutletShiftMetricAmount(amount: number): string {
+  const rounded = Math.round(amount);
+  if (rounded >= 1000) return `${(rounded / 1000).toFixed(1)}k`;
+  return String(rounded);
+}
+
+export function formatOutletShiftDualMetric(target: number, actual: number): string {
+  return `${formatOutletShiftMetricAmount(target)}/${formatOutletShiftMetricAmount(actual)}`;
+}
+
+export function outletShiftTargetSalesRm(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  headcount: number,
+): number {
+  const perPr = OUTLET_PR_TIERS.map((t) => tierRates[t].targetSalesRm ?? 0).filter((v) => v > 0);
+  if (!perPr.length || headcount <= 0) return 0;
+  return Math.min(...perPr) * headcount;
+}
+
+export function outletShiftActualLaborCost(
+  shift: { shift: string; prs: string[] },
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  prTierById: Record<string, string | undefined>,
+): number {
+  if (shift.prs.length === 0) return 0;
+  return estimateShiftLaborCost({
+    tierRates,
+    hours: shiftHoursFromLabel(shift.shift),
+    quantity: shift.prs.length,
+    prIds: shift.prs,
+    prTierById,
+  });
+}
+
+export function outletShiftCutLoss(targetSales: number, actualSales: number): number {
+  return Math.max(0, Math.round(targetSales - actualSales));
+}
+
+export type OutletCutLossShiftSlice = {
+  quantity: number;
+  releasedEarlyPrIds?: string[];
+  demandCut?: number;
+  salesTargetPct?: number;
+};
+
+export function outletShiftEffectiveDemand(shift: OutletCutLossShiftSlice): number {
+  return Math.max(0, shift.quantity - (shift.demandCut ?? 0));
+}
+
+/** PRs booked onto this shift (scheduled or on the floor). */
+export function outletShiftSuppliedCount(shift: { prs?: string[] }): number {
+  return shift.prs?.length ?? 0;
+}
+
+export function outletShiftDemandSupplied(shift: OutletCutLossShiftSlice & { prs?: string[] }) {
+  const demand = outletShiftEffectiveDemand(shift);
+  const supplied = outletShiftSuppliedCount(shift);
+  return {
+    demand,
+    supplied,
+    openSlots: Math.max(0, demand - supplied),
+  };
+}
+
+export function outletShiftSalesTargetHeadcount(shift: OutletCutLossShiftSlice): number {
+  const released = shift.releasedEarlyPrIds?.length ?? 0;
+  return Math.max(0, outletShiftEffectiveDemand(shift) - released);
+}
+
+export function outletShiftTargetSalesForShift(
+  shift: OutletCutLossShiftSlice,
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+): number {
+  const headcount = outletShiftSalesTargetHeadcount(shift);
+  const base = outletShiftTargetSalesRm(tierRates, headcount);
+  const pct = Math.max(0, Math.min(100, shift.salesTargetPct ?? 100));
+  return Math.round((base * pct) / 100);
+}
+
+export function outletUnfilledDemandSlots(
+  shift: OutletCutLossShiftSlice & { prs?: string[] },
+): number {
+  return Math.max(0, outletShiftSalesTargetHeadcount(shift) - outletShiftSuppliedCount(shift));
+}
+
+export function outletShiftCutLossAdjustmentsLabel(shift: {
+  releasedEarlyPrIds?: string[];
+  demandCut?: number;
+  salesTargetPct?: number;
+}): string | null {
+  const parts: string[] = [];
+  const released = shift.releasedEarlyPrIds?.length ?? 0;
+  if (released > 0) parts.push(`${released} released early`);
+  if ((shift.demandCut ?? 0) > 0) parts.push(`${shift.demandCut} demand cut`);
+  const pct = shift.salesTargetPct ?? 100;
+  if (pct < 100) parts.push(`${pct}% target`);
+  return parts.length ? parts.join(" · ") : null;
 }

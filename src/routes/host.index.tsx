@@ -22,7 +22,7 @@ import {
   resolvePrShiftOfferForPr,
   shiftIndexForOutlet,
 } from "@/lib/pr-session";
-import { DEFAULT_ROSTER_DATE_ISO, outletPendingShiftsForPr } from "@/lib/roster-availability";
+import { DEFAULT_ROSTER_DATE_ISO, outletPendingShiftsForPr, pendingAgencyAssignmentsForPr } from "@/lib/roster-availability";
 import {
   PR_AGENCY_TIED_OFFERS,
   PR_MARKETPLACE_LISTINGS,
@@ -95,6 +95,7 @@ function HostShifts() {
   const prUpcomingShifts = useStore((s) => s.prUpcomingShifts);
   const prSwapRequests = useStore((s) => s.prSwapRequests);
   const confirmOutletRosterSlot = useStore((s) => s.confirmOutletRosterSlot);
+  const approveAgencyAssignmentByPr = useStore((s) => s.approveAgencyAssignmentByPr);
   const declineAgencyAssignmentByPr = useStore((s) => s.declineAgencyAssignmentByPr);
   const togglePrDayAvailability = useStore((s) => s.togglePrDayAvailability);
   const cancelPrRosterShift = useStore((s) => s.cancelPrRosterShift);
@@ -144,6 +145,10 @@ function HostShifts() {
     () => outletPendingShiftsForPr(agencyRoster, myRosterId),
     [agencyRoster, myRosterId],
   );
+  const pendingAssignments = useMemo(
+    () => pendingAgencyAssignmentsForPr(agencyRoster, myRosterId),
+    [agencyRoster, myRosterId],
+  );
   const mySwapRequests = useMemo(
     () => prSwapRequests.filter((s) => s.requestingPrId === myRosterId),
     [prSwapRequests, myRosterId],
@@ -183,6 +188,7 @@ function HostShifts() {
     pendingServices.length +
     swapOffers.length +
     outletPendingShifts.length +
+    pendingAssignments.length +
     (pendingApproval ? 1 : 0) +
     (!tied && prMarketplaceApplication?.status === "pending" ? 1 : 0);
   const todayStatus = checkedIn
@@ -258,7 +264,7 @@ function HostShifts() {
   const statusLabel =
     blockingSwap?.status === "pending_replacement"
       ? "Swap pending"
-      : outletPendingShifts.length > 0
+      : outletPendingShifts.length > 0 || pendingAssignments.length > 0
         ? "Action needed"
         : todoCount > 0
           ? `${todoCount} to-do`
@@ -441,6 +447,14 @@ function HostShifts() {
                       </PrStatusPill>
                     }
                   />
+                  {agencyTonight.status === "assignment-pending" && (
+                    <PrOfferRowActions
+                      primaryLabel="Accept"
+                      onPrimary={() => approveAgencyAssignmentByPr(agencyTonight.id)}
+                      secondaryLabel="Decline"
+                      onSecondary={() => declineAgencyAssignmentByPr(agencyTonight.id)}
+                    />
+                  )}
                 </div>
               ) : (
                 <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
@@ -487,6 +501,19 @@ function HostShifts() {
                         setSwapRejectId(offer.id);
                         setSwapRejectReason("");
                       }}
+                    />
+                  ))}
+                  {pendingAssignments
+                    .filter((slot) => slot.id !== agencyTonight?.id)
+                    .map((slot) => (
+                    <InboxCard
+                      key={slot.id}
+                      title={slot.outlet}
+                      subtitle={`${slot.date} · ${slot.shift}${
+                        slot.agencyAssignment?.requestedByOutlet ? " · Outlet requested you" : ""
+                      }`}
+                      onApprove={() => approveAgencyAssignmentByPr(slot.id)}
+                      onReject={() => declineAgencyAssignmentByPr(slot.id)}
                     />
                   ))}
                   {outletPendingShifts.map((slot) => (
@@ -581,6 +608,7 @@ function HostShifts() {
                   upcoming={prUpcomingShifts}
                   onToggleAvailability={togglePrDayAvailability}
                   onCancelShift={cancelPrRosterShift}
+                  onAcceptAssignment={approveAgencyAssignmentByPr}
                   onDeclineAssignment={declineAgencyAssignmentByPr}
                 />
               </PrSection>

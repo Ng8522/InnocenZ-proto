@@ -11,7 +11,7 @@ import { addDaysToIso, migrateDemoDateIso, migrateDemoYmd } from "@/lib/demo-clo
 import { resolveOutletTierRates } from "@/lib/outlet-agency-sync";
 import { PR_AGENCY_TIED_OFFERS, type AgencyTiedOffer } from "@/lib/pr-features";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
-import { SHIFT_DESTINATION_LABELS, type ShiftDestination, type OutletWorkspaceSettings } from "@/lib/outlet-demo";
+import { SHIFT_DESTINATION_LABELS, formatShiftEventTypeSummary, outletShiftDemandSupplied, type ShiftDestination, type ShiftEventKind, type OutletWorkspaceSettings } from "@/lib/outlet-demo";
 import type { ShiftRequest } from "@/lib/store";
 
 export type OutletShiftSource = "posted" | "tied-offer" | "assignment-pending";
@@ -30,6 +30,9 @@ export type AgencyOutletAvailableShift = {
   payEstimate: number;
   languages?: string;
   destination?: ShiftDestination;
+  eventKind?: ShiftEventKind;
+  specialEventType?: string;
+  /** Legacy tied-offer flag — prefer eventKind / specialEventType */
   vip?: boolean;
   briefing?: string;
   tierRates: Record<OutletPrTier, OutletTierRateSettings>;
@@ -118,6 +121,25 @@ function outletDefaultTierRates(outlet: string, ctx: TierRatesContext) {
   return resolveOutletTierRates(outlet, ctx.commissionRules, ctx.workspace);
 }
 
+function postedShiftEventFields(
+  shift: Pick<ShiftRequest, "eventKind" | "specialEventType">,
+): Pick<AgencyOutletAvailableShift, "eventKind" | "specialEventType" | "vip"> {
+  const eventKind = shift.eventKind ?? "normal";
+  const specialEventType = eventKind === "special" ? shift.specialEventType : undefined;
+  return {
+    eventKind,
+    specialEventType,
+    vip: eventKind === "special" && specialEventType === "vip",
+  };
+}
+
+function tiedOfferEventFields(
+  vip?: boolean,
+): Pick<AgencyOutletAvailableShift, "eventKind" | "specialEventType" | "vip"> {
+  if (!vip) return { eventKind: "normal", vip: false };
+  return { eventKind: "special", specialEventType: "vip", vip: true };
+}
+
 function shiftsFromPosted(
   outlet: string,
   posted: ShiftRequest[],
@@ -132,22 +154,23 @@ function shiftsFromPosted(
         (s.destination === "agency" || s.destination === "both"),
     )
     .map((s) => {
-      const openSlots = Math.max(0, s.quantity - s.filled);
+      const { demand, supplied, openSlots } = outletShiftDemandSupplied(s);
       return {
         id: `posted-${s.id}`,
         source: "posted" as const,
         outlet,
         date: s.date,
-        dateIso: resolveOutletShiftDateIso(s.date, s.date, todayIso),
+        dateIso: s.dateIso ?? resolveOutletShiftDateIso(s.date, s.date, todayIso),
         shift: s.shift,
         event: s.event,
-        demandSlots: s.quantity,
-        suppliedSlots: s.filled,
+        demandSlots: demand,
+        suppliedSlots: supplied,
         openSlots,
         payEstimate: s.estimatedCost,
         languages: s.languages,
         destination: s.destination,
         tierRates: s.tierRates ?? outletDefaultTierRates(outlet, ctx),
+        ...postedShiftEventFields(s),
       };
     })
     .filter((s) => s.openSlots > 0 && isUpcomingOutletShift(s, todayIso));
@@ -178,7 +201,7 @@ function shiftsFromTied(
         suppliedSlots,
         openSlots: Math.max(0, demandSlots - suppliedSlots),
         payEstimate: o.base + o.comm,
-        vip: o.vip,
+        ...tiedOfferEventFields(o.vip),
         destination: "agency" as const,
         briefing: o.briefing,
         tierRates: outletDefaultTierRates(outlet, ctx),
@@ -281,7 +304,8 @@ function resolveOutletShiftDateIso(
   if (raw === "Tonight" || date === "Tonight") return todayIso;
   if (raw === "Tomorrow" || date === "Tomorrow") return addDaysToIso(todayIso, 1);
 
-  const parsed = (raw.match(/(\d{1,2})\s+([A-Za-z]{3})/) ?? date.match(/(\d{1,2})\s+([A-Za-z]{3})/));
+  const parsed =
+    raw.match(/(\d{1,2})\s+([A-Za-z]{3})/) ?? date.match(/(\d{1,2})\s+([A-Za-z]{3})/);
   if (parsed) {
     const day = Number(parsed[1]);
     const monthKey = parsed[2].slice(0, 3).toLowerCase();
@@ -301,13 +325,21 @@ function resolveOutletShiftDateIso(
     };
     const month = monthMap[monthKey];
     if (month) {
-      const year = Number(todayIso.slice(0, 4));
+      const [refY, refM, refD] = todayIso.split("-").map(Number);
+      let year = Number(raw.match(/\b(20\d{2})\b/)?.[1] ?? todayIso.slice(0, 4));
+      const today = new Date(refY, refM - 1, refD);
+      const candidate = new Date(year, month - 1, day);
+      const diffDays = (today.getTime() - candidate.getTime()) / 86_400_000;
+      if (!raw.match(/\b20\d{2}\b/) && diffDays > 45) year += 1;
+      else if (!raw.match(/\b20\d{2}\b/) && diffDays < -330) year -= 1;
       return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     }
   }
 
   return raw;
 }
+
+export { resolveOutletShiftDateIso };
 
 export function formatOutletDayLabel(dateIso: string, todayIso: string = DEFAULT_ROSTER_DATE_ISO): string {
   if (dateIso === todayIso) return "Today";
@@ -364,7 +396,8 @@ export function buildOutletDayDemandSummaries(input: {
       shift.date === "Tonight" || shift.date === "Tomorrow"
         ? shift.date
         : formatOutletDayLabel(dateIso, todayIso);
-    bump(dateIso, dateLabel, shift.quantity, shift.filled);
+    const { demand, supplied } = outletShiftDemandSupplied(shift);
+    bump(dateIso, dateLabel, demand, supplied);
   }
 
   for (const offer of tied.filter((o) => o.outlet === input.outlet)) {
@@ -542,12 +575,71 @@ export function shiftDestinationLabel(destination?: ShiftDestination) {
   return destination ? SHIFT_DESTINATION_LABELS[destination] : undefined;
 }
 
-export function outletShiftEventTypeLabel(vip?: boolean) {
-  return vip ? "VIP" : "Standard";
+export function outletShiftEventTypeLabel(
+  shift: Pick<AgencyOutletAvailableShift, "eventKind" | "specialEventType" | "vip">,
+): string {
+  if (shift.eventKind === "special") {
+    return formatShiftEventTypeSummary("special", shift.specialEventType);
+  }
+  if (shift.vip) return formatShiftEventTypeSummary("special", "vip");
+  return formatShiftEventTypeSummary("normal");
+}
+
+export function outletShiftIsSpecialEvent(
+  shift: Pick<AgencyOutletAvailableShift, "eventKind" | "specialEventType" | "vip">,
+): boolean {
+  return shift.eventKind === "special" || Boolean(shift.vip);
 }
 
 export function outletShiftStaffingLabel(destination?: ShiftDestination) {
   return destination ? SHIFT_DESTINATION_LABELS[destination] : SHIFT_DESTINATION_LABELS.agency;
+}
+
+/** Outlet home — same posted shifts as agency Manage Outlet, plus live confirmed shifts */
+export function outletHomeShiftRequests(input: {
+  shifts: ShiftRequest[];
+  outletName: string;
+  roster: AgencyRosterSlot[];
+  tiedOffers?: AgencyTiedOffer[];
+  todayIso?: string;
+  commissionRules?: OutletCommissionRule[];
+  outletWorkspace?: Pick<OutletWorkspaceSettings, "outletName" | "tierRates">;
+}): ShiftRequest[] {
+  const todayIso = input.todayIso ?? DEFAULT_ROSTER_DATE_ISO;
+  const [summary] = buildAgencyOutletSummaries({
+    outlets: [input.outletName],
+    shifts: input.shifts,
+    roster: input.roster,
+    tiedOffers: input.tiedOffers,
+    todayIso,
+    commissionRules: input.commissionRules,
+    outletWorkspace: input.outletWorkspace,
+  });
+  const agencyPostedIds = new Set(
+    (summary?.shifts ?? [])
+      .filter((shift) => shift.id.startsWith("posted-"))
+      .map((shift) => shift.id.slice("posted-".length)),
+  );
+
+  return input.shifts
+    .filter((shift) => {
+      if (shift.outletName !== input.outletName) return false;
+      if (shift.status === "sealed" || shift.status === "draft") return false;
+      if (agencyPostedIds.has(shift.id)) return true;
+      return (
+        shift.status === "confirmed" &&
+        isUpcomingOutletShift({ date: shift.date }, todayIso)
+      );
+    })
+    .sort((a, b) => {
+      const rank = (date: string) => (date === "Tonight" ? 0 : date === "Tomorrow" ? 1 : 2);
+      const ra = rank(a.date);
+      const rb = rank(b.date);
+      if (ra !== rb) return ra - rb;
+      const isoA = resolveOutletShiftDateIso(a.date, undefined, todayIso);
+      const isoB = resolveOutletShiftDateIso(b.date, undefined, todayIso);
+      return isoA.localeCompare(isoB) || a.event.localeCompare(b.event);
+    });
 }
 
 export type PlanningWeekOutletShiftInput = {
@@ -648,8 +740,8 @@ function shiftsFromPostedForWeek(
         (s.destination === "agency" || s.destination === "both"),
     )
     .map((s) => {
-      const openSlots = Math.max(0, s.quantity - s.filled);
-      const dateIso = resolveOutletShiftDateIso(s.date, s.date, todayIso);
+      const { demand, supplied, openSlots } = outletShiftDemandSupplied(s);
+      const dateIso = s.dateIso ?? resolveOutletShiftDateIso(s.date, s.date, todayIso);
       return {
         id: `posted-${s.id}`,
         source: "posted" as const,
@@ -658,13 +750,14 @@ function shiftsFromPostedForWeek(
         dateIso,
         shift: s.shift,
         event: s.event,
-        demandSlots: s.quantity,
-        suppliedSlots: s.filled,
+        demandSlots: demand,
+        suppliedSlots: supplied,
         openSlots,
         payEstimate: s.estimatedCost,
         languages: s.languages,
         destination: s.destination,
         tierRates: s.tierRates ?? outletDefaultTierRates(outlet, ctx),
+        ...postedShiftEventFields(s),
       };
     })
     .filter((s) => weekDays.has(s.dateIso));
@@ -696,7 +789,7 @@ function shiftsFromTiedForWeek(
         suppliedSlots,
         openSlots: Math.max(0, demandSlots - suppliedSlots),
         payEstimate: o.base + o.comm,
-        vip: o.vip,
+        ...tiedOfferEventFields(o.vip),
         destination: "agency" as const,
         briefing: o.briefing,
         tierRates: outletDefaultTierRates(outlet, ctx),

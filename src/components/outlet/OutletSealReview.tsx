@@ -24,23 +24,20 @@ export function OutletSealReview({
     if (!shift) return [];
     const hours = shiftHoursFromLabel(shift.shift);
     const drinkUnits = shift.drinkUnits ?? 0;
-    const tableUnits = shift.tableUnits ?? 0;
     const perPr = Math.max(shift.prs.length, 1);
     return shift.prs.map((prId) => {
       const pr = agencyPRs.find((p) => p.id === prId);
       const roster = agencyRoster.find((s) => s.prId === prId && s.status === "on-duty");
       const drinks = Math.round(drinkUnits / perPr);
-      const tables = Math.round(tableUnits / perPr);
       const drinkSales = drinks * (shift.perDrinkRm ?? 120);
-      const tableSales = tables * (shift.perTableRm ?? 95);
-      const tips = roster?.floorTips ?? Math.round(tableSales * 0.2);
+      const tips = roster?.floorTips ?? 0;
       const payout = calcShiftPayout({
         outlet: shift.outletName,
         hoursWorked: hours,
         drinks,
         drinkSales,
         tips,
-        tableSales,
+        tableSales: 0,
         prTier: pr?.trainingLevel,
         shiftTierRates: shift.tierRates,
       });
@@ -49,7 +46,6 @@ export function OutletSealReview({
         prName: pr?.name ?? prId,
         hours,
         drinks,
-        tables,
         tips,
         payout,
       };
@@ -70,10 +66,9 @@ export function OutletSealReview({
         {rows.map((r) => (
           <IzCard key={r.prId} flat className="!py-2.5">
             <div className="font-sora text-sm font-bold">{r.prName}</div>
-            <div className="mt-1 grid grid-cols-4 gap-1 text-[10px] text-[var(--iz-muted)]">
+            <div className="mt-1 grid grid-cols-3 gap-1 text-[10px] text-[var(--iz-muted)]">
               <span>{r.hours}h</span>
               <span>{r.drinks} drinks</span>
-              <span>{r.tables} tables</span>
               <span>{formatRM(r.tips)} tips</span>
             </div>
             <div className="mt-1 text-xs font-semibold text-[var(--iz-gold)]">{formatRM(r.payout.total)} PV est.</div>

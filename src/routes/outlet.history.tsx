@@ -26,5 +26,15 @@ function OutletHistory() {
     return `${rows.length} PR shifts · ${range} · RM ${totalPayout.toLocaleString()} paid out`;
   }, [rows]);
 
-  return <ShiftHistoryLog portal="outlet" rows={rows} subtitle={subtitle} />;
+  return (
+    <ShiftHistoryLog
+      portal="outlet"
+      rows={rows}
+      subtitle={
+        subtitle
+          ? `${subtitle} · Tap a PR for shift-by-shift history`
+          : "Tap a PR for shift-by-shift history"
+      }
+    />
+  );
 }

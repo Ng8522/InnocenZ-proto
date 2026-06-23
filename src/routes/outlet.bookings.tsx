@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { useMemo, useState } from "react";
 
@@ -7,6 +7,8 @@ import { useStore } from "@/lib/store";
 import { AppTopbar } from "@/components/Nav";
 
 import { IzSectionLabel } from "@/components/iz/ui";
+
+import { OutletServicePostSection } from "@/components/outlet/outlet-service-post";
 
 import {
 
@@ -19,22 +21,35 @@ import {
   draftTierRatesFromWorkspace,
 
   estimateDraftShiftCost,
-
   formatJobDate,
-
+  isoFromJobDate,
+  languagesForPrIds,
   newDraftShift,
-
   starTierToMinRating,
 
   type DraftShift,
 
 } from "@/components/outlet/post-job-fields";
 
-import { ChevronRight, Plus } from "lucide-react";
+import { outletCan } from "@/lib/outlet-rbac";
+
+import { cn } from "@/lib/utils";
+
+import { ChevronRight, Plus, Sparkles } from "lucide-react";
+
+
+
+type PostJobTab = "shifts" | "services";
 
 
 
 export const Route = createFileRoute("/outlet/bookings")({
+
+  validateSearch: (search: Record<string, unknown>): { tab?: PostJobTab } => ({
+
+    tab: search.tab === "services" ? "services" : "shifts",
+
+  }),
 
   component: PostJobPage,
 
@@ -43,6 +58,38 @@ export const Route = createFileRoute("/outlet/bookings")({
 
 
 function PostJobPage() {
+
+  const navigate = useNavigate({ from: Route.fullPath });
+
+  const { tab: searchTab } = Route.useSearch();
+
+  const outletSubRole = useStore((s) => s.outletSubRole);
+
+  const canPostShifts = outletCan(outletSubRole, "postJob");
+
+  const canOrderServices = outletCan(outletSubRole, "orderSpecialService");
+
+  const tab: PostJobTab = useMemo(() => {
+
+    if (searchTab === "services" && canOrderServices) return "services";
+
+    if (searchTab === "shifts" && canPostShifts) return "shifts";
+
+    if (canPostShifts) return "shifts";
+
+    return "services";
+
+  }, [searchTab, canPostShifts, canOrderServices]);
+
+
+
+  const setTab = (next: PostJobTab) => {
+
+    navigate({ search: { tab: next } });
+
+  };
+
+
 
   const { createShifts, outletWorkspace, agencyPRs } = useStore();
 
@@ -60,7 +107,7 @@ function PostJobPage() {
 
   const [composer, setComposer] = useState<DraftShift>(() =>
 
-    newDraftShift(undefined, outletWorkspace.tierRates),
+    newDraftShift(undefined, outletWorkspace),
 
   );
 
@@ -77,6 +124,18 @@ function PostJobPage() {
       jobDate: composer.jobDate,
 
       event: composer.event,
+
+      eventKind: composer.eventKind,
+
+      specialEventType: composer.specialEventType,
+
+      eventDrinkMenu:
+
+        composer.eventKind === "special"
+
+          ? composer.eventDrinkMenu?.map((d) => ({ ...d }))
+
+          : undefined,
 
       langs: [...composer.langs],
 
@@ -166,13 +225,25 @@ function PostJobPage() {
 
         date: formatJobDate(s.jobDate),
 
+        dateIso: isoFromJobDate(s.jobDate),
+
         shift: s.shiftTime,
 
         quantity: s.quantity,
 
-        languages: buildLanguagesLabel(s.langs, s.otherLang),
+        languages: buildLanguagesLabel(
+          s.langs.length > 0 ? s.langs : languagesForPrIds(s.prIds, agencyPRs),
+          s.otherLang,
+        ),
 
         event: s.event,
+
+        eventKind: s.eventKind,
+
+        specialEventType: s.eventKind === "special" ? s.specialEventType : undefined,
+
+        eventDrinkMenu:
+          s.eventKind === "special" ? s.eventDrinkMenu?.map((d) => ({ ...d })) : undefined,
 
         preferredRating: Math.min(...s.starTiers.map(starTierToMinRating)),
 
@@ -196,7 +267,7 @@ function PostJobPage() {
 
     );
 
-    setComposer(newDraftShift(undefined, outletWorkspace.tierRates));
+    setComposer(newDraftShift(undefined, outletWorkspace));
 
     setDraftShifts([]);
 
@@ -206,11 +277,41 @@ function PostJobPage() {
 
 
 
+  const showTabs = canPostShifts && canOrderServices;
+
+
+
+  if (!canPostShifts && !canOrderServices) {
+
+    return (
+
+      <div className="iz-screen">
+
+        <header className="pt-1">
+
+          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
+
+        </header>
+
+        <p className="iz-tiny iz-muted mt-3 rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
+
+          Your outlet role cannot post shifts or order services.
+
+        </p>
+
+      </div>
+
+    );
+
+  }
+
+
+
   return (
 
     <div className="iz-screen">
 
-      {editingShiftId && (
+      {editingShiftId && tab === "shifts" && (
 
         <AppTopbar onBack={() => setEditingShiftId(null)} backLabel="Shift list" />
 
@@ -218,143 +319,209 @@ function PostJobPage() {
 
       <header className="pt-1">
 
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Post shift</h2>
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Post Job</h2>
 
-        <p className="iz-tiny iz-muted mt-0.5">Add shifts to your list, then post when ready.</p>
+        <p className="iz-tiny iz-muted mt-0.5">
+
+          {tab === "shifts"
+
+            ? "Add shifts to your list, then post when ready."
+
+            : `${outletWorkspace.outletName} · agency add-ons`}
+
+        </p>
 
       </header>
 
 
 
-      <section className="pt-3">
+      {showTabs && (
 
-        <DraftShiftEditor
+        <div className="mt-3 flex gap-1 rounded-xl border border-[var(--iz-line)] bg-white/[0.02] p-1">
 
-          shift={composer}
+          <button
 
-          onChange={(patch) => setComposer((c) => ({ ...c, ...patch }))}
+            type="button"
 
-          title="Shift details"
+            onClick={() => setTab("shifts")}
 
-        />
+            className={cn(
 
+              "iz-btn iz-btn-sm min-w-0 flex-1 !py-2 !text-xs",
 
-
-        <button type="button" onClick={addDraftShift} className="iz-btn iz-btn-soft mt-2 w-full">
-
-          <Plus className="h-4 w-4" />
-
-          {draftShifts.length === 0 ? "Add shift" : "Add another shift"}
-
-        </button>
-
-
-
-        <div className="mt-4 flex items-center justify-between">
-
-          <IzSectionLabel>Shifts for {sectionDate.toLowerCase()}</IzSectionLabel>
-
-          <span className="text-[10px] text-[var(--iz-muted)]">
-
-            {draftShifts.length} slot{draftShifts.length !== 1 ? "s" : ""}
-
-          </span>
-
-        </div>
-
-
-
-        {draftShifts.length === 0 ? (
-
-          <p className="mt-3 rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center text-xs text-[var(--iz-muted)]">
-
-            No shifts added yet. Configure details above, then tap Add shift.
-
-          </p>
-
-        ) : (
-
-          <div className="mt-3 flex flex-col gap-4">
-
-            {draftShifts.map((s, i) =>
-
-              editingShiftId === s.id ? (
-
-                <DraftShiftEditor
-
-                  key={s.id}
-
-                  shift={s}
-
-                  onChange={(patch) => updateDraftShift(s.id, patch)}
-
-                  onRemove={() => removeDraftShift(s.id)}
-
-                  showRemove
-
-                  title={`Shift ${i + 1}`}
-
-                  onDone={() => setEditingShiftId(null)}
-
-                />
-
-              ) : (
-
-                <DraftShiftSummary
-
-                  key={s.id}
-
-                  shift={s}
-
-                  title={`Shift ${i + 1}`}
-
-                  onEdit={() => setEditingShiftId(s.id)}
-
-                  onRemove={() => removeDraftShift(s.id)}
-
-                  showRemove
-
-                />
-
-              ),
+              tab === "shifts" ? "iz-btn-primary" : "iz-btn-ghost",
 
             )}
 
-          </div>
+          >
 
-        )}
+            <Plus className="h-3.5 w-3.5" /> Shifts
 
+          </button>
 
+          <button
 
-        <div className="mt-3 grid grid-cols-2 gap-2.5">
+            type="button"
 
-          <Stat label="Total headcount" value={String(totalHeadcount)} />
+            onClick={() => setTab("services")}
 
-          <Stat label="Estimated cost" value={`RM ${totalCost.toLocaleString()}`} valueClass="text-[var(--iz-gold)]" />
+            className={cn(
+
+              "iz-btn iz-btn-sm min-w-0 flex-1 !py-2 !text-xs",
+
+              tab === "services" ? "iz-btn-primary" : "iz-btn-ghost",
+
+            )}
+
+          >
+
+            <Sparkles className="h-3.5 w-3.5" /> Services
+
+          </button>
 
         </div>
 
+      )}
 
 
-        <button
 
-          type="button"
+      {tab === "shifts" && canPostShifts ? (
 
-          onClick={submitNew}
+        <section className="pt-3">
 
-          disabled={draftShifts.length === 0}
+          <DraftShiftEditor
 
-          className="iz-btn iz-btn-primary mt-3 disabled:opacity-40"
+            shift={composer}
 
-        >
+            onChange={(patch) => setComposer((c) => ({ ...c, ...patch }))}
 
-          Post{draftShifts.length > 0 ? ` ${draftShifts.length}` : ""} shift{draftShifts.length !== 1 ? "s" : ""}{" "}
+            title="Shift details"
 
-          <ChevronRight className="h-4 w-4" />
+          />
 
-        </button>
 
-      </section>
+
+          <button type="button" onClick={addDraftShift} className="iz-btn iz-btn-soft mt-2 w-full">
+
+            <Plus className="h-4 w-4" />
+
+            {draftShifts.length === 0 ? "Add shift" : "Add another shift"}
+
+          </button>
+
+
+
+          <div className="mt-4 flex items-center justify-between">
+
+            <IzSectionLabel>Shifts for {sectionDate.toLowerCase()}</IzSectionLabel>
+
+            <span className="text-[10px] text-[var(--iz-muted)]">
+
+              {draftShifts.length} slot{draftShifts.length !== 1 ? "s" : ""}
+
+            </span>
+
+          </div>
+
+
+
+          {draftShifts.length === 0 ? (
+
+            <p className="mt-3 rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center text-xs text-[var(--iz-muted)]">
+
+              No shifts added yet. Configure details above, then tap Add shift.
+
+            </p>
+
+          ) : (
+
+            <div className="mt-3 flex flex-col gap-4">
+
+              {draftShifts.map((s, i) =>
+
+                editingShiftId === s.id ? (
+
+                  <DraftShiftEditor
+
+                    key={s.id}
+
+                    shift={s}
+
+                    onChange={(patch) => updateDraftShift(s.id, patch)}
+
+                    onRemove={() => removeDraftShift(s.id)}
+
+                    showRemove
+
+                    title={`Shift ${i + 1}`}
+
+                    onDone={() => setEditingShiftId(null)}
+
+                  />
+
+                ) : (
+
+                  <DraftShiftSummary
+
+                    key={s.id}
+
+                    shift={s}
+
+                    title={`Shift ${i + 1}`}
+
+                    onEdit={() => setEditingShiftId(s.id)}
+
+                    onRemove={() => removeDraftShift(s.id)}
+
+                    showRemove
+
+                  />
+
+                ),
+
+              )}
+
+            </div>
+
+          )}
+
+
+
+          <div className="mt-3 grid grid-cols-2 gap-2.5">
+
+            <Stat label="Total headcount" value={String(totalHeadcount)} />
+
+            <Stat label="Estimated cost" value={`RM ${totalCost.toLocaleString()}`} valueClass="text-[var(--iz-gold)]" />
+
+          </div>
+
+
+
+          <button
+
+            type="button"
+
+            onClick={submitNew}
+
+            disabled={draftShifts.length === 0}
+
+            className="iz-btn iz-btn-primary mt-3 disabled:opacity-40"
+
+          >
+
+            Post{draftShifts.length > 0 ? ` ${draftShifts.length}` : ""} shift{draftShifts.length !== 1 ? "s" : ""}{" "}
+
+            <ChevronRight className="h-4 w-4" />
+
+          </button>
+
+        </section>
+
+      ) : canOrderServices ? (
+
+        <OutletServicePostSection />
+
+      ) : null}
 
     </div>
 
@@ -379,4 +546,3 @@ function Stat({ label, value, valueClass = "" }: { label: string; value: string;
   );
 
 }
-

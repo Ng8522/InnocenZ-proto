@@ -8,6 +8,7 @@ import {
   buildPrScheduleDays,
   buildTimetableEntries,
   dayCanToggleAvailability,
+  entryCanAccept,
   entryCanCancel,
   entryCanDecline,
   type ShiftDataSource,
@@ -36,6 +37,7 @@ export function PrAgencySchedulePanel({
   upcoming,
   onToggleAvailability,
   onCancelShift,
+  onAcceptAssignment,
   onDeclineAssignment,
 }: {
   prId: string;
@@ -43,6 +45,7 @@ export function PrAgencySchedulePanel({
   upcoming: PrUpcomingShift[];
   onToggleAvailability: (dateIso: string) => void;
   onCancelShift: (slotId: string) => void;
+  onAcceptAssignment: (slotId: string) => void;
   onDeclineAssignment: (slotId: string) => void;
 }) {
   const scheduleDays = useMemo(
@@ -254,6 +257,7 @@ export function PrAgencySchedulePanel({
               <TimetableRow
                 key={entry.id}
                 entry={entry}
+                onAccept={() => entry.slot && onAcceptAssignment(entry.slot.id)}
                 onDecline={() => entry.slot && onDeclineAssignment(entry.slot.id)}
                 onCancel={() => entry.slot && setCancelSlotId(entry.slot.id)}
               />
@@ -313,10 +317,12 @@ function SourceBadge({ source, label }: { source: ShiftDataSource; label: string
 
 function TimetableRow({
   entry,
+  onAccept,
   onDecline,
   onCancel,
 }: {
   entry: TimetableEntry;
+  onAccept: () => void;
   onDecline: () => void;
   onCancel: () => void;
 }) {
@@ -344,9 +350,14 @@ function TimetableRow({
         </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
+        {entryCanAccept(entry) && (
+          <button type="button" className="iz-btn iz-btn-primary iz-btn-sm" onClick={onAccept}>
+            Accept shift
+          </button>
+        )}
         {entryCanDecline(entry) && (
           <button type="button" className="iz-btn iz-btn-soft iz-btn-sm" onClick={onDecline}>
-            Decline assignment
+            Decline
           </button>
         )}
         {entryCanCancel(entry) && entry.slot && (

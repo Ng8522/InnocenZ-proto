@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import type { AgencyFinanceHead, AgencyOwnerSettings } from "@/lib/agency-demo";
 import { getAgencySubscriptionPlan } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
+import { signOutToWelcome } from "@/lib/go-welcome";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { Building2, Camera, Mail, Pencil, Phone, Shield, User, X } from "lucide-react";
 
@@ -21,7 +22,6 @@ function AgencyProfile() {
   const saveAgencyProfileSettings = useStore((s) => s.saveAgencyProfileSettings);
   const sendAgencyOtp = useStore((s) => s.sendAgencyOtp);
   const verifyAgencyOtp = useStore((s) => s.verifyAgencyOtp);
-  const signOut = useStore((s) => s.signOut);
   const agencySubRole = useStore((s) => s.agencySubRole);
   const toast = useStore((s) => s.toast);
   const [editing, setEditing] = useState(false);
@@ -292,7 +292,7 @@ function AgencyProfile() {
       <button
         type="button"
         className="mt-4 w-full rounded-full border border-[var(--iz-red)] py-3 text-sm font-semibold text-[var(--iz-red)]"
-        onClick={signOut}
+        onClick={signOutToWelcome}
       >
         Sign out
       </button>

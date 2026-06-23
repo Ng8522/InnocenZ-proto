@@ -8,7 +8,13 @@ import { RosterShiftFilters } from "@/components/agency/RosterShiftFilters";
 import { RosterShiftTable } from "@/components/agency/RosterShiftTable";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
-import { nowAgencyDateTime, OUTLET_NAMES, type AgencyRosterSlot, type RosterSlotStatus } from "@/lib/agency-demo";
+import {
+  nowAgencyDateTime,
+  OUTLET_NAMES,
+  rosterPageDisplayStatus,
+  type AgencyRosterSlot,
+  type RosterSlotStatus,
+} from "@/lib/agency-demo";
 import { deriveLiveWorkforce } from "@/lib/portal-sync";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzCard, IzPill, IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
@@ -31,11 +37,11 @@ export const Route = createFileRoute("/agency/roster")({
   component: AgencyRoster,
 });
 
-const EDITABLE_STATUSES: RosterSlotStatus[] = ["scheduled", "on-duty", "en-route", "unavailable"];
+const EDITABLE_STATUSES: RosterSlotStatus[] = ["scheduled", "on-duty", "unavailable"];
 
 const STATUS_LABEL: Record<RosterSlotStatus, { label: string; variant: "green" | "amber" | "red" | "violet" | "ink" }> = {
   "on-duty": { label: "On duty", variant: "green" },
-  "en-route": { label: "En route", variant: "amber" },
+  "en-route": { label: "Scheduled", variant: "ink" },
   scheduled: { label: "Scheduled", variant: "ink" },
   unavailable: { label: "Unavailable", variant: "red" },
   "swap-pending": { label: "Swap pending", variant: "violet" },
@@ -129,8 +135,16 @@ function AgencyRoster() {
     () => deriveLiveWorkforce(agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm),
     [agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm],
   );
-  const activeCount = workforce.filter((w) => w.status === "on-duty" || w.status === "en-route").length;
-  const estPayoutLive = useMemo(() => workforce.reduce((s, w) => s + w.estPayout, 0), [workforce]);
+  const activeCount = dateFiltered.filter((s) => s.status === "on-duty" && !!s.checkedInAt).length;
+  const liveWorkforce = useMemo(
+    () => workforce.filter((w) => w.status === "on-duty"),
+    [workforce],
+  );
+  const plannedCount = useMemo(
+    () => dateFiltered.filter((s) => s.status !== "unavailable").length,
+    [dateFiltered],
+  );
+  const estPayoutLive = useMemo(() => liveWorkforce.reduce((s, w) => s + w.estPayout, 0), [liveWorkforce]);
   const weekScheduled = useMemo(
     () => agencyRoster.filter((s) => weekDays.includes(s.dateIso) && s.status !== "unavailable"),
     [agencyRoster, weekDays],
@@ -232,16 +246,20 @@ function AgencyRoster() {
         )}
       </div>
 
-      <div className="iz-roster-kpis">
+      <div className={`iz-roster-kpis${viewMode === "live" ? " cols-3" : ""}`}>
         {viewMode === "live" ? (
           <>
             <div className="iz-roster-kpi">
+              <span className="n">{plannedCount}</span>
+              <span className="l">Planned PRs</span>
+            </div>
+            <div className="iz-roster-kpi">
               <span className="n">{activeCount}</span>
-              <span className="l">PRs active today</span>
+              <span className="l">Active PRs</span>
             </div>
             <div className="iz-roster-kpi">
               <span className="n gold">{formatRM(estPayoutLive)}</span>
-              <span className="l">Est. payout today</span>
+              <span className="l">Est payout</span>
             </div>
           </>
         ) : (
@@ -275,8 +293,8 @@ function AgencyRoster() {
           {canAssign && (
             <IzCard flat className="iz-roster-planning-hint">
               <p className="iz-tiny iz-muted">
-                Weekly planning — assign outlet &amp; shift per PR per day. Agency-tied and freelancer PRs
-                appear on the same timetable; each assignment awaits PR approval.
+                Weekly planning — assign outlet-posted shifts to PRs per day. Only open shifts from
+                outlets appear; each assignment awaits PR approval.
               </p>
               <button
                 type="button"
@@ -469,7 +487,8 @@ function EditRosterModal({
   onRequestOutletSwap: (targetOutlet: string, note: string) => void;
   onCancelShift: () => void;
 }) {
-  const initialStatus = EDITABLE_STATUSES.includes(slot.status) ? slot.status : "scheduled";
+  const displayStatus = rosterPageDisplayStatus(slot.status);
+  const initialStatus = EDITABLE_STATUSES.includes(displayStatus) ? displayStatus : "scheduled";
   const [status, setStatus] = useState<RosterSlotStatus>(initialStatus);
   const [shiftStart, setShiftStart] = useState(slot.shiftStart);
   const [shiftEnd, setShiftEnd] = useState(slot.shiftEnd);

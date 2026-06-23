@@ -291,11 +291,7 @@ export function GpsRoadMap({
           <p className="font-sora text-xs font-bold text-[#202124]">{selected.prName}</p>
           <p className="text-[10px] text-[#5f6368]">
             {selected.outlet} · {selected.meters} m ·{" "}
-            {selected.status === "en-route"
-              ? "En route"
-              : selected.inRange
-                ? "In geofence"
-                : "Outside geofence"}
+            {selected.inRange ? "In geofence" : "Outside geofence"}
           </p>
         </div>
       ) : (

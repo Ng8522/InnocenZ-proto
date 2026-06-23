@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { OutletSection } from "@/components/outlet/OutletSection";
@@ -37,6 +37,7 @@ export const Route = createFileRoute("/agency/prs")({
 
 function AgencyManagePRs() {
   const { pr: prFromSearch } = Route.useSearch();
+  const navigate = useNavigate({ from: "/agency/prs" });
   const agencyPRs = useStore((s) => s.agencyPRs);
   const shiftHistory = useStore((s) => s.shiftHistory);
   const ratings = useStore((s) => s.ratings);
@@ -55,11 +56,20 @@ function AgencyManagePRs() {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [broadcastOpen, setBroadcastOpen] = useState(false);
-  const [comcardPreviewId, setComcardPreviewId] = useState<string | null>(null);
 
   useEffect(() => {
     if (prFromSearch) setDetailId(prFromSearch);
   }, [prFromSearch]);
+
+  const openPrProfile = (id: string) => {
+    setDetailId(id);
+    void navigate({ search: { pr: id } });
+  };
+
+  const closePrProfile = () => {
+    setDetailId(null);
+    void navigate({ search: { pr: undefined } });
+  };
 
   const canManage = agencyCan(agencySubRole, "managePr");
 
@@ -90,7 +100,6 @@ function AgencyManagePRs() {
   );
 
   const detail = agencyPRs.find((p) => p.id === detailId);
-  const comcardPreview = agencyPRs.find((p) => p.id === comcardPreviewId);
   const activeCount = useMemo(() => filtered.filter((p) => isAgencyPrActive(p)).length, [filtered]);
   const inactiveCount = filtered.length - activeCount;
 
@@ -113,7 +122,7 @@ function AgencyManagePRs() {
         detail={detail}
         shiftHistory={shiftHistory}
         ratings={ratings}
-        onBack={() => setDetailId(null)}
+        onBack={closePrProfile}
         onSaveProfile={updateAgencyPrProfile}
         onSuspend={suspendAgencyPr}
         onDetach={detachAgencyPr}
@@ -279,13 +288,13 @@ function AgencyManagePRs() {
               className={`relative flex cursor-pointer flex-col gap-1 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-2 text-left transition-colors hover:border-[var(--iz-line2)]${picked ? " ring-1 ring-[var(--iz-gold)]" : ""}${!active ? " opacity-75" : ""}${flags.suspendStreak && active ? " border-[var(--iz-red)]/40" : ""}`}
               onClick={() => {
                 if (selectMode) toggleSelect(p.id);
-                else setDetailId(p.id);
+                else openPrProfile(p.id);
               }}
               onKeyDown={(e) => {
                 if (e.key !== "Enter" && e.key !== " ") return;
                 e.preventDefault();
                 if (selectMode) toggleSelect(p.id);
-                else setDetailId(p.id);
+                else openPrProfile(p.id);
               }}
             >
               {selectMode && (
@@ -300,15 +309,7 @@ function AgencyManagePRs() {
                 </div>
               )}
 
-              <button
-                type="button"
-                className="iz-comcard-3d-preview-btn relative w-full text-left"
-                aria-label={`Preview 3D comcard for ${p.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setComcardPreviewId(p.id);
-                }}
-              >
+              <div className="relative w-full">
                 <IzPill
                   variant={active ? "green" : "ink"}
                   className={`absolute right-1 top-1 z-10 !py-0 !text-[8px] shadow-sm${!active ? " !opacity-100" : ""}`}
@@ -322,7 +323,7 @@ function AgencyManagePRs() {
                   languages={p.languages}
                   place={p.place}
                 />
-              </button>
+              </div>
 
               <div className="flex flex-wrap gap-0.5">
                 {!active && (
@@ -355,15 +356,6 @@ function AgencyManagePRs() {
         prIds={[...selected]}
         onSent={finishBroadcast}
       />
-
-      <IzSheet open={!!comcardPreview} onClose={() => setComcardPreviewId(null)}>
-        {comcardPreview && (
-          <div className="px-1 pb-2">
-            <div className="iz-cardttl mb-3">{comcardPreview.name}</div>
-            <Comcard3dPreviewVisual pr={toComcardPreview(comcardPreview)} showName={false} />
-          </div>
-        )}
-      </IzSheet>
     </div>
   );
 }
@@ -616,6 +608,8 @@ function AgencyPrDetail({
         </>
       )}
 
+      <div className="iz-pr-profile-fields">
+      <div>
       <IzSectionLabel>Contact</IzSectionLabel>
       <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
         {editing ? (
@@ -630,14 +624,16 @@ function AgencyPrDetail({
             </div>
           </div>
         ) : (
-          <>
+          <div className="iz-kv-list">
             <div className="iz-v-sum"><span className="iz-muted">Mobile</span><b>{display.mobile}</b></div>
             <div className="iz-v-sum"><span className="iz-muted">Email</span><b>{display.email}</b></div>
             <div className="iz-v-sum"><span className="iz-muted">IC</span><b>{detail.ic}</b></div>
-          </>
+          </div>
         )}
       </IzCard>
+      </div>
 
+      <div>
       <IzSectionLabel>Profile details</IzSectionLabel>
       <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
         {editing ? (
@@ -669,15 +665,17 @@ function AgencyPrDetail({
             </div>
           </div>
         ) : (
-          <>
+          <div className="iz-kv-list">
             <div className="iz-v-sum"><span className="iz-muted">Race</span><b>{display.race}</b></div>
             <div className="iz-v-sum"><span className="iz-muted">Place</span><b>{display.place}</b></div>
             <div className="iz-v-sum"><span className="iz-muted">Experience</span><b>{display.yearsExp} yrs</b></div>
             <div className="iz-v-sum"><span className="iz-muted">KPI tier</span><b>{display.kpiTier}</b></div>
             <div className="iz-v-sum"><span className="iz-muted">Training tier</span><b>{display.trainingLevel}</b></div>
-          </>
+          </div>
         )}
       </IzCard>
+      </div>
+      </div>
 
       <IzSectionLabel>Languages</IzSectionLabel>
       <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>

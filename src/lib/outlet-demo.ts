@@ -169,6 +169,16 @@ export const DEMO_SHIFT_TIER_SALES_TARGETS: Record<string, Partial<Record<Outlet
     "Tier IV": 1100,
     "Tier V": 1400,
   },
+  s4: { "Tier I": 700, "Tier II": 850, "Tier III": 1000, "Tier IV": 1200, "Tier V": 1500 },
+  s5: { "Tier I": 800, "Tier II": 950, "Tier III": 1100, "Tier IV": 1300, "Tier V": 1600 },
+  s6: { "Tier I": 900, "Tier II": 1050, "Tier III": 1200, "Tier IV": 1400, "Tier V": 1800 },
+  s7: { "Tier I": 750, "Tier II": 900, "Tier III": 1050, "Tier IV": 1250, "Tier V": 1550 },
+  s8: { "Tier I": 650, "Tier II": 800, "Tier III": 950, "Tier IV": 1150, "Tier V": 1450 },
+  s9: { "Tier I": 850, "Tier II": 1000, "Tier III": 1150, "Tier IV": 1350, "Tier V": 1700 },
+  s10: { "Tier I": 900, "Tier II": 1050, "Tier III": 1200, "Tier IV": 1400, "Tier V": 1750 },
+  s11: { "Tier I": 700, "Tier II": 850, "Tier III": 1000, "Tier IV": 1200, "Tier V": 1500 },
+  s12: { "Tier I": 750, "Tier II": 900, "Tier III": 1050, "Tier IV": 1250, "Tier V": 1600 },
+  s8b: { "Tier I": 650, "Tier II": 800, "Tier III": 950, "Tier IV": 1150, "Tier V": 1450 },
 };
 
 /** Map agency PR training level to a valid outlet tier (defaults to base tier). */

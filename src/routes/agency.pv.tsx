@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
@@ -11,7 +11,6 @@ import {
   PAYROLL_CYCLE,
   downloadPvReceipt,
   pvNeedsPrReview,
-  pvStatusLabel,
   pvStatusPillVariant,
   receiptStatusLabel,
   receiptEntryMethod,
@@ -29,7 +28,7 @@ import {
   type PvDateRecencyFilter,
   type PvSalesSort,
 } from "@/lib/pr-demo";
-import { getAgencyManagedReceiptScans, receiptBelongsToAgencyPr, receiptsForPv, collectionOwedLines, groupCollectionLines, resolvePvPrName } from "@/lib/agency-payroll";
+import { getAgencyManagedReceiptScans, receiptBelongsToAgencyPr, receiptsForPv, collectionOwedLines, groupCollectionLines, resolvePvPrName, agencyPvStatusLabel, AGENCY_PV_STATUS_LABELS } from "@/lib/agency-payroll";
 import {
   matchesPayrollIssueDate,
   matchesPayrollRange,
@@ -48,7 +47,6 @@ import { shouldShowWeeklyReconciliation, buildPrReconciliationIncomes, allPrsCon
 import {
   AlertTriangle,
   Bell,
-  Calendar,
   CheckCircle2,
   ChevronRight,
   Clock,
@@ -75,7 +73,7 @@ export const Route = createFileRoute("/agency/pv")({
   component: AgencyPV,
   validateSearch: (search: Record<string, unknown>): { status?: PvStatusFilter; pv?: string } => {
     const status = search.status;
-    const valid: PvStatusFilter[] = ["PENDING_REVIEW", "SENT", "SIGNED", "DISPUTED", "TO_PAY", "PAID"];
+    const valid: PvStatusFilter[] = ["PENDING_REVIEW", "SENT", "SIGNED", "DISPUTED", "TO_PAY"];
     let statusFilter: PvStatusFilter | undefined;
     if (typeof status === "string" && valid.includes(status as PvStatusFilter)) {
       statusFilter = status as PvStatusFilter;
@@ -120,12 +118,11 @@ const AGING_LABELS: Record<AgencyCollectionInvoice["aging"], string> = {
 
 const PV_STATUS_FILTERS: { value: PvStatusFilter; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "PENDING_REVIEW", label: "Pending review" },
-  { value: "SENT", label: "Sent" },
-  { value: "DISPUTED", label: "Disputed" },
-  { value: "SIGNED", label: "Signed" },
+  { value: "PENDING_REVIEW", label: AGENCY_PV_STATUS_LABELS.PENDING_REVIEW },
+  { value: "SENT", label: AGENCY_PV_STATUS_LABELS.SENT },
+  { value: "DISPUTED", label: AGENCY_PV_STATUS_LABELS.DISPUTED },
+  { value: "SIGNED", label: AGENCY_PV_STATUS_LABELS.SIGNED },
   { value: "TO_PAY", label: "To pay" },
-  { value: "PAID", label: "Paid" },
 ];
 
 type ToPayRow = {
@@ -173,6 +170,7 @@ const PV_DATE_FILTERS: { value: PvDateRecencyFilter; label: string }[] = [
 ];
 
 function AgencyPV() {
+  const navigate = useNavigate();
   const { status: statusFromSearch, pv: pvFromSearch } = Route.useSearch();
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
@@ -197,13 +195,22 @@ function AgencyPV() {
   const { date, time } = nowAgencyDateTime();
 
   useEffect(() => {
+    if (statusFromSearch === ("PAID" as PvStatusFilter)) {
+      void navigate({ to: "/agency/history", search: { tab: "paid" }, replace: true });
+      return;
+    }
     if (statusFromSearch) setStatusFilter(statusFromSearch);
     if (pvFromSearch) setDetailId(pvFromSearch);
-  }, [statusFromSearch, pvFromSearch]);
+  }, [statusFromSearch, pvFromSearch, navigate]);
+
+  const payrollActivePvs = useMemo(
+    () => prPaymentVouchers.filter((p) => p.status !== "PAID"),
+    [prPaymentVouchers],
+  );
 
   const latestIssuedMs = useMemo(
-    () => getLatestPvIssuedMs(prPaymentVouchers),
-    [prPaymentVouchers],
+    () => getLatestPvIssuedMs(payrollActivePvs),
+    [payrollActivePvs],
   );
 
   const awaiting = prPaymentVouchers.filter((p) => pvNeedsPrReview(p.status)).length;
@@ -219,10 +226,10 @@ function AgencyPV() {
 
   const rangeFilteredPvs = useMemo(
     () =>
-      prPaymentVouchers.filter((p) =>
+      payrollActivePvs.filter((p) =>
         matchesPayrollRange(parsePvIssuedMs(p.issued), payrollRange),
       ),
-    [prPaymentVouchers, payrollRange],
+    [payrollActivePvs, payrollRange],
   );
 
   const filteredVouchers = useMemo(() => {
@@ -459,19 +466,21 @@ function AgencyPV() {
       >
         <div className="iz-between">
           <div>
-            <p className="iz-sm font-bold">Next weekly auto-bank-transfer</p>
+            <p className="iz-sm font-bold">Signed PVs · manual payment</p>
             <p className="iz-tiny iz-muted mt-1">
-              <Calendar className="mr-1 inline h-3 w-3" />
-              {PAYROLL_CYCLE.nextTransfer}
+              Agency pays each PR individually after e-sign — no scheduled auto-transfer.
             </p>
             <p className="iz-tiny iz-muted2 mt-0.5">
-              {queued.length} PV signed + queued · {paid} PV paid out
+              {queued.length} signed · use <b>To pay</b> to record each bank transfer ·{" "}
+              <Link to="/agency/history" search={{ tab: "paid" }} className="text-[var(--iz-gold-l)]">
+                {paid} paid in History
+              </Link>
             </p>
           </div>
           <b className="font-sora text-base text-[var(--iz-gold)]">{formatRM(queuedTotal)}</b>
         </div>
         <p className="iz-tiny iz-muted2 mt-2">
-          Duplicate payment blocked · Golden Audit Σ=0 · OT from check-out receipt timestamp · PDF export only
+          Duplicate payment blocked
         </p>
       </IzCard>
 
@@ -481,7 +490,7 @@ function AgencyPV() {
           className={`iz-payroll-tab${pvSubTab === "vouchers" ? " on" : ""}`}
           onClick={() => setPvSubTab("vouchers")}
         >
-          Payment Vouchers ({prPaymentVouchers.length})
+          Payment Vouchers ({payrollActivePvs.length})
         </button>
         <button
           type="button"
@@ -506,8 +515,8 @@ function AgencyPV() {
           )}
         </div>
 
-        <p className="iz-tiny iz-muted2 mt-2 mb-1">Status</p>
-        <div className="flex flex-wrap gap-1.5">
+        <p className="iz-filter-group-label">Status</p>
+        <div className="iz-filter-chips">
           {PV_STATUS_FILTERS.map((f) => {
             const active = statusFilter === f.value;
             const count = statusCounts[f.value];
@@ -515,22 +524,18 @@ function AgencyPV() {
               <button
                 key={f.value}
                 type="button"
-                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                  active
-                    ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]"
-                    : "border-[var(--iz-line)] text-[var(--iz-muted)] hover:border-[var(--iz-muted)]"
-                }`}
+                className={`iz-filter-chip${active ? " on" : ""}`}
                 onClick={() => setStatusFilter(f.value)}
               >
                 {f.label}
-                <span className={`ml-1 ${active ? "text-[var(--iz-gold)]" : "iz-muted2"}`}>({count})</span>
+                <span className="iz-filter-chip__count">({count})</span>
               </button>
             );
           })}
         </div>
 
-        <p className="iz-tiny iz-muted2 mt-3 mb-1">Issue date</p>
-        <div className="flex flex-wrap gap-1.5">
+        <p className="iz-filter-group-label">Issue date</p>
+        <div className="iz-filter-chips">
           {PV_DATE_FILTERS.map((f) => {
             const active = dateFilter === f.value;
             const count = dateCounts[f.value];
@@ -538,15 +543,11 @@ function AgencyPV() {
               <button
                 key={f.value}
                 type="button"
-                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                  active
-                    ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]"
-                    : "border-[var(--iz-line)] text-[var(--iz-muted)] hover:border-[var(--iz-muted)]"
-                }`}
+                className={`iz-filter-chip${active ? " on" : ""}`}
                 onClick={() => setDateFilter(f.value)}
               >
                 {f.label}
-                <span className={`ml-1 ${active ? "text-[var(--iz-gold)]" : "iz-muted2"}`}>({count})</span>
+                <span className="iz-filter-chip__count">({count})</span>
               </button>
             );
           })}
@@ -581,7 +582,7 @@ function AgencyPV() {
             <IzCard className="text-center">
               <p className="iz-sm iz-muted">No PRs queued for payment</p>
               <p className="iz-tiny iz-muted2 mt-1">
-                PRs appear here after they e-sign a voucher and before the weekly bank transfer.
+                PRs appear here after they e-sign — pay each voucher manually from your bank.
               </p>
               <button type="button" className="iz-chip mt-2" onClick={clearFilters}>
                 Show all
@@ -658,7 +659,7 @@ function AgencyPV() {
               <p className="iz-tiny text-[var(--iz-gold-l)] mt-0.5">Sales {formatRM(getPvSalesTotal(pv))}</p>
             </div>
             <div className="shrink-0 text-right">
-              <IzPill variant={statusPill(pv.status)}>{pvStatusLabel(pv.status)}</IzPill>
+              <IzPill variant={statusPill(pv.status)}>{agencyPvStatusLabel(pv.status)}</IzPill>
               <div className="iz-ledger font-sora mt-1.5 text-base font-bold">{formatRM(getPvNetTotal(pv))}</div>
               <p className="iz-tiny iz-muted2 mt-0.5">Net payable</p>
             </div>
@@ -817,7 +818,7 @@ function CollectionDetailView({
                 <div className="flex shrink-0 items-center gap-2 text-right">
                   {pv && (
                     <>
-                      <IzPill variant={pvStatusPillVariant(pv.status)}>{pvStatusLabel(pv.status)}</IzPill>
+                      <IzPill variant={pvStatusPillVariant(pv.status)}>{agencyPvStatusLabel(pv.status)}</IzPill>
                       <span className="iz-ledger text-sm font-bold">{formatRM(getPvNetTotal(pv))}</span>
                     </>
                   )}
@@ -1142,7 +1143,7 @@ function ReceiptScanDetailSheet({
               )}
               {pv && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <IzPill variant={pvStatusPillVariant(pv.status)}>{pvStatusLabel(pv.status)}</IzPill>
+                  <IzPill variant={pvStatusPillVariant(pv.status)}>{agencyPvStatusLabel(pv.status)}</IzPill>
                   <span className="iz-ledger text-sm font-bold">{formatRM(pv.net)}</span>
                 </div>
               )}
@@ -1550,7 +1551,7 @@ function PrReconciliationRow({
               className="iz-tiny mt-2 text-[var(--iz-gold-l)]"
               onClick={() => onOpenPv(row.pvId!)}
             >
-              Open {row.pvId} · {row.pvStatus ? pvStatusLabel(row.pvStatus) : "PV"} →
+              Open {row.pvId} · {row.pvStatus ? agencyPvStatusLabel(row.pvStatus) : "PV"} →
             </button>
           ) : (
             <p className="iz-tiny iz-muted2 mt-2">PV auto-raised at week close · awaiting generation</p>
@@ -1712,7 +1713,7 @@ function PvDetail({
     <>
       <div className="iz-pv-detail-bar mb-2.5">
         <div className="iz-pv-detail-bar-main">
-          <IzPill variant={statusPill(pv.status)}>{pvStatusLabel(pv.status)}</IzPill>
+          <IzPill variant={statusPill(pv.status)}>{agencyPvStatusLabel(pv.status)}</IzPill>
           <span className="iz-pv-detail-id">{pv.id}</span>
         </div>
         <button type="button" className="iz-chip" onClick={onClose}>

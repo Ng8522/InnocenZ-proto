@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AgencyManagedPR, AgencyRosterSlot, RosterSlotStatus } from "@/lib/agency-demo";
-import { OUTLET_NAMES, managedPrAgencyLabel } from "@/lib/agency-demo";
+import { managedPrAgencyLabel, rosterPageDisplayStatus } from "@/lib/agency-demo";
 import { PrComcardIdentity, toComcardPreview } from "@/components/agency/PrComcardIdentity";
 import { isFreelancerPrId, DEFAULT_PR_AGENCY_NAME } from "@/lib/pr-demo";
 import {
@@ -11,14 +11,25 @@ import {
 } from "@/lib/roster-week-plan";
 import { getPrScheduleState } from "@/lib/roster-availability";
 import { isPrMarkedDayOff } from "@/lib/pr-availability-sync";
-import type { RosterTimetableFilterState } from "@/lib/roster-shift-filters";
 import {
   filterTimetablePrs,
+  filterPlanningOutletShifts,
+  planningOutletShiftFiltersActive,
   rosterShiftFiltersActive,
   timetableSlotMatches,
+  type RosterTimetableFilterState,
 } from "@/lib/roster-shift-filters";
+import {
+  buildPlanningWeekOutletShiftMap,
+  type AgencyOutletAvailableShift,
+} from "@/lib/agency-outlet-shifts";
+import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
+import { parseShiftWindow } from "@/lib/portal-sync";
 import { useStore } from "@/lib/store";
-import { IzPill, IzSelect, IzTimeInput } from "@/components/iz/ui";
+import { IzPill, IzSelect, formatRM } from "@/components/iz/ui";
+import { cn } from "@/lib/utils";
+import { RotateCcw } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
 import { fmtDFriendly } from "@/lib/pr-demo";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
@@ -31,7 +42,7 @@ const STATUS_CELL: Record<
   "assignment-pending": { className: "iz-roster-week-cell--pending", label: "Awaiting PR" },
   "outlet-pending": { className: "iz-roster-week-cell--pending", label: "Awaiting outlet" },
   "on-duty": { className: "iz-roster-week-cell--live", label: "On duty" },
-  "en-route": { className: "iz-roster-week-cell--live", label: "En route" },
+  "en-route": { className: "iz-roster-week-cell--scheduled", label: "Scheduled" },
   "swap-pending": { className: "iz-roster-week-cell--swap", label: "Swap" },
   unavailable: { className: "iz-roster-week-cell--off", label: "Unavailable" },
 };
@@ -60,9 +71,26 @@ export function RosterWeeklyTimetable({
   const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null);
   const agencyOwner = useStore((s) => s.agencyOwner);
   const pendingFreelancerPayrolls = useStore((s) => s.pendingFreelancerPayrolls);
+  const outletShifts = useStore((s) => s.shifts);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const outletWorkspace = useStore((s) => s.outletWorkspace);
 
   const days = useMemo(() => weekDayIsos(weekStartIso), [weekStartIso]);
   const slotFiltersOn = rosterShiftFiltersActive(filters);
+
+  const outletShiftsByDay = useMemo(
+    () =>
+      buildPlanningWeekOutletShiftMap({
+        weekDays: days,
+        shifts: outletShifts,
+        roster,
+        tiedOffers: PR_AGENCY_TIED_OFFERS,
+        todayIso: DEFAULT_ROSTER_DATE_ISO,
+        commissionRules: outletCommissionRules,
+        outletWorkspace,
+      }),
+    [days, outletShifts, roster, outletCommissionRules, outletWorkspace],
+  );
 
   const freelancerPayrollByPrId = useMemo(() => {
     const map = new Map<string, string>();
@@ -103,7 +131,7 @@ export function RosterWeeklyTimetable({
         </button>
         <div className="min-w-0 text-center">
           <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">Week · {weekLabel}</p>
-          <p className="iz-tiny iz-muted">Tap comcard to identify PRs · tap a cell to assign</p>
+          <p className="iz-tiny iz-muted">Tap comcard to identify PRs · tap a free cell to assign an outlet shift</p>
         </div>
         <button
           type="button"
@@ -162,13 +190,14 @@ export function RosterWeeklyTimetable({
                         Freelancer
                       </IzPill>
                     )}
-                    <IzPill
-                      variant="ink"
-                      className="!py-0 !text-[8px] iz-roster-week-agency-pill"
-                      title={tiedAgency}
-                    >
-                      {tiedAgency}
-                    </IzPill>
+                    <span title={tiedAgency}>
+                      <IzPill
+                        variant="ink"
+                        className="!py-0 !text-[8px] iz-roster-week-agency-pill"
+                      >
+                        {tiedAgency}
+                      </IzPill>
+                    </span>
                     <span className="rating">{pr.rating}★</span>
                       </span>
                     </div>
@@ -177,7 +206,9 @@ export function RosterWeeklyTimetable({
                 {days.map((dateIso) => {
                   const state = getPrScheduleState(pr.id, roster, dateIso);
                   const slot = primarySlotForPrOnDate(roster, pr.id, dateIso);
-                  const canAssignCell = canAssign && state === "free";
+                  const dayShifts = outletShiftsByDay[dateIso] ?? [];
+                  const canAssignCell =
+                    canAssign && state === "free" && dayShifts.some((s) => s.openSlots > 0);
                   const slotHidden = slot && slotFiltersOn && !timetableSlotMatches(slot, filters);
                   const prDayOff = slot?.status === "unavailable" && isPrMarkedDayOff(slot);
 
@@ -216,7 +247,7 @@ export function RosterWeeklyTimetable({
                     );
                   }
 
-                  const tone = STATUS_CELL[slot.status] ?? STATUS_CELL.scheduled;
+                  const tone = STATUS_CELL[rosterPageDisplayStatus(slot.status)] ?? STATUS_CELL.scheduled;
                   return (
                     <td key={dateIso} className="iz-roster-week-td">
                       <button
@@ -245,6 +276,8 @@ export function RosterWeeklyTimetable({
         <AssignWeekCellSheet
           pr={assignTarget.pr}
           dateIso={assignTarget.dateIso}
+          allShifts={outletShiftsByDay[assignTarget.dateIso] ?? []}
+          filters={filters}
           onClose={() => setAssignTarget(null)}
           onDone={() => setAssignTarget(null)}
         />
@@ -267,30 +300,67 @@ function formatDateLabel(iso: string) {
 function AssignWeekCellSheet({
   pr,
   dateIso,
+  allShifts,
+  filters,
   onClose,
   onDone,
 }: {
   pr: AgencyManagedPR;
   dateIso: string;
+  allShifts: AgencyOutletAvailableShift[];
+  filters: RosterTimetableFilterState;
   onClose: () => void;
   onDone: () => void;
 }) {
   const assignPrToOutlet = useStore((s) => s.assignPrToOutlet);
-  const [outlet, setOutlet] = useState(OUTLET_NAMES[0] ?? "Velvet 23");
-  const [shiftStart, setShiftStart] = useState("22:00");
-  const [shiftEnd, setShiftEnd] = useState("04:00");
+  const [outletFilter, setOutletFilter] = useState(filters.outlet);
+  const pageShiftFiltersOn = planningOutletShiftFiltersActive(filters);
+
+  useEffect(() => {
+    setOutletFilter(filters.outlet);
+  }, [dateIso, filters.outlet]);
+
+  const outletOptions = useMemo(
+    () => [...new Set(allShifts.map((s) => s.outlet))].sort((a, b) => a.localeCompare(b)),
+    [allShifts],
+  );
+
+  const visibleShifts = useMemo(() => {
+    let open = allShifts.filter((s) => s.openSlots > 0);
+    if (pageShiftFiltersOn) {
+      open = filterPlanningOutletShifts(open, filters);
+    }
+    if (outletFilter) {
+      open = open.filter((s) => s.outlet === outletFilter);
+    }
+    return open;
+  }, [allShifts, filters, pageShiftFiltersOn, outletFilter]);
+
+  const modalFilterOn = Boolean(outletFilter);
+  const [pickId, setPickId] = useState("");
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    setPickId(visibleShifts[0]?.id ?? "");
+  }, [visibleShifts]);
+
+  const picked = visibleShifts.find((s) => s.id === pickId);
+
   const confirm = () => {
-    if (busy) return;
+    if (busy || !picked) return;
     setBusy(true);
+    const { shiftStart, shiftEnd } = parseShiftWindow(picked.shift);
     assignPrToOutlet({
       prId: pr.id,
-      outlet,
+      outlet: picked.outlet,
       dateIso,
       dateLabel: formatDateLabel(dateIso),
       shiftStart,
       shiftEnd,
+      shift: picked.shift,
+      outletShiftId: picked.id,
+      event: picked.event,
+      payEstimate: picked.payEstimate,
     });
     setBusy(false);
     onDone();
@@ -298,38 +368,106 @@ function AssignWeekCellSheet({
 
   return (
     <IzSheet open onClose={busy ? () => {} : onClose}>
-      <h3 className="font-sora text-lg font-bold">Assign shift</h3>
+      <h3 className="font-sora text-lg font-bold">Assign outlet shift</h3>
       <p className="iz-tiny iz-muted mt-1">
         <strong className="text-[var(--iz-txt)]">{pr.name}</strong>
         {isFreelancerPrId(pr.id) ? " · Freelancer" : " · Agency-tied"} · {formatDateLabel(dateIso)}
       </p>
-      <p className="iz-tiny iz-muted2 mt-1">PR must approve before the shift locks on their portal.</p>
+      <p className="iz-tiny iz-muted2 mt-1">
+        Pick a posted outlet shift — assignment awaits PR approval before it locks.
+      </p>
 
-      <div className="mt-3">
-        <span className="iz-field-label">Outlet</span>
-        <IzSelect block className="!text-sm" value={outlet} onChange={(e) => setOutlet(e.target.value)} disabled={busy}>
-          {OUTLET_NAMES.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </IzSelect>
+      <div className="iz-roster-assign-filters mt-3">
+        <label className="iz-roster-assign-filter-field">
+          <span className="iz-field-label">Filter outlet</span>
+          <IzSelect
+            block
+            value={outletFilter}
+            onChange={(e) => setOutletFilter(e.target.value)}
+            disabled={busy}
+          >
+            <option value="">All outlets</option>
+            {outletOptions.map((outlet) => (
+              <option key={outlet} value={outlet}>
+                {outlet}
+              </option>
+            ))}
+          </IzSelect>
+        </label>
+        {(modalFilterOn || pageShiftFiltersOn) && (
+          <button
+            type="button"
+            className="iz-roster-assign-filter-clear"
+            disabled={busy}
+            onClick={() => setOutletFilter("")}
+          >
+            <RotateCcw className="h-3 w-3" />
+            Clear outlet
+          </button>
+        )}
       </div>
+      {pageShiftFiltersOn && (
+        <p className="iz-tiny iz-muted2 mt-1.5">
+          Timetable time / payout filters also apply — clear those above the grid to widen results.
+        </p>
+      )}
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <div>
-          <span className="iz-field-label">Start</span>
-          <IzTimeInput value={shiftStart} onChange={setShiftStart} aria-label="Shift start time" />
-        </div>
-        <div>
-          <span className="iz-field-label">End</span>
-          <IzTimeInput value={shiftEnd} onChange={setShiftEnd} aria-label="Shift end time" />
-        </div>
-      </div>
+      {visibleShifts.length === 0 ? (
+        <p className="iz-tiny iz-muted mt-4 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
+          {modalFilterOn || pageShiftFiltersOn
+            ? "No open shifts match your filters on this date."
+            : "No open outlet shifts on this date."}
+        </p>
+      ) : (
+        <>
+          <p className="iz-field-label mt-3">
+            Available shifts · {visibleShifts.length}
+          </p>
+          <div className="iz-roster-shift-pick-scroll mt-1.5">
+            <div className="iz-roster-shift-pick-list">
+            {visibleShifts.map((shift) => {
+              const selected = shift.id === pickId;
+              return (
+                <button
+                  key={shift.id}
+                  type="button"
+                  className={cn("iz-roster-shift-pick", selected && "on")}
+                  onClick={() => setPickId(shift.id)}
+                  disabled={busy}
+                >
+                  <div className="min-w-0 flex-1 text-left">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-sora text-sm font-bold text-[var(--iz-txt)]">
+                        {shift.outlet}
+                      </span>
+                      <span className="iz-tiny iz-muted">
+                        {shift.shift.replace(/\s+/g, " ")}
+                      </span>
+                    </div>
+                    <p className="iz-tiny iz-muted2 mt-0.5 line-clamp-2">{shift.event}</p>
+                    <p className="iz-tiny mt-1 text-[var(--iz-gold-l)]">
+                      {shift.openSlots} open · est {formatRM(shift.payEstimate)}
+                    </p>
+                  </div>
+                  <span className="iz-tiny iz-muted2 shrink-0 text-right leading-tight">
+                    Posted shift
+                  </span>
+                </button>
+              );
+            })}
+            </div>
+          </div>
 
-      <button type="button" className="iz-btn iz-btn-primary mt-4 w-full" disabled={busy} onClick={confirm}>
-        {busy ? "Assigning…" : "Send assignment to PR"}
-      </button>
+          <button
+            type="button"
+            className="iz-btn iz-btn-primary mt-4 w-full"
+            disabled={busy || !picked}
+            onClick={confirm}
+          >
+            {busy ? "Assigning…" : "Send assignment to PR"}
+          </button>
+        </>
+      )}
     </IzSheet>
   );
 }

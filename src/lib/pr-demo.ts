@@ -676,15 +676,12 @@ export function getPayrollCycleLabel(): {
   start.setDate(date.getDate() + diffToSun);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
-  const issueDay = new Date(end);
-  issueDay.setDate(end.getDate() + 1);
   const startLabel = fmtDtable(start.getFullYear(), start.getMonth() + 1, start.getDate());
   const endLabel = fmtDtable(end.getFullYear(), end.getMonth() + 1, end.getDate());
-  const issueLabel = fmtDtable(issueDay.getFullYear(), issueDay.getMonth() + 1, issueDay.getDate());
   return {
     label: "Current payroll week",
     range: `${startLabel} – ${endLabel} ${end.getFullYear()}`,
-    nextTransfer: `Sunday ${issueLabel} ${issueDay.getFullYear()} · PV auto-issued`,
+    nextTransfer: "Manual bank transfer per signed PV",
   };
 }
 

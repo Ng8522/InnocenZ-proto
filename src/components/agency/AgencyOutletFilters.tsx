@@ -64,7 +64,6 @@ export function AgencyOutletFilters({
           >
             <option value="">Any source</option>
             <option value="posted">Posted shift</option>
-            <option value="tied-offer">Outlet offer</option>
             <option value="assignment-pending">Awaiting PR</option>
           </IzSelect>
         </label>

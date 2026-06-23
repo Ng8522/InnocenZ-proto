@@ -7,11 +7,16 @@ import { ShiftTierWagesStrip } from "@/components/outlet/ShiftTierWagesStrip";
 import {
   EMPTY_AGENCY_OUTLET_FILTERS,
   buildAgencyOutletSummaries,
+  buildOutletDayDemandSummaries,
   collectOutletShiftDateIsos,
   filterAgencyOutletSummaries,
+  groupOutletShiftsTodayFuture,
   outletShiftSourceLabel,
-  shiftDestinationLabel,
+  outletShiftEventTypeLabel,
+  outletShiftStaffingLabel,
+  summarizeOutletDemandTodayFuture,
   type AgencyOutletAvailableShift,
+  type AgencyOutletDayDemand,
   type AgencyOutletSummary,
 } from "@/lib/agency-outlet-shifts";
 import { agencyCan } from "@/lib/agency-rbac";
@@ -84,6 +89,17 @@ function AgencyManageOutlets() {
     return filterAgencyOutletSummaries([detail], filters)[0]?.shifts ?? detail.shifts;
   }, [detail, filters]);
 
+  const detailDayDemand = useMemo(() => {
+    if (!detail) return [];
+    return buildOutletDayDemandSummaries({
+      outlet: detail.outlet,
+      posted: shifts,
+      roster: agencyRoster,
+      tiedOffers: PR_AGENCY_TIED_OFFERS,
+      todayIso: DEFAULT_ROSTER_DATE_ISO,
+    });
+  }, [detail, shifts, agencyRoster]);
+
   if (!canManage) {
     return (
       <div className="iz-screen">
@@ -104,6 +120,7 @@ function AgencyManageOutlets() {
       <AgencyOutletDetail
         summary={detail}
         shifts={detailShifts}
+        dayDemand={detailDayDemand}
         onBack={() => setDetailOutlet(null)}
       />
     );
@@ -129,9 +146,8 @@ function AgencyManageOutlets() {
 
       <IzCard flat className="border-[var(--iz-line2)]">
         <p className="iz-tiny iz-muted2 leading-relaxed">
-          <b className="text-[var(--iz-muted)]">Posted</b> shifts come from outlet bookings.{" "}
-          <b className="text-[var(--iz-violet-l)]">Outlet offers</b> are tied agency listings.{" "}
-          <b className="text-[var(--iz-amber)]">Awaiting PR</b> slots need assignment on roster.
+          Outlets post shifts and request PRs through your agency. Assignments stay{" "}
+          <b className="text-[var(--iz-amber)]">awaiting PR</b> until the PR approves on their portal.
         </p>
       </IzCard>
 
@@ -231,23 +247,51 @@ function AgencyManageOutlets() {
                 <div className="flex flex-wrap gap-1">
                   {summary.openShiftCount > 0 ? (
                     <IzPill variant="amber" className="!py-0.5 !text-[10px]">
-                      {summary.openShiftCount} open
+                      {summary.openShiftCount} Event{summary.openShiftCount !== 1 ? "s" : ""}
                     </IzPill>
                   ) : (
                     <IzPill variant="ink" className="!py-0.5 !text-[10px]">
-                      No open shifts
-                    </IzPill>
-                  )}
-                  {summary.totalOpenSlots > 0 && (
-                    <IzPill variant="violet" className="!py-0.5 !text-[10px]">
-                      {summary.totalOpenSlots} slot{summary.totalOpenSlots !== 1 ? "s" : ""}
+                      No events
                     </IzPill>
                   )}
                 </div>
 
+                {(summary.todayDemand > 0 || summary.futureDemand > 0) && (
+                  <div className="rounded-lg border border-[rgba(167,139,250,.28)] bg-[rgba(167,139,250,.08)] px-2.5 py-2">
+                    <p className="font-sora text-[10px] font-semibold uppercase tracking-wider text-[var(--iz-violet-l)]">
+                      Demand / supplied
+                    </p>
+                    <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                      {summary.todayDemand > 0 && (
+                        <div
+                          className={`flex min-w-0 flex-col gap-0.5 rounded-md border border-[rgba(167,139,250,.35)] bg-[var(--iz-violet-ink)] px-1.5 py-1.5${
+                            summary.futureDemand > 0 ? "" : " col-span-2"
+                          }`}
+                        >
+                          <span className="text-[10px] font-medium leading-none text-[var(--iz-muted2)]">Today</span>
+                          <span className="font-sora text-sm font-extrabold leading-none tabular-nums text-[var(--iz-violet-l)]">
+                            {summary.todayDemand}/{summary.todaySupplied}
+                          </span>
+                        </div>
+                      )}
+                      {summary.futureDemand > 0 && (
+                        <div
+                          className={`flex min-w-0 flex-col gap-0.5 rounded-md border border-[var(--iz-line2)] bg-[var(--iz-bg2)] px-1.5 py-1.5${
+                            summary.todayDemand > 0 ? "" : " col-span-2"
+                          }`}
+                        >
+                          <span className="text-[10px] font-medium leading-none text-[var(--iz-muted2)]">Future</span>
+                          <span className="font-sora text-sm font-extrabold leading-none tabular-nums text-[var(--iz-txt)]">
+                            {summary.futureDemand}/{summary.futureSupplied}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <p className="text-xs leading-snug text-[var(--iz-muted2)] line-clamp-2">
-                  {summary.scheduledTonight} PRs tonight · Drinks {summary.rule.drinkPct}% · Tips{" "}
-                  {summary.rule.tipPct}%
+                  Drinks {summary.rule.drinkPct}% · Tips {summary.rule.tipPct}%
                 </p>
               </div>
             );
@@ -261,12 +305,24 @@ function AgencyManageOutlets() {
 function AgencyOutletDetail({
   summary,
   shifts,
+  dayDemand,
   onBack,
 }: {
   summary: AgencyOutletSummary;
   shifts: AgencyOutletAvailableShift[];
+  dayDemand: AgencyOutletDayDemand[];
   onBack: () => void;
 }) {
+  const shiftGroups = useMemo(
+    () => groupOutletShiftsTodayFuture(shifts, DEFAULT_ROSTER_DATE_ISO),
+    [shifts],
+  );
+  const todayDemand = dayDemand.find((day) => day.dateIso === DEFAULT_ROSTER_DATE_ISO);
+  const demandOverview = useMemo(
+    () => summarizeOutletDemandTodayFuture(dayDemand, DEFAULT_ROSTER_DATE_ISO),
+    [dayDemand],
+  );
+
   return (
     <div className="iz-screen">
       <button type="button" className="iz-btn iz-btn-soft mb-3 !py-2 !text-xs" onClick={onBack}>
@@ -283,20 +339,58 @@ function AgencyOutletDetail({
         </p>
       </header>
 
-      <div className="mb-3 grid grid-cols-2 gap-2">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:max-w-lg">
         <IzCard flat className="!p-3 text-center">
           <div className="font-sora text-xl font-extrabold text-[var(--iz-amber)]">
             {shifts.length}
           </div>
-          <div className="iz-tiny iz-muted2">Open shifts</div>
+          <div className="iz-tiny iz-muted2">Events</div>
         </IzCard>
-        <IzCard flat className="!p-3 text-center">
-          <div className="font-sora text-xl font-extrabold text-[var(--iz-green)]">
-            {summary.scheduledTonight}
+        <IzCard
+          flat
+          className="!p-3 text-center border-[rgba(167,139,250,.28)] bg-[rgba(167,139,250,.08)]"
+        >
+          <div className="font-sora text-xl font-extrabold text-[var(--iz-violet-l)]">
+            {todayDemand ? `${todayDemand.demand}/${todayDemand.supplied}` : "—"}
           </div>
-          <div className="iz-tiny iz-muted2">PRs tonight</div>
+          <div className="iz-tiny font-semibold text-[var(--iz-violet-l)]">Today · demand / supplied</div>
         </IzCard>
       </div>
+
+      {demandOverview.length > 0 && (
+        <OutletSection
+          title="Demand / supplied"
+          hint="Today and future totals"
+          className="!mb-3"
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
+            {demandOverview.map((day) => (
+              <IzCard
+                flat
+                key={day.dateIso}
+                className={`!p-3${
+                  day.dateIso === DEFAULT_ROSTER_DATE_ISO
+                    ? " border-[rgba(167,139,250,.28)] bg-[rgba(167,139,250,.08)]"
+                    : day.dateIso === "future"
+                      ? " border-[var(--iz-line2)] bg-[var(--iz-bg2)]"
+                      : ""
+                }`}
+              >
+                <p className="iz-tiny font-semibold uppercase tracking-wide text-[var(--iz-violet-l)]">
+                  {day.dateLabel}
+                </p>
+                <div className="font-sora text-2xl font-extrabold text-[var(--iz-violet-l)]">
+                  {day.demand}/{day.supplied}
+                </div>
+                <p className="iz-tiny iz-muted2 mt-0.5">
+                  {day.eventCount} event{day.eventCount !== 1 ? "s" : ""}
+                  {day.openSlots > 0 && ` · ${day.openSlots} open`}
+                </p>
+              </IzCard>
+            ))}
+          </div>
+        </OutletSection>
+      )}
 
       <OutletSection title="Commission rules" className="!mb-3">
         <AgencyCommissionRulesPanel outlet={summary.outlet} />
@@ -304,12 +398,48 @@ function AgencyOutletDetail({
 
       <OutletSection
         title="Available shifts"
-        hint={`${shifts.length} listing${shifts.length !== 1 ? "s" : ""} · tap for tier pay & targets`}
+        hint={`${shifts.length} listing${shifts.length !== 1 ? "s" : ""} · today and future · tap for tier pay & targets`}
       >
         {shifts.length === 0 ? (
           <IzCard flat className="text-center">
             <p className="iz-sm iz-muted">No open shifts match your filters.</p>
           </IzCard>
+        ) : shiftGroups.length > 0 ? (
+          <div className="grid gap-3">
+            {shiftGroups.map((group) => (
+              <div key={group.dateIso}>
+                <div className={`mb-1.5 flex flex-wrap items-center justify-between gap-2 rounded-md border px-2.5 py-2 ${
+                  group.dateIso === "future"
+                    ? "border-[var(--iz-line2)] bg-[var(--iz-bg2)]"
+                    : "border-[rgba(167,139,250,.22)] bg-[rgba(167,139,250,.06)]"
+                }`}>
+                  <p className="iz-tiny font-semibold uppercase tracking-wide text-[var(--iz-violet-l)]">
+                    {group.dateLabel}
+                  </p>
+                  <div className="text-right">
+                    <p className="text-[9px] font-bold uppercase tracking-wide text-[var(--iz-violet-l)]">
+                      Demand / supplied
+                    </p>
+                    <p className="font-sora text-lg font-extrabold leading-tight tabular-nums text-[var(--iz-violet-l)]">
+                      {group.demand}
+                      <span className="mx-0.5 text-[var(--iz-muted)]">/</span>
+                      {group.supplied}
+                      {group.openSlots > 0 && (
+                        <span className="iz-tiny ml-1.5 font-semibold text-[var(--iz-amber)]">
+                          · {group.openSlots} open
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  {group.shifts.map((shift) => (
+                    <OutletShiftCard key={shift.id} shift={shift} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="grid gap-2">
             {shifts.map((shift) => (
@@ -330,11 +460,61 @@ function AgencyOutletDetail({
   );
 }
 
+function OutletShiftMetric({
+  label,
+  tone,
+  title,
+  children,
+}: {
+  label: string;
+  tone: "gold" | "violet" | "ink";
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`iz-outlet-shift-metric iz-outlet-shift-metric--${tone}`}
+      title={title}
+    >
+      <span className="iz-outlet-shift-metric__label">{label}</span>
+      <div className="iz-outlet-shift-metric__value">{children}</div>
+    </div>
+  );
+}
+
+function OutletDemandSuppliedStat({
+  demand,
+  supplied,
+  openSlots,
+}: {
+  demand: number;
+  supplied: number;
+  openSlots?: number;
+}) {
+  return (
+    <div className="iz-outlet-shift-metric iz-outlet-shift-metric--demand">
+      <span className="iz-outlet-shift-metric__label">Demand / supplied</span>
+      <span className="iz-outlet-shift-metric__nums" aria-label={`${demand} demand, ${supplied} supplied`}>
+        <span className="iz-outlet-shift-metric__demand">{demand}</span>
+        <span className="iz-outlet-shift-metric__sep">/</span>
+        <span className="iz-outlet-shift-metric__supplied">{supplied}</span>
+      </span>
+      {openSlots != null && openSlots > 0 && (
+        <span className="iz-outlet-shift-metric__open">
+          {openSlots} open slot{openSlots !== 1 ? "s" : ""}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function OutletShiftCard({ shift }: { shift: AgencyOutletAvailableShift }) {
   const sourceVariant =
-    shift.source === "posted" ? "ink" : shift.source === "tied-offer" ? "violet" : "amber";
+    shift.source === "assignment-pending" ? "amber" : "ink";
   const targetPay = formatTierWageRange(shift.tierRates);
   const salesTargets = formatTierSalesTargets(shift.tierRates);
+  const eventType = outletShiftEventTypeLabel(shift.vip);
+  const staffing = outletShiftStaffingLabel(shift.destination);
 
   return (
     <details className="iz-outlet-booking-card group">
@@ -359,23 +539,29 @@ function OutletShiftCard({ shift }: { shift: AgencyOutletAvailableShift }) {
             </IzPill>
           </div>
 
-          <div className="mt-2 flex flex-wrap gap-1">
-            <IzPill variant="amber" className="!text-[9px]">
-              {shift.openSlots} open slot{shift.openSlots !== 1 ? "s" : ""}
-            </IzPill>
-            <IzPill variant="gold" className="!text-[9px]">
-              Est. {formatRM(shift.payEstimate)}
-            </IzPill>
-            {shift.vip && (
-              <IzPill variant="violet" className="!text-[9px]">
-                VIP
-              </IzPill>
-            )}
-            {shift.destination && (
-              <IzPill variant="ink" className="!text-[9px]">
-                {shiftDestinationLabel(shift.destination)}
-              </IzPill>
-            )}
+          <div className="iz-outlet-shift-metrics">
+            <OutletDemandSuppliedStat
+              demand={shift.demandSlots}
+              supplied={shift.suppliedSlots}
+              openSlots={shift.openSlots}
+            />
+            <OutletShiftMetric label="Est. payout" tone="gold">
+              {formatRM(shift.payEstimate)}
+            </OutletShiftMetric>
+            <OutletShiftMetric
+              label="Event type"
+              tone={shift.vip ? "violet" : "ink"}
+              title={
+                shift.vip
+                  ? "Very Important Person — premium table / host coverage"
+                  : "Standard floor / host coverage"
+              }
+            >
+              {eventType}
+            </OutletShiftMetric>
+            <OutletShiftMetric label="Staffing" tone="ink">
+              {staffing}
+            </OutletShiftMetric>
           </div>
 
           <p className="iz-tiny iz-muted mt-2 truncate group-open:hidden">

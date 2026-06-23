@@ -105,6 +105,7 @@ import {
 } from "@/lib/pr-weekly-payment";
 import { mergeAgencyCollections } from "@/lib/agency-payroll";
 import { getFreePrsWithDistances } from "@/lib/roster-availability";
+import { buildPlanningWeekOutletShiftMap } from "@/lib/agency-outlet-shifts";
 import type { AgencySubRole } from "@/lib/agency-rbac";
 import type { OutletSubRole } from "@/lib/outlet-rbac";
 import {
@@ -138,6 +139,8 @@ import {
   canonicalOutlet,
   outletMatches,
   addPrToOutletShift,
+  addPrToPostedOutletShift,
+  parseShiftWindow,
   patchPrRosterAttendanceFlags,
 } from "@/lib/portal-sync";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
@@ -548,6 +551,10 @@ interface StoreState {
     dateLabel: string;
     shiftStart: string;
     shiftEnd: string;
+    shift?: string;
+    outletShiftId?: string;
+    event?: string;
+    payEstimate?: number;
   }) => void;
   approvePrSwapRequest: (swapId: string, replacementPrId: string) => void;
   declinePrSwapRequest: (swapId: string) => void;
@@ -2684,7 +2691,18 @@ export const useStore = create<StoreState>()(
         }));
         get().toast(`Approved — shift moved to ${slot.outletSwap.targetOutlet}`, "success");
       },
-      assignPrToOutlet: ({ prId, outlet, dateIso, dateLabel, shiftStart, shiftEnd }) => {
+      assignPrToOutlet: ({
+        prId,
+        outlet,
+        dateIso,
+        dateLabel,
+        shiftStart,
+        shiftEnd,
+        shift: shiftLabel,
+        outletShiftId,
+        event,
+        payEstimate,
+      }) => {
         const pr = get().agencyPRs.find((p) => p.id === prId);
         if (!pr) return;
         if (pr.suspended || pr.detached) {
@@ -2714,6 +2732,9 @@ export const useStore = create<StoreState>()(
           minute: "2-digit",
         });
         const id = existing?.id ?? "rs" + Date.now().toString(36).slice(-6);
+        const shift = shiftLabel ?? `${shiftStart} — ${shiftEnd}`;
+        const postedShiftId =
+          outletShiftId?.startsWith("posted-") ? outletShiftId.slice("posted-".length) : undefined;
         const slot: AgencyRosterSlot = {
           id,
           prId,
@@ -2721,21 +2742,26 @@ export const useStore = create<StoreState>()(
           outlet,
           date: dateLabel,
           dateIso,
-          shift: `${shiftStart} — ${shiftEnd}`,
+          shift,
           shiftStart,
           shiftEnd,
           status: "assignment-pending",
+          estPayout: payEstimate,
           agencyAssignment: {
             agencyName: "Atlas Agency",
             assignedAt: stamp,
             assignedAtMs: Date.now(),
+            agencyNote: event,
+            outletShiftId,
           },
         };
         set((st) => ({
           agencyRoster: existing
             ? st.agencyRoster.map((s) => (s.id === existing.id ? slot : s))
             : [slot, ...st.agencyRoster],
-          shifts: addPrToOutletShift(st.shifts, outlet, prId),
+          shifts: postedShiftId
+            ? addPrToPostedOutletShift(st.shifts, postedShiftId, prId, outlet)
+            : addPrToOutletShift(st.shifts, outlet, prId),
         }));
         get().toast(
           `Assignment sent to ${pr.name} — awaiting Approve or Reject on Shifts`,
@@ -3311,9 +3337,25 @@ export const useStore = create<StoreState>()(
         get().toast("Swap request declined", "info");
       },
       demoAutoAssignPr: (dateIso) => {
+        const st = get();
+        const openShifts =
+          buildPlanningWeekOutletShiftMap({
+            weekDays: [dateIso],
+            shifts: st.shifts,
+            roster: st.agencyRoster,
+            tiedOffers: PR_AGENCY_TIED_OFFERS,
+            todayIso: DEFAULT_ROSTER_DATE_ISO,
+            commissionRules: st.outletCommissionRules,
+            outletWorkspace: st.outletWorkspace,
+          })[dateIso] ?? [];
+        const outletShift = openShifts.find((s) => s.openSlots > 0);
+        if (!outletShift) {
+          get().toast("No open outlet shifts on this date", "warn");
+          return;
+        }
         const free = getFreePrsWithDistances(
-          get().agencyPRs.filter((p) => !p.suspended && !p.detached),
-          get().agencyRoster,
+          st.agencyPRs.filter((p) => !p.suspended && !p.detached),
+          st.agencyRoster,
           dateIso,
         );
         const pick = free[0];
@@ -3321,7 +3363,6 @@ export const useStore = create<StoreState>()(
           get().toast("No free PRs to auto-assign", "warn");
           return;
         }
-        const outlet = pick.distances[0]?.outlet ?? "Velvet 23";
         const [y, m, d] = dateIso.split("-").map(Number);
         const dateLabel = new Date(y, m - 1, d).toLocaleDateString("en-MY", {
           weekday: "short",
@@ -3329,15 +3370,20 @@ export const useStore = create<StoreState>()(
           month: "short",
           year: "numeric",
         });
+        const { shiftStart, shiftEnd } = parseShiftWindow(outletShift.shift);
         get().assignPrToOutlet({
           prId: pick.pr.id,
-          outlet,
+          outlet: outletShift.outlet,
           dateIso,
           dateLabel,
-          shiftStart: "22:00",
-          shiftEnd: "04:00",
+          shiftStart,
+          shiftEnd,
+          shift: outletShift.shift,
+          outletShiftId: outletShift.id,
+          event: outletShift.event,
+          payEstimate: outletShift.payEstimate,
         });
-        get().toast(`AI auto-assign · ${pick.pr.name} → ${outlet}`, "success");
+        get().toast(`AI auto-assign · ${pick.pr.name} → ${outletShift.outlet}`, "success");
       },
       flagRosterAttendance: (slotId, flag) => {
         const slot = get().agencyRoster.find((s) => s.id === slotId);

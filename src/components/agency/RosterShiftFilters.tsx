@@ -30,7 +30,7 @@ export function RosterShiftFilters({
         <label className="iz-roster-filter-field iz-roster-filter-field--search">
           <span className="iz-roster-filter-label">Name</span>
           <span className="iz-roster-filter-input-wrap">
-            <Search className="h-3.5 w-3.5 shrink-0 text-[#b0a3c4]" />
+            <Search className="h-3.5 w-3.5 shrink-0 text-[var(--iz-muted2)]" />
             <input
               type="search"
               className="iz-roster-filter-input"
@@ -45,7 +45,6 @@ export function RosterShiftFilters({
           <span className="iz-roster-filter-label">Outlet</span>
           <IzSelect
             block
-            className="!text-sm"
             value={filters.outlet}
             onChange={(e) => onChange({ outlet: e.target.value })}
           >
@@ -62,13 +61,11 @@ export function RosterShiftFilters({
           <span className="iz-roster-filter-label">Status</span>
           <IzSelect
             block
-            className="!text-sm"
             value={filters.status}
             onChange={(e) => onChange({ status: e.target.value as RosterShiftFilterState["status"] })}
           >
             <option value="">Any status</option>
             <option value="on-duty">On duty</option>
-            <option value="en-route">En route</option>
             <option value="scheduled">Scheduled</option>
             <option value="swap-pending">Swap pending</option>
             <option value="assignment-pending">Awaiting PR</option>
@@ -84,7 +81,7 @@ export function RosterShiftFilters({
             value={filters.startTime}
             onChange={(v) => onChange({ startTime: v })}
             showIcon={false}
-            className="iz-roster-filter-time !min-h-0 !py-2 !text-sm"
+            className="iz-roster-filter-time"
             aria-label="Shift start from"
           />
         </label>
@@ -95,7 +92,7 @@ export function RosterShiftFilters({
             value={filters.endTime}
             onChange={(v) => onChange({ endTime: v })}
             showIcon={false}
-            className="iz-roster-filter-time !min-h-0 !py-2 !text-sm"
+            className="iz-roster-filter-time"
             aria-label="Shift end by"
           />
         </label>

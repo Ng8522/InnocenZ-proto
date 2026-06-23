@@ -15,7 +15,6 @@ export const Route = createFileRoute("/agency/")({
 
 function AgencyHub() {
   const agencySubRole = useStore((s) => s.agencySubRole);
-  const agencyOwner = useStore((s) => s.agencyOwner);
   const agencyPRs = useStore((s) => s.agencyPRs);
   const reconciliation = useStore((s) => s.agencyReconciliation);
   const confirmAgencyReconciliation = useStore((s) => s.confirmAgencyReconciliation);
@@ -60,10 +59,7 @@ function AgencyHub() {
         <div className="iz-portal-home-main">
       <header className="pt-1">
         <p className="iz-tiny iz-muted2 uppercase tracking-widest">Today</p>
-        <h2 className="font-sora mt-0.5 text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
-          {agencyOwner.orgName}
-        </h2>
-        <p className="iz-tiny iz-muted mt-0.5">
+        <p className="font-sora mt-0.5 text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
           {date} · {time}
         </p>
         {isFinance && (

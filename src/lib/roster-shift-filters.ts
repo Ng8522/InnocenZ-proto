@@ -1,4 +1,6 @@
 import type { AgencyManagedPR, AgencyRosterSlot, RosterSlotStatus } from "@/lib/agency-demo";
+import type { AgencyOutletAvailableShift } from "@/lib/agency-outlet-shifts";
+import { parseShiftWindow } from "@/lib/portal-sync";
 
 export type RosterShiftFilterState = {
   nameQuery: string;
@@ -50,6 +52,37 @@ export function rosterTimetableFiltersActive(f: RosterTimetableFilterState): boo
   return rosterShiftFiltersActive(f) || Boolean(f.prType || f.showPrs);
 }
 
+/** Filters that narrow outlet shifts in the assign modal (not PR name / roster status). */
+export function planningOutletShiftFiltersActive(f: RosterShiftFilterState): boolean {
+  return Boolean(f.outlet || f.payoutMin || f.payoutMax || f.startTime || f.endTime);
+}
+
+export function filterPlanningOutletShifts(
+  shifts: AgencyOutletAvailableShift[],
+  f: RosterShiftFilterState,
+): AgencyOutletAvailableShift[] {
+  const min = f.payoutMin ? parseFloat(f.payoutMin) : null;
+  const max = f.payoutMax ? parseFloat(f.payoutMax) : null;
+  const startFrom = hhmmToMinutes(f.startTime);
+  const endBy = hhmmToMinutes(f.endTime);
+
+  return shifts.filter((shift) => {
+    if (f.outlet && shift.outlet !== f.outlet) return false;
+    if (min != null && !Number.isNaN(min) && shift.payEstimate < min) return false;
+    if (max != null && !Number.isNaN(max) && shift.payEstimate > max) return false;
+    const { shiftStart, shiftEnd } = parseShiftWindow(shift.shift);
+    if (startFrom != null) {
+      const slotStart = hhmmToMinutes(shiftStart);
+      if (slotStart == null || slotStart < startFrom) return false;
+    }
+    if (endBy != null) {
+      const slotEnd = hhmmToMinutes(shiftEnd);
+      if (slotEnd == null || slotEnd > endBy) return false;
+    }
+    return true;
+  });
+}
+
 export function filterRosterShifts(
   slots: AgencyRosterSlot[],
   f: RosterShiftFilterState,
@@ -65,7 +98,13 @@ export function filterRosterShifts(
     if (f.outlet && s.outlet !== f.outlet) return false;
     if (f.status === "late" && !s.lateFlag) return false;
     if (f.status === "no-show" && !s.noShowFlag) return false;
-    if (f.status && f.status !== "late" && f.status !== "no-show" && s.status !== f.status) return false;
+    if (f.status && f.status !== "late" && f.status !== "no-show") {
+      const matches =
+        f.status === "scheduled"
+          ? s.status === "scheduled" || s.status === "en-route"
+          : s.status === f.status;
+      if (!matches) return false;
+    }
     const payout = s.estPayout ?? 0;
     if (min != null && !Number.isNaN(min) && payout < min) return false;
     if (max != null && !Number.isNaN(max) && payout > max) return false;

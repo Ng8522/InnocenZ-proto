@@ -424,13 +424,24 @@ export type RosterSlotStatus =
   | "assignment-pending"
   | "outlet-pending";
 
+/** Agency roster UI — en-route is shown as scheduled (only Scheduled / On duty labels). */
+export function rosterPageDisplayStatus(status: RosterSlotStatus): RosterSlotStatus {
+  return status === "en-route" ? "scheduled" : status;
+}
+
 export interface AgencyAssignmentMeta {
   agencyName?: string;
   agencyNote?: string;
+  /** Posted / tied outlet shift id from Manage Outlet (e.g. posted-s4) */
+  outletShiftId?: string;
   assignedAt: string;
   /** Epoch ms — used for "12 min ago" on PR Shifts */
   assignedAtMs?: number;
   respondedAt?: string;
+  /** Event-wide headcount for Manage Outlet demand/supplied (defaults to 1). */
+  eventDemand?: number;
+  /** PRs already assigned to this event. */
+  eventSupplied?: number;
 }
 
 export interface AgencyRosterSlot {
@@ -535,7 +546,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
     shiftEnd: "04:00",
-    status: "en-route",
+    status: "scheduled",
     floorDrinks: 0,
     floorTips: 0,
     estPayout: 390,
@@ -577,6 +588,8 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
       agencyNote: "You are needed at Mermate Friday — lounge relaunch coverage",
       assignedAt: "18 Jun 2026 · 11:36",
       assignedAtMs: Date.now() - 12 * 60 * 1000,
+      eventDemand: 16,
+      eventSupplied: 11,
     },
   }),
   withRosterDate({
@@ -589,6 +602,63 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     shiftStart: "22:30",
     shiftEnd: "04:30",
     status: "scheduled",
+  }),
+  withRosterDate({
+    id: "rs7",
+    prId: "p4",
+    prName: "Cici",
+    outlet: "Bear Lounge",
+    dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
+    shift: "22:30 — 04:30",
+    shiftStart: "22:30",
+    shiftEnd: "04:30",
+    status: "assignment-pending",
+    agencyAssignment: {
+      agencyName: "Atlas Agency",
+      agencyNote: "Bear Lounge launch — host table coverage needed",
+      assignedAt: "18 Jun 2026 · 09:12",
+      assignedAtMs: Date.now() - 45 * 60 * 1000,
+      eventDemand: 14,
+      eventSupplied: 9,
+    },
+  }),
+  withRosterDate({
+    id: "rs8",
+    prId: "p2",
+    prName: "Mia",
+    outlet: "Onyx KL",
+    dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 2),
+    shift: "20:00 — 02:00",
+    shiftStart: "20:00",
+    shiftEnd: "02:00",
+    status: "assignment-pending",
+    agencyAssignment: {
+      agencyName: "Atlas Agency",
+      agencyNote: "Onyx KL rooftop — VIP host slot awaiting PR",
+      assignedAt: "18 Jun 2026 · 14:05",
+      assignedAtMs: Date.now() - 90 * 60 * 1000,
+      eventDemand: 15,
+      eventSupplied: 10,
+    },
+  }),
+  withRosterDate({
+    id: "rs9",
+    prId: "p7",
+    prName: "Chen Wei",
+    outlet: "Urban Soul",
+    dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
+    shift: "20:00 — 01:00",
+    shiftStart: "20:00",
+    shiftEnd: "01:00",
+    status: "assignment-pending",
+    agencyAssignment: {
+      agencyName: "Atlas Agency",
+      agencyNote: "Urban Soul Friday party — floor PR needed",
+      assignedAt: "18 Jun 2026 · 16:22",
+      assignedAtMs: Date.now() - 25 * 60 * 1000,
+      eventDemand: 18,
+      eventSupplied: 13,
+    },
   }),
 ];
 
@@ -1068,7 +1138,7 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
   {
     id: "starter",
     label: "Starter",
-    monthlyRm: 499,
+    monthlyRm: 999,
     prLimit: 24,
     capacityLabel: "Below 25 PR",
     description: "InnocenZ Agency · core portal access",
@@ -1076,7 +1146,7 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
   {
     id: "plus",
     label: "Plus",
-    monthlyRm: 999,
+    monthlyRm: 1499,
     prLimit: 49,
     capacityLabel: "Below 50 PR",
     description: "Growing roster · payroll & history",
@@ -1084,7 +1154,7 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
   {
     id: "growth",
     label: "Growth",
-    monthlyRm: 1499,
+    monthlyRm: 1999,
     prLimit: 99,
     capacityLabel: "Below 100 PR",
     description: "Expanded roster · payroll & reporting",
@@ -1094,7 +1164,7 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
     label: "Enterprise",
     monthlyRm: 2499,
     prLimit: 9999,
-    capacityLabel: "200+ PR",
+    capacityLabel: "100+ PR",
     description: "Large roster · priority support",
   },
 ];
@@ -1272,7 +1342,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
   {
     id: "AINV-2026-0601",
     outlet: "Platform fee",
-    amount: 1499,
+    amount: 1999,
     issueDate: "1 Jun 2026",
     issueTime: "08:00",
     dueDate: "1 Jun 2026",
@@ -1281,7 +1351,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     linkedPvIds: [],
     kind: "agency",
     counterparty: "InnocenZ Platform",
-    lines: [{ label: "Atlas Agency subscription", detail: "Jun 2026 · Growth · SaaS", amount: 1499, group: "fees" }],
+    lines: [{ label: "Atlas Agency subscription", detail: "Jun 2026 · Growth · SaaS", amount: 1999, group: "fees" }],
   },
 ];
 

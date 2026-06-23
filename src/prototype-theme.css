@@ -351,6 +351,33 @@
   padding: 7px 0;
   font-size: 13px;
 }
+.iz-kv-list {
+  width: 100%;
+}
+.iz-kv-list .iz-v-sum {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 36%) minmax(0, 1fr);
+  gap: 0 1rem;
+  align-items: center;
+}
+.iz-kv-list .iz-v-sum > :first-child {
+  min-width: 0;
+}
+.iz-kv-list .iz-v-sum > :last-child {
+  min-width: 0;
+  text-align: right;
+  justify-self: end;
+}
+.iz-pr-profile-fields {
+  display: grid;
+  gap: 0.75rem;
+}
+@media (min-width: 768px) {
+  .iz-pr-profile-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 1.25rem;
+  }
+}
 .iz-v-sum.tot {
   border-top: 1px solid var(--iz-line);
   margin-top: 6px;
@@ -3606,6 +3633,112 @@
 .iz-outlet-booking-card summary::-webkit-details-marker {
   display: none;
 }
+
+/* Outlet manage — shift metric cards (demand, est pay, tags) */
+.iz-outlet-shift-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.iz-outlet-shift-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px 8px;
+  border-radius: 10px;
+  min-width: 0;
+}
+.iz-outlet-shift-metric--demand {
+  border: 1px solid rgba(167, 139, 250, 0.38);
+  background: linear-gradient(
+    135deg,
+    rgba(167, 139, 250, 0.14) 0%,
+    rgba(167, 139, 250, 0.06) 100%
+  );
+}
+.iz-outlet-shift-metric--gold {
+  border: 1px solid rgba(217, 185, 122, 0.42);
+  background: linear-gradient(
+    135deg,
+    rgba(217, 185, 122, 0.14) 0%,
+    rgba(217, 185, 122, 0.05) 100%
+  );
+}
+.iz-outlet-shift-metric--violet {
+  border: 1px solid rgba(167, 139, 250, 0.32);
+  background: rgba(167, 139, 250, 0.08);
+}
+.iz-outlet-shift-metric--ink {
+  border: 1px solid var(--iz-line2);
+  background: var(--iz-bg2);
+}
+.iz-outlet-shift-metric__label {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+}
+.iz-outlet-shift-metric--demand .iz-outlet-shift-metric__label {
+  color: var(--iz-violet-l);
+}
+.iz-outlet-shift-metric--gold .iz-outlet-shift-metric__label {
+  color: var(--iz-gold-l);
+}
+.iz-outlet-shift-metric--violet .iz-outlet-shift-metric__label {
+  color: var(--iz-violet-l);
+}
+.iz-outlet-shift-metric--ink .iz-outlet-shift-metric__label {
+  color: var(--iz-muted2);
+}
+.iz-outlet-shift-metric__value {
+  font-family: var(--font-sora, inherit);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+.iz-outlet-shift-metric--gold .iz-outlet-shift-metric__value {
+  color: var(--iz-gold-l);
+}
+.iz-outlet-shift-metric--violet .iz-outlet-shift-metric__value {
+  color: var(--iz-violet-l);
+}
+.iz-outlet-shift-metric--ink .iz-outlet-shift-metric__value {
+  color: var(--iz-txt);
+  font-size: 0.95rem;
+}
+.iz-outlet-shift-metric__nums {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-family: var(--font-sora, inherit);
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.iz-outlet-shift-metric__demand {
+  color: var(--iz-violet-l);
+}
+.iz-outlet-shift-metric__sep {
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--iz-muted);
+}
+.iz-outlet-shift-metric__supplied {
+  color: var(--iz-txt);
+}
+.iz-outlet-shift-metric__open {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--iz-amber);
+  line-height: 1.2;
+}
+
 .iz-outlet-floor-row {
   display: flex;
   align-items: center;
@@ -3976,14 +4109,14 @@ button.iz-pr-offer-row:hover {
 }
 @media (min-width: 520px) {
   .iz-txn-card-metrics {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 .iz-txn-card-metrics--sheet {
   margin-top: 10px;
 }
 .iz-sheet--wide .iz-txn-card-metrics {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 .iz-sheet--wide .iz-txn-metric {
@@ -5073,6 +5206,63 @@ button.iz-pr-offer-row:hover {
   background: rgba(217, 185, 122, 0.1);
   color: var(--iz-gold-l);
 }
+
+/* Inline filter chips — payroll, GPS, list filters */
+.iz-filter-group-label {
+  margin-top: 0.75rem;
+  margin-bottom: 0.375rem;
+  font-family: "Sora", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--iz-muted);
+}
+.iz-filter-group-label:first-child {
+  margin-top: 0.5rem;
+}
+.iz-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.iz-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.05);
+  font-family: "Sora", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--iz-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+.iz-filter-chip:hover {
+  border-color: rgba(232, 194, 122, 0.4);
+  color: var(--iz-txt);
+  background: rgba(255, 255, 255, 0.08);
+}
+.iz-filter-chip.on,
+.iz-filter-chip[data-active="true"] {
+  border-color: var(--iz-gold);
+  color: var(--iz-gold-l);
+  background: rgba(232, 194, 122, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(232, 194, 122, 0.22);
+}
+.iz-filter-chip__count {
+  font-weight: 600;
+  opacity: 0.8;
+}
+.iz-filter-chip.on .iz-filter-chip__count,
+.iz-filter-chip[data-active="true"] .iz-filter-chip__count {
+  opacity: 1;
+  color: var(--iz-gold);
+}
 .iz-sheet-preview {
   margin-top: 14px;
   padding: 12px 14px;
@@ -5509,6 +5699,9 @@ button.iz-pr-offer-row:hover {
   gap: 10px;
   margin-top: 14px;
 }
+.iz-roster-kpis.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 
 .iz-roster-kpi {
   border-radius: 14px;
@@ -5788,6 +5981,81 @@ button.iz-pr-offer-row:hover {
   color: var(--iz-muted);
 }
 
+.iz-roster-shift-pick-scroll {
+  max-height: min(52vh, 320px);
+  overflow-y: auto;
+  padding-right: 14px;
+  margin-right: 2px;
+}
+
+.iz-roster-shift-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.iz-roster-assign-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 10px;
+}
+
+.iz-roster-assign-filter-field {
+  flex: 1;
+  min-width: 140px;
+}
+
+.iz-roster-assign-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  font-family: "Sora", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--iz-gold-l);
+  cursor: pointer;
+}
+
+.iz-roster-assign-filter-clear:hover {
+  text-decoration: underline;
+}
+
+.iz-roster-shift-pick {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--iz-line);
+  background: rgba(255, 255, 255, 0.03);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.iz-roster-shift-pick:hover:not(:disabled) {
+  border-color: var(--iz-line2);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.iz-roster-shift-pick.on {
+  border-color: rgba(217, 185, 122, 0.55);
+  background: rgba(217, 185, 122, 0.08);
+  box-shadow: 0 0 0 1px rgba(217, 185, 122, 0.12);
+}
+
+.iz-roster-shift-pick:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .iz-roster-card-meta {
   display: flex;
   flex-wrap: wrap;
@@ -5844,10 +6112,9 @@ button.iz-pr-offer-row:hover {
 
 .iz-roster-filter-field .iz-roster-filter-time {
   width: 100%;
-  border-radius: 10px;
-  border: 1px solid var(--iz-line2);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--iz-txt);
+  border: none;
+  background: transparent;
+  padding: 0;
 }
 
 .iz-roster-filter-field {
@@ -5872,9 +6139,10 @@ button.iz-pr-offer-row:hover {
   gap: 8px;
   padding: 0 10px;
   border-radius: 10px;
-  border: 1px solid var(--iz-line2);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--iz-line);
+  background-color: var(--iz-panel2);
   min-height: 38px;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .iz-roster-filter-input {
@@ -5884,33 +6152,79 @@ button.iz-pr-offer-row:hover {
   background: transparent;
   color: var(--iz-txt);
   font-size: 13px;
-  font-family: "Manrope", sans-serif;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.2px;
   outline: none;
 }
 
 .iz-roster-filter-input::placeholder {
-  color: #b0a3c4;
+  color: var(--iz-muted2);
+  font-weight: 500;
 }
 
 .iz-roster-filter-field .iz-time-input-ph {
-  color: #b0a3c4;
+  color: var(--iz-muted2);
 }
 
 .iz-roster-filter-input--plain {
   width: 100%;
   padding: 9px 10px;
   border-radius: 10px;
-  border: 1px solid var(--iz-line2);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--iz-line);
+  background-color: var(--iz-panel2);
   color: var(--iz-txt);
   font-size: 13px;
-  font-family: "Manrope", sans-serif;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.2px;
   outline: none;
+  min-height: 38px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.iz-roster-shift-filters-grid .iz-select {
+  min-height: 38px;
+  padding: 9px 30px 9px 11px;
+  font-size: 13px;
+}
+
+.iz-roster-shift-filters-grid .iz-roster-filter-input-wrap:hover,
+.iz-roster-shift-filters-grid .iz-roster-filter-input--plain:hover {
+  border-color: var(--iz-line2);
+}
+
+.iz-roster-shift-filters-grid .iz-time-picker-btn {
+  min-height: 38px;
+  padding: 7px 36px 7px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--iz-line);
+  background-color: var(--iz-panel2);
+  font-family: "Sora", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--iz-txt);
+}
+
+.iz-roster-shift-filters-grid .iz-time-picker-btn.has-value {
+  color: var(--iz-txt);
+}
+
+.iz-roster-shift-filters-grid .iz-time-picker-btn:hover:not(:disabled) {
+  border-color: var(--iz-line2);
+}
+
+.iz-roster-shift-filters-grid .iz-time-picker-btn .iz-time-picker-label.iz-muted2 {
+  color: var(--iz-muted2);
+  font-weight: 500;
 }
 
 .iz-roster-filter-input--plain:focus,
-.iz-roster-filter-input-wrap:focus-within {
-  border-color: rgba(232, 194, 122, 0.35);
+.iz-roster-filter-input-wrap:focus-within,
+.iz-roster-shift-filters-grid .iz-time-picker-btn:focus-visible {
+  border-color: rgba(217, 185, 122, 0.55);
+  box-shadow: 0 0 0 2px rgba(217, 185, 122, 0.12);
 }
 
 .iz-roster-filter-clear {
@@ -6298,6 +6612,44 @@ button.iz-pr-offer-row:hover {
   z-index: 70;
   min-width: 280px;
   box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.85);
+}
+.iz-hist-cal--range {
+  min-width: 300px;
+}
+.iz-hist-range-targets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.iz-hist-range-target {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 10px;
+  border: 1px solid var(--iz-line);
+  background: var(--iz-bg2);
+  padding: 6px 8px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.iz-hist-range-target.is-active {
+  border-color: rgba(167, 139, 250, 0.45);
+  background: rgba(167, 139, 250, 0.1);
+}
+.iz-hist-range-target-label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--iz-muted2);
+}
+.iz-hist-range-target-value {
+  font-family: "Sora", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--iz-violet-l);
+  line-height: 1.3;
 }
 .iz-hist-date-picker-wrap {
   position: relative;

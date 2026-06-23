@@ -21,7 +21,6 @@ function DatePickerField({
   const rootRef = useRef<HTMLDivElement>(null);
   const selectedLabel = dateOptions.find((o) => o.key === value)?.label;
   const selected = dateFromIsoKey(value);
-  const allowedKeys = new Set(dateOptions.map((o) => o.key));
   const navBounds = useMemo(() => calendarNavBounds(dateOptions, defaultMonth), [dateOptions, defaultMonth]);
   const [viewMonth, setViewMonth] = useState(selected ?? defaultMonth);
 
@@ -34,8 +33,8 @@ function DatePickerField({
     const onDoc = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("click", onDoc);
+    return () => document.removeEventListener("click", onDoc);
   }, [open]);
 
   return (
@@ -85,7 +84,6 @@ function DatePickerField({
             viewMonth={viewMonth}
             onViewMonthChange={setViewMonth}
             navBounds={navBounds}
-            allowedKeys={allowedKeys}
             onSelectDay={(d) => {
               onChange(isoKeyFromDate(d));
               setOpen(false);

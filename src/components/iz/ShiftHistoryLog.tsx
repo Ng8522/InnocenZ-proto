@@ -8,31 +8,48 @@ import {
   type ShiftHistoryPrRollup,
   type ShiftHistoryRow,
 } from "@/lib/shift-history-utils";
-import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCalendar";
+import {
+  calendarNavBounds,
+  HistDateCalendar,
+  isoKeyFromDate,
+} from "@/components/iz/HistDateCalendar";
+import { fmtDateLabelFromIso } from "@/lib/pr-demo";
+import { format, parseISO } from "date-fns";
+import { getLiveTodayIso } from "@/lib/demo-clock";
 import { IzCard, formatRM } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import type { ReactNode } from "react";
-import { Calendar as CalendarIcon, ChevronDown, ChevronRight, Download, X } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronDown, ChevronRight, X } from "lucide-react";
 
 type Portal = "agency" | "outlet";
+type AgencyGroupBy = "pr" | "venue";
 
 export function ShiftHistoryLog({
   portal,
   rows = [],
-  onExport,
   subtitle: subtitleOverride,
+  embedded = false,
+  groupBy = "pr",
 }: {
   portal: Portal;
   rows?: ShiftHistoryRow[];
-  onExport?: () => void;
   subtitle?: string;
+  /** When true, omit page chrome (used inside tabbed History). */
+  embedded?: boolean;
+  /** Agency history — roll up by PR (default) or by outlet venue. */
+  groupBy?: AgencyGroupBy;
 }) {
   const [nameFilter, setNameFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [thirdFilter, setThirdFilter] = useState("");
   const [detailPrId, setDetailPrId] = useState<string | null>(null);
+  const [detailPrVenue, setDetailPrVenue] = useState<string | null>(null);
+  const [detailVenue, setDetailVenue] = useState<string | null>(null);
+
+  const agencyByVenue = portal === "agency" && groupBy === "venue";
 
   const prNames = useMemo(() => [...new Set(rows.map((r) => r.prName))].sort(), [rows]);
+  const outlets = useMemo(() => [...new Set(rows.map((r) => r.outlet))].sort(), [rows]);
   const dates = useMemo(() => [...new Set(rows.map((r) => r.dateIso))].sort().reverse(), [rows]);
   const dateOptions = useMemo(
     () =>
@@ -51,30 +68,45 @@ export function ShiftHistoryLog({
 
   const filtered = useMemo(() => {
     const matched = rows.filter((r) => {
-      if (nameFilter && r.prId !== nameFilter) return false;
-      if (dateFilter && r.dateIso !== dateFilter) return false;
-      if (thirdFilter) {
-        if (portal === "agency" && r.outlet !== thirdFilter) return false;
-        if (portal === "outlet" && r.agencyName !== thirdFilter) return false;
+      if (agencyByVenue) {
+        if (nameFilter && r.outlet !== nameFilter) return false;
+        if (thirdFilter && r.prId !== thirdFilter) return false;
+      } else {
+        if (nameFilter && r.prId !== nameFilter) return false;
+        if (thirdFilter) {
+          if (portal === "agency" && r.outlet !== thirdFilter) return false;
+          if (portal === "outlet" && r.agencyName !== thirdFilter) return false;
+        }
       }
+      if (dateRange.from && r.dateIso < dateRange.from) return false;
+      if (dateRange.to && r.dateIso > dateRange.to) return false;
       return true;
     });
     return sortShiftHistoryDesc(matched);
-  }, [rows, nameFilter, dateFilter, thirdFilter, portal]);
+  }, [rows, nameFilter, dateRange, thirdFilter, portal, agencyByVenue]);
 
   const subtitle =
     subtitleOverride ??
-    (portal === "agency"
-      ? "Transaction log — one row per PR with totals across the filtered shifts. Tap for outlet breakdown."
-      : "Transaction log — one row per PR with totals across the filtered shifts.");
+    (agencyByVenue
+      ? "Agency ledger — one row per outlet with totals across PR shifts. Tap for PR breakdown."
+      : portal === "agency"
+        ? "Transaction log — one row per PR with totals across the filtered shifts. Tap for outlet breakdown."
+        : "Transaction log — one row per PR with totals across the filtered shifts.");
 
-  const thirdLabel = portal === "agency" ? "OUTLET" : "PR AGENCY";
+  const primaryLabel = agencyByVenue ? "OUTLET" : "NAME";
+  const thirdLabel = agencyByVenue ? "PR" : portal === "agency" ? "OUTLET" : "PR AGENCY";
   const venueLabel = portal === "agency" ? "outlet" : "agency";
-  const showPrDetail = portal === "agency";
+  const showPrDetail = portal === "agency" && groupBy === "pr";
+  const showVenueDetail = agencyByVenue;
 
   const prRollups = useMemo(
     () => aggregateShiftHistoryByPr(filtered, portal),
     [filtered, portal],
+  );
+
+  const venueRollups = useMemo(
+    () => (agencyByVenue ? aggregateShiftHistoryByVenue(filtered, "agency") : []),
+    [filtered, agencyByVenue],
   );
 
   const detailPrRows = useMemo(
@@ -94,62 +126,129 @@ export function ShiftHistoryLog({
     [detailVenueRollups],
   );
 
+  const detailPrVenueRollup = useMemo(
+    () => detailVenueRollups.find((v) => v.venue === detailPrVenue) ?? null,
+    [detailVenueRollups, detailPrVenue],
+  );
+
+  const detailPrVenueShifts = useMemo(
+    () => sortShiftHistoryDesc(detailPrVenueRollup?.shifts ?? []),
+    [detailPrVenueRollup],
+  );
+
+  const openPrDetail = (prId: string) => {
+    setDetailPrVenue(null);
+    setDetailPrId(prId);
+  };
+
+  const closePrDetail = () => {
+    setDetailPrVenue(null);
+    setDetailPrId(null);
+  };
+
+  const detailOutletRows = useMemo(
+    () => (detailVenue ? filtered.filter((r) => r.outlet === detailVenue) : []),
+    [detailVenue, filtered],
+  );
+  const detailOutletRollup = useMemo(
+    () => venueRollups.find((v) => v.venue === detailVenue) ?? null,
+    [venueRollups, detailVenue],
+  );
+  const detailOutletPrRollups = useMemo(
+    () => aggregateShiftHistoryByPr(detailOutletRows, "agency"),
+    [detailOutletRows],
+  );
+
+  const logCountLabel = agencyByVenue
+    ? `${venueRollups.length} outlet${venueRollups.length !== 1 ? "s" : ""} · ${filtered.length} shift${filtered.length !== 1 ? "s" : ""}`
+    : `${prRollups.length} PR${prRollups.length !== 1 ? "s" : ""} · ${filtered.length} shift${filtered.length !== 1 ? "s" : ""}`;
+
+  const agencyName = rows[0]?.agencyName ?? "Atlas Agency";
+
+  const shellClass = embedded ? "mt-2" : "iz-screen";
+
   return (
-    <div className="iz-screen">
-      {portal === "agency" && (
+    <div className={shellClass}>
+      {!embedded && portal === "agency" && (
         <AppTopbar backTo="/agency" backLabel="Agency home" />
       )}
-      <p className="iz-tiny iz-muted2 uppercase tracking-widest">InnocenZ · {portal === "agency" ? "Agency" : "Outlet"}</p>
-      <h2 className="font-sora mx-0.5 mt-0.5 text-[22px] font-extrabold text-[var(--iz-txt)]">History</h2>
-      <p className="iz-tiny iz-muted mt-0.5">{subtitle}</p>
+      {!embedded && (
+        <>
+          <p className="iz-tiny iz-muted2 uppercase tracking-widest">InnocenZ · {portal === "agency" ? "Agency" : "Outlet"}</p>
+          <h2 className="font-sora mx-0.5 mt-0.5 text-[22px] font-extrabold text-[var(--iz-txt)]">History</h2>
+        </>
+      )}
+      {!embedded && <p className="iz-tiny iz-muted mt-0.5">{subtitle}</p>}
+      {embedded && subtitleOverride && (
+        <p className="iz-tiny iz-muted mt-1">{subtitleOverride}</p>
+      )}
 
       <p className="iz-txn-filter-heading mt-4">Filter by</p>
       <div className="iz-txn-filters">
         <HistSelectField
-          label="NAME"
+          label={primaryLabel}
           value={nameFilter}
           onChange={setNameFilter}
-          options={[
-            { value: "", label: "All names" },
-            ...prNames.map((n) => {
-              const row = rows.find((r) => r.prName === n);
-              return { value: row?.prId ?? n, label: n };
-            }),
-          ]}
+          options={
+            agencyByVenue
+              ? [{ value: "", label: "All outlets" }, ...outlets.map((o) => ({ value: o, label: o }))]
+              : [
+                  { value: "", label: "All names" },
+                  ...prNames.map((n) => {
+                    const row = rows.find((r) => r.prName === n);
+                    return { value: row?.prId ?? n, label: n };
+                  }),
+                ]
+          }
         />
-        <HistDatePickerField
+        <HistDateRangePickerField
           label="DATE"
-          value={dateFilter}
-          onChange={setDateFilter}
+          range={dateRange}
+          onChange={setDateRange}
           dateOptions={dateOptions}
         />
         <HistSelectField
           label={thirdLabel}
           value={thirdFilter}
           onChange={setThirdFilter}
-          options={[
-            { value: "", label: portal === "agency" ? "All outlets" : "All agencies" },
-            ...thirdOptions.map((o) => ({ value: o, label: o })),
-          ]}
+          options={
+            agencyByVenue
+              ? [
+                  { value: "", label: "All PRs" },
+                  ...prNames.map((n) => {
+                    const row = rows.find((r) => r.prName === n);
+                    return { value: row?.prId ?? n, label: n };
+                  }),
+                ]
+              : [
+                  { value: "", label: portal === "agency" ? "All outlets" : "All agencies" },
+                  ...thirdOptions.map((o) => ({ value: o, label: o })),
+                ]
+          }
         />
       </div>
 
       <div className="iz-between mt-4">
         <div className="iz-sect-label !mb-0">Transaction log</div>
-        <span className="iz-tiny iz-muted2">
-          {prRollups.length} PR{prRollups.length !== 1 ? "s" : ""} · {filtered.length} shift
-          {filtered.length !== 1 ? "s" : ""}
-        </span>
+        <span className="iz-tiny iz-muted2">{logCountLabel}</span>
       </div>
 
-      {portal === "agency" && onExport && (
-        <button type="button" className="iz-btn iz-btn-soft mt-2 w-full !py-2 !text-xs" onClick={onExport}>
-          <Download className="h-3.5 w-3.5" /> Download Excel of filtered set
-        </button>
-      )}
-
       <div className="mt-2.5 space-y-2.5">
-        {prRollups.length === 0 ? (
+        {agencyByVenue ? (
+          venueRollups.length === 0 ? (
+            <IzCard className="text-center">
+              <p className="iz-sm iz-muted">No records match these filters</p>
+            </IzCard>
+          ) : (
+            venueRollups.map((rollup) => (
+              <VenueHistoryCard
+                key={rollup.venue}
+                rollup={rollup}
+                onTap={() => setDetailVenue(rollup.venue)}
+              />
+            ))
+          )
+        ) : prRollups.length === 0 ? (
           <IzCard className="text-center">
             <p className="iz-sm iz-muted">No records match these filters</p>
           </IzCard>
@@ -159,67 +258,180 @@ export function ShiftHistoryLog({
               key={rollup.prId}
               rollup={rollup}
               venueLabel={venueLabel}
-              onTap={showPrDetail ? () => setDetailPrId(rollup.prId) : undefined}
+              onTap={showPrDetail ? () => openPrDetail(rollup.prId) : undefined}
             />
           ))
         )}
       </div>
 
       {showPrDetail && detailPr && (
-        <IzSheet open wide onClose={() => setDetailPrId(null)}>
+        <IzSheet open wide onClose={closePrDetail}>
           <div className="iz-sheet-head">
             <div>
               <button
                 type="button"
                 className="iz-chip mb-2 !px-2 !py-1 !text-[10px]"
-                onClick={() => setDetailPrId(null)}
+                onClick={detailPrVenue ? () => setDetailPrVenue(null) : closePrDetail}
+              >
+                {detailPrVenue ? "← All outlets" : "← Back to log"}
+              </button>
+              <p className="iz-tiny iz-muted2 uppercase">
+                {detailPrVenue
+                  ? `Shift log · ${detailPr.prName}`
+                  : `Earned breakdown by ${venueLabel}`}
+              </p>
+              <h3>{detailPrVenue ?? detailPr.prName}</h3>
+            </div>
+            <button type="button" className="iz-sheet-close" onClick={closePrDetail} aria-label="Close">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {detailPrVenue && detailPrVenueRollup ? (
+            <>
+              <IzCard flat className="!mb-3">
+                <p className="iz-tiny iz-muted">
+                  {detailPrVenueShifts.length} shift{detailPrVenueShifts.length !== 1 ? "s" : ""} at{" "}
+                  {detailPrVenue} · {detailPr.prName}
+                </p>
+                <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet mt-2">
+                  <div className="iz-txn-metric earned">
+                    <div className="label">Total earned</div>
+                    <div className="value iz-ledger">{formatRM(detailPrVenueRollup.totalPayout)}</div>
+                  </div>
+                  <div className="iz-txn-metric">
+                    <div className="label">Total drinks</div>
+                    <div className="value">{detailPrVenueRollup.totalDrinks}</div>
+                  </div>
+                  <div className="iz-txn-metric">
+                    <div className="label">Total tips</div>
+                    <div className="value iz-ledger">{formatRM(detailPrVenueRollup.totalTips)}</div>
+                  </div>
+                </div>
+              </IzCard>
+
+              <div className="space-y-2">
+                {detailPrVenueShifts.map((shift) => (
+                  <ShiftHistoryShiftCard key={shift.id} row={shift} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <IzCard flat className="!mb-3">
+                <p className="iz-tiny iz-muted">
+                  {detailTotals.shiftCount} shift{detailTotals.shiftCount !== 1 ? "s" : ""} in filtered log
+                  {detailVenueRollups.length !== 1
+                    ? ` · ${detailVenueRollups.length} ${venueLabel}s`
+                    : detailVenueRollups[0]
+                      ? ` · ${detailVenueRollups[0].venue}`
+                      : ""}
+                </p>
+                <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet mt-2">
+                  <div className="iz-txn-metric earned">
+                    <div className="label">Total earned</div>
+                    <div className="value iz-ledger">{formatRM(detailTotals.totalPayout)}</div>
+                  </div>
+                  <div className="iz-txn-metric">
+                    <div className="label">Total drinks</div>
+                    <div className="value">{detailTotals.totalDrinks}</div>
+                  </div>
+                  <div className="iz-txn-metric">
+                    <div className="label">Total tips</div>
+                    <div className="value iz-ledger">{formatRM(detailTotals.totalTips)}</div>
+                  </div>
+                </div>
+              </IzCard>
+
+              <p className="iz-tiny iz-muted2 mb-2">Tap an outlet to see every shift</p>
+              <div className="space-y-2.5">
+                {detailVenueRollups.map((rollup) => (
+                  <button
+                    key={rollup.venue}
+                    type="button"
+                    className="iz-txn-card-btn w-full"
+                    onClick={() => setDetailPrVenue(rollup.venue)}
+                  >
+                    <IzCard flat className="!mb-0 w-full text-left transition-colors hover:border-[var(--iz-gold-d)]">
+                      <div className="iz-between items-start gap-2">
+                        <p className="font-sora text-sm font-bold">{rollup.venue}</p>
+                        <span className="iz-tiny iz-muted2 flex items-center gap-1">
+                          {rollup.shiftCount} shift{rollup.shiftCount !== 1 ? "s" : ""}
+                          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                        </span>
+                      </div>
+                      <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet">
+                        <div className="iz-txn-metric earned">
+                          <div className="label">Earned</div>
+                          <div className="value iz-ledger">{formatRM(rollup.totalPayout)}</div>
+                        </div>
+                        <div className="iz-txn-metric">
+                          <div className="label">Drinks</div>
+                          <div className="value">{rollup.totalDrinks}</div>
+                        </div>
+                        <div className="iz-txn-metric">
+                          <div className="label">Tips</div>
+                          <div className="value iz-ledger">{formatRM(rollup.totalTips)}</div>
+                        </div>
+                      </div>
+                    </IzCard>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          <p className="iz-tiny iz-muted2 mt-3 text-center">Read-only · mirrored to outlet portal</p>
+        </IzSheet>
+      )}
+
+      {showVenueDetail && detailOutletRollup && (
+        <IzSheet open wide onClose={() => setDetailVenue(null)}>
+          <div className="iz-sheet-head">
+            <div>
+              <button
+                type="button"
+                className="iz-chip mb-2 !px-2 !py-1 !text-[10px]"
+                onClick={() => setDetailVenue(null)}
               >
                 ← Back to log
               </button>
-              <p className="iz-tiny iz-muted2 uppercase">Earned breakdown by {venueLabel}</p>
-              <h3>{detailPr.prName}</h3>
+              <p className="iz-tiny iz-muted2 uppercase">PR breakdown · {agencyName}</p>
+              <h3>{detailOutletRollup.venue}</h3>
             </div>
-            <button type="button" className="iz-sheet-close" onClick={() => setDetailPrId(null)} aria-label="Close">
+            <button type="button" className="iz-sheet-close" onClick={() => setDetailVenue(null)} aria-label="Close">
               <X className="h-4 w-4" />
             </button>
           </div>
 
           <IzCard flat className="!mb-3">
             <p className="iz-tiny iz-muted">
-              {detailTotals.shiftCount} shift{detailTotals.shiftCount !== 1 ? "s" : ""} in filtered log
-              {detailVenueRollups.length !== 1
-                ? ` · ${detailVenueRollups.length} ${venueLabel}s`
-                : detailVenueRollups[0]
-                  ? ` · ${detailVenueRollups[0].venue}`
-                  : ""}
+              {detailOutletRollup.shiftCount} shift{detailOutletRollup.shiftCount !== 1 ? "s" : ""} ·{" "}
+              {detailOutletPrRollups.length} PR{detailOutletPrRollups.length !== 1 ? "s" : ""}
             </p>
             <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet mt-2">
               <div className="iz-txn-metric earned">
                 <div className="label">Total earned</div>
-                <div className="value iz-ledger">{formatRM(detailTotals.totalPayout)}</div>
+                <div className="value iz-ledger">{formatRM(detailOutletRollup.totalPayout)}</div>
               </div>
               <div className="iz-txn-metric">
                 <div className="label">Total drinks</div>
-                <div className="value">{detailTotals.totalDrinks}</div>
+                <div className="value">{detailOutletRollup.totalDrinks}</div>
               </div>
               <div className="iz-txn-metric">
                 <div className="label">Total tips</div>
-                <div className="value iz-ledger">{formatRM(detailTotals.totalTips)}</div>
-              </div>
-              <div className="iz-txn-metric">
-                <div className="label">Total tables</div>
-                <div className="value">{detailTotals.totalTables}</div>
+                <div className="value iz-ledger">{formatRM(detailOutletRollup.totalTips)}</div>
               </div>
             </div>
           </IzCard>
 
           <div className="space-y-2.5">
-            {detailVenueRollups.map((rollup) => (
-              <IzCard key={rollup.venue} flat>
+            {detailOutletPrRollups.map((rollup) => (
+              <IzCard key={rollup.prId} flat>
                 <div className="iz-between items-start gap-2">
-                  <p className="font-sora text-sm font-bold">{rollup.venue}</p>
+                  <p className="font-sora text-sm font-bold">{rollup.prName}</p>
                   <span className="iz-tiny iz-muted2">
-                    {rollup.shiftCount} shift{rollup.shiftCount !== 1 ? "s" : ""}
+                    {rollup.shiftCount} shift{rollup.shiftCount !== 1 ? "s" : ""} · Latest {rollup.latestDateDisplay}
                   </span>
                 </div>
                 <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet">
@@ -235,20 +447,114 @@ export function ShiftHistoryLog({
                     <div className="label">Tips</div>
                     <div className="value iz-ledger">{formatRM(rollup.totalTips)}</div>
                   </div>
-                  <div className="iz-txn-metric">
-                    <div className="label">Tables</div>
-                    <div className="value">{rollup.totalTables}</div>
-                  </div>
                 </div>
               </IzCard>
             ))}
           </div>
 
-          <p className="iz-tiny iz-muted2 mt-3 text-center">Read-only · mirrored to outlet portal</p>
+          <p className="iz-tiny iz-muted2 mt-3 text-center">Agency view · PR ↔ outlet shift history</p>
         </IzSheet>
       )}
     </div>
   );
+}
+
+function ShiftHistoryShiftCard({ row }: { row: ShiftHistoryRow }) {
+  return (
+    <IzCard flat>
+      <div className="iz-between items-start gap-2">
+        <div>
+          <p className="font-sora text-sm font-bold">{row.dateDisplay}</p>
+          <p className="iz-tiny iz-muted mt-0.5">{row.outlet}</p>
+        </div>
+        <div className="text-right">
+          <div className="font-sora text-sm font-bold text-[var(--iz-gold-l)]">
+            {formatRM(row.totalPayout)}
+          </div>
+          <p className="iz-tiny iz-muted2">{row.durationHours}h shift</p>
+        </div>
+      </div>
+      <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet">
+        <div className="iz-txn-metric earned">
+          <div className="label">Earned</div>
+          <div className="value iz-ledger">{formatRM(row.totalPayout)}</div>
+        </div>
+        <div className="iz-txn-metric">
+          <div className="label">Drinks</div>
+          <div className="value">{row.totalDrinks}</div>
+        </div>
+        <div className="iz-txn-metric">
+          <div className="label">Tips</div>
+          <div className="value iz-ledger">{formatRM(row.totalTips)}</div>
+        </div>
+      </div>
+    </IzCard>
+  );
+}
+
+function venueLatestMeta(rollup: { shifts: ShiftHistoryRow[] }) {
+  const latest = rollup.shifts.reduce(
+    (best, row) => (row.dateIso > best.dateIso ? row : best),
+    rollup.shifts[0],
+  );
+  const prNames = [...new Set(rollup.shifts.map((s) => s.prName))].sort();
+  const prSummary =
+    prNames.length <= 2 ? prNames.join(" · ") : `${prNames.length} PRs`;
+  return { latest, prSummary };
+}
+
+function VenueHistoryCard({
+  rollup,
+  onTap,
+}: {
+  rollup: ReturnType<typeof aggregateShiftHistoryByVenue>[number];
+  onTap?: () => void;
+}) {
+  const { latest, prSummary } = venueLatestMeta(rollup);
+
+  const body = (
+    <>
+      <div className="iz-between items-start gap-2">
+        <div className="font-sora text-[16px] font-bold">{rollup.venue}</div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <div className="text-right">
+            <div className="font-sora text-sm font-bold text-[var(--iz-gold-l)]">
+              {rollup.shiftCount} shift{rollup.shiftCount !== 1 ? "s" : ""}
+            </div>
+            <p className="iz-tiny iz-muted2">Latest {latest?.dateDisplay}</p>
+          </div>
+          {onTap && <ChevronRight className="h-4 w-4 text-[var(--iz-muted)]" aria-hidden />}
+        </div>
+      </div>
+      <p className="iz-tiny iz-muted mt-0.5">{prSummary}</p>
+      <div className="iz-txn-card-metrics">
+        <div className="iz-txn-metric earned">
+          <div className="label">Total earned</div>
+          <div className="value iz-ledger">{formatRM(rollup.totalPayout)}</div>
+        </div>
+        <div className="iz-txn-metric">
+          <div className="label">Total drinks</div>
+          <div className="value">{rollup.totalDrinks}</div>
+        </div>
+        <div className="iz-txn-metric">
+          <div className="label">Total tips</div>
+          <div className="value iz-ledger">{formatRM(rollup.totalTips)}</div>
+        </div>
+      </div>
+    </>
+  );
+
+  if (onTap) {
+    return (
+      <button type="button" className="iz-txn-card-btn" onClick={onTap}>
+        <IzCard flat className="!mb-0 w-full text-left transition-colors hover:border-[var(--iz-gold-d)]">
+          {body}
+        </IzCard>
+      </button>
+    );
+  }
+
+  return <IzCard>{body}</IzCard>;
 }
 
 function PrHistoryCard({
@@ -293,10 +599,6 @@ function PrHistoryCard({
           <div className="label">Total tips</div>
           <div className="value iz-ledger">{formatRM(rollup.totalTips)}</div>
         </div>
-        <div className="iz-txn-metric">
-          <div className="label">Total tables</div>
-          <div className="value">{rollup.totalTables}</div>
-        </div>
       </div>
     </>
   );
@@ -321,8 +623,186 @@ function dateFromKey(key: string): Date | undefined {
   return new Date(y, m - 1, d);
 }
 
-function keyFromDate(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+function defaultHistCalendarMonth(dateOptions: { key: string; label: string }[]) {
+  const latestRecord = dateFromKey(dateOptions[0]?.key ?? "");
+  const today = parseISO(getLiveTodayIso());
+  if (!latestRecord) return today;
+  return latestRecord > today ? latestRecord : today;
+}
+
+function formatHistDateKey(key: string, dateOptions: { key: string; label: string }[]) {
+  const found = dateOptions.find((o) => o.key === key);
+  if (found) return found.label;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(key)) return fmtDateLabelFromIso(key);
+  return key;
+}
+
+function formatDateRangeLabel(
+  range: { from: string; to: string },
+  dateOptions: { key: string; label: string }[],
+) {
+  const labelFor = (key: string) => formatHistDateKey(key, dateOptions);
+  if (!range.from && !range.to) return "All dates";
+  if (range.from && range.to) return `${labelFor(range.from)} – ${labelFor(range.to)}`;
+  if (range.from) return `From ${labelFor(range.from)}`;
+  return `Until ${labelFor(range.to)}`;
+}
+
+export function HistDateRangePickerField({
+  label,
+  range,
+  onChange,
+  dateOptions,
+}: {
+  label: string;
+  range: { from: string; to: string };
+  onChange: (range: { from: string; to: string }) => void;
+  dateOptions: { key: string; label: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [pickTarget, setPickTarget] = useState<"from" | "to">("from");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const active = Boolean(range.from || range.to);
+  const displayLabel = formatDateRangeLabel(range, dateOptions);
+  const selectedKey = pickTarget === "from" ? range.from : range.to;
+  const selected = dateFromKey(selectedKey || (pickTarget === "to" ? range.from : ""));
+  const defaultMonth = defaultHistCalendarMonth(dateOptions);
+  const navBounds = useMemo(() => calendarNavBounds(dateOptions, defaultMonth), [dateOptions, defaultMonth]);
+  const [viewMonth, setViewMonth] = useState(selected ?? defaultMonth);
+  const wasOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      const initialTarget = range.from && !range.to ? "to" : "from";
+      setPickTarget(initialTarget);
+      setViewMonth(
+        dateFromKey(initialTarget === "from" ? range.from : range.to) ??
+          dateFromKey(range.from) ??
+          dateFromKey(range.to) ??
+          defaultMonth,
+      );
+    }
+    wasOpenRef.current = open;
+  }, [open, range.from, range.to, defaultMonth]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const id = window.setTimeout(() => document.addEventListener("mousedown", onDoc), 0);
+    return () => {
+      window.clearTimeout(id);
+      document.removeEventListener("mousedown", onDoc);
+    };
+  }, [open]);
+
+  const labelFor = (key: string) => formatHistDateKey(key, dateOptions);
+
+  return (
+    <div ref={rootRef} className="iz-hist-custom-select compact">
+      <label>{label}</label>
+      <button
+        type="button"
+        className={`iz-hist-select-trigger sm${open ? " open" : ""}`}
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label="Choose date range"
+      >
+        <span className={`flex min-w-0 items-center gap-1.5 truncate${active ? "" : " iz-muted2"}`}>
+          <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />
+          <span className="truncate">{displayLabel}</span>
+        </span>
+        {active ? (
+          <span
+            role="button"
+            tabIndex={0}
+            className="iz-hist-clear"
+            aria-label="Clear date range"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange({ from: "", to: "" });
+              setPickTarget("from");
+              setOpen(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                onChange({ from: "", to: "" });
+                setPickTarget("from");
+                setOpen(false);
+              }
+            }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </span>
+        ) : (
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-[var(--iz-muted2)] transition-transform${open ? " rotate-180" : ""}`}
+          />
+        )}
+      </button>
+      {open && (
+        <div
+          className="iz-hist-cal iz-hist-cal--popover iz-hist-cal--range"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="iz-hist-range-targets">
+            <button
+              type="button"
+              className={`iz-hist-range-target${pickTarget === "from" ? " is-active" : ""}`}
+              onClick={() => {
+                setPickTarget("from");
+                if (range.from) setViewMonth(dateFromKey(range.from) ?? viewMonth);
+              }}
+            >
+              <span className="iz-hist-range-target-label">From</span>
+              <span className="iz-hist-range-target-value">{range.from ? labelFor(range.from) : "Pick date"}</span>
+            </button>
+            <button
+              type="button"
+              className={`iz-hist-range-target${pickTarget === "to" ? " is-active" : ""}`}
+              onClick={() => {
+                setPickTarget("to");
+                if (range.to) setViewMonth(dateFromKey(range.to) ?? viewMonth);
+              }}
+            >
+              <span className="iz-hist-range-target-label">To</span>
+              <span className="iz-hist-range-target-value">{range.to ? labelFor(range.to) : "Pick date"}</span>
+            </button>
+          </div>
+          <HistDateCalendar
+            selected={selected}
+            viewMonth={viewMonth}
+            onViewMonthChange={setViewMonth}
+            navBounds={navBounds}
+            onSelectDay={(d) => {
+              const key = isoKeyFromDate(d);
+              if (pickTarget === "from") {
+                onChange({
+                  from: key,
+                  to: range.to && range.to < key ? "" : range.to,
+                });
+                setPickTarget("to");
+                return;
+              }
+              let from = range.from;
+              let to = key;
+              if (from && to < from) {
+                from = key;
+                to = range.from;
+              }
+              onChange({ from, to });
+              setOpen(false);
+            }}
+          />
+          <p className="iz-tiny iz-muted2 mt-1 px-1">Pick From, then To. Any date up to today works — days without shifts simply show no rows.</p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function HistDatePickerField({
@@ -340,22 +820,25 @@ function HistDatePickerField({
   const rootRef = useRef<HTMLDivElement>(null);
   const selectedLabel = dateOptions.find((o) => o.key === value)?.label;
   const selected = dateFromKey(value);
-  const allowedKeys = new Set(dateOptions.map((o) => o.key));
-  const defaultMonth = dateFromKey(dateOptions[dateOptions.length - 1]?.key ?? "") ?? new Date();
+  const defaultMonth = defaultHistCalendarMonth(dateOptions);
   const navBounds = useMemo(() => calendarNavBounds(dateOptions, defaultMonth), [dateOptions, defaultMonth]);
   const [viewMonth, setViewMonth] = useState(selected ?? defaultMonth);
 
   useEffect(() => {
-    if (open) setViewMonth(selected ?? defaultMonth);
-  }, [open, selected, defaultMonth]);
+    if (open) setViewMonth(selected ?? dateFromKey(dateOptions[0]?.key ?? "") ?? defaultMonth);
+  }, [open, selected, defaultMonth, dateOptions]);
 
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      if (rootRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    const id = window.setTimeout(() => document.addEventListener("mousedown", onDoc), 0);
+    return () => {
+      window.clearTimeout(id);
+      document.removeEventListener("mousedown", onDoc);
+    };
   }, [open]);
 
   return (
@@ -401,15 +884,14 @@ function HistDatePickerField({
         )}
       </button>
       {open && (
-        <div className="iz-hist-cal iz-hist-cal--popover">
+        <div className="iz-hist-cal iz-hist-cal--popover" onMouseDown={(e) => e.stopPropagation()}>
           <HistDateCalendar
             selected={selected}
             viewMonth={viewMonth}
             onViewMonthChange={setViewMonth}
             navBounds={navBounds}
-            allowedKeys={allowedKeys}
             onSelectDay={(d) => {
-              onChange(keyFromDate(d));
+              onChange(isoKeyFromDate(d));
               setOpen(false);
             }}
           />
@@ -419,7 +901,7 @@ function HistDatePickerField({
   );
 }
 
-function HistSelectField({
+export function HistSelectField({
   label,
   value,
   onChange,
@@ -440,8 +922,8 @@ function HistSelectField({
     const onDoc = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("click", onDoc);
+    return () => document.removeEventListener("click", onDoc);
   }, [open]);
 
   const current = options.find((o) => o.value === value)?.label ?? options[0]?.label ?? "Any";

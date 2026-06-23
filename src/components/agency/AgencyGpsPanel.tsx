@@ -85,7 +85,7 @@ export function AgencyGpsPanel({
     return (
       <OutletSection title="Live GPS" hint="No active PRs to track">
         <p className="iz-tiny iz-muted rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
-          PR locations appear when someone is on duty or en route today.
+          PR locations appear when someone is on duty today.
         </p>
       </OutletSection>
     );
@@ -95,13 +95,10 @@ export function AgencyGpsPanel({
     <OutletSection title="Live GPS" hint={gpsHint}>
       <IzCard flat className="!p-0 overflow-hidden">
         {outletOptions.length > 1 && (
-          <div className="flex flex-wrap gap-1.5 border-b border-[var(--iz-line)] bg-[var(--iz-panel)] px-3 py-2">
+          <div className="iz-filter-chips border-b border-[var(--iz-line)] bg-[var(--iz-panel)] px-3 py-2.5">
             <button
               type="button"
-              className={cn(
-                "iz-chip !text-[10px]",
-                !outletFilter && "ring-1 ring-[var(--iz-gold)]",
-              )}
+              className={cn("iz-filter-chip", !outletFilter && "on")}
               onClick={() => setOutletFilter(null)}
             >
               All outlets
@@ -110,10 +107,7 @@ export function AgencyGpsPanel({
               <button
                 key={outlet}
                 type="button"
-                className={cn(
-                  "iz-chip !text-[10px]",
-                  outletFilter === outlet && "ring-1 ring-[var(--iz-gold)]",
-                )}
+                className={cn("iz-filter-chip", outletFilter === outlet && "on")}
                 onClick={() => toggleOutletFilter(outlet)}
               >
                 {outlet}
@@ -152,7 +146,6 @@ export function AgencyGpsPanel({
                 <div className="space-y-2">
                   {outletRows.map((row) => {
                     const isSelected = row.slotId === selectedId;
-                    const enRoute = row.status === "en-route";
                     return (
                       <button
                         key={row.slotId}
@@ -168,11 +161,9 @@ export function AgencyGpsPanel({
                         <span
                           className={cn(
                             "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                            enRoute
-                              ? "bg-[#FBBC04] text-[#202124]"
-                              : row.inRange
-                                ? "bg-[#34A853] text-white"
-                                : "bg-[#4285F4] text-white",
+                            row.inRange
+                              ? "bg-[#34A853] text-white"
+                              : "bg-[#4285F4] text-white",
                           )}
                         >
                           {row.prName.trim()[0]}
@@ -180,19 +171,17 @@ export function AgencyGpsPanel({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="truncate font-sora text-sm font-bold">{row.prName}</span>
-                            <IzPill variant={enRoute ? "amber" : "green"} className="!py-0.5 !text-[9px]">
-                              {enRoute ? "En route" : "On duty"}
+                            <IzPill variant="green" className="!py-0.5 !text-[9px]">
+                              On duty
                             </IzPill>
                           </div>
                           <p className="iz-tiny iz-muted truncate">
                             {row.meters} m
                             {row.gpsFallback
                               ? " · Maps fallback"
-                              : enRoute
-                                ? " · Heading to venue"
-                                : row.inRange
-                                  ? " · In geofence"
-                                  : " · Outside geofence"}
+                              : row.inRange
+                                ? " · In geofence"
+                                : " · Outside geofence"}
                           </p>
                         </div>
                         <a

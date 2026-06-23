@@ -251,29 +251,15 @@ export function buildGpsTrackingRows(
   prCheckInMeta?: { gpsFallback?: boolean },
   activePrId?: string,
 ): GpsTrackingRow[] {
-  const prById = Object.fromEntries(agencyPRs.map((p) => [p.id, p]));
   const slots = roster.filter(
-    (s) =>
-      s.dateIso === dateIso &&
-      (s.status === "en-route" || (s.status === "on-duty" && !!s.checkedInAt)),
+    (s) => s.dateIso === dateIso && s.status === "on-duty" && !!s.checkedInAt,
   );
 
   return slots.map((slot) => {
-    const pr = prById[slot.prId];
     const outletCoord = OUTLET_GPS[slot.outlet] ?? OUTLET_GPS["Velvet 23"];
-    const home = PLACE_GPS[pr?.place ?? "KL"] ?? PLACE_GPS.KL;
-    const status = slot.status === "on-duty" ? "on-duty" : "en-route";
-
-    let prCoord: GeoCoord;
-    let meters: number;
-
-    if (status === "on-duty") {
-      prCoord = coordOnDutyAtOutlet(outletCoord, slot.prId);
-      meters = metersBetween(prCoord, outletCoord);
-    } else {
-      prCoord = coordEnRouteToOutlet(outletCoord, home, slot.prId);
-      meters = metersBetween(prCoord, outletCoord);
-    }
+    const prCoord = coordOnDutyAtOutlet(outletCoord, slot.prId);
+    const meters = metersBetween(prCoord, outletCoord);
+    const status = "on-duty" as const;
 
     const gpsFallback = activePrId === slot.prId && prCheckInMeta?.gpsFallback === true;
 

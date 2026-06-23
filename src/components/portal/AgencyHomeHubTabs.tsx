@@ -6,7 +6,8 @@ import { PortalClickableTableRow } from "@/components/portal/PortalClickableTabl
 import { IzPill, formatRM } from "@/components/iz/ui";
 import { useStore } from "@/lib/store";
 import { agencyCan, type AgencySubRole } from "@/lib/agency-rbac";
-import { DEFAULT_TIED_AGENCY_ID, pvStatusLabel, pvStatusPillVariant } from "@/lib/pr-demo";
+import { AGENCY_PV_STATUS_LABELS, agencyPvStatusLabel } from "@/lib/agency-payroll";
+import { DEFAULT_TIED_AGENCY_ID, pvStatusPillVariant } from "@/lib/pr-demo";
 import { deriveLiveWorkforce } from "@/lib/portal-sync";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 type HubTab = "on-duty" | "approvals" | "review" | "disputes";
@@ -34,7 +35,7 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
     if (showWorkforce) list.push({ id: "on-duty", label: "PR ON DUTY" });
     if (showApprovals) list.push({ id: "approvals", label: "PENDING APPROVALS" });
     if (showPayroll) {
-      list.push({ id: "review", label: "PENDING REVIEW" });
+      list.push({ id: "review", label: "PENDING AGENCY REVIEW" });
       list.push({ id: "disputes", label: "DISPUTES" });
     }
     return list;
@@ -193,7 +194,7 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
                       <td className="iz-portal-table-meta">{formatRM(pv.net)}</td>
                       <td className="iz-portal-table-status">
                         <IzPill variant={pvStatusPillVariant(pv.status)} className="!py-0.5 !text-[9px]">
-                          {pvStatusLabel(pv.status)}
+                          {agencyPvStatusLabel(pv.status)}
                         </IzPill>
                       </td>
                     </PortalClickableTableRow>
@@ -239,7 +240,7 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
                       <td className="iz-portal-table-meta">{formatRM(pv.net)}</td>
                       <td className="iz-portal-table-status">
                         <IzPill variant={pvStatusPillVariant(pv.status)} className="!py-0.5 !text-[9px]">
-                          {pvStatusLabel(pv.status)}
+                          {agencyPvStatusLabel(pv.status)}
                         </IzPill>
                       </td>
                     </PortalClickableTableRow>

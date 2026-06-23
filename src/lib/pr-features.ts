@@ -30,6 +30,10 @@ export interface AgencyTiedOffer extends PrShiftOffer {
   id: string;
   agencyName: string;
   briefing: string;
+  /** Total PR headcount for this outlet event (defaults to 12 in agency outlet views). */
+  headcount?: number;
+  /** PRs already confirmed for this event. */
+  supplied?: number;
 }
 
 export interface PrUpcomingShift {
@@ -273,6 +277,8 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     vip: true,
     rating: "4.8",
     briefing: "Black dress code. VIP tables 1–8. Mandarin preferred for host table.",
+    headcount: 15,
+    supplied: 11,
   },
   {
     id: "tied-mermate",
@@ -289,6 +295,8 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     vip: false,
     rating: "4.7",
     briefing: "Casual smart. Agency pre-confirmed rate RM260 + comm.",
+    headcount: 13,
+    supplied: 8,
   },
   {
     id: "tied-onyx",
@@ -305,6 +313,8 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     vip: false,
     rating: "4.6",
     briefing: "Same-night coverage. Smart casual. English + Cantonese helpful.",
+    headcount: 14,
+    supplied: 10,
   },
   {
     id: "tied-bear",
@@ -321,6 +331,8 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     vip: true,
     rating: "4.8",
     briefing: "Launch night floor. Black dress code. High table turnover expected.",
+    headcount: 16,
+    supplied: 9,
   },
   {
     id: "tied-urban",
@@ -337,6 +349,8 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     vip: true,
     rating: "4.9",
     briefing: "Launch party energy. Heels required. Tier III+ preferred.",
+    headcount: 18,
+    supplied: 11,
   },
   {
     id: "tied-mermate-sat",
@@ -353,6 +367,44 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     vip: true,
     rating: "4.8",
     briefing: "VIP tables only. Mandarin preferred. Agency pre-approved rate.",
+    headcount: 14,
+    supplied: 7,
+  },
+  {
+    id: "tied-velvet-sat",
+    agencyName: "Atlas Agency",
+    outlet: "Velvet 23",
+    event: "Saturday champagne",
+    date: [2026, 6, 6],
+    time: "21:00 — 03:00",
+    endNext: true,
+    distance: "1.2 km",
+    addr: "Jalan Changkat, KL",
+    base: 300,
+    comm: 50,
+    vip: true,
+    rating: "4.9",
+    briefing: "High-tier tables. Black dress code. Agency pre-confirmed rate.",
+    headcount: 16,
+    supplied: 10,
+  },
+  {
+    id: "tied-onyx-sat",
+    agencyName: "Atlas Agency",
+    outlet: "Onyx KL",
+    event: "Saturday rooftop",
+    date: [2026, 6, 6],
+    time: "20:00 — 02:00",
+    endNext: true,
+    distance: "3.4 km",
+    addr: "Jalan P. Ramlee, KL",
+    base: 290,
+    comm: 45,
+    vip: true,
+    rating: "4.7",
+    briefing: "Rooftop VIP. Smart casual. English + Cantonese helpful.",
+    headcount: 15,
+    supplied: 8,
   },
 ];
 

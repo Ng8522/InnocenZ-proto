@@ -52,7 +52,6 @@ export function RosterTimetableFilters({
           <span className="iz-roster-filter-label">PR type</span>
           <IzSelect
             block
-            className="!text-sm"
             value={filters.prType}
             onChange={(e) => onChange({ prType: e.target.value as RosterTimetableFilterState["prType"] })}
           >
@@ -66,7 +65,6 @@ export function RosterTimetableFilters({
           <span className="iz-roster-filter-label">Show PRs</span>
           <IzSelect
             block
-            className="!text-sm"
             value={filters.showPrs}
             onChange={(e) => onChange({ showPrs: e.target.value as RosterTimetableFilterState["showPrs"] })}
           >
@@ -80,7 +78,6 @@ export function RosterTimetableFilters({
           <span className="iz-roster-filter-label">Outlet</span>
           <IzSelect
             block
-            className="!text-sm"
             value={filters.outlet}
             onChange={(e) => onChange({ outlet: e.target.value })}
           >
@@ -97,14 +94,12 @@ export function RosterTimetableFilters({
           <span className="iz-roster-filter-label">Shift status</span>
           <IzSelect
             block
-            className="!text-sm"
             value={filters.status}
             onChange={(e) => onChange({ status: e.target.value as RosterTimetableFilterState["status"] })}
           >
             <option value="">Any status</option>
             <option value="scheduled">Scheduled</option>
             <option value="assignment-pending">Awaiting PR</option>
-            <option value="en-route">En route</option>
             <option value="on-duty">On duty</option>
             <option value="swap-pending">Swap pending</option>
             <option value="unavailable">Unavailable</option>
@@ -117,7 +112,7 @@ export function RosterTimetableFilters({
             value={filters.startTime}
             onChange={(v) => onChange({ startTime: v })}
             showIcon={false}
-            className="iz-roster-filter-time !min-h-0 !py-2 !text-sm"
+            className="iz-roster-filter-time"
             aria-label="Shift start from"
           />
         </label>
@@ -128,7 +123,7 @@ export function RosterTimetableFilters({
             value={filters.endTime}
             onChange={(v) => onChange({ endTime: v })}
             showIcon={false}
-            className="iz-roster-filter-time !min-h-0 !py-2 !text-sm"
+            className="iz-roster-filter-time"
             aria-label="Shift end by"
           />
         </label>

@@ -5,6 +5,7 @@ import type {
   CollectionLineItem,
 } from "@/lib/agency-demo";
 import type { PrPaymentVoucher, PrReceiptScan } from "@/lib/pr-demo";
+import { pvStatusLabel, type PrPvStatus } from "@/lib/pr-demo";
 
 function prNameMatchesAgency(scanName: string, pr: AgencyManagedPR): boolean {
   const sn = scanName.trim().toLowerCase();
@@ -31,6 +32,39 @@ export function resolvePvPrName(
   if (byName?.name) return byName.name;
   if (pv.prName === "Luna") return "Vicky";
   return pv.prName;
+}
+
+export function pvBelongsToAgencyPr(pv: Pick<PrPaymentVoucher, "prName" | "prIc">, agencyPRs: AgencyManagedPR[]): boolean {
+  if (pv.prIc && agencyPRs.some((p) => p.ic === pv.prIc)) return true;
+  return agencyPRs.some((p) => prNameMatchesAgency(pv.prName, p));
+}
+
+export function getAgencyManagedPvs(pvs: PrPaymentVoucher[], agencyPRs: AgencyManagedPR[]): PrPaymentVoucher[] {
+  return pvs.filter((pv) => pvBelongsToAgencyPr(pv, agencyPRs));
+}
+
+export function resolvePvPrId(
+  pv: Pick<PrPaymentVoucher, "prName" | "prIc">,
+  agencyPRs: AgencyManagedPR[] = [],
+): string | undefined {
+  if (pv.prIc) {
+    const byIc = agencyPRs.find((p) => p.ic === pv.prIc);
+    if (byIc) return byIc.id;
+  }
+  return agencyPRs.find((p) => prNameMatchesAgency(pv.prName, p))?.id;
+}
+
+/** Agency payroll display labels — aligned with History / PV filter chips. */
+export const AGENCY_PV_STATUS_LABELS: Record<PrPvStatus, string> = {
+  PENDING_REVIEW: "Pending Agency Review",
+  SENT: "Pending PR Review",
+  SIGNED: "Signed",
+  DISPUTED: "Disputed",
+  PAID: "Paid",
+};
+
+export function agencyPvStatusLabel(status: PrPvStatus): string {
+  return AGENCY_PV_STATUS_LABELS[status] ?? pvStatusLabel(status);
 }
 
 /** Receipt scans belonging to PRs on the agency roster (or linked agency PVs). */

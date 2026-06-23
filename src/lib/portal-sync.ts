@@ -175,11 +175,37 @@ export function addPrToOutletShift<T extends OutletShiftSlot>(shifts: T[], outle
       s.filled < s.quantity,
   );
   if (idx < 0) return shifts;
-  return shifts.map((sh, i) => {
-    if (i !== idx) return sh;
-    const prs = [...sh.prs, prId];
-    return { ...sh, prs, filled: prs.length };
+  return fillOutletShiftSlot(shifts, idx, prId);
+}
+
+function fillOutletShiftSlot<T extends OutletShiftSlot>(shifts: T[], idx: number, prId: string): T[] {
+  if (idx < 0 || idx >= shifts.length) return shifts;
+  const sh = shifts[idx];
+  if (sh.status === "sealed" || sh.prs.includes(prId) || sh.filled >= sh.quantity) return shifts;
+  return shifts.map((row, i) => {
+    if (i !== idx) return row;
+    const prs = [...row.prs, prId];
+    return { ...row, prs, filled: prs.length };
   });
+}
+
+/** Fill a specific posted outlet shift (agency roster planning) */
+export function addPrToPostedOutletShift<T extends OutletShiftSlot & { id: string }>(
+  shifts: T[],
+  postedShiftId: string,
+  prId: string,
+  outlet: string,
+): T[] {
+  const idx = shifts.findIndex(
+    (s) =>
+      s.id === postedShiftId &&
+      outletMatches(s.outletName, outlet) &&
+      s.status !== "sealed" &&
+      !s.prs.includes(prId) &&
+      s.filled < s.quantity,
+  );
+  if (idx >= 0) return fillOutletShiftSlot(shifts, idx, prId);
+  return addPrToOutletShift(shifts, outlet, prId);
 }
 
 export function floorTipsForOutletFromRoster(
@@ -348,7 +374,7 @@ function formatRosterDateLabel(dateIso: string): string {
   return `${weekday} · ${rest}`;
 }
 
-function parseShiftWindow(shift: string): { shiftStart: string; shiftEnd: string } {
+export function parseShiftWindow(shift: string): { shiftStart: string; shiftEnd: string } {
   const parts = shift.split(/[—–-]/).map((s) => s.trim());
   return { shiftStart: parts[0] ?? "22:00", shiftEnd: parts[1] ?? "04:00" };
 }

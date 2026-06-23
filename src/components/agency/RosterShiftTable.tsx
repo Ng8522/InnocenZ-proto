@@ -1,4 +1,13 @@
-import { rosterSlotAgencyName, type AgencyManagedPR, type AgencyRosterSlot, type OutletCommissionRule, type OutletPrTier, type OutletTierRateSettings, type RosterSlotStatus } from "@/lib/agency-demo";
+import {
+  rosterPageDisplayStatus,
+  rosterSlotAgencyName,
+  type AgencyManagedPR,
+  type AgencyRosterSlot,
+  type OutletCommissionRule,
+  type OutletPrTier,
+  type OutletTierRateSettings,
+  type RosterSlotStatus,
+} from "@/lib/agency-demo";
 import { comcardPreviewFromSlot, PrComcardIdentity } from "@/components/agency/PrComcardIdentity";
 import { formatRosterShiftTime } from "@/lib/pr-session";
 import { activePrSwapForRosterSlot, type PrSwapRequest } from "@/lib/pr-features";
@@ -67,7 +76,7 @@ const STATUS_LABEL: Record<
   { label: string; variant: "green" | "amber" | "red" | "violet" | "ink" }
 > = {
   "on-duty": { label: "On duty", variant: "green" },
-  "en-route": { label: "En route", variant: "amber" },
+  "en-route": { label: "Scheduled", variant: "ink" },
   scheduled: { label: "Scheduled", variant: "ink" },
   unavailable: { label: "Unavailable", variant: "red" },
   "swap-pending": { label: "Swap pending", variant: "violet" },
@@ -185,7 +194,7 @@ export function RosterShiftTable({
 }
 
 function StatusPills({ slot }: { slot: AgencyRosterSlot }) {
-  const st = STATUS_LABEL[slot.status];
+  const st = STATUS_LABEL[rosterPageDisplayStatus(slot.status)];
   return (
     <div className="flex flex-wrap gap-1">
       {slot.lateFlag && <IzPill variant="amber">Late</IzPill>}

@@ -1,6 +1,7 @@
-import { useMemo } from "react";
-import { Calendar as CalendarUi } from "@/components/ui/calendar";
-import { ChevronDown } from "lucide-react";
+import { useMemo, type ComponentProps } from "react";
+import { format, parseISO } from "date-fns";
+import { Calendar as CalendarUi, CalendarDayButton } from "@/components/ui/calendar";import { ChevronDown } from "lucide-react";
+import { getLiveTodayIso } from "@/lib/demo-clock";
 
 const MONTH_LABELS = [
   "January",
@@ -24,8 +25,24 @@ export function dateFromIsoKey(key: string): Date | undefined {
   return new Date(y, m - 1, d);
 }
 
+export function localTodayDate(iso = getLiveTodayIso()) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export function isoKeyFromDate(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return format(date, "yyyy-MM-dd");
+}
+
+/** Range filters may include days without rows — only block future dates. */
+export function isDateSelectableForFilter(date: Date, todayIso = getLiveTodayIso()) {
+  return isoKeyFromDate(date) <= todayIso;
+}
+
+export function historyDateBounds(dateOptions: { key: string }[]) {
+  if (dateOptions.length === 0) return { minKey: "", maxKey: "" };
+  const keys = dateOptions.map((o) => o.key).sort();
+  return { minKey: keys[0]!, maxKey: keys[keys.length - 1]! };
 }
 
 export function calendarNavBounds(dateOptions: { key: string }[], defaultMonth: Date) {
@@ -36,8 +53,9 @@ export function calendarNavBounds(dateOptions: { key: string }[], defaultMonth: 
   const years = dateOptions
     .map((o) => dateFromIsoKey(o.key)?.getFullYear())
     .filter((y): y is number => typeof y === "number");
-  const minY = Math.min(...years);
-  const maxY = Math.max(...years);
+  const todayYear = parseISO(getLiveTodayIso()).getFullYear();
+  const minY = Math.min(...years, todayYear);
+  const maxY = Math.max(...years, todayYear, defaultMonth.getFullYear());
   return { startMonth: new Date(minY, 0, 1), endMonth: new Date(maxY, 11, 1) };
 }
 
@@ -108,7 +126,6 @@ export function HistDateCalendar({
   viewMonth,
   onViewMonthChange,
   navBounds,
-  allowedKeys,
   onSelectDay,
   className,
 }: {
@@ -116,10 +133,28 @@ export function HistDateCalendar({
   viewMonth: Date;
   onViewMonthChange: (d: Date) => void;
   navBounds: { startMonth: Date; endMonth: Date };
-  allowedKeys: Set<string>;
   onSelectDay: (date: Date) => void;
   className?: string;
 }) {
+  const today = localTodayDate();
+
+  const DayButton = useMemo(() => {
+    function HistDayButton(props: ComponentProps<typeof CalendarDayButton>) {
+      return (
+        <CalendarDayButton
+          {...props}
+          onClick={(e) => {
+            props.onClick?.(e);
+            if (props.modifiers.disabled || props.modifiers.outside) return;
+            if (!isDateSelectableForFilter(props.day.date)) return;
+            onSelectDay(props.day.date);
+          }}
+        />
+      );
+    }
+    return HistDayButton;
+  }, [onSelectDay]);
+
   return (
     <>
       <HistCalendarMonthNav
@@ -136,17 +171,14 @@ export function HistDateCalendar({
         startMonth={navBounds.startMonth}
         endMonth={navBounds.endMonth}
         selected={selected}
-        onSelect={(d) => {
-          if (d) onSelectDay(d);
-        }}
-        disabled={(date) => !allowedKeys.has(isoKeyFromDate(date))}
+        disabled={{ after: today }}
+        components={{ DayButton }}
         classNames={{
           month_caption: "hidden",
           nav: "hidden",
         }}
         className={className ?? "iz-hist-cal-picker w-full rounded-[14px] border-0 bg-transparent p-0 text-[var(--iz-txt)]"}
       />
-      <p className="iz-tiny iz-muted2 mt-1 px-1">Only dates with records are selectable.</p>
     </>
   );
 }

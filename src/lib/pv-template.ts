@@ -1,5 +1,5 @@
 import type { AgencyManagedPR } from "@/lib/agency-demo";
-import { PR_PROFILES, type PrPaymentVoucher, type PrProfile } from "@/lib/pr-demo";
+import { PR_PROFILES, resolvePrAccountFields, type PrPaymentVoucher, type PrProfile, type PrSubRole } from "@/lib/pr-demo";
 
 /** Issuer block — matches PV Template.xlsx (Atmosphere Event Planner) */
 export const PV_TEMPLATE_ISSUER = {
@@ -92,14 +92,17 @@ export function buildAgencyPayee(pv: PrPaymentVoucher, agencyPRs: AgencyManagedP
     (p) => p.name === pv.prName || p.id === pv.prName || (pv.prIc && p.ic === pv.prIc),
   );
   const demo = findDemoProfileForPv(pv);
+  const displayName = managed?.name ?? demo?.name ?? pv.prName;
+  const icName = managed?.icName ?? demo?.first ?? displayName;
   return payeeFromPaymentVoucher(pv, {
-    code: managed?.id ?? (demo ? derivePrCode(demo.name, demo.ic) : undefined),
+    code: managed?.id ?? (demo ? derivePrCode(displayName, demo.ic) : undefined),
     phone: managed?.mobile ?? demo?.mobile,
-    nickname: managed?.name.split(" ")[0] ?? demo?.first,
+    nickname: displayName,
+    name: icName,
     ic: managed?.ic ?? pv.prIc ?? demo?.ic,
     bank: demo?.bank,
     accountNo: demo?.acc,
-    accountName: managed?.name ?? demo?.name ?? pv.prName,
+    accountName: icName,
   });
 }
 
@@ -125,17 +128,40 @@ export function payeeFromProfile(
     code?: string;
   },
 ): PvPayeeProfile {
-  const nickname = overrides?.nickname ?? overrides?.first ?? profile.first ?? profile.name.split(" ")[0] ?? profile.name;
+  const icName =
+    overrides?.name ??
+    overrides?.accountName ??
+    overrides?.first ??
+    profile.first ??
+    profile.name;
+  const displayName = overrides?.nickname ?? profile.name;
   return {
-    code: overrides?.code ?? derivePrCode(profile.name, profile.ic),
-    name: overrides?.name ?? profile.name,
-    nickname,
+    code: overrides?.code ?? derivePrCode(displayName, profile.ic),
+    name: icName,
+    nickname: displayName,
     ic: overrides?.ic ?? profile.ic,
     phone: overrides?.phone ?? overrides?.mobile ?? profile.mobile,
     bank: overrides?.bank ?? profile.bank,
-    accountName: overrides?.accountName ?? profile.name,
+    accountName: overrides?.accountName ?? icName,
     accountNo: overrides?.accountNo ?? overrides?.acc ?? profile.acc,
   };
+}
+
+/** PR portal payee — display name as nickname, IC name on name / bank account, mobile as phone. */
+export function payeeFromPrPortal(
+  role: PrSubRole | null,
+  profile: PrProfile,
+  account: Parameters<typeof resolvePrAccountFields>[1] = {},
+): PvPayeeProfile {
+  const fields = resolvePrAccountFields(role, account);
+  return payeeFromProfile(profile, {
+    nickname: fields.displayName,
+    name: fields.icName,
+    accountName: fields.icName,
+    phone: fields.mobile,
+    ic: fields.ic,
+    code: derivePrCode(fields.displayName, fields.ic),
+  });
 }
 
 export function payeeFromPaymentVoucher(

@@ -98,7 +98,6 @@ export function histRowsFromInboxPv(pv: PrPaymentVoucher): HistRow[] {
     wages: number;
     drinksAmt: number;
     tips: number;
-    tables: number;
     others: number;
   };
   const byKey = new Map<string, DayAcc>();
@@ -116,14 +115,12 @@ export function histRowsFromInboxPv(pv: PrPaymentVoucher): HistRow[] {
         wages: 0,
         drinksAmt: 0,
         tips: 0,
-        tables: 0,
         others: 0,
       } satisfies DayAcc);
     const desc = row.desc.toLowerCase();
     if (desc.includes("daily wage")) cur.wages += row.amt;
     else if (desc.includes("drink")) cur.drinksAmt += row.amt;
     else if (desc.includes("tip")) cur.tips += row.amt;
-    else if (desc.includes("table")) cur.tables += row.amt;
     else cur.others += row.amt;
     byKey.set(key, cur);
   }
@@ -132,13 +129,13 @@ export function histRowsFromInboxPv(pv: PrPaymentVoucher): HistRow[] {
     .map((acc) => {
       const dateIso = `${acc.d[0]}-${String(acc.d[1]).padStart(2, "0")}-${String(acc.d[2]).padStart(2, "0")}`;
       const { st, pill } = deriveShiftHistoryStatus(dateIso, [pv]);
-      const sales = acc.wages + acc.drinksAmt + acc.tips + acc.tables + acc.others;
+      const sales = acc.wages + acc.drinksAmt + acc.tips + acc.others;
       return {
         d: acc.d,
         venue: acc.venue,
         wages: Math.round(acc.wages),
         sales: Math.round(sales),
-        table: Math.round(acc.tables),
+        others: Math.round(acc.others),
         drinks: Math.round(acc.drinksAmt),
         tips: Math.round(acc.tips),
         st,
@@ -158,9 +155,10 @@ export type PaymentHistoryRecord = {
   weekLabel: string;
   weekStartIso?: string;
   weekEndIso?: string;
-  status: "PAID" | "SIGNED" | "DISPUTED";
+  status: "PAID" | "SIGNED";
   issued: string;
   paidAt?: string;
+  prSignedAt?: string;
   bankRef?: string;
   outlet: string;
   shiftDays: number;
@@ -171,6 +169,25 @@ export type PaymentHistoryRecord = {
   gross: number;
   net: number;
 };
+
+export function paymentHistoryStatusLabel(status: PaymentHistoryRecord["status"]): string {
+  return status === "PAID" ? "Paid" : "Signed";
+}
+
+export function paymentHistoryStatusPillVariant(
+  status: PaymentHistoryRecord["status"],
+): "green" | "amber" {
+  return status === "PAID" ? "green" : "amber";
+}
+
+export function paymentHistoryStatusMeta(record: PaymentHistoryRecord): string {
+  if (record.status === "PAID") {
+    return record.paidAt ? `Paid ${record.paidAt}` : "Paid to bank";
+  }
+  return record.prSignedAt
+    ? `Signed ${record.prSignedAt} · Awaiting bank transfer`
+    : "Signed · Awaiting bank transfer";
+}
 
 function rowCategory(desc: string) {
   const d = desc.toLowerCase();
@@ -202,12 +219,17 @@ function countShiftDays(rows: PrPvRow[]) {
 }
 
 export function isPaymentHistoryPv(pv: PrPaymentVoucher) {
-  return pv.status === "PAID" || pv.status === "SIGNED" || pv.status === "DISPUTED";
+  return pv.status === "PAID" || pv.status === "SIGNED";
 }
 
-/** PR Payment tab — actionable inbox only (signed/paid live in History → Payment) */
-export function isPrPaymentInboxPv(pv: PrPaymentVoucher) {
+/** PR Payment tab — unsigned PVs awaiting PR action (sign or dispute) */
+export function isPrPaymentActionPv(pv: PrPaymentVoucher) {
   return pv.status === "SENT" || pv.status === "DISPUTED";
+}
+
+/** PR Payment tab — unsigned PVs awaiting PR signature (signed/paid → History) */
+export function isPrPaymentInboxPv(pv: PrPaymentVoucher) {
+  return pv.status === "SENT";
 }
 
 /** Shift history badge — derived from the weekly PV covering that shift date. */
@@ -264,9 +286,10 @@ export function buildPaymentHistoryRecord(pv: PrPaymentVoucher): PaymentHistoryR
     weekLabel: pv.cycle,
     weekStartIso: pv.weekStartIso,
     weekEndIso: pv.weekEndIso,
-    status: pv.status as PaymentHistoryRecord["status"],
+    status: pv.status as "PAID" | "SIGNED",
     issued: pv.issued,
     paidAt: pv.paidAt,
+    prSignedAt: pv.prSignedAt,
     bankRef: pv.bankRef,
     outlet: pv.outlet,
     shiftDays,

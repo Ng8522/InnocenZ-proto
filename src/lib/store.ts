@@ -25,7 +25,10 @@ import {
   findDuplicateReceiptScan,
   receiptScanFingerprint,
   buildManualReceiptItems,
-  receiptPrimaryCategory,
+  buildDrinkSelfLogItems,
+  resolveManualSelfLogItems,
+  manualSelfLogTotal,
+  receiptScanCategory,
   buildPaymentVoucherFromShift,
   getPrProfile,
   makeShiftSessionId,
@@ -45,6 +48,7 @@ import {
   migratePrPortfolioAssetPath,
 } from "@/lib/pr-demo";
 import { writePersistedPrSubRole } from "@/lib/use-pr-sub-role";
+import { checkWithinOutletGeofence, formatDistanceMeters, type GeoCoord } from "@/lib/gps-locations";
 import { DEMO_SOS_LOCATION, type OpsNotification, type SosIncident } from "@/lib/ops-notifications";
 import {
   applyPushEvent,
@@ -99,8 +103,12 @@ import {
   applyDisputeTargetsToRows,
   buildSentWeeklyPv,
   buildWeeklyPaymentSummary,
+  clearDisputeTargetsFromRows,
   getPreviousWeekBounds,
   isWeekPvIssued,
+  pvRowsHaveDisputes,
+  removeDisputeLinesForTargets,
+  syncWeeklyPvWithSummary,
   type WeeklyDisputeTarget,
 } from "@/lib/pr-weekly-payment";
 import { mergeAgencyCollections } from "@/lib/agency-payroll";
@@ -377,7 +385,7 @@ interface StoreState {
   applyFreelancerListing: (listingId: string) => boolean;
   simulateOutletAcceptApplication: () => void;
   simulateOutletDeclineApplication: () => void;
-  cancelPrShift: () => void;
+  cancelPrShift: (reason: string) => void;
   /** Restore PR shift-flow snapshot only (used internally; not on role switch) */
   resetPrDemo: () => void;
   /** Prototype: accept shift (if needed) and check in without GPS/selfie */
@@ -392,6 +400,9 @@ interface StoreState {
     selfieDataUrl?: string;
     gpsFallback?: boolean;
     simulateLate?: boolean;
+    prCoord?: GeoCoord;
+    skipGeofence?: boolean;
+    geofenceReminder?: string;
   }) => void;
   simulatePrLate: (enabled: boolean) => void;
   simulatePrNoShow: () => void;
@@ -444,12 +455,16 @@ interface StoreState {
   prPortfolio: (string | null)[];
   prLanguages: string[];
   prDisplayName: string | null;
+  prIcName: string | null;
+  prMobile: string | null;
   prEmail: string | null;
   prAvatarPhoto: string | null;
   prPayrollAgencyId: string | null;
   setPrPayrollAgency: (agencyId: string) => void;
   savePrProfile: (data: {
     displayName: string;
+    icName: string;
+    mobile: string;
     email: string;
     avatarPhoto: string | null;
     comcard: PrComcard;
@@ -467,6 +482,7 @@ interface StoreState {
     photoDataUrls?: string[],
     targets?: WeeklyDisputeTarget[],
   ) => void;
+  withdrawPrPvDispute: (id: string, targets: WeeklyDisputeTarget[]) => void;
   escalatePrPvDispute: (id: string) => void;
   demoFreelancerLowRatingStrike: () => void;
 
@@ -481,8 +497,10 @@ interface StoreState {
     totalLogged: number;
     manualSelfLog?: {
       reason: string;
-      category: "drinks" | "tips" | "tables";
+      category: "drinks" | "tips";
       amount: number;
+      drinkId?: string;
+      drinkQty?: number;
     };
     /** Replace a wrong scan on the current shift (keeps slot on shift) */
     replaceScanId?: string;
@@ -491,9 +509,11 @@ interface StoreState {
   updateReceiptSelfLog: (
     scanId: string,
     patch: {
-      amount: number;
+      amount?: number;
       reason?: string;
-      category?: "drinks" | "tips" | "tables";
+      category?: "drinks" | "tips";
+      drinkId?: string;
+      drinkQty?: number;
     },
   ) => void;
   verifyAgencyReceiptSelfLog: (scanId: string, decision: "approved" | "rejected") => void;
@@ -539,11 +559,12 @@ interface StoreState {
   declineOutletSwapByPr: (rosterSlotId: string) => void;
   approveAgencyAssignmentByPr: (rosterSlotId: string) => void;
   confirmOutletRosterSlot: (rosterSlotId: string) => void;
-  declineAgencyAssignmentByPr: (rosterSlotId: string) => void;
+  declineAgencyAssignmentByPr: (rosterSlotId: string, reason: string) => void;
   togglePrDayAvailability: (dateIso: string) => void;
   setPrDayUnavailable: (dateIso: string, note?: string) => void;
   clearPrDayUnavailable: (dateIso: string) => void;
-  cancelPrRosterShift: (rosterSlotId: string) => void;
+  cancelPrRosterShift: (rosterSlotId: string, reason: string) => void;
+  cancelPrUpcomingShift: (upcomingId: string, reason: string) => void;
   assignPrToOutlet: (input: {
     prId: string;
     outlet: string;
@@ -579,6 +600,7 @@ interface StoreState {
       Pick<
         AgencyManagedPR,
         | "name"
+        | "icName"
         | "mobile"
         | "email"
         | "age"
@@ -691,6 +713,7 @@ function normalizeAgencyPrs(list: AgencyManagedPR[]): AgencyManagedPR[] {
   return list.map((pr) => ({
     ...pr,
     name: pr.name ?? "PR",
+    icName: pr.icName?.trim() || pr.name || "PR",
     languages: languagesFromPr(pr),
     rating: typeof pr.rating === "number" ? pr.rating : 0,
     age: typeof pr.age === "number" ? pr.age : 22,
@@ -1000,7 +1023,11 @@ export const useStore = create<StoreState>()(
           });
         }
         const late = get().prCheckInMeta.late ?? false;
-        get().prCheckIn({ simulateLate: late, gpsFallback: get().prCheckInMeta.gpsFallback });
+        get().prCheckIn({
+          simulateLate: late,
+          gpsFallback: get().prCheckInMeta.gpsFallback,
+          skipGeofence: true,
+        });
       },
       demoPrEnRoute: () => {
         const st = get();
@@ -1240,7 +1267,12 @@ export const useStore = create<StoreState>()(
         });
         get().toast("Agency approved — slot locked", "success");
       },
-      cancelPrShift: () => {
+      cancelPrShift: (reason) => {
+        const trimmed = reason.trim();
+        if (!trimmed) {
+          get().toast("Add a reason before cancelling", "warn");
+          return;
+        }
         const st = get();
         const prId = getPrRosterId(st.prSubRole);
         const slot = findAgencyRosterTonight(st.agencyRoster, prId);
@@ -1267,11 +1299,18 @@ export const useStore = create<StoreState>()(
                     status: "unavailable" as const,
                     payDeductionRm: deductionRm,
                     cancelledAt: stamp,
-                    prUnavailableNote: "Tonight shift cancelled by PR",
+                    prUnavailableNote: `Cancelled by PR — ${trimmed}`,
                   }
                 : s,
             ),
           }));
+          get().pushNotify({
+            type: "shift_edit",
+            prId: slot.prId,
+            prName: slot.prName,
+            outlet: slot.outlet,
+            detail: `Shift cancelled — ${trimmed}`,
+          });
         }
         set({
           shiftAccepted: false,
@@ -1367,6 +1406,23 @@ export const useStore = create<StoreState>()(
       prCheckIn: (opts) => {
         const st0 = get();
         const offer = activePrShiftOffer(st0);
+        if (!opts?.skipGeofence) {
+          if (!opts?.prCoord) {
+            get().toast(
+              "Location required — stand within 50m of the outlet to check in",
+              "warn",
+            );
+            return;
+          }
+          const geofence = checkWithinOutletGeofence(offer.outlet, opts.prCoord);
+          if (!geofence.ok) {
+            get().toast(
+              `Too far from ${geofence.outlet} — ${formatDistanceMeters(geofence.meters)} away (must be within ${geofence.geofenceMeters}m)`,
+              "warn",
+            );
+            return;
+          }
+        }
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -1423,6 +1479,8 @@ export const useStore = create<StoreState>()(
         });
         const lateNote = late ? " · Late flag (+15 min)" : "";
         const gpsNote = gpsFallback ? " · Manual maps fallback" : "";
+        const demoGeofenceNote =
+          opts?.skipGeofence && opts?.geofenceReminder ? " · Demo check-in (geofence waived)" : "";
         const profile = getPrProfile(get().prSubRole);
         get().pushNotify({
           type: "check_in",
@@ -1432,9 +1490,12 @@ export const useStore = create<StoreState>()(
           late,
         });
         get().toast(
-          `Checked in ✓ Time-In locked · PV ${session.pvId}${lateNote}${gpsNote}`,
+          `Checked in ✓ Time-In locked · PV ${session.pvId}${lateNote}${gpsNote}${demoGeofenceNote}`,
           "success",
         );
+        if (opts?.geofenceReminder) {
+          get().toast(opts.geofenceReminder, "warn");
+        }
       },
       simulatePrLate: (enabled) => {
         if (!get().shiftAccepted || get().checkedIn) {
@@ -1697,6 +1758,8 @@ export const useStore = create<StoreState>()(
       prPortfolio: demoSnapshot.prPortfolio,
       prLanguages: ["English", "Mandarin", "Cantonese"],
       prDisplayName: null,
+      prIcName: null,
+      prMobile: null,
       prEmail: null,
       prAvatarPhoto: demoSnapshot.prAvatarPhoto,
       prPayrollAgencyId: null,
@@ -1759,10 +1822,14 @@ export const useStore = create<StoreState>()(
       savePrProfile: (data) => {
         const prId = getPrRosterId(get().prSubRole);
         const displayName = data.displayName.trim();
+        const icName = data.icName.trim();
+        const mobile = data.mobile.trim();
         const email = data.email.trim();
         set((st) => {
           const portal = {
             prDisplayName: displayName,
+            prIcName: icName,
+            prMobile: mobile,
             prEmail: email,
             prAvatarPhoto: data.avatarPhoto,
             prComcard: data.comcard,
@@ -1777,6 +1844,8 @@ export const useStore = create<StoreState>()(
           );
           return {
             prDisplayName: displayName,
+            prIcName: icName,
+            prMobile: mobile,
             prEmail: email,
             prAvatarPhoto: data.avatarPhoto,
             prComcard: data.comcard,
@@ -1837,8 +1906,8 @@ export const useStore = create<StoreState>()(
         if (
           existing &&
           existing.status === nextPv.status &&
-          existing.net === nextPv.net &&
-          existing.rows.length === nextPv.rows.length
+          Math.abs(existing.net - nextPv.net) < 0.02 &&
+          Math.abs((existing.subtotal ?? existing.net) - nextPv.subtotal) < 0.02
         ) {
           return;
         }
@@ -1854,15 +1923,32 @@ export const useStore = create<StoreState>()(
           get().toast("Draw your signature before confirming", "warn");
           return;
         }
-        const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
+        const st = get();
+        const pv = (st.prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
         if (!pv) return;
+        const role = st.prSubRole;
+        const profile = role ? getPrProfile(role) : null;
+        const rosterPrId = role ? getPrRosterId(role) : undefined;
+        const syncedPv =
+          pv.weekStartIso && rosterPrId
+            ? syncWeeklyPvWithSummary(
+                pv,
+                buildWeeklyPaymentSummary({
+                  weekStartIso: pv.weekStartIso,
+                  pv,
+                  shiftHistory: st.shiftHistory,
+                  scans: st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS,
+                  prId: rosterPrId,
+                }),
+              )
+            : pv;
         const stamp = formatPvSignTimestamp();
         const bankRef = `INZ-TRF-${Date.now().toString(36).toUpperCase().slice(-8)}`;
-        set((st) => {
-          const nextPvs = (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
+        set((state) => {
+          const nextPvs = (state.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
             p.id === id
               ? {
-                  ...p,
+                  ...syncedPv,
                   status: "PAID" as const,
                   prSignedAt: stamp,
                   prSignatureDataUrl: signatureDataUrl,
@@ -1872,31 +1958,33 @@ export const useStore = create<StoreState>()(
               : p,
           );
           const ledger = syncStoreHistoryLedger(
-            st.shiftHistory,
-            st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS,
+            state.shiftHistory,
+            state.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS,
             nextPvs,
+            profile ?? { name: pv.prName, ic: pv.prIc } as ReturnType<typeof getPrProfile>,
+            rosterPrId ?? prIdForPayeeName(pv.prName, pv.prIc, state.agencyPRs),
           );
           return {
             prPaymentVouchers: ledger.pvs,
             prReceiptScans: ledger.scans,
           };
         });
-        const prId = prIdForPayeeName(pv.prName, pv.prIc, get().agencyPRs);
+        const prId = rosterPrId ?? prIdForPayeeName(pv.prName, pv.prIc, get().agencyPRs);
         get().pushNotify({
           type: "pv_signed",
           pvId: id,
           prName: pv.prName,
-          net: pv.net,
+          net: syncedPv.net,
         });
         get().pushNotify({
           type: "pv_paid",
           pvId: id,
           prId,
           prName: pv.prName,
-          net: pv.net,
+          net: syncedPv.net,
         });
         get().toast(
-          `Signed ✓ · ${pv.net.toLocaleString("en-MY", { style: "currency", currency: "MYR" })} sent to your bank (${bankRef})`,
+          `Signed ✓ · ${syncedPv.net.toLocaleString("en-MY", { style: "currency", currency: "MYR" })} sent to your bank (${bankRef})`,
           "success",
         );
       },
@@ -1965,9 +2053,20 @@ export const useStore = create<StoreState>()(
         const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
         if (!pv) return;
         const year = pv.weekStartIso ? parseInt(pv.weekStartIso.slice(0, 4), 10) : new Date().getFullYear();
-        const rows = targets?.length
+        const mergedRows = targets?.length
           ? applyDisputeTargetsToRows(pv.rows, targets, year)
           : pv.rows;
+        const existingPhotos = pv.prDisputePhotoDataUrls?.length
+          ? pv.prDisputePhotoDataUrls
+          : pv.prDisputePhotoDataUrl
+            ? [pv.prDisputePhotoDataUrl]
+            : [];
+        const mergedPhotos = [...existingPhotos, ...photos.filter((p) => !existingPhotos.includes(p))];
+        const mergedReason = pv.prDisputeReason?.trim()
+          ? pv.prDisputeReason.includes(trimmed)
+            ? pv.prDisputeReason
+            : `${pv.prDisputeReason.trim()}\n\n${trimmed}`
+          : trimmed;
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -1980,16 +2079,60 @@ export const useStore = create<StoreState>()(
             p.id === id
               ? {
                   ...p,
-                  prDisputeReason: trimmed,
+                  prDisputeReason: mergedReason,
                   disputeUpdatedAt: stamp,
-                  prDisputePhotoDataUrls: photos.length ? photos : undefined,
-                  prDisputePhotoDataUrl: photos[0],
-                  rows,
+                  prDisputePhotoDataUrls: mergedPhotos.length ? mergedPhotos : undefined,
+                  prDisputePhotoDataUrl: mergedPhotos[0],
+                  rows: mergedRows,
                 }
               : p,
           ),
         }));
-        get().toast("Dispute reason updated — agency notified", "success");
+        get().toast("Dispute updated — agency notified", "success");
+      },
+      withdrawPrPvDispute: (id, targets) => {
+        if (!targets.length) {
+          get().toast("Select an amount to withdraw", "warn");
+          return;
+        }
+        const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
+        if (!pv) return;
+        const year = pv.weekStartIso ? parseInt(pv.weekStartIso.slice(0, 4), 10) : new Date().getFullYear();
+        const rows = clearDisputeTargetsFromRows(pv.rows, targets, year);
+        const stillDisputed = pvRowsHaveDisputes(rows);
+        const prDisputeReason = removeDisputeLinesForTargets(pv.prDisputeReason, targets);
+        set((st) => {
+          const nextPvs = (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  status: stillDisputed ? ("DISPUTED" as const) : ("SENT" as const),
+                  rows,
+                  prDisputeReason: stillDisputed ? prDisputeReason : undefined,
+                  disputedAt: stillDisputed ? p.disputedAt : undefined,
+                  disputeUpdatedAt: stillDisputed ? p.disputeUpdatedAt : undefined,
+                  prDisputePhotoDataUrls: stillDisputed ? p.prDisputePhotoDataUrls : undefined,
+                  prDisputePhotoDataUrl: stillDisputed ? p.prDisputePhotoDataUrl : undefined,
+                  disputeEscalatedAt: stillDisputed ? p.disputeEscalatedAt : undefined,
+                }
+              : p,
+          );
+          const ledger = syncStoreHistoryLedger(
+            st.shiftHistory,
+            st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS,
+            nextPvs,
+          );
+          return {
+            prPaymentVouchers: ledger.pvs,
+            prReceiptScans: ledger.scans,
+          };
+        });
+        get().toast(
+          stillDisputed
+            ? "Dispute withdrawn for that amount — other disputes still open"
+            : "Dispute withdrawn — PV back to verified",
+          "success",
+        );
       },
       escalatePrPvDispute: (id) => {
         const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
@@ -2047,9 +2190,9 @@ export const useStore = create<StoreState>()(
         }
         const manual = draft.manualSelfLog;
         const items = manual
-          ? buildManualReceiptItems(manual.category, manual.amount)
+          ? resolveManualSelfLogItems(manual, draft.outlet)
           : draft.items;
-        const totalLogged = manual ? manual.amount : draft.totalLogged;
+        const totalLogged = manual ? manualSelfLogTotal(items) : draft.totalLogged;
         const fingerprint = receiptScanFingerprint({
           outlet: draft.outlet,
           totalLogged,
@@ -2175,13 +2318,33 @@ export const useStore = create<StoreState>()(
           get().toast("This self-log belongs to another shift", "warn");
           return;
         }
-        const amount = Math.max(0, Math.round(patch.amount * 100) / 100);
+        const category = patch.category ?? receiptScanCategory(scan);
+        const outlet = scan.outlet;
+        let items: PrReceiptScan["items"];
+        let amount: number;
+        if (category === "drinks" && patch.drinkId && patch.drinkQty && patch.drinkQty > 0) {
+          items = resolveManualSelfLogItems(
+            {
+              category: "drinks",
+              amount: 0,
+              drinkId: patch.drinkId,
+              drinkQty: patch.drinkQty,
+            },
+            outlet,
+          );
+          amount = manualSelfLogTotal(items);
+        } else {
+          amount = Math.max(0, Math.round((patch.amount ?? scan.totalLogged) * 100) / 100);
+          if (amount <= 0) {
+            get().toast("Enter a valid amount", "warn");
+            return;
+          }
+          items = resolveManualSelfLogItems({ category, amount }, outlet);
+        }
         if (amount <= 0) {
-          get().toast("Enter a valid amount", "warn");
+          get().toast("Select a drink and quantity", "warn");
           return;
         }
-        const category = patch.category ?? receiptPrimaryCategory(scan);
-        const items = buildManualReceiptItems(category, amount);
         const comm = calcReceiptCommissions(items);
         const oldQty = receiptQtyDelta(scan.items);
         const newQty = receiptQtyDelta(items);
@@ -2764,7 +2927,7 @@ export const useStore = create<StoreState>()(
             : addPrToOutletShift(st.shifts, outlet, prId),
         }));
         get().toast(
-          `Assignment sent to ${pr.name} — awaiting Approve or Reject on Shifts`,
+          `Assignment sent to ${pr.name} — they will be notified and can decline with reason`,
           "success",
         );
         get().pushNotify({
@@ -2844,13 +3007,25 @@ export const useStore = create<StoreState>()(
           outlet: slot.outlet,
         });
       },
-      declineAgencyAssignmentByPr: (rosterSlotId) => {
+      declineAgencyAssignmentByPr: (rosterSlotId, reason) => {
+        const trimmed = reason.trim();
+        if (!trimmed) {
+          get().toast("Add a reason before declining", "warn");
+          return;
+        }
         const slot = get().agencyRoster.find((s) => s.id === rosterSlotId);
         if (!slot || slot.status !== "assignment-pending") return;
         set((st) => ({
           agencyRoster: st.agencyRoster.filter((s) => s.id !== rosterSlotId),
         }));
-        get().toast(`Rejected agency assignment at ${slot.outlet}`, "warn");
+        get().pushNotify({
+          type: "shift_edit",
+          prId: slot.prId,
+          prName: slot.prName,
+          outlet: slot.outlet,
+          detail: `Declined agency assignment — ${trimmed}`,
+        });
+        get().toast(`Declined ${slot.outlet} — agency notified`, "warn");
       },
       togglePrDayAvailability: (dateIso) => {
         const st = get();
@@ -2964,13 +3139,32 @@ export const useStore = create<StoreState>()(
         if (!prDayIsUnavailable(daySlots)) return;
         get().togglePrDayAvailability(dateIso);
       },
-      cancelPrRosterShift: (rosterSlotId) => {
+      cancelPrRosterShift: (rosterSlotId, reason) => {
+        const trimmed = reason.trim();
+        if (!trimmed) {
+          get().toast("Add a reason before cancelling", "warn");
+          return;
+        }
         const st = get();
         const prId = getPrRosterId(st.prSubRole);
         const slot = st.agencyRoster.find((s) => s.id === rosterSlotId);
         if (!slot || slot.prId !== prId) return;
         if (["on-duty", "en-route"].includes(slot.status)) {
           get().toast("Check out first — cannot cancel while on duty", "warn");
+          return;
+        }
+        if (slot.status === "assignment-pending") {
+          set((cur) => ({
+            agencyRoster: cur.agencyRoster.filter((s) => s.id !== rosterSlotId),
+          }));
+          get().pushNotify({
+            type: "shift_edit",
+            prId: slot.prId,
+            prName: slot.prName,
+            outlet: slot.outlet,
+            detail: `Cancelled agency assignment — ${trimmed}`,
+          });
+          get().toast(`Cancelled ${slot.outlet} — agency notified`, "warn");
           return;
         }
         const evalResult = evaluateShiftCancellation(
@@ -2995,7 +3189,7 @@ export const useStore = create<StoreState>()(
                   status: "unavailable" as const,
                   payDeductionRm: evalResult.deductionRm,
                   cancelledAt: stamp,
-                  prUnavailableNote: "Shift cancelled by PR",
+                  prUnavailableNote: `Cancelled by PR — ${trimmed}`,
                 }
               : s,
           ),
@@ -3013,6 +3207,13 @@ export const useStore = create<StoreState>()(
               }
             : {}),
         }));
+        get().pushNotify({
+          type: "shift_edit",
+          prId: slot.prId,
+          prName: slot.prName,
+          outlet: slot.outlet,
+          detail: `Shift cancelled — ${trimmed}`,
+        });
         const penalty =
           evalResult.deductionRm > 0
             ? ` · −RM ${evalResult.deductionRm} on next PV`
@@ -3021,6 +3222,19 @@ export const useStore = create<StoreState>()(
           `Shift cancelled at ${slot.outlet}${penalty}`,
           evalResult.tier === "safe" ? "info" : "warn",
         );
+      },
+      cancelPrUpcomingShift: (upcomingId, reason) => {
+        const trimmed = reason.trim();
+        if (!trimmed) {
+          get().toast("Add a reason before cancelling", "warn");
+          return;
+        }
+        const row = get().prUpcomingShifts.find((u) => u.id === upcomingId);
+        if (!row) return;
+        set((cur) => ({
+          prUpcomingShifts: cur.prUpcomingShifts.filter((u) => u.id !== upcomingId),
+        }));
+        get().toast(`Cancelled ${row.outlet} — agency notified`, "info");
       },
       declineOutletSwapByPr: (rosterSlotId) => {
         const slot = get().agencyRoster.find((s) => s.id === rosterSlotId);
@@ -3523,6 +3737,8 @@ export const useStore = create<StoreState>()(
           prId === myPrId
             ? {
                 ...(patch.name?.trim() ? { prDisplayName: patch.name.trim() } : {}),
+                ...(patch.icName?.trim() ? { prIcName: patch.icName.trim() } : {}),
+                ...(patch.mobile?.trim() ? { prMobile: patch.mobile.trim() } : {}),
                 ...(patch.email?.trim() ? { prEmail: patch.email.trim() } : {}),
               }
             : {};
@@ -4588,6 +4804,8 @@ export const useStore = create<StoreState>()(
           prPortfolio: s.prPortfolio,
           prLanguages: s.prLanguages,
           prDisplayName: s.prDisplayName,
+          prIcName: s.prIcName,
+          prMobile: s.prMobile,
           prEmail: s.prEmail,
           prAvatarPhoto: s.prAvatarPhoto,
           prPayrollAgencyId: s.prPayrollAgencyId,
@@ -4773,6 +4991,8 @@ export const useStore = create<StoreState>()(
         const portalForAgencySync = {
           prDisplayName:
             p?.prDisplayName === "Luna" ? null : (p?.prDisplayName ?? current.prDisplayName),
+          prIcName: p?.prIcName ?? current.prIcName,
+          prMobile: p?.prMobile ?? current.prMobile,
           prEmail: (() => {
             const raw = p?.prEmail ?? current.prEmail;
             if (!raw || raw.toLowerCase() === "luna@inz.my") return null;
@@ -4802,6 +5022,8 @@ export const useStore = create<StoreState>()(
             next = {
               ...next,
               name: next.name === "Luna" ? seed.name : next.name,
+              icName: next.icName?.trim() ? next.icName : seed.icName,
+              mobile: next.mobile?.trim() ? next.mobile : seed.mobile,
               email:
                 !next.email || next.email.toLowerCase() === "luna@inz.my" ? seed.email : next.email,
               avatarPhoto:
@@ -4840,6 +5062,8 @@ export const useStore = create<StoreState>()(
           prLanguages: p?.prLanguages?.length ? p.prLanguages : current.prLanguages,
           prDisplayName:
             p?.prDisplayName === "Luna" ? null : (p?.prDisplayName ?? current.prDisplayName),
+          prIcName: p?.prIcName ?? current.prIcName,
+          prMobile: p?.prMobile ?? current.prMobile,
           prEmail: (() => {
             const raw = p?.prEmail ?? current.prEmail;
             if (!raw || raw.toLowerCase() === "luna@inz.my") return null;
@@ -4852,9 +5076,7 @@ export const useStore = create<StoreState>()(
           notificationPrefs: p?.notificationPrefs ?? current.notificationPrefs,
           prDeclinedOfferIds: p?.prDeclinedOfferIds ?? current.prDeclinedOfferIds,
           prMarketplaceApplication: p?.prMarketplaceApplication ?? current.prMarketplaceApplication,
-          prUpcomingShifts: remapSeedUpcomingShifts(
-            p?.prUpcomingShifts?.length ? p.prUpcomingShifts : current.prUpcomingShifts,
-          ),
+          prUpcomingShifts: remapSeedUpcomingShifts(current.prUpcomingShifts),
           prSwapRequests: mergePrSwapRequests(
             p?.prSwapRequests,
             current.prSwapRequests,

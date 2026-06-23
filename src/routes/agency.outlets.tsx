@@ -335,7 +335,7 @@ function AgencyOutletDetail({
         </h2>
         <p className="iz-tiny iz-muted mt-0.5">
           Wage RM{summary.rule.wagePerHour}/hr · Drinks {summary.rule.drinkPct}% · Tips{" "}
-          {summary.rule.tipPct}% · Table {summary.rule.tablePct}%
+          {summary.rule.tipPct}%
         </p>
       </header>
 

@@ -224,7 +224,7 @@ export function TierRatesFields({
           )}
         </div>
         {!wageOnly && !postJob && (
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             <NumField
               label="Drink %"
               value={activeRates.drinkPct}
@@ -238,13 +238,6 @@ export function TierRatesFields({
               suffix="%"
               readOnly={readOnly}
               onChange={readOnly ? undefined : (n) => onPatchTier(activeTier, { tipPct: n })}
-            />
-            <NumField
-              label="Table %"
-              value={activeRates.tablePct}
-              suffix="%"
-              readOnly={readOnly}
-              onChange={readOnly ? undefined : (n) => onPatchTier(activeTier, { tablePct: n })}
             />
           </div>
         )}

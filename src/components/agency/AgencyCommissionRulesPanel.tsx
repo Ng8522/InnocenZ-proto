@@ -160,7 +160,7 @@ export function AgencyCommissionRulesPanel({ outlet }: { outlet: string }) {
   return (
     <>
       <p className="iz-tiny iz-muted2 mb-2">
-        Drink types · tables · tips · OT — synced with outlet workspace
+        Drink types · tips · OT — synced with outlet workspace
       </p>
 
       <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : ""}>
@@ -202,20 +202,11 @@ export function AgencyCommissionRulesPanel({ outlet }: { outlet: string }) {
                 onChange={(e) => patchRule({ tipPct: Number(e.target.value) })}
               />
             </label>
-            <label className="iz-tiny iz-muted">
-              Table %
-              <input
-                type="number"
-                className="iz-field-input mt-1 !text-xs"
-                value={rule.tablePct}
-                onChange={(e) => patchRule({ tablePct: Number(e.target.value) })}
-              />
-            </label>
           </div>
         ) : (
           <p className="iz-tiny iz-muted2">
-            Wage RM{rule.wagePerHour}/hr · Drinks {rule.drinkPct}% · Tips {rule.tipPct}% · Table{" "}
-            {rule.tablePct}% · OT after {rule.otAfterHours}h
+            Wage RM{rule.wagePerHour}/hr · Drinks {rule.drinkPct}% · Tips {rule.tipPct}% · OT after{" "}
+            {rule.otAfterHours}h
           </p>
         )}
 

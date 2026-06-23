@@ -8,6 +8,25 @@ import type {
   WeeklyPaymentSummary,
 } from "@/lib/pr-weekly-payment";
 
+function weekTotalRm(summary: WeeklyPaymentSummary): number {
+  const n = summary.totals.net;
+  return Number.isFinite(n) ? n : 0;
+}
+
+function amountCellClass(
+  dayStatus: WeeklyDayStatus,
+  isDisputed: boolean,
+  canTap: boolean,
+  isActive: boolean,
+) {
+  const parts: string[] = [];
+  if (isDisputed) parts.push("iz-pr-week-pay__cell--disputed");
+  else parts.push(statusClass(dayStatus));
+  if (canTap) parts.push("iz-pr-week-pay__cell--tap");
+  if (isActive) parts.push("iz-pr-week-pay__cell--dispute-active");
+  return parts.join(" ");
+}
+
 function statusClass(status: WeeklyDayStatus) {
   if (status === "verified") return "iz-pr-week-pay__cell--verified";
   if (status === "disputed") return "iz-pr-week-pay__cell--disputed";
@@ -17,7 +36,7 @@ function statusClass(status: WeeklyDayStatus) {
 
 function statusLabel(status: WeeklyDayStatus) {
   if (status === "disputed") return "Disputed";
-  if (status === "pending") return "Pending";
+  if (status === "pending") return "Pending verification";
   if (status === "verified") return "Verified";
   return "—";
 }
@@ -32,6 +51,7 @@ export function PrWeeklyPaymentGrid({
   large,
   interactive,
   onDisputeDay,
+  onWithdrawDay,
   weekPhase = "open",
   activeDisputeKey,
 }: {
@@ -39,30 +59,39 @@ export function PrWeeklyPaymentGrid({
   large?: boolean;
   interactive?: boolean;
   onDisputeDay?: (targets: WeeklyDisputeTarget[]) => void;
+  onWithdrawDay?: (targets: WeeklyDisputeTarget[]) => void;
   /** open = current week (PV not yet issued); issued = past week with PV sent */
   weekPhase?: "open" | "issued";
   /** Highlights the cell the user tapped to dispute */
   activeDisputeKey?: string | null;
 }) {
-  const canDispute = interactive && Boolean(onDisputeDay);
+  const canInteract = interactive && Boolean(onDisputeDay || onWithdrawDay);
 
-  const handleCellDispute = (colIdx: number, row: WeeklyIncomeRow) => {
-    if (!onDisputeDay || summary.dayStatus[colIdx] === "empty") return;
+  const buildTarget = (colIdx: number, row: WeeklyIncomeRow): WeeklyDisputeTarget | null => {
+    if (summary.dayStatus[colIdx] === "empty") return null;
     const amount = row.cells[colIdx];
-    if (amount <= 0) return;
+    if (amount <= 0) return null;
     const col = summary.columns[colIdx];
     const [y, m, d] = col.dateIso.split("-").map(Number);
-    onDisputeDay([
-      {
-        dateIso: col.dateIso,
-        dateLabel: fmtDtable(y, m, d),
-        dayLabel: col.dayLabel,
-        incomeKey: row.key,
-        incomeLabel: row.label,
-        amount,
-        outlet: summary.dayOutlets[colIdx],
-      },
-    ]);
+    return {
+      dateIso: col.dateIso,
+      dateLabel: fmtDtable(y, m, d),
+      dayLabel: col.dayLabel,
+      incomeKey: row.key,
+      incomeLabel: row.label,
+      amount,
+      outlet: summary.dayOutlets[colIdx],
+    };
+  };
+
+  const handleCellTap = (colIdx: number, row: WeeklyIncomeRow, isDisputed: boolean) => {
+    const target = buildTarget(colIdx, row);
+    if (!target) return;
+    if (isDisputed) {
+      onWithdrawDay?.([target]);
+      return;
+    }
+    onDisputeDay?.([target]);
   };
 
   return (
@@ -85,7 +114,7 @@ export function PrWeeklyPaymentGrid({
             </tr>
           </thead>
           <tbody>
-            {summary.rows.map((row) => {
+            {summary.rows.map((row, rowIdx) => {
               const rowTotal = row.cells.reduce((s, v) => s + v, 0);
               return (
                 <tr key={row.key}>
@@ -93,23 +122,41 @@ export function PrWeeklyPaymentGrid({
                   {row.cells.map((value, idx) => {
                     const cellKey = `${summary.columns[idx].dateIso}-${row.key}`;
                     const isActive = activeDisputeKey === cellKey;
+                    const isDisputed = summary.disputedCells?.[rowIdx]?.[idx] ?? false;
+                    const canTapCell = canInteract && value > 0;
                     return (
                     <td
                       key={`${row.key}-${summary.columns[idx].dateIso}`}
-                      className={`${statusClass(summary.dayStatus[idx])}${canDispute && value > 0 ? " iz-pr-week-pay__cell--tap" : ""}${isActive ? " iz-pr-week-pay__cell--dispute-active" : ""}`}
+                      className={amountCellClass(
+                        summary.dayStatus[idx],
+                        isDisputed,
+                        canTapCell,
+                        isActive,
+                      )}
                     >
-                      {canDispute && value > 0 ? (
+                      {canTapCell ? (
                         <button
                           type="button"
                           className="iz-pr-week-pay__cell-btn"
-                          title={`Dispute ${row.label} on ${summary.columns[idx].dayLabel} ${summary.columns[idx].dayNum}`}
-                          onClick={() => handleCellDispute(idx, row)}
+                          title={
+                            isDisputed
+                              ? `Withdraw dispute on ${summary.columns[idx].dayLabel} ${summary.columns[idx].dayNum}`
+                              : `Dispute ${row.label} on ${summary.columns[idx].dayLabel} ${summary.columns[idx].dayNum}`
+                          }
+                          onClick={() => handleCellTap(idx, row, isDisputed)}
                         >
-                          <span>{cellAmount(value)}</span>
-                          <Flag className="iz-pr-week-pay__cell-flag" aria-hidden />
+                          <span className={isDisputed ? "text-[var(--iz-red)]" : undefined}>
+                            {cellAmount(value)}
+                          </span>
+                          <Flag
+                            className={`iz-pr-week-pay__cell-flag${isDisputed ? " text-[var(--iz-red)]" : ""}`}
+                            aria-hidden
+                          />
                         </button>
                       ) : (
-                        cellAmount(value)
+                        <span className={isDisputed ? "font-semibold text-[var(--iz-red)]" : undefined}>
+                          {cellAmount(value)}
+                        </span>
                       )}
                     </td>
                     );
@@ -122,7 +169,11 @@ export function PrWeeklyPaymentGrid({
               <th className="iz-pr-week-pay__row-label">Status</th>
               {summary.dayStatus.map((status, idx) => (
                 <td key={`st-${summary.columns[idx].dateIso}`} className={statusClass(status)}>
-                  <span className="iz-pr-week-pay__status-pill">{statusLabel(status)}</span>
+                  <span
+                    className={`iz-pr-week-pay__status-pill${status === "disputed" ? " text-[var(--iz-red)]" : ""}`}
+                  >
+                    {statusLabel(status)}
+                  </span>
                 </td>
               ))}
               <td className="iz-pr-week-pay__row-total iz-tiny">
@@ -133,29 +184,19 @@ export function PrWeeklyPaymentGrid({
           <tfoot>
             <tr>
               <td colSpan={summary.columns.length + 1}>
-                <span className="iz-pr-week-pay__foot-note">
-                  All sealed shifts counted · synced with PV line items
-                  {weekPhase === "open" ? (
-                    <>
-                      {" "}
-                      · PV issues <b>{summary.issueDayLabel} (Sun)</b>
-                    </>
-                  ) : (
-                    <> · PV issued</>
-                  )}
-                </span>
+                <span className="iz-pr-week-pay__foot-note">PV issued every Sunday</span>
               </td>
               <td className="iz-pr-week-pay__net font-sora font-extrabold text-[var(--iz-gold)]">
-                {formatRM(summary.totals.net)}
+                {formatRM(weekTotalRm(summary))}
               </td>
             </tr>
           </tfoot>
         </table>
       </div>
-      {canDispute && (
+      {canInteract && (
         <p className="iz-pr-week-pay__hint">
-          Tap any amount to flag a wrong wage or commission line — sent to your agency with date &amp;
-          time.
+          Tap any amount to dispute · tap a <span className="text-[var(--iz-red)]">red</span> amount
+          to withdraw a mistaken dispute.
         </p>
       )}
     </div>

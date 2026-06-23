@@ -307,13 +307,13 @@ export function shiftHistoryToHistRows(
       const [y, m, d] = row.dateIso.split("-").map(Number);
       const { st, pill } = deriveShiftHistoryStatus(row.dateIso, vouchers);
       const income = shiftRowIncomeBreakdown(row);
-      const total = income.wages + income.drinks + income.tips + income.tables;
+      const total = income.wages + income.drinks + income.tips + income.others;
       return {
         d: [y, m, d] as [number, number, number],
         venue: row.outlet,
         wages: Math.round(income.wages),
         sales: Math.round(total),
-        table: Math.round(income.tables),
+        others: Math.round(income.others),
         drinks: Math.round(income.drinks),
         tips: Math.round(income.tips),
         st,

@@ -271,12 +271,12 @@ export function buildReceiptScansFromShiftHistory(
         unitPrice: income.tips,
       });
     }
-    if (income.tables > 0) {
+    if (income.others > 0) {
       parts.push({
         slot: 3,
         category: "tables",
-        amount: income.tables,
-        qty: Math.max(1, Math.round(income.tables / RECEIPT_COMMISSION_RULES.tablePerUnit)),
+        amount: income.others,
+        qty: Math.max(1, Math.round(income.others / RECEIPT_COMMISSION_RULES.tablePerUnit)),
         unitPrice: RECEIPT_COMMISSION_RULES.tablePerUnit,
       });
     }

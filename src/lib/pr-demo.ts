@@ -17,6 +17,7 @@ import {
   ymdToIso,
 } from "@/lib/demo-clock";
 import { differenceInCalendarDays, parseISO } from "date-fns";
+import { getDrinkMenuForOutlet } from "@/lib/outlet-drink-menu";
 
 export type PrSubRole = "pr_tied" | "pr_free";
 
@@ -42,7 +43,7 @@ export interface PrProfile {
 export const PR_PROFILES: Record<PrSubRole, PrProfile> = {
   pr_tied: {
     name: "Vicky",
-    first: "Vicky",
+    first: "Victoria Tan Mei Lin",
     ic: "950312-14-8821",
     mobile: "+60 12-881 2201",
     email: "Vicky@inz.my",
@@ -60,7 +61,7 @@ export const PR_PROFILES: Record<PrSubRole, PrProfile> = {
   },
   pr_free: {
     name: "Jaya Nair",
-    first: "Jaya",
+    first: "Jaya Nair a/l Subramaniam",
     ic: "880214-10-5566",
     mobile: "+60 17-662 3391",
     email: "jaya.nair@inz.my",
@@ -220,6 +221,40 @@ export function addDay(y: number, m: number, d: number): [number, number, number
 
 export function getPrProfile(role: PrSubRole | null): PrProfile {
   return PR_PROFILES[role ?? "pr_tied"];
+}
+
+/** PR portal account fields — merges store overrides with agency roster seed data. */
+export function resolvePrAccountFields(
+  role: PrSubRole | null,
+  opts: {
+    prDisplayName?: string | null;
+    prIcName?: string | null;
+    prMobile?: string | null;
+    prEmail?: string | null;
+    agencyPr?: {
+      name?: string;
+      icName?: string;
+      mobile?: string;
+      email?: string;
+      ic?: string;
+    } | null;
+  } = {},
+): {
+  displayName: string;
+  icName: string;
+  mobile: string;
+  email: string;
+  ic: string;
+} {
+  const base = getPrProfile(role);
+  const agency = opts.agencyPr;
+  return {
+    displayName: opts.prDisplayName?.trim() || agency?.name?.trim() || base.name,
+    icName: opts.prIcName?.trim() || agency?.icName?.trim() || base.first,
+    mobile: opts.prMobile?.trim() || agency?.mobile?.trim() || base.mobile,
+    email: opts.prEmail?.trim() || agency?.email?.trim() || base.email,
+    ic: agency?.ic?.trim() || base.ic,
+  };
 }
 
 /** Demo freelancer PR — payroll requests appear on agency pending screen */
@@ -1236,7 +1271,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
         desc: "Commission – Drinks",
         qty: 1,
         amt: 85,
-        ref: "Disputed",
+        ref: "Verified",
         receiptIds: ["rc-luna-2"],
       },
       {
@@ -1395,9 +1430,6 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     outlet: "Bear Lounge",
     weekStartIso: "2026-05-26",
     weekEndIso: "2026-06-01",
-    prDisputeReason:
-      "Drink commission RM85 on 28 May does not match my receipt scans — outlet logged 12 units but PV shows 6. Please verify with Bear Lounge.",
-    disputedAt: "1 Jun 2026 · 18:20",
     cycle: "26 May – 1 Jun 2026",
     issued: "31 May 2026",
     due: "7 Jun 2026",
@@ -1420,7 +1452,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
         desc: "Commission – Drinks",
         qty: 6,
         amt: 85,
-        ref: "Disputed",
+        ref: "Verified",
         receiptIds: ["rc-luna-2"],
       },
       {
@@ -1447,8 +1479,10 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     subtotal: 747,
     deduct: 0,
     net: 747,
-    status: "DISPUTED",
+    status: "SIGNED",
     ...seedFinanceHeadStamp("31 May 2026 · 09:14"),
+    prSignedAt: "2 Jun 2026 · 11:05",
+    ...seedPrSignature("Vicky"),
     receiptIds: ["rc-luna-2"],
   },
 ];
@@ -1618,7 +1652,7 @@ export interface HistRow {
   venue: string;
   wages: number;
   sales: number;
-  table: number;
+  others: number;
   drinks: number;
   tips: number;
   st: "PAID" | "SIGNED" | "SENT" | "DISPUTED" | "SEALED";
@@ -1871,6 +1905,12 @@ export function receiptPrimaryCategory(scan: PrReceiptScan): "drinks" | "tips" |
   return "drinks";
 }
 
+/** Active scan/self-log categories (legacy table receipts map to drinks). */
+export function receiptScanCategory(scan: PrReceiptScan): "drinks" | "tips" {
+  const cat = receiptPrimaryCategory(scan);
+  return cat === "tables" ? "drinks" : cat;
+}
+
 export function receiptBelongsToPvLabel(scan: PrReceiptScan) {
   if (!scan.pvId) return "PV pending · check out to generate";
   if (scan.status === "attached") return `→ ${scan.pvId} (this shift)`;
@@ -1967,6 +2007,10 @@ export function isSelfLogPendingAgency(scan: PrReceiptScan) {
   return isManualSelfLog(scan) && scan.agencyVerification === "pending";
 }
 
+export function isSelfLogVerified(scan: PrReceiptScan) {
+  return isManualSelfLog(scan) && scan.agencyVerification === "approved";
+}
+
 export function selfLogVerificationLabel(scan: PrReceiptScan): string {
   if (!isManualSelfLog(scan)) return "";
   if (scan.agencyVerification === "approved") return "Agency verified";
@@ -1975,7 +2019,7 @@ export function selfLogVerificationLabel(scan: PrReceiptScan): string {
 }
 
 export function buildManualReceiptItems(
-  category: "drinks" | "tips" | "tables",
+  category: "drinks" | "tips",
   amount: number,
 ): PrReceiptItem[] {
   const safe = Math.max(0, Math.round(amount * 100) / 100);
@@ -1992,26 +2036,58 @@ export function buildManualReceiptItems(
       },
     ];
   }
-  if (category === "tips") {
-    return [
-      {
-        label: "Self-log · tips (manual)",
-        qty: 1,
-        unitPrice: safe,
-        amount: safe,
-        category: "tips",
-      },
-    ];
-  }
   return [
     {
-      label: "Self-log · table (manual)",
+      label: "Self-log · tips (manual)",
       qty: 1,
       unitPrice: safe,
       amount: safe,
-      category: "tables",
+      category: "tips",
     },
   ];
+}
+
+export function buildDrinkSelfLogItems(
+  drink: { name: string; priceRm: number },
+  qty: number,
+): PrReceiptItem[] {
+  const safeQty = Math.max(1, Math.floor(qty));
+  const unitPrice = drink.priceRm;
+  const amount = Math.round(unitPrice * safeQty * 100) / 100;
+  return [
+    {
+      label: drink.name,
+      qty: safeQty,
+      unitPrice,
+      amount,
+      category: "drinks",
+    },
+  ];
+}
+
+export type ManualSelfLogInput = {
+  category: "drinks" | "tips";
+  amount: number;
+  drinkId?: string;
+  drinkQty?: number;
+};
+
+export function resolveManualSelfLogItems(
+  manual: ManualSelfLogInput,
+  outlet: string,
+): PrReceiptItem[] {
+  if (manual.category === "tips") {
+    return buildManualReceiptItems("tips", manual.amount);
+  }
+  if (manual.drinkId && manual.drinkQty && manual.drinkQty > 0) {
+    const drink = getDrinkMenuForOutlet(outlet).find((d) => d.id === manual.drinkId);
+    if (drink) return buildDrinkSelfLogItems(drink, manual.drinkQty);
+  }
+  return buildManualReceiptItems("drinks", manual.amount);
+}
+
+export function manualSelfLogTotal(items: PrReceiptItem[]): number {
+  return Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
 }
 
 export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
@@ -2280,7 +2356,7 @@ export const HIST_ROWS: HistRow[] = [
     venue: "Mermate",
     wages: 350,
     sales: 510,
-    table: 60,
+    others: 60,
     drinks: 24,
     tips: 40,
     st: "PAID",
@@ -2291,7 +2367,7 @@ export const HIST_ROWS: HistRow[] = [
     venue: "Mermate",
     wages: 350,
     sales: 520,
-    table: 60,
+    others: 60,
     drinks: 22,
     tips: 50,
     st: "PAID",
@@ -2302,7 +2378,7 @@ export const HIST_ROWS: HistRow[] = [
     venue: "Bear Lounge",
     wages: 350,
     sales: 420,
-    table: 120,
+    others: 120,
     drinks: 17,
     tips: 50,
     st: "PAID",
@@ -2313,7 +2389,7 @@ export const HIST_ROWS: HistRow[] = [
     venue: "Urban Soul",
     wages: 350,
     sales: 480,
-    table: 0,
+    others: 0,
     drinks: 19,
     tips: 60,
     st: "SIGNED",
@@ -2324,7 +2400,7 @@ export const HIST_ROWS: HistRow[] = [
     venue: "Mermate",
     wages: 380,
     sales: 620,
-    table: 120,
+    others: 120,
     drinks: 28,
     tips: 65,
     st: "PAID",
@@ -2335,7 +2411,7 @@ export const HIST_ROWS: HistRow[] = [
     venue: "Bear Lounge",
     wages: 350,
     sales: 380,
-    table: 60,
+    others: 60,
     drinks: 15,
     tips: 30,
     st: "SIGNED",
@@ -2346,7 +2422,7 @@ export const HIST_ROWS: HistRow[] = [
     venue: "Urban Soul",
     wages: 350,
     sales: 550,
-    table: 60,
+    others: 60,
     drinks: 21,
     tips: 55,
     st: "SENT",
@@ -2357,7 +2433,7 @@ export const HIST_ROWS: HistRow[] = [
     venue: "Mermate",
     wages: 400,
     sales: 710,
-    table: 180,
+    others: 180,
     drinks: 32,
     tips: 80,
     st: "DISPUTED",

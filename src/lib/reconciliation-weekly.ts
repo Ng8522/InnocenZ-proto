@@ -93,12 +93,12 @@ function incomeFromShiftRow(row: ShiftHistoryRow): {
   totalRm: number;
 } {
   const b = shiftRowIncomeBreakdown(row);
-  const totalRm = b.wages + b.drinks + b.tips + b.tables;
+  const totalRm = b.wages + b.drinks + b.tips + b.others;
   return {
     wagesRm: b.wages,
     drinksRm: b.drinks,
     tipsRm: b.tips,
-    tablesRm: b.tables,
+    tablesRm: b.others,
     totalRm,
   };
 }

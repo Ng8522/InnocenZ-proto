@@ -265,8 +265,8 @@ function AttendancePage() {
             <Calendar className="mx-auto mb-2 h-5 w-5 text-[var(--iz-muted)]" />
             <p className="iz-sm iz-muted">Accept a shift to enable check-in.</p>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <Link to="/host" className="iz-btn iz-btn-soft iz-btn-sm w-auto">
-                Browse shifts
+              <Link to="/host" search={{ view: "shifts" }} className="iz-btn iz-btn-soft iz-btn-sm w-auto">
+                View schedule
               </Link>
               <button
                 type="button"

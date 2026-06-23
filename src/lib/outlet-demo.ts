@@ -113,32 +113,6 @@ export const PR_RATING_TAGS = [
   "Needs coaching",
 ] as const;
 
-export interface OutletDrinkPrice {
-  id: string;
-  name: string;
-  priceRm: number;
-}
-
-export const DEFAULT_OUTLET_DRINK_MENU: OutletDrinkPrice[] = [
-  { id: "beer", name: "Beer", priceRm: 45 },
-  { id: "wine", name: "Wine", priceRm: 85 },
-  { id: "whisky", name: "Whisky", priceRm: 120 },
-  { id: "champagne", name: "Champagne", priceRm: 350 },
-  { id: "hennessy", name: "Hennessy VSOP", priceRm: 280 },
-];
-
-export function averageDrinkPrice(menu: OutletDrinkPrice[]): number {
-  if (menu.length === 0) return DEFAULT_PER_DRINK_RM;
-  const total = menu.reduce((sum, d) => sum + d.priceRm, 0);
-  return Math.round(total / menu.length);
-}
-
-export function drinkMenuPriceRange(menu: OutletDrinkPrice[]): { min: number; max: number } {
-  if (menu.length === 0) return { min: DEFAULT_PER_DRINK_RM, max: DEFAULT_PER_DRINK_RM };
-  const prices = menu.map((d) => d.priceRm);
-  return { min: Math.min(...prices), max: Math.max(...prices) };
-}
-
 export function cloneDrinkMenu(menu: OutletDrinkPrice[]): OutletDrinkPrice[] {
   return menu.map((d) => ({ ...d }));
 }

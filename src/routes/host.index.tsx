@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState, type ReactNode } from "react";
+=======
+﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useMemo, useState, useCallback, type ReactNode } from "react";
+>>>>>>> 0473ae23222b4753059bc36487902e35086fe8f9
 import { AppTopbar } from "@/components/Nav";
 import { IzSheet } from "@/components/iz/Sheet";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
@@ -22,7 +27,7 @@ import {
   resolvePrShiftOfferForPr,
   shiftIndexForOutlet,
 } from "@/lib/pr-session";
-import { DEFAULT_ROSTER_DATE_ISO, outletPendingShiftsForPr, pendingAgencyAssignmentsForPr } from "@/lib/roster-availability";
+import { DEFAULT_ROSTER_DATE_ISO, outletPendingShiftsForPr } from "@/lib/roster-availability";
 import {
   PR_AGENCY_TIED_OFFERS,
   PR_MARKETPLACE_LISTINGS,
@@ -94,10 +99,13 @@ function HostShifts() {
   const prMarketplaceApplication = useStore((s) => s.prMarketplaceApplication);
   const prUpcomingShifts = useStore((s) => s.prUpcomingShifts);
   const prSwapRequests = useStore((s) => s.prSwapRequests);
+<<<<<<< HEAD
   const confirmOutletRosterSlot = useStore((s) => s.confirmOutletRosterSlot);
   const approveAgencyAssignmentByPr = useStore((s) => s.approveAgencyAssignmentByPr);
   const declineAgencyAssignmentByPr = useStore((s) => s.declineAgencyAssignmentByPr);
   const togglePrDayAvailability = useStore((s) => s.togglePrDayAvailability);
+=======
+>>>>>>> 0473ae23222b4753059bc36487902e35086fe8f9
   const cancelPrRosterShift = useStore((s) => s.cancelPrRosterShift);
   const specialServiceOrders = useStore((s) => s.specialServiceOrders);
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
@@ -145,6 +153,7 @@ function HostShifts() {
     () => outletPendingShiftsForPr(agencyRoster, myRosterId),
     [agencyRoster, myRosterId],
   );
+<<<<<<< HEAD
   const pendingAssignments = useMemo(
     () => pendingAgencyAssignmentsForPr(agencyRoster, myRosterId),
     [agencyRoster, myRosterId],
@@ -153,6 +162,8 @@ function HostShifts() {
     () => prSwapRequests.filter((s) => s.requestingPrId === myRosterId),
     [prSwapRequests, myRosterId],
   );
+=======
+>>>>>>> 0473ae23222b4753059bc36487902e35086fe8f9
   const rosterBooked = !!agencyTonight && agencyTonight.status !== "assignment-pending";
   const effectiveShiftAccepted = (shiftAccepted || rosterBooked) && !blockingSwap;
   const activeShift = useMemo(() => {
@@ -188,7 +199,6 @@ function HostShifts() {
     pendingServices.length +
     swapOffers.length +
     outletPendingShifts.length +
-    pendingAssignments.length +
     (pendingApproval ? 1 : 0) +
     (!tied && prMarketplaceApplication?.status === "pending" ? 1 : 0);
   const todayStatus = checkedIn
@@ -264,7 +274,7 @@ function HostShifts() {
   const statusLabel =
     blockingSwap?.status === "pending_replacement"
       ? "Swap pending"
-      : outletPendingShifts.length > 0 || pendingAssignments.length > 0
+      : outletPendingShifts.length > 0
         ? "Action needed"
         : todoCount > 0
           ? `${todoCount} to-do`
@@ -410,6 +420,7 @@ function HostShifts() {
           <div className="iz-pr-hub-sections">
             <PrSection title="Today" collapsible defaultOpen>
               {effectiveShiftAccepted && activeShift ? (
+<<<<<<< HEAD
                 <div className="iz-pr-hero">
                   <p className="iz-tiny iz-muted2 uppercase tracking-wide">
                     {checkedIn ? "On duty" : "Tonight"}
@@ -420,6 +431,15 @@ function HostShifts() {
                     {fmtDFriendly(activeShift.date[0], activeShift.date[1], activeShift.date[2])} ·{" "}
                     {activeShift.time} · {formatRM(activeShift.base + activeShift.comm)}
                   </p>
+=======
+                <TodayShiftCard
+                  eyebrow={checkedIn ? "On duty" : "Tonight"}
+                  outlet={activeShift.outlet}
+                  date={fmtDFriendly(activeShift.date[0], activeShift.date[1], activeShift.date[2])}
+                  time={activeShift.time}
+                  footnote={`${activeShift.event} ┬╖ ${formatRM(activeShift.base + activeShift.comm)}`}
+                >
+>>>>>>> 0473ae23222b4753059bc36487902e35086fe8f9
                   <Link to="/host/tonight" className="iz-btn iz-btn-primary iz-btn-sm mt-3 w-full">
                     <MapPin className="h-3.5 w-3.5" />
                     {checkedIn ? "Attendance" : "Check in"}
@@ -435,6 +455,7 @@ function HostShifts() {
                   )}
                 </div>
               ) : agencyTonight ? (
+<<<<<<< HEAD
                 <div className="iz-pr-inbox-card">
                   <PrOfferRow
                     title={agencyTonight.outlet}
@@ -456,6 +477,21 @@ function HostShifts() {
                     />
                   )}
                 </div>
+=======
+                <TodayShiftCard
+                  eyebrow="Tonight"
+                  outlet={agencyTonight.outlet}
+                  date={agencyTonight.date}
+                  time={agencyTonight.shift}
+                  badge={
+                    <PrStatusPill
+                      variant={agencyTonight.status === "assignment-pending" ? "amber" : "green"}
+                    >
+                      {agencyTonight.status === "assignment-pending" ? "Pending" : "Scheduled"}
+                    </PrStatusPill>
+                  }
+                />
+>>>>>>> 0473ae23222b4753059bc36487902e35086fe8f9
               ) : (
                 <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
                   No shift scheduled for today.
@@ -475,7 +511,7 @@ function HostShifts() {
                       key={pv.id}
                       icon={<FileText className="h-4 w-4" />}
                       title="Review payment voucher"
-                      subtitle={`${pv.outlet} · ${pv.cycle} · ${formatRM(pv.net)}`}
+                      subtitle={`${pv.outlet} ┬╖ ${pv.cycle} ┬╖ ${formatRM(pv.net)}`}
                       actionLabel="Review PV"
                       to="/host/PaymentVoucher"
                       search={{ pvId: pv.id }}
@@ -495,7 +531,7 @@ function HostShifts() {
                     <InboxCard
                       key={offer.id}
                       title={offer.outlet}
-                      subtitle={`Cover for ${offer.requestingPrName} · ${offer.date} · ${offer.shift}`}
+                      subtitle={`Cover for ${offer.requestingPrName} ┬╖ ${offer.date} ┬╖ ${offer.shift}`}
                       onApprove={() => acceptSwapReplacement(offer.id)}
                       onReject={() => {
                         setSwapRejectId(offer.id);
@@ -503,24 +539,15 @@ function HostShifts() {
                       }}
                     />
                   ))}
-                  {pendingAssignments
-                    .filter((slot) => slot.id !== agencyTonight?.id)
-                    .map((slot) => (
-                    <InboxCard
-                      key={slot.id}
-                      title={slot.outlet}
-                      subtitle={`${slot.date} · ${slot.shift}${
-                        slot.agencyAssignment?.requestedByOutlet ? " · Outlet requested you" : ""
-                      }`}
-                      onApprove={() => approveAgencyAssignmentByPr(slot.id)}
-                      onReject={() => declineAgencyAssignmentByPr(slot.id)}
-                    />
-                  ))}
                   {outletPendingShifts.map((slot) => (
                     <div key={slot.id} className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
                       <PrOfferRow
                         title={slot.outlet}
+<<<<<<< HEAD
                         subtitle={`${slot.date} · ${slot.shift}`}
+=======
+                        subtitle={`${slot.date} ┬╖ ${slot.shift} ┬╖ Agency assigned ΓÇö awaiting outlet roster sync`}
+>>>>>>> 0473ae23222b4753059bc36487902e35086fe8f9
                         badge={<PrStatusPill variant="amber">Outlet pending</PrStatusPill>}
                       />
                       <button
@@ -535,8 +562,13 @@ function HostShifts() {
                   {pendingApproval && (
                     <div className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
                       <PrOfferRow
+<<<<<<< HEAD
                         title="Shift approval"
                         subtitle="Pending"
+=======
+                        title="Agency assignment"
+                        subtitle="Your agency is finalizing this shift ΓÇö no action needed from you"
+>>>>>>> 0473ae23222b4753059bc36487902e35086fe8f9
                         badge={<PrStatusPill variant="amber">Pending</PrStatusPill>}
                       />
                       <button
@@ -596,7 +628,7 @@ function HostShifts() {
 
             {!tied && prFreelancerLowRatingStrikes >= 3 && (
               <p className="iz-pr-note mt-3 border-[rgba(255,107,107,.35)] text-[var(--iz-red)]">
-                Marketplace suspended — 3 ratings below 3.0★. See Profile for details.
+                Marketplace suspended ΓÇö 3 ratings below 3.0Γÿà. See Profile for details.
               </p>
             )}
 
@@ -606,10 +638,20 @@ function HostShifts() {
                   prId={myRosterId}
                   roster={agencyRoster}
                   upcoming={prUpcomingShifts}
+<<<<<<< HEAD
                   onToggleAvailability={togglePrDayAvailability}
                   onCancelShift={cancelPrRosterShift}
                   onAcceptAssignment={approveAgencyAssignmentByPr}
                   onDeclineAssignment={declineAgencyAssignmentByPr}
+=======
+                  onCancelShift={(entry, reason) => {
+                    if (entry.slot) {
+                      cancelPrRosterShift(entry.slot.id, reason);
+                    } else if (entry.upcoming) {
+                      cancelPrUpcomingShift(entry.upcoming.id, reason);
+                    }
+                  }}
+>>>>>>> 0473ae23222b4753059bc36487902e35086fe8f9
                 />
               </PrSection>
             )}
@@ -657,7 +699,7 @@ function HostShifts() {
                     <div key={l.id} className="iz-pr-inbox-card">
                       <PrOfferRow
                         title={l.outlet}
-                        subtitle={`${fmtDFriendly(l.date[0], l.date[1], l.date[2])} · ${l.time} · ${l.area}`}
+                        subtitle={`${fmtDFriendly(l.date[0], l.date[1], l.date[2])} ┬╖ ${l.time} ┬╖ ${l.area}`}
                         amount={formatRM(l.rate)}
                         onClick={hideOfferActions ? undefined : () => setConfirmMktId(l.id)}
                       />
@@ -794,7 +836,7 @@ function HostShifts() {
       >
         <div className="iz-cardttl">Decline coverage</div>
         <p className="iz-tiny iz-muted mb-3">
-          Tell the agency why you cannot take this shift — they will find someone else.
+          Tell the agency why you cannot take this shift ΓÇö they will find someone else.
         </p>
         <textarea
           className="iz-pv-dispute-input mb-3"
@@ -994,7 +1036,7 @@ function OfferDetailSheet({
     <>
       <div className="iz-cardttl">{listing.outlet}</div>
       <p className="iz-tiny iz-muted mb-1">
-        {fmtDFriendly(listing.date[0], listing.date[1], listing.date[2])} · {listing.time}
+        {fmtDFriendly(listing.date[0], listing.date[1], listing.date[2])} ┬╖ {listing.time}
       </p>
       <p className="iz-tiny iz-muted mb-3">{listing.event}</p>
       <div className="iz-gps-map mb-2" style={{ height: 64 }}>
@@ -1017,7 +1059,7 @@ function OfferDetailSheet({
         <div className="mb-4 space-y-1">
           {listing.tierSlots.map((s) => (
             <p key={s.tier} className="iz-tiny iz-muted2">
-              {s.tier} ×{s.count} · {s.hours}
+              {s.tier} ├ù{s.count} ┬╖ {s.hours}
             </p>
           ))}
         </div>

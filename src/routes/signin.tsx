@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { PhoneFrame } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
@@ -11,6 +11,9 @@ type ResetChannel = "email" | "phone";
 export const Route = createFileRoute("/signin")({
   validateSearch: (s: Record<string, unknown>) => ({
     mode: (s.mode === "create" ? "create" : "signin") as "signin" | "create",
+    reset:
+      s.reset === true || s.reset === "true" || s.reset === 1 || s.reset === "1",
+    login: typeof s.login === "string" ? s.login : undefined,
   }),
   component: SignIn,
 });
@@ -31,7 +34,7 @@ function displayNameForContact(contact: { channel: ResetChannel; identifier: str
 
 function SignIn() {
   const navigate = useNavigate();
-  const { mode } = Route.useSearch();
+  const { mode, reset, login: resetLogin } = Route.useSearch();
   const role = useStore((s) => s.role);
   const signIn = useStore((s) => s.signIn);
   const toast = useStore((s) => s.toast);
@@ -44,12 +47,31 @@ function SignIn() {
     identifier: string;
   } | null>(null);
   const [forgotOtp, setForgotOtp] = useState("");
+  const resetBootRef = useRef(false);
 
   useEffect(() => {
     if (mode === "create") {
       navigate({ to: "/register", replace: true });
     }
   }, [mode, navigate]);
+
+  useEffect(() => {
+    if (!reset || resetBootRef.current || !resetLogin?.trim()) return;
+    const contact = resolveIdentifier(resetLogin);
+    if (!contact) {
+      toast("Enter a valid email or phone number for password reset", "warn");
+      return;
+    }
+    resetBootRef.current = true;
+    setIdentifier(contact.identifier);
+    setForgotContact(contact);
+    setForgotOtp("");
+    setForgotOpen(true);
+    toast(
+      `Password reset OTP sent to your ${contact.channel === "phone" ? "mobile" : "email"}`,
+      "info",
+    );
+  }, [reset, resetLogin, toast]);
 
   const portalPath =
     role === "vendor"

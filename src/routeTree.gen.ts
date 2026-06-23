@@ -32,6 +32,7 @@ import { Route as OutletBillingRouteImport } from './routes/outlet.billing'
 import { Route as HostWalletRouteImport } from './routes/host.wallet'
 import { Route as HostTonightRouteImport } from './routes/host.tonight'
 import { Route as HostSpecialServiceRouteImport } from './routes/host.special-service'
+import { Route as HostSecurityRouteImport } from './routes/host.security'
 import { Route as HostScanRouteImport } from './routes/host.scan'
 import { Route as HostProfileRouteImport } from './routes/host.profile'
 import { Route as HostHistoryRouteImport } from './routes/host.history'
@@ -162,6 +163,11 @@ const HostSpecialServiceRoute = HostSpecialServiceRouteImport.update({
   path: '/special-service',
   getParentRoute: () => HostRoute,
 } as any)
+const HostSecurityRoute = HostSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => HostRoute,
+} as any)
 const HostScanRoute = HostScanRouteImport.update({
   id: '/scan',
   path: '/scan',
@@ -255,6 +261,7 @@ export interface FileRoutesByFullPath {
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
+  '/host/security': typeof HostSecurityRoute
   '/host/special-service': typeof HostSpecialServiceRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
@@ -291,6 +298,7 @@ export interface FileRoutesByTo {
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
+  '/host/security': typeof HostSecurityRoute
   '/host/special-service': typeof HostSpecialServiceRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
@@ -331,6 +339,7 @@ export interface FileRoutesById {
   '/host/history': typeof HostHistoryRoute
   '/host/profile': typeof HostProfileRoute
   '/host/scan': typeof HostScanRoute
+  '/host/security': typeof HostSecurityRoute
   '/host/special-service': typeof HostSpecialServiceRoute
   '/host/tonight': typeof HostTonightRoute
   '/host/wallet': typeof HostWalletRoute
@@ -372,6 +381,7 @@ export interface FileRouteTypes {
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
+    | '/host/security'
     | '/host/special-service'
     | '/host/tonight'
     | '/host/wallet'
@@ -408,6 +418,7 @@ export interface FileRouteTypes {
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
+    | '/host/security'
     | '/host/special-service'
     | '/host/tonight'
     | '/host/wallet'
@@ -447,6 +458,7 @@ export interface FileRouteTypes {
     | '/host/history'
     | '/host/profile'
     | '/host/scan'
+    | '/host/security'
     | '/host/special-service'
     | '/host/tonight'
     | '/host/wallet'
@@ -638,6 +650,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HostSpecialServiceRouteImport
       parentRoute: typeof HostRoute
     }
+    '/host/security': {
+      id: '/host/security'
+      path: '/security'
+      fullPath: '/host/security'
+      preLoaderRoute: typeof HostSecurityRouteImport
+      parentRoute: typeof HostRoute
+    }
     '/host/scan': {
       id: '/host/scan'
       path: '/scan'
@@ -775,6 +794,7 @@ interface HostRouteChildren {
   HostHistoryRoute: typeof HostHistoryRoute
   HostProfileRoute: typeof HostProfileRoute
   HostScanRoute: typeof HostScanRoute
+  HostSecurityRoute: typeof HostSecurityRoute
   HostSpecialServiceRoute: typeof HostSpecialServiceRoute
   HostTonightRoute: typeof HostTonightRoute
   HostWalletRoute: typeof HostWalletRoute
@@ -786,6 +806,7 @@ const HostRouteChildren: HostRouteChildren = {
   HostHistoryRoute: HostHistoryRoute,
   HostProfileRoute: HostProfileRoute,
   HostScanRoute: HostScanRoute,
+  HostSecurityRoute: HostSecurityRoute,
   HostSpecialServiceRoute: HostSpecialServiceRoute,
   HostTonightRoute: HostTonightRoute,
   HostWalletRoute: HostWalletRoute,

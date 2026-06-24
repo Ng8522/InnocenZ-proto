@@ -1,14 +1,6 @@
 import { type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import {
-  CreditCard,
-  LogOut,
-  Settings,
-  Shield,
-  SlidersHorizontal,
-  Store,
-  Users,
-} from "lucide-react";
+import { CreditCard, LogOut, Settings, SlidersHorizontal, Store, Users } from "lucide-react";
 import { BottomNav, type NavItem, navIsActive } from "@/components/Nav";
 import { AGENCY_SUB_ROLE_LABELS, agencyCan } from "@/lib/agency-rbac";
 import { signOutToWelcome } from "@/lib/go-welcome";
@@ -72,6 +64,40 @@ function mergeNavItems(
   return [...base, ...filtered];
 }
 
+function portalAvatarGradient(portal: PortalKind) {
+  return portal === "agency" ? "var(--iz-grad)" : "linear-gradient(135deg,#39D98A,#1f8f5c)";
+}
+
+function portalProfilePath(portal: PortalKind) {
+  return portal === "agency" ? "/agency/profile" : "/outlet/settings";
+}
+
+function PortalAvatar({
+  portal,
+  ownerName,
+  orgName,
+  avatarPhoto,
+  className,
+}: {
+  portal: PortalKind;
+  ownerName: string;
+  orgName: string;
+  avatarPhoto?: string | null;
+  className?: string;
+}) {
+  const avatarLetter =
+    ownerName.trim()[0]?.toUpperCase() ?? orgName.trim()[0]?.toUpperCase() ?? "?";
+
+  return (
+    <div
+      className={`iz-avatar${className ? ` ${className}` : ""}${avatarPhoto ? " iz-avatar-photo" : ""}`}
+      style={avatarPhoto ? undefined : { background: portalAvatarGradient(portal) }}
+    >
+      {avatarPhoto ? <img src={avatarPhoto} alt="" /> : avatarLetter}
+    </div>
+  );
+}
+
 function PortalSidebarLink({
   item,
   pathname,
@@ -93,19 +119,13 @@ function PortalSidebarLink({
 function PortalSidebar({
   portal,
   items,
-  orgName,
-  subLabel,
   onNavigate,
 }: {
   portal: PortalKind;
   items: NavItem[];
-  orgName: string;
-  subLabel: string;
   onNavigate?: () => void;
 }) {
   const { pathname } = useLocation();
-  const gradient =
-    portal === "agency" ? "var(--iz-grad)" : "linear-gradient(135deg,#39D98A,#1f8f5c)";
 
   return (
     <aside className="iz-portal-sidebar">
@@ -116,16 +136,6 @@ function PortalSidebar({
         <p className="iz-tiny iz-muted mt-1">
           {portal === "agency" ? "Agency portal" : "Outlet portal"}
         </p>
-      </div>
-
-      <div className="iz-portal-sidebar-identity">
-        <div className="iz-avatar iz-avatar--sm" style={{ background: gradient }}>
-          {orgName.trim()[0]?.toUpperCase() ?? "?"}
-        </div>
-        <div className="min-w-0">
-          <div className="truncate font-sora text-sm font-bold">{orgName}</div>
-          <div className="iz-tiny iz-muted truncate">{subLabel}</div>
-        </div>
       </div>
 
       <nav className="iz-portal-sidebar-nav">
@@ -149,7 +159,19 @@ function PortalSidebar({
   );
 }
 
-function PortalHeader({ orgName, portal }: { orgName: string; portal: PortalKind }) {
+function PortalHeader({
+  portal,
+  orgName,
+  ownerName,
+  avatarPhoto,
+  subLabel,
+}: {
+  portal: PortalKind;
+  orgName: string;
+  ownerName: string;
+  avatarPhoto?: string | null;
+  subLabel: string;
+}) {
   return (
     <header className="iz-portal-header">
       <div className="min-w-0">
@@ -159,10 +181,20 @@ function PortalHeader({ orgName, portal }: { orgName: string; portal: PortalKind
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <OpsNotificationBell portal={portal} />
-        <span className="iz-portal-header-badge" title="Verified portal">
-          <Shield className="h-3.5 w-3.5" />
-          RBAC
-        </span>
+        <Link
+          to={portalProfilePath(portal)}
+          className="iz-portal-header-profile"
+          title={`${ownerName} · ${subLabel}`}
+          aria-label={`Profile · ${ownerName}`}
+        >
+          <PortalAvatar
+            portal={portal}
+            ownerName={ownerName}
+            orgName={orgName}
+            avatarPhoto={avatarPhoto}
+            className="iz-avatar--sm"
+          />
+        </Link>
       </div>
     </header>
   );
@@ -183,7 +215,8 @@ export function PortalShell({
   const outletSubRole = useStore((s) => s.outletSubRole);
   const agencyOwner = useStore((s) => s.agencyOwner);
   const outletOwner = useStore((s) => s.outletOwner);
-  const orgName = portal === "agency" ? agencyOwner.orgName : outletOwner.orgName;
+  const owner = portal === "agency" ? agencyOwner : outletOwner;
+  const orgName = owner.orgName;
 
   const subLabel =
     portal === "agency"
@@ -194,10 +227,16 @@ export function PortalShell({
 
   return (
     <div className="iz-portal" data-portal={portal}>
-      <PortalSidebar portal={portal} items={sidebarItems} orgName={orgName} subLabel={subLabel} />
+      <PortalSidebar portal={portal} items={sidebarItems} />
 
       <div className="iz-portal-main">
-        <PortalHeader orgName={orgName} portal={portal} />
+        <PortalHeader
+          portal={portal}
+          orgName={orgName}
+          ownerName={owner.ownerName}
+          avatarPhoto={owner.avatarPhoto}
+          subLabel={subLabel}
+        />
 
         <div className="iz-portal-viewport">{children}</div>
       </div>

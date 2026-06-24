@@ -259,7 +259,15 @@ function HostShifts() {
         label={
           view === "services" ? "Agency add-on services" : tied ? "Agency shifts" : "Marketplace"
         }
-        title={view === "services" ? "Job Posting" : `Hi, ${firstName}`}
+        title={
+          view === "services" ? (
+            "Job Posting"
+          ) : (
+            <>
+              Hi, <span className="iz-pr-page-header__accent">{firstName}</span>
+            </>
+          )
+        }
       />
 
       <div className="iz-pr-hub-toolbar mt-3">

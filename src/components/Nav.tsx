@@ -263,10 +263,10 @@ export function AppTopbar({
       {!isPortalShell && (
         <>
           {isPrPortal ? (
-            <div className="iz-topbar-center">
+            <>
               <Link
                 to="/host/profile"
-                className="iz-topbar-identity iz-topbar-identity--link"
+                className="iz-topbar-identity iz-topbar-identity--link iz-topbar-identity--pr"
                 aria-label="Open profile"
                 title="Profile"
               >
@@ -281,8 +281,11 @@ export function AppTopbar({
                   <div className="iz-topbar-role">{displayLabel}</div>
                 </div>
               </Link>
-              <PrTopbarDateTime />
-            </div>
+              <div className="iz-topbar-actions iz-topbar-actions--pr">
+                <PrTopbarDateTime />
+                <PrNotificationBell />
+              </div>
+            </>
           ) : (
             <div className="iz-topbar-identity">
               <div
@@ -297,10 +300,6 @@ export function AppTopbar({
               </div>
             </div>
           )}
-
-          <div className="iz-topbar-actions">
-            {isPrPortal && <PrNotificationBell />}
-          </div>
         </>
       )}
     </header>

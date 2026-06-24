@@ -1510,7 +1510,47 @@
 .iz-pr-hub-toolbar {
   display: flex;
   width: 100%;
+  margin-top: 12px;
 }
+
+.iz-pr-page-header {
+  padding-top: 2px;
+}
+
+.iz-pr-page-header__label {
+  font-family: "Sora", sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--iz-muted2);
+}
+
+.iz-pr-app .iz-pr-page-header__label {
+  color: #c4b4d8;
+}
+
+.iz-pr-page-header__title {
+  margin-top: 6px;
+  font-family: "Sora", sans-serif;
+  font-size: clamp(1.4rem, 5.2vw, 1.75rem);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.45px;
+  color: var(--iz-txt);
+}
+
+.iz-pr-page-header__accent {
+  color: var(--iz-gold-l);
+}
+
+.iz-pr-page-header__meta {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--iz-muted);
+}
+
 .iz-pr-hub-toggle {
   display: flex;
   width: 100%;
@@ -4258,6 +4298,10 @@ button.iz-pr-offer-row:hover {
   border-bottom: 1px solid var(--iz-line);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, transparent 100%);
 }
+
+.iz-topbar--no-back {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
 .iz-topbar-spacer {
   width: 30px;
 }
@@ -4325,6 +4369,12 @@ button.iz-pr-offer-row:hover {
 .iz-topbar-identity--link:active {
   background: rgba(255, 255, 255, 0.07);
 }
+
+.iz-topbar-identity--pr {
+  min-width: 0;
+  justify-self: start;
+}
+
 .iz-topbar-center {
   display: flex;
   align-items: center;
@@ -4406,6 +4456,17 @@ button.iz-pr-offer-row:hover {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.iz-topbar-actions--pr {
+  gap: 8px;
+  justify-self: end;
+}
+
+.iz-topbar-actions--pr .iz-topbar-datetime {
+  padding-left: 10px;
+  margin-left: 0;
+  border-left: 1px solid var(--iz-line);
 }
 .iz-topbar-action {
   display: inline-flex;
@@ -7733,6 +7794,14 @@ button.iz-agency-row:hover {
   border-radius: 14px;
   background: var(--iz-grad-card);
   border: 1px solid var(--iz-line);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.iz-portal-sidebar-identity:hover {
+  border-color: rgba(217, 185, 122, 0.28);
+  background: rgba(217, 185, 122, 0.06);
 }
 
 .iz-portal-sidebar-nav {
@@ -7795,6 +7864,28 @@ button.iz-agency-row:hover {
   gap: 16px;
   padding: 20px 24px 8px;
   flex-shrink: 0;
+}
+
+.iz-portal-header-profile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border-radius: 14px;
+  border: 1px solid var(--iz-line);
+  background: var(--iz-grad-card);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.iz-portal-header-profile:hover {
+  border-color: rgba(217, 185, 122, 0.35);
+  background: rgba(217, 185, 122, 0.08);
+}
+
+.iz-portal-header-profile:active {
+  transform: scale(0.97);
 }
 
 .iz-portal-sidebar-logout {

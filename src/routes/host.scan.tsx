@@ -21,7 +21,7 @@ import {
   isManualSelfLog,
   isSelfLogPendingAgency,
 } from "@/lib/pr-demo";
-import { getDrinkMenuForOutlet } from "@/lib/outlet-demo";
+import { getDrinkMenuForOutlet } from "@/lib/outlet-drink-menu";
 import { Camera, Check, History, PenLine, Shield, Droplets, RotateCcw, Minus, Plus } from "lucide-react";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 

@@ -1,5 +1,7 @@
 import type { Role } from "@/lib/store";
+import { DEFAULT_AGENCY_OWNER } from "@/lib/agency-demo";
 import { getAgencyDefaultRoute, type AgencySubRole } from "@/lib/agency-rbac";
+import { DEFAULT_OUTLET_OWNER } from "@/lib/outlet-demo";
 import { getOutletDefaultRoute, type OutletSubRole } from "@/lib/outlet-rbac";
 import type { PrSubRole } from "@/lib/pr-demo";
 
@@ -50,3 +52,24 @@ export function subRolesForPortal(portal: SignInPortal): PortalSubRoleItem[] {
   if (portal === "agency") return AGENCY_SIGNIN_SUB_ROLES;
   return [];
 }
+
+export function portalUsesEmailSignIn(portal: SignInPortal): boolean {
+  return portal === "outlet" || portal === "agency";
+}
+
+export function defaultSignInIdentifier(portal: SignInPortal): string {
+  if (portal === "outlet") return DEFAULT_OUTLET_OWNER.email;
+  if (portal === "agency") return DEFAULT_AGENCY_OWNER.email;
+  return "60123456789";
+}
+
+export function resolveSignInEmail(value: string): string | null {
+  const email = value.trim();
+  if (!email || !email.includes("@")) return null;
+  return email;
+}
+
+export const PORTAL_AUTH_TAGLINES: Record<"outlet" | "agency", string> = {
+  outlet: "Staff tonight, log sales, and seal shifts from one desktop portal.",
+  agency: "Roster PRs, fill outlet demand, and sync payroll from one desktop portal.",
+};

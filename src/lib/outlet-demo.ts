@@ -14,23 +14,6 @@ import {
 } from "@/lib/agency-demo";
 import { DEFAULT_PER_DRINK_RM, DEFAULT_PER_TABLE_RM } from "@/lib/outlet-financial-sync";
 import { outletMatches } from "@/lib/portal-sync";
-import {
-  averageDrinkPrice,
-  DEFAULT_OUTLET_DRINK_MENU,
-  drinkMenuPriceRange,
-  getDrinkMenuForOutlet,
-  OUTLET_DRINK_MENUS,
-  type OutletDrinkPrice,
-} from "@/lib/outlet-drink-menu";
-
-export type { OutletDrinkPrice };
-export {
-  averageDrinkPrice,
-  DEFAULT_OUTLET_DRINK_MENU,
-  drinkMenuPriceRange,
-  getDrinkMenuForOutlet,
-  OUTLET_DRINK_MENUS,
-};
 
 export type ShiftDestination = "agency" | "marketplace" | "both";
 
@@ -130,6 +113,32 @@ export const PR_RATING_TAGS = [
   "Needs coaching",
 ] as const;
 
+export interface OutletDrinkPrice {
+  id: string;
+  name: string;
+  priceRm: number;
+}
+
+export const DEFAULT_OUTLET_DRINK_MENU: OutletDrinkPrice[] = [
+  { id: "beer", name: "Beer", priceRm: 45 },
+  { id: "wine", name: "Wine", priceRm: 85 },
+  { id: "whisky", name: "Whisky", priceRm: 120 },
+  { id: "champagne", name: "Champagne", priceRm: 350 },
+  { id: "hennessy", name: "Hennessy VSOP", priceRm: 280 },
+];
+
+export function averageDrinkPrice(menu: OutletDrinkPrice[]): number {
+  if (menu.length === 0) return DEFAULT_PER_DRINK_RM;
+  const total = menu.reduce((sum, d) => sum + d.priceRm, 0);
+  return Math.round(total / menu.length);
+}
+
+export function drinkMenuPriceRange(menu: OutletDrinkPrice[]): { min: number; max: number } {
+  if (menu.length === 0) return { min: DEFAULT_PER_DRINK_RM, max: DEFAULT_PER_DRINK_RM };
+  const prices = menu.map((d) => d.priceRm);
+  return { min: Math.min(...prices), max: Math.max(...prices) };
+}
+
 export function cloneDrinkMenu(menu: OutletDrinkPrice[]): OutletDrinkPrice[] {
   return menu.map((d) => ({ ...d }));
 }
@@ -146,10 +155,12 @@ export function effectiveShiftDrinkMenu(
   return DEFAULT_OUTLET_DRINK_MENU;
 }
 
-export function workspaceBaseRates(ws: Pick<
-  OutletWorkspaceSettings,
-  "basePayPerHour" | "drinkPct" | "tipPct" | "tablePct" | "otAfterHours"
->): OutletTierRateSettings {
+export function workspaceBaseRates(
+  ws: Pick<
+    OutletWorkspaceSettings,
+    "basePayPerHour" | "drinkPct" | "tipPct" | "tablePct" | "otAfterHours"
+  >,
+): OutletTierRateSettings {
   return {
     wagePerHour: ws.basePayPerHour,
     drinkPct: ws.drinkPct,
@@ -228,7 +239,10 @@ export function patchShiftTierSalesTargets(
 }
 
 /** Demo per-shift PR sales targets (RM) — Post Job optional targets, seeded for outlet home */
-export const DEMO_SHIFT_TIER_SALES_TARGETS: Record<string, Partial<Record<OutletPrTier, number>>> = {
+export const DEMO_SHIFT_TIER_SALES_TARGETS: Record<
+  string,
+  Partial<Record<OutletPrTier, number>>
+> = {
   s1: {
     "Tier I": 800,
     "Tier II": 1000,
@@ -296,15 +310,10 @@ export function findOutletShiftForPr<
     if (byId && outletMatches(byId.outletName, outlet)) return byId;
   }
   const assigned = shifts.find(
-    (s) =>
-      outletMatches(s.outletName, outlet) &&
-      s.status !== "sealed" &&
-      s.prs.includes(prId),
+    (s) => outletMatches(s.outletName, outlet) && s.status !== "sealed" && s.prs.includes(prId),
   );
   if (assigned) return assigned;
-  return shifts.find(
-    (s) => outletMatches(s.outletName, outlet) && s.status !== "sealed",
-  );
+  return shifts.find((s) => outletMatches(s.outletName, outlet) && s.status !== "sealed");
 }
 
 /** Match outlet shift row to an agency roster assignment (outlet + shift time). */
@@ -320,10 +329,12 @@ export function findOutletShiftForRosterSlot<
   return matches.find((s) => s.date === "Tonight") ?? matches[0];
 }
 
-export function ensureShiftSalesTargets<T extends {
-  id: string;
-  tierRates: Record<OutletPrTier, OutletTierRateSettings>;
-}>(shift: T): T {
+export function ensureShiftSalesTargets<
+  T extends {
+    id: string;
+    tierRates: Record<OutletPrTier, OutletTierRateSettings>;
+  },
+>(shift: T): T {
   const demo = DEMO_SHIFT_TIER_SALES_TARGETS[shift.id];
   if (!demo) return shift;
   const hasTargets = OUTLET_PR_TIERS.some((t) => (shift.tierRates[t].targetSalesRm ?? 0) > 0);
@@ -334,11 +345,13 @@ export function ensureShiftSalesTargets<T extends {
   };
 }
 
-export function migrateShiftTierRates<T extends {
-  id?: string;
-  tierRates?: Record<OutletPrTier, OutletTierRateSettings>;
-  payPerHour: number;
-}>(
+export function migrateShiftTierRates<
+  T extends {
+    id?: string;
+    tierRates?: Record<OutletPrTier, OutletTierRateSettings>;
+    payPerHour: number;
+  },
+>(
   shift: T,
   workspace: Pick<OutletWorkspaceSettings, "tierRates">,
 ): T & { tierRates: Record<OutletPrTier, OutletTierRateSettings>; payPerHour: number } {
@@ -349,7 +362,9 @@ export function migrateShiftTierRates<T extends {
     payPerHour: tierRates[OUTLET_BASE_TIER].wagePerHour,
   };
   if (shift.id) {
-    return ensureShiftSalesTargets(migrated as T & { id: string; tierRates: Record<OutletPrTier, OutletTierRateSettings> });
+    return ensureShiftSalesTargets(
+      migrated as T & { id: string; tierRates: Record<OutletPrTier, OutletTierRateSettings> },
+    );
   }
   return migrated;
 }
@@ -439,7 +454,9 @@ export const OUTLET_SUBSCRIPTION_PLANS: OutletSubscriptionPlan[] = [
   },
 ];
 
-export function getOutletSubscriptionPlan(id?: OutletSubscriptionPlanId | null): OutletSubscriptionPlan {
+export function getOutletSubscriptionPlan(
+  id?: OutletSubscriptionPlanId | null,
+): OutletSubscriptionPlan {
   return OUTLET_SUBSCRIPTION_PLANS.find((p) => p.id === id) ?? OUTLET_SUBSCRIPTION_PLANS[1];
 }
 
@@ -604,8 +621,118 @@ export function outletShiftActualLaborCost(
   });
 }
 
-export function outletShiftCutLoss(targetSales: number, actualSales: number): number {
-  return Math.max(0, Math.round(targetSales - actualSales));
+export function outletShiftPlannedLaborPerSlot(shift: {
+  estimatedCost: number;
+  quantity: number;
+  demandCut?: number;
+}): number {
+  const demand = outletShiftEffectiveDemand(shift);
+  return demand > 0 ? shift.estimatedCost / demand : 0;
+}
+
+export function outletShiftLaborCostForPrIds(
+  prIds: string[],
+  shiftLabel: string,
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  prTierById: Record<string, string | undefined>,
+): number {
+  if (!prIds.length) return 0;
+  return estimateShiftLaborCost({
+    tierRates,
+    hours: shiftHoursFromLabel(shiftLabel),
+    quantity: prIds.length,
+    prIds,
+    prTierById,
+  });
+}
+
+/** Share of (target labor cost − actual labor cost) counted as cutlost. */
+export const OUTLET_CUTLOSS_COST_SHARE = 0.4;
+
+export function outletShiftCutLoss(targetCost: number, actualCost: number): number {
+  return Math.max(0, Math.round((targetCost - actualCost) * OUTLET_CUTLOSS_COST_SHARE));
+}
+
+export function outletShiftCutLossForShift(
+  shift: { estimatedCost: number; shift: string; prs: string[] },
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  prTierById: Record<string, string | undefined>,
+): number {
+  return outletShiftCutLoss(
+    shift.estimatedCost,
+    outletShiftActualLaborCost(shift, tierRates, prTierById),
+  );
+}
+
+export type OutletCutLossPatch = Partial<{
+  releasedEarlyPrIds: string[];
+  demandCut: number;
+  salesTargetPct: number;
+}>;
+
+export function outletShiftCutLossAfterPatch(
+  shift: OutletCutLossShiftSlice & {
+    estimatedCost: number;
+    shift: string;
+    prs: string[];
+    releasedEarlyPrIds?: string[];
+    demandCut?: number;
+    salesTargetPct?: number;
+  },
+  patch: OutletCutLossPatch,
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  prTierById: Record<string, string | undefined>,
+): number {
+  const hours = shiftHoursFromLabel(shift.shift);
+  let estimatedCost = shift.estimatedCost;
+  let prs = [...shift.prs];
+
+  const prevReleased = new Set(shift.releasedEarlyPrIds ?? []);
+  const nextReleased = patch.releasedEarlyPrIds ?? shift.releasedEarlyPrIds ?? [];
+  const newlyReleased = nextReleased.filter((id) => !prevReleased.has(id));
+  if (newlyReleased.length) {
+    prs = prs.filter((id) => !newlyReleased.includes(id));
+    estimatedCost = estimateShiftLaborCost({
+      tierRates,
+      hours,
+      quantity: prs.length,
+      prIds: prs,
+      prTierById,
+    });
+  }
+
+  const addedDemandCut = (patch.demandCut ?? shift.demandCut ?? 0) - (shift.demandCut ?? 0);
+  if (addedDemandCut > 0) {
+    const demand = outletShiftEffectiveDemand(shift);
+    if (demand > 0) {
+      const perSlot = shift.estimatedCost / demand;
+      estimatedCost = Math.round(estimatedCost - perSlot * addedDemandCut);
+    }
+  }
+
+  return outletShiftCutLossForShift(
+    { ...shift, ...patch, prs, estimatedCost },
+    tierRates,
+    prTierById,
+  );
+}
+
+export function outletShiftCutLossSavings(
+  shift: OutletCutLossShiftSlice & {
+    estimatedCost: number;
+    shift: string;
+    prs: string[];
+    releasedEarlyPrIds?: string[];
+    demandCut?: number;
+    salesTargetPct?: number;
+  },
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  prTierById: Record<string, string | undefined>,
+  patch: OutletCutLossPatch,
+): number {
+  const before = outletShiftCutLossForShift(shift, tierRates, prTierById);
+  const after = outletShiftCutLossAfterPatch(shift, patch, tierRates, prTierById);
+  return Math.max(0, before - after);
 }
 
 export type OutletCutLossShiftSlice = {

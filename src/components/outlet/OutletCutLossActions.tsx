@@ -4,36 +4,27 @@ import type { ShiftRequest } from "@/lib/store";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzPill } from "@/components/iz/ui";
 import {
-  outletShiftCutLoss,
+  OUTLET_CUTLOSS_COST_SHARE,
+  outletShiftActualLaborCost,
   outletShiftCutLossAdjustmentsLabel,
-  outletShiftSalesTargetHeadcount,
-  outletShiftTargetSalesForShift,
-  outletShiftTargetSalesRm,
+  outletShiftCutLossForShift,
+  outletShiftCutLossSavings,
+  outletShiftLaborCostForPrIds,
+  outletShiftPlannedLaborPerSlot,
   outletUnfilledDemandSlots,
   resolveShiftTierRates,
 } from "@/lib/outlet-demo";
-import { ArrowDownRight, Check, ChevronDown, TrendingDown, UserMinus, Users } from "lucide-react";
+import { Check, ChevronDown, TrendingDown, UserMinus, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function formatRm(amount: number): string {
   return `RM ${Math.round(amount).toLocaleString("en-MY")}`;
 }
 
-function cutLossSavings(
-  shift: ShiftRequest,
-  tierRates: ReturnType<typeof resolveShiftTierRates>,
-  liveSales: number,
-  patch: Partial<Pick<ShiftRequest, "releasedEarlyPrIds" | "demandCut" | "salesTargetPct">>,
-): number {
-  const before = outletShiftCutLoss(
-    outletShiftTargetSalesForShift(shift, tierRates),
-    liveSales,
-  );
-  const after = outletShiftCutLoss(
-    outletShiftTargetSalesForShift({ ...shift, ...patch }, tierRates),
-    liveSales,
-  );
-  return Math.max(0, before - after);
+function formatCutLossSavings(savings: number, cutLoss: number): string | null {
+  if (savings <= 0) return null;
+  if (savings >= cutLoss - 1) return "Clears cutlost";
+  return `−${formatRm(savings)}`;
 }
 
 export function OutletCutLossActions({
@@ -45,19 +36,21 @@ export function OutletCutLossActions({
 }) {
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const agencyPRs = useStore((s) => s.agencyPRs);
-  const { releaseOutletPrsEarly, cutOutletUnfilledDemand, easeOutletSalesTarget } = useStore();
+  const { releaseOutletPrsEarly, cutOutletUnfilledDemand } = useStore();
 
   const tierRates = resolveShiftTierRates(shift, outletWorkspace);
-  const targetSales = outletShiftTargetSalesForShift(shift, tierRates);
-  const cutLoss = outletShiftCutLoss(targetSales, shift.liveSales);
+  const prTierById = Object.fromEntries(agencyPRs.map((pr) => [pr.id, pr.trainingLevel]));
+  const targetLabor = shift.estimatedCost;
+  const actualLabor = outletShiftActualLaborCost(shift, tierRates, prTierById);
+  const cutLoss = outletShiftCutLossForShift(shift, tierRates, prTierById);
+  const laborGap = Math.max(0, targetLabor - actualLabor);
 
   const [releaseOpen, setReleaseOpen] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const [open, setOpen] = useState(() => cutLoss > 0);
   const unfilled = outletUnfilledDemandSlots(shift);
   const adjustments = outletShiftCutLossAdjustmentsLabel(shift);
-  const perPrTarget = outletShiftTargetSalesRm(tierRates, 1);
-  const salesTargetPct = shift.salesTargetPct ?? 100;
+  const perSlotLabor = outletShiftPlannedLaborPerSlot(shift);
 
   const releasablePrs = useMemo(
     () =>
@@ -68,22 +61,27 @@ export function OutletCutLossActions({
     [shift.prs, agencyPRs],
   );
 
-  const releaseTwoSavings = cutLossSavings(shift, tierRates, shift.liveSales, {
-    releasedEarlyPrIds: [...(shift.releasedEarlyPrIds ?? []), ...releasablePrs.slice(0, 2).map((p) => p.id)],
+  const releaseTwoIds = releasablePrs.slice(0, 2).map((p) => p.id);
+  const releaseTwoLabor = outletShiftLaborCostForPrIds(
+    releaseTwoIds,
+    shift.shift,
+    tierRates,
+    prTierById,
+  );
+  const releaseTwoSavings = outletShiftCutLossSavings(shift, tierRates, prTierById, {
+    releasedEarlyPrIds: [...(shift.releasedEarlyPrIds ?? []), ...releaseTwoIds],
   });
-  const cutAllSavings = cutLossSavings(shift, tierRates, shift.liveSales, {
+
+  const cutSlotsLabor = Math.round(perSlotLabor * unfilled);
+  const cutAllSavings = outletShiftCutLossSavings(shift, tierRates, prTierById, {
     demandCut: (shift.demandCut ?? 0) + unfilled,
-  });
-  const easeTenSavings = cutLossSavings(shift, tierRates, shift.liveSales, {
-    salesTargetPct: Math.max(50, salesTargetPct - 10),
   });
 
   if (shift.status !== "confirmed") return null;
 
-  const canReleaseTwo = releasablePrs.length >= 2;
-  const canCutUnfilled = unfilled > 0;
-  const canEaseTarget = salesTargetPct > 50;
-  const hasActions = canReleaseTwo || canCutUnfilled || canEaseTarget || releasablePrs.length > 0;
+  const canReleaseTwo = releasablePrs.length >= 2 && releaseTwoSavings > 0;
+  const canCutUnfilled = unfilled > 0 && cutAllSavings > 0;
+  const hasActions = canReleaseTwo || canCutUnfilled || releasablePrs.length > 0;
 
   if (!hasActions && cutLoss <= 0) return null;
 
@@ -98,86 +96,78 @@ export function OutletCutLossActions({
     setReleaseOpen(false);
   };
 
+  const pickedLabor = outletShiftLaborCostForPrIds(picked, shift.shift, tierRates, prTierById);
+  const pickedSavings = outletShiftCutLossSavings(shift, tierRates, prTierById, {
+    releasedEarlyPrIds: [...(shift.releasedEarlyPrIds ?? []), ...picked],
+  });
+
   return (
     <div
-      className={cn(
-        "mt-2.5 rounded-xl border border-[var(--iz-line)] bg-white/[0.02]",
-        className,
-      )}
+      className={cn("mt-2.5 rounded-xl border border-[var(--iz-line)] bg-white/[0.02]", className)}
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left"
         aria-expanded={open}
       >
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
+        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
           Reduce cutlost
         </span>
         {cutLoss > 0 && (
-          <IzPill variant="red" className="shrink-0 !py-0.5 !text-[9px]">
+          <IzPill variant="red" className="shrink-0 !py-0.5 !text-[11px]">
             {formatRm(cutLoss)}
           </IzPill>
         )}
         <ChevronDown
-          className={cn("ml-auto h-3.5 w-3.5 shrink-0 text-[var(--iz-muted)]", open && "rotate-180")}
+          className={cn("ml-auto h-4 w-4 shrink-0 text-[var(--iz-muted)]", open && "rotate-180")}
         />
       </button>
 
       {open && (
-        <div className="border-t border-[var(--iz-line)] px-2.5 pb-2.5 pt-2">
-          <p className="text-[10px] leading-snug text-[var(--iz-muted2)]">
-            Lower tonight&apos;s sales target when the floor is quieter than planned.
+        <div className="border-t border-[var(--iz-line)] px-3 pb-2 pt-1.5">
+          <p className="text-xs leading-snug text-[var(--iz-muted2)]">
+            Cutlost is {Math.round(OUTLET_CUTLOSS_COST_SHARE * 100)}% of planned labor minus wages
+            for PRs on shift ({formatRm(targetLabor)} − {formatRm(actualLabor)} ={" "}
+            {formatRm(laborGap)} gap).
           </p>
 
           {adjustments && (
-            <p className="iz-tiny iz-muted2 mt-1.5">
-              Adjustments · {adjustments} · target headcount {outletShiftSalesTargetHeadcount(shift)}
-            </p>
+            <p className="mt-1 text-xs text-[var(--iz-muted2)]">Already applied · {adjustments}</p>
           )}
 
-          <div className="mt-2 space-y-1.5">
-        {canReleaseTwo && (
-          <ActionRow
-            icon={UserMinus}
-            title="Release 2 PRs early"
-            detail={`Drops target by ~${formatRm(perPrTarget * 2)}`}
-            savings={releaseTwoSavings}
-            onClick={() => releaseOutletPrsEarly(shift.id, releasablePrs.slice(0, 2).map((p) => p.id))}
-          />
-        )}
+          <div className="mt-1.5 space-y-1">
+            {canReleaseTwo && (
+              <ActionRow
+                icon={UserMinus}
+                title="Release 2 PRs early"
+                detail={`~${formatRm(releaseTwoLabor)} less target & actual labor · 2 PRs checked out`}
+                savingsLabel={formatCutLossSavings(releaseTwoSavings, cutLoss)}
+                onClick={() => releaseOutletPrsEarly(shift.id, releaseTwoIds)}
+              />
+            )}
 
-        {releasablePrs.length > 0 && (
-          <ActionRow
-            icon={Users}
-            title="Choose PRs to release"
-            detail={`${releasablePrs.length} on shift · pick who goes home early`}
-            onClick={() => {
-              setPicked([]);
-              setReleaseOpen(true);
-            }}
-          />
-        )}
+            {releasablePrs.length > 0 && (
+              <ActionRow
+                icon={Users}
+                title="Choose PRs to release"
+                detail={`${releasablePrs.length} on shift · pick who goes home early`}
+                onClick={() => {
+                  setPicked([]);
+                  setReleaseOpen(true);
+                }}
+              />
+            )}
 
-        {canCutUnfilled && (
-          <ActionRow
-            icon={TrendingDown}
-            title={unfilled === 1 ? "Cut 1 open slot" : `Cut ${unfilled} open slots`}
-            detail="Remove unfilled demand from tonight's target"
-            savings={cutAllSavings}
-            onClick={() => cutOutletUnfilledDemand(shift.id, unfilled)}
-          />
-        )}
-
-        {canEaseTarget && (
-          <ActionRow
-            icon={ArrowDownRight}
-            title="Ease target −10%"
-            detail={`${salesTargetPct}% → ${Math.max(50, salesTargetPct - 10)}% per-PR sales goal`}
-            savings={easeTenSavings}
-            onClick={() => easeOutletSalesTarget(shift.id, 10)}
-          />
-        )}
+            {canCutUnfilled && (
+              <ActionRow
+                icon={TrendingDown}
+                title={unfilled === 1 ? "Cut 1 open slot" : `Cut ${unfilled} open slots`}
+                detail={`~${formatRm(cutSlotsLabor)} off planned labor only · ${unfilled} unfilled slot${unfilled === 1 ? "" : "s"}`}
+                savingsLabel={formatCutLossSavings(cutAllSavings, cutLoss)}
+                onClick={() => cutOutletUnfilledDemand(shift.id, unfilled)}
+              />
+            )}
           </div>
         </div>
       )}
@@ -185,14 +175,18 @@ export function OutletCutLossActions({
       <IzSheet open={releaseOpen} onClose={() => setReleaseOpen(false)}>
         <div className="iz-cardttl">Release PRs early</div>
         <p className="iz-tiny iz-muted mt-1">
-          Selected PRs are checked out on the roster and removed from tonight&apos;s sales target.
+          Selected PRs are checked out on the roster. Target and actual labor both drop by their
+          shift wages.
         </p>
         <div className="mt-3 space-y-1.5">
           {releasablePrs.map((pr) => {
             const active = picked.includes(pr.id);
-            const savings = cutLossSavings(shift, tierRates, shift.liveSales, {
-              releasedEarlyPrIds: [...(shift.releasedEarlyPrIds ?? []), pr.id],
-            });
+            const prLabor = outletShiftLaborCostForPrIds(
+              [pr.id],
+              shift.shift,
+              tierRates,
+              prTierById,
+            );
             return (
               <button
                 key={pr.id}
@@ -207,13 +201,19 @@ export function OutletCutLossActions({
               >
                 <span className="font-medium">{pr.name}</span>
                 <span className="flex items-center gap-1.5 text-[10px] text-[var(--iz-muted)]">
-                  {savings > 0 && `−${formatRm(savings)} cutlost`}
+                  ~{formatRm(prLabor)} labor
                   {active && <Check className="h-3.5 w-3.5 text-[var(--iz-gold)]" />}
                 </span>
               </button>
             );
           })}
         </div>
+        {picked.length > 0 && (
+          <p className="iz-tiny iz-muted mt-2 text-center">
+            {formatCutLossSavings(pickedSavings, cutLoss) ?? "No cutlost change"} · ~
+            {formatRm(pickedLabor)} labor
+          </p>
+        )}
         <button
           type="button"
           className="iz-btn iz-btn-primary mt-3 w-full"
@@ -238,31 +238,31 @@ function ActionRow({
   icon: Icon,
   title,
   detail,
-  savings,
+  savingsLabel,
   onClick,
 }: {
   icon: typeof UserMinus;
   title: string;
   detail: string;
-  savings?: number;
+  savingsLabel?: string | null;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-lg border border-[var(--iz-line)] bg-[var(--iz-bg)] px-2.5 py-2 text-left transition-colors hover:border-[var(--iz-gold-d)]"
+      className="flex w-full items-center gap-2.5 rounded-lg border border-[var(--iz-line)] bg-[var(--iz-bg)] px-2.5 py-1.5 text-left transition-colors hover:border-[var(--iz-gold-d)]"
     >
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
-        <Icon className="h-3.5 w-3.5 text-[var(--iz-gold)]" />
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
+        <Icon className="h-4 w-4 text-[var(--iz-gold)]" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[11px] font-semibold">{title}</span>
-        <span className="block text-[10px] text-[var(--iz-muted2)]">{detail}</span>
+        <span className="block text-sm font-semibold leading-tight">{title}</span>
+        <span className="mt-0.5 block text-xs leading-snug text-[var(--iz-muted2)]">{detail}</span>
       </span>
-      {savings != null && savings > 0 && (
-        <span className="shrink-0 text-[10px] font-semibold text-[var(--iz-green)]">
-          −{formatRm(savings)}
+      {savingsLabel && (
+        <span className="shrink-0 text-xs font-semibold leading-tight text-[var(--iz-green)]">
+          {savingsLabel}
         </span>
       )}
     </button>

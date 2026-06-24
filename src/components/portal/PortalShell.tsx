@@ -23,13 +23,28 @@ type ExtraNavItem = NavItem & { permission: string };
 const AGENCY_EXTRAS: ExtraNavItem[] = [
   { to: "/agency/prs", label: "Manage PR", icon: Users, permission: "managePr" },
   { to: "/agency/outlets", label: "Manage Outlet", icon: Store, permission: "managePr" },
-  { to: "/agency/subscription", label: "Subscription", icon: CreditCard, permission: "viewSettings" },
+  {
+    to: "/agency/subscription",
+    label: "Subscription",
+    icon: CreditCard,
+    permission: "viewSettings",
+  },
   { to: "/agency/profile", label: "Settings", icon: Settings, permission: "viewSettings" },
 ];
 
 const OUTLET_EXTRAS: ExtraNavItem[] = [
-  { to: "/outlet/workspace", label: "Workspace", icon: SlidersHorizontal, permission: "viewWorkspace" },
-  { to: "/outlet/subscription", label: "Subscription", icon: CreditCard, permission: "viewSettings" },
+  {
+    to: "/outlet/workspace",
+    label: "Workspace",
+    icon: SlidersHorizontal,
+    permission: "viewWorkspace",
+  },
+  {
+    to: "/outlet/subscription",
+    label: "Subscription",
+    icon: CreditCard,
+    permission: "viewSettings",
+  },
   { to: "/outlet/settings", label: "Settings", icon: Settings, permission: "viewSettings" },
 ];
 
@@ -50,7 +65,8 @@ function mergeNavItems(
   const extras = portal === "agency" ? AGENCY_EXTRAS : OUTLET_EXTRAS;
   const filtered = extras.filter((item) => {
     if (seen.has(item.to)) return false;
-    if (portal === "agency") return agencyCan(agencySubRole, item.permission as Parameters<typeof agencyCan>[1]);
+    if (portal === "agency")
+      return agencyCan(agencySubRole, item.permission as Parameters<typeof agencyCan>[1]);
     return outletCan(outletSubRole, item.permission as Parameters<typeof outletCan>[1]);
   });
   return [...base, ...filtered];
@@ -67,11 +83,7 @@ function PortalSidebarLink({
 }) {
   const active = navIsActive(pathname, item.to);
   return (
-    <Link
-      to={item.to}
-      className={`iz-portal-nav-link${active ? " on" : ""}`}
-      onClick={onNavigate}
-    >
+    <Link to={item.to} className={`iz-portal-nav-link${active ? " on" : ""}`} onClick={onNavigate}>
       <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
       <span>{item.label}</span>
     </Link>
@@ -93,9 +105,7 @@ function PortalSidebar({
 }) {
   const { pathname } = useLocation();
   const gradient =
-    portal === "agency"
-      ? "var(--iz-grad)"
-      : "linear-gradient(135deg,#39D98A,#1f8f5c)";
+    portal === "agency" ? "var(--iz-grad)" : "linear-gradient(135deg,#39D98A,#1f8f5c)";
 
   return (
     <aside className="iz-portal-sidebar">
@@ -103,7 +113,9 @@ function PortalSidebar({
         <div className="iz-wordmark text-lg">
           Innocen<span className="iz-wordmark-z">Z</span>
         </div>
-        <p className="iz-tiny iz-muted mt-1">{portal === "agency" ? "Agency portal" : "Outlet portal"}</p>
+        <p className="iz-tiny iz-muted mt-1">
+          {portal === "agency" ? "Agency portal" : "Outlet portal"}
+        </p>
       </div>
 
       <div className="iz-portal-sidebar-identity">
@@ -118,7 +130,12 @@ function PortalSidebar({
 
       <nav className="iz-portal-sidebar-nav">
         {items.map((item) => (
-          <PortalSidebarLink key={item.to} item={item} pathname={pathname} onNavigate={onNavigate} />
+          <PortalSidebarLink
+            key={item.to}
+            item={item}
+            pathname={pathname}
+            onNavigate={onNavigate}
+          />
         ))}
       </nav>
 
@@ -166,10 +183,7 @@ export function PortalShell({
   const outletSubRole = useStore((s) => s.outletSubRole);
   const agencyOwner = useStore((s) => s.agencyOwner);
   const outletOwner = useStore((s) => s.outletOwner);
-  const orgName =
-    portal === "agency"
-      ? agencyOwner.orgName
-      : outletOwner.orgName;
+  const orgName = portal === "agency" ? agencyOwner.orgName : outletOwner.orgName;
 
   const subLabel =
     portal === "agency"
@@ -180,12 +194,7 @@ export function PortalShell({
 
   return (
     <div className="iz-portal" data-portal={portal}>
-      <PortalSidebar
-        portal={portal}
-        items={sidebarItems}
-        orgName={orgName}
-        subLabel={subLabel}
-      />
+      <PortalSidebar portal={portal} items={sidebarItems} orgName={orgName} subLabel={subLabel} />
 
       <div className="iz-portal-main">
         <PortalHeader orgName={orgName} portal={portal} />

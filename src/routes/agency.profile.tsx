@@ -5,10 +5,8 @@ import { useStore } from "@/lib/store";
 import type { AgencyFinanceHead, AgencyOwnerSettings } from "@/lib/agency-demo";
 import { getAgencySubscriptionPlan } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { signOutToWelcome } from "@/lib/go-welcome";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { Building2, Camera, Mail, Pencil, Phone, Shield, User, X } from "lucide-react";
-
 
 export const Route = createFileRoute("/agency/profile")({
   component: AgencyProfile,
@@ -35,7 +33,8 @@ function AgencyProfile() {
   const owner = editing ? draft : agencyOwner;
   const finance = editing ? financeDraft : agencyFinanceHead;
   const subscriptionPlan = getAgencySubscriptionPlan(owner.subscriptionPlanId);
-  const avatarLetter = owner.ownerName.trim()[0]?.toUpperCase() ?? owner.orgName.trim()[0]?.toUpperCase() ?? "A";
+  const avatarLetter =
+    owner.ownerName.trim()[0]?.toUpperCase() ?? owner.orgName.trim()[0]?.toUpperCase() ?? "A";
   const editCardClass = editing ? " border-[rgba(217,185,122,.25)]" : "";
 
   const update = (patch: Partial<AgencyOwnerSettings>) => setDraft((d) => ({ ...d, ...patch }));
@@ -105,7 +104,10 @@ function AgencyProfile() {
       outletCommissionRules: outletCommissionRules.map((r) => ({ ...r })),
     });
     if (inviteChanged && inviteEmail.trim()) {
-      toast(`Invite queued for ${inviteEmail.trim()} — Finance Head must complete IC + e-signature`, "info");
+      toast(
+        `Invite queued for ${inviteEmail.trim()} — Finance Head must complete IC + e-signature`,
+        "info",
+      );
     }
     setEditing(false);
     setOtp("");
@@ -115,7 +117,9 @@ function AgencyProfile() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
+          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">
+            Access restricted
+          </h2>
         </header>
         <IzCard className="text-center">
           <p className="iz-sm iz-muted">You do not have access to agency settings.</p>
@@ -188,17 +192,49 @@ function AgencyProfile() {
             : "Pending OTP activation"}
         </div>
         {editing && canEdit && (
-          <p className="iz-tiny iz-muted2 mt-2 text-center">Tap the camera to upload your agency profile photo.</p>
+          <p className="iz-tiny iz-muted2 mt-2 text-center">
+            Tap the camera to upload your agency profile photo.
+          </p>
         )}
       </div>
 
       <IzSectionLabel>Owner information</IzSectionLabel>
       <IzCard className={editCardClass}>
-        <Field icon={User} label="Owner name" value={owner.ownerName} onChange={(v) => update({ ownerName: v })} readOnly={fieldsLocked} />
-        <Field icon={Phone} label="Mobile" value={owner.mobile} onChange={(v) => update({ mobile: v })} readOnly={fieldsLocked} />
-        <Field icon={Mail} label="Email" value={owner.email} onChange={(v) => update({ email: v })} readOnly={fieldsLocked} />
-        <Field icon={Shield} label="IC (for PV)" value={owner.ic} onChange={(v) => update({ ic: v })} readOnly={fieldsLocked} />
-        <Field icon={Building2} label="Organization" value={owner.orgName} onChange={(v) => update({ orgName: v })} readOnly={fieldsLocked} />
+        <Field
+          icon={User}
+          label="Owner name"
+          value={owner.ownerName}
+          onChange={(v) => update({ ownerName: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Phone}
+          label="Mobile"
+          value={owner.mobile}
+          onChange={(v) => update({ mobile: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Mail}
+          label="Email"
+          value={owner.email}
+          onChange={(v) => update({ email: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Shield}
+          label="IC (for PV)"
+          value={owner.ic}
+          onChange={(v) => update({ ic: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Building2}
+          label="Organization"
+          value={owner.orgName}
+          onChange={(v) => update({ orgName: v })}
+          readOnly={fieldsLocked}
+        />
       </IzCard>
 
       <IzSectionLabel>OTP &amp; 2FA</IzSectionLabel>
@@ -222,7 +258,11 @@ function AgencyProfile() {
                 Phone
               </button>
             </div>
-            <button type="button" className="iz-btn iz-btn-soft mt-2 w-full" onClick={sendAgencyOtp}>
+            <button
+              type="button"
+              className="iz-btn iz-btn-soft mt-2 w-full"
+              onClick={sendAgencyOtp}
+            >
               Send OTP
             </button>
             <input
@@ -231,13 +271,20 @@ function AgencyProfile() {
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
             />
-            <button type="button" className="iz-btn iz-btn-primary mt-2 w-full" onClick={() => verifyAgencyOtp(otp)}>
+            <button
+              type="button"
+              className="iz-btn iz-btn-primary mt-2 w-full"
+              onClick={() => verifyAgencyOtp(otp)}
+            >
               Verify &amp; activate
             </button>
           </>
         ) : (
           <p className="iz-tiny iz-muted">
-            OTP channel: <b className="text-[var(--iz-txt)]">{owner.otpChannel === "email" ? "Email" : "Phone"}</b>
+            OTP channel:{" "}
+            <b className="text-[var(--iz-txt)]">
+              {owner.otpChannel === "email" ? "Email" : "Phone"}
+            </b>
             {" · "}
             {owner.accountActivated ? "MFA active" : "Activation pending"}
           </p>
@@ -246,10 +293,30 @@ function AgencyProfile() {
 
       <IzSectionLabel>Finance Head · dual-sign PV</IzSectionLabel>
       <IzCard className={editCardClass}>
-        <p className="iz-tiny iz-muted mb-2">IC + e-signature auto-stamps every PV (1st of 2 sigs)</p>
-        <Field icon={User} label="Name" value={finance.name} onChange={(v) => updateFinance({ name: v })} readOnly={fieldsLocked} />
-        <Field icon={Shield} label="IC" value={finance.ic} onChange={(v) => updateFinance({ ic: v })} readOnly={fieldsLocked} />
-        <Field icon={Mail} label="Email" value={finance.email} onChange={(v) => updateFinance({ email: v })} readOnly={fieldsLocked} />
+        <p className="iz-tiny iz-muted mb-2">
+          IC + e-signature auto-stamps every PV (1st of 2 sigs)
+        </p>
+        <Field
+          icon={User}
+          label="Name"
+          value={finance.name}
+          onChange={(v) => updateFinance({ name: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Shield}
+          label="IC"
+          value={finance.ic}
+          onChange={(v) => updateFinance({ ic: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Mail}
+          label="Email"
+          value={finance.email}
+          onChange={(v) => updateFinance({ email: v })}
+          readOnly={fieldsLocked}
+        />
         {finance.eSignatureStored && (
           <p className="iz-tiny text-[var(--iz-green)] mt-2">E-signature on file ✓</p>
         )}
@@ -259,7 +326,9 @@ function AgencyProfile() {
         <>
           <IzSectionLabel>Invite Finance Head</IzSectionLabel>
           <IzCard className={editCardClass}>
-            <p className="iz-tiny iz-muted mb-2">Sub-role invite · requires IC + e-signature for dual-sign PV</p>
+            <p className="iz-tiny iz-muted mb-2">
+              Sub-role invite · requires IC + e-signature for dual-sign PV
+            </p>
             <input
               className="iz-field-input !text-sm"
               placeholder="finance@agency.my"
@@ -288,14 +357,6 @@ function AgencyProfile() {
           )}
         </div>
       )}
-
-      <button
-        type="button"
-        className="mt-4 w-full rounded-full border border-[var(--iz-red)] py-3 text-sm font-semibold text-[var(--iz-red)]"
-        onClick={signOutToWelcome}
-      >
-        Sign out
-      </button>
     </div>
   );
 }

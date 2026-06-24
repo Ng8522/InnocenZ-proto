@@ -5,7 +5,6 @@ import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { useStore } from "@/lib/store";
 import type { OutletFinanceHead, OutletOpsHead, OutletOwnerSettings } from "@/lib/outlet-demo";
 import { outletCan } from "@/lib/outlet-rbac";
-import { signOutToWelcome } from "@/lib/go-welcome";
 import {
   Building2,
   Camera,
@@ -80,7 +79,8 @@ function OutletSettingsPage() {
   const finance = editing ? financeDraft : outletFinanceHead;
   const ops = editing ? opsDraft : outletOpsHead;
   const location = editing ? locationDraft : outletSettings.location;
-  const avatarLetter = owner.ownerName.trim()[0]?.toUpperCase() ?? owner.orgName.trim()[0]?.toUpperCase() ?? "V";
+  const avatarLetter =
+    owner.ownerName.trim()[0]?.toUpperCase() ?? owner.orgName.trim()[0]?.toUpperCase() ?? "V";
   const editCardClass = editing ? " border-[rgba(217,185,122,.25)]" : "";
 
   const update = (patch: Partial<OutletOwnerSettings>) => setDraft((d) => ({ ...d, ...patch }));
@@ -158,7 +158,9 @@ function OutletSettingsPage() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
+          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">
+            Access restricted
+          </h2>
         </header>
         <IzCard className="text-center">
           <p className="iz-sm iz-muted">You do not have access to outlet settings.</p>
@@ -197,7 +199,11 @@ function OutletSettingsPage() {
         <div className="relative">
           <div
             className={`iz-avatar h-16 w-16 text-xl${owner.avatarPhoto ? " iz-avatar-photo" : ""}`}
-            style={owner.avatarPhoto ? undefined : { background: "var(--iz-grad-outlet, var(--iz-grad))" }}
+            style={
+              owner.avatarPhoto
+                ? undefined
+                : { background: "var(--iz-grad-outlet, var(--iz-grad))" }
+            }
           >
             {owner.avatarPhoto ? <img src={owner.avatarPhoto} alt="" /> : avatarLetter}
           </div>
@@ -231,34 +237,110 @@ function OutletSettingsPage() {
           {owner.accountActivated ? "Verified · outlet active" : "Pending OTP activation"}
         </div>
         {editing && canEdit && (
-          <p className="iz-tiny iz-muted2 mt-2 text-center">Tap the camera to upload your outlet profile photo.</p>
+          <p className="iz-tiny iz-muted2 mt-2 text-center">
+            Tap the camera to upload your outlet profile photo.
+          </p>
         )}
       </div>
 
       <IzSectionLabel>Owner information</IzSectionLabel>
       <IzCard className={editCardClass}>
-        <Field icon={User} label="Owner name" value={owner.ownerName} onChange={(v) => update({ ownerName: v })} readOnly={fieldsLocked} />
-        <Field icon={Phone} label="Mobile" value={owner.mobile} onChange={(v) => update({ mobile: v })} readOnly={fieldsLocked} />
-        <Field icon={Mail} label="Email" value={owner.email} onChange={(v) => update({ email: v })} readOnly={fieldsLocked} />
-        <Field icon={Shield} label="IC (for PV)" value={owner.ic} onChange={(v) => update({ ic: v })} readOnly={fieldsLocked} />
-        <Field icon={Building2} label="Venue" value={owner.orgName} onChange={(v) => update({ orgName: v })} readOnly={fieldsLocked} />
-        <Field icon={MapPin} label="Location" value={location} onChange={setLocationDraft} readOnly={fieldsLocked} />
+        <Field
+          icon={User}
+          label="Owner name"
+          value={owner.ownerName}
+          onChange={(v) => update({ ownerName: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Phone}
+          label="Mobile"
+          value={owner.mobile}
+          onChange={(v) => update({ mobile: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Mail}
+          label="Email"
+          value={owner.email}
+          onChange={(v) => update({ email: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Shield}
+          label="IC (for PV)"
+          value={owner.ic}
+          onChange={(v) => update({ ic: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Building2}
+          label="Venue"
+          value={owner.orgName}
+          onChange={(v) => update({ orgName: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={MapPin}
+          label="Location"
+          value={location}
+          onChange={setLocationDraft}
+          readOnly={fieldsLocked}
+        />
       </IzCard>
 
       <IzSectionLabel>Finance Head</IzSectionLabel>
       <IzCard className={editCardClass}>
-        <p className="iz-tiny iz-muted mb-2">Weekly reconciliation · due Sundays · billing sign-off</p>
-        <Field icon={User} label="Name" value={finance.name} onChange={(v) => updateFinance({ name: v })} readOnly={fieldsLocked} />
-        <Field icon={Shield} label="IC" value={finance.ic} onChange={(v) => updateFinance({ ic: v })} readOnly={fieldsLocked} />
-        <Field icon={Mail} label="Email" value={finance.email} onChange={(v) => updateFinance({ email: v })} readOnly={fieldsLocked} />
+        <p className="iz-tiny iz-muted mb-2">
+          Weekly reconciliation · due Sundays · billing sign-off
+        </p>
+        <Field
+          icon={User}
+          label="Name"
+          value={finance.name}
+          onChange={(v) => updateFinance({ name: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Shield}
+          label="IC"
+          value={finance.ic}
+          onChange={(v) => updateFinance({ ic: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Mail}
+          label="Email"
+          value={finance.email}
+          onChange={(v) => updateFinance({ email: v })}
+          readOnly={fieldsLocked}
+        />
       </IzCard>
 
       <IzSectionLabel>Ops Head</IzSectionLabel>
       <IzCard className={editCardClass}>
         <p className="iz-tiny iz-muted mb-2">Floor operations · shift staffing · sales logging</p>
-        <Field icon={Wrench} label="Name" value={ops.name} onChange={(v) => updateOps({ name: v })} readOnly={fieldsLocked} />
-        <Field icon={Shield} label="IC" value={ops.ic} onChange={(v) => updateOps({ ic: v })} readOnly={fieldsLocked} />
-        <Field icon={Mail} label="Email" value={ops.email} onChange={(v) => updateOps({ email: v })} readOnly={fieldsLocked} />
+        <Field
+          icon={Wrench}
+          label="Name"
+          value={ops.name}
+          onChange={(v) => updateOps({ name: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Shield}
+          label="IC"
+          value={ops.ic}
+          onChange={(v) => updateOps({ ic: v })}
+          readOnly={fieldsLocked}
+        />
+        <Field
+          icon={Mail}
+          label="Email"
+          value={ops.email}
+          onChange={(v) => updateOps({ email: v })}
+          readOnly={fieldsLocked}
+        />
       </IzCard>
 
       <IzSectionLabel>OTP &amp; 2FA</IzSectionLabel>
@@ -282,7 +364,11 @@ function OutletSettingsPage() {
                 Phone
               </button>
             </div>
-            <button type="button" className="iz-btn iz-btn-soft mt-2 w-full" onClick={sendOutletOtp}>
+            <button
+              type="button"
+              className="iz-btn iz-btn-soft mt-2 w-full"
+              onClick={sendOutletOtp}
+            >
               Send OTP
             </button>
             <input
@@ -291,13 +377,20 @@ function OutletSettingsPage() {
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
             />
-            <button type="button" className="iz-btn iz-btn-primary mt-2 w-full" onClick={() => verifyOutletOtp(otp)}>
+            <button
+              type="button"
+              className="iz-btn iz-btn-primary mt-2 w-full"
+              onClick={() => verifyOutletOtp(otp)}
+            >
               Verify &amp; activate
             </button>
           </>
         ) : (
           <p className="iz-tiny iz-muted">
-            OTP channel: <b className="text-[var(--iz-txt)]">{owner.otpChannel === "email" ? "Email" : "Phone"}</b>
+            OTP channel:{" "}
+            <b className="text-[var(--iz-txt)]">
+              {owner.otpChannel === "email" ? "Email" : "Phone"}
+            </b>
             {" · "}
             {owner.accountActivated ? "MFA active" : "Activation pending"}
           </p>
@@ -332,14 +425,6 @@ function OutletSettingsPage() {
           )}
         </div>
       )}
-
-      <button
-        type="button"
-        className="mt-4 w-full rounded-full border border-[var(--iz-red)] py-3 text-sm font-semibold text-[var(--iz-red)]"
-        onClick={signOutToWelcome}
-      >
-        Sign out
-      </button>
     </div>
   );
 }

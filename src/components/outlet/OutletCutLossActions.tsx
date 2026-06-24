@@ -10,6 +10,7 @@ import {
   outletShiftCutLossForShift,
   outletShiftCutLossSavings,
   outletShiftLaborCostForPrIds,
+  outletShiftTargetLaborCost,
   outletShiftPlannedLaborPerSlot,
   outletUnfilledDemandSlots,
   resolveShiftTierRates,
@@ -40,7 +41,7 @@ export function OutletCutLossActions({
 
   const tierRates = resolveShiftTierRates(shift, outletWorkspace);
   const prTierById = Object.fromEntries(agencyPRs.map((pr) => [pr.id, pr.trainingLevel]));
-  const targetLabor = shift.estimatedCost;
+  const targetLabor = outletShiftTargetLaborCost(shift, tierRates, prTierById);
   const actualLabor = outletShiftActualLaborCost(shift, tierRates, prTierById);
   const cutLoss = outletShiftCutLossForShift(shift, tierRates, prTierById);
   const laborGap = Math.max(0, targetLabor - actualLabor);
@@ -50,7 +51,7 @@ export function OutletCutLossActions({
   const [open, setOpen] = useState(() => cutLoss > 0);
   const unfilled = outletUnfilledDemandSlots(shift);
   const adjustments = outletShiftCutLossAdjustmentsLabel(shift);
-  const perSlotLabor = outletShiftPlannedLaborPerSlot(shift);
+  const perSlotLabor = outletShiftPlannedLaborPerSlot(shift, tierRates, prTierById);
 
   const releasablePrs = useMemo(
     () =>

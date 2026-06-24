@@ -179,6 +179,11 @@ export function mergeDemoShiftStaffing(
       ...sh,
       prs: prIds,
       filled: Math.max(sh.filled ?? 0, prIds.length, seed?.filled ?? 0),
+      drinkUnits: seed?.drinkUnits ?? 0,
+      drinkUnitCounts: seed?.drinkUnitCounts,
+      legacyDrinkSalesRm: seed?.legacyDrinkSalesRm,
+      liveSales: seed?.liveSales ?? 0,
+      anchorLiveSales: seed?.anchorLiveSales ?? 0,
     };
   });
 }
@@ -263,9 +268,9 @@ function buildDemoShifts(): ShiftRequest[] {
       eventDrinkMenu: vipEventDrinks,
       preferredRating: 4.5,
       preferredStarTiers: [4, 5],
-      estimatedCost: 3840,
+      estimatedCost: 6000,
       liveSales: 0,
-      drinkUnits: 8,
+      drinkUnits: 0,
       status: "confirmed",
       prs: [...HENNESSY_LAUNCH_PR_IDS],
       payPerHour: tonightTiers["Tier I"].wagePerHour,
@@ -607,7 +612,10 @@ function buildDemoShifts(): ShiftRequest[] {
   return raw.map((s) => ({
     ...s,
     filled: s.prs?.length ?? 0,
-    liveSales: computeShiftLiveSales(s),
+    liveSales:
+      (s.drinkUnits ?? 0) > 0 || s.drinkUnitCounts
+        ? computeShiftLiveSales(s)
+        : 0,
     dateIso: s.dateIso ?? resolveOutletShiftDateIso(s.date, s.dateIso, DEFAULT_ROSTER_DATE_ISO),
   }));
 }

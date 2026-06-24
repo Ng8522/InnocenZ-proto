@@ -587,6 +587,13 @@ export function shiftHoursFromLabel(shift: string): number {
   return Math.max(1, Math.round((end - start) / 60));
 }
 
+export function shiftStartTimeFromLabel(shiftLabel: string): string | null {
+  const segments = shiftLabel.replace(/—/g, "-").split(/\s*-\s*/);
+  const m = segments[0]?.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return `${m[1].padStart(2, "0")}:${m[2]}`;
+}
+
 export function formatOutletShiftMetricAmount(amount: number): string {
   const rounded = Math.round(amount);
   if (rounded >= 1000) return `${(rounded / 1000).toFixed(1)}k`;
@@ -621,13 +628,38 @@ export function outletShiftActualLaborCost(
   });
 }
 
-export function outletShiftPlannedLaborPerSlot(shift: {
-  estimatedCost: number;
-  quantity: number;
-  demandCut?: number;
-}): number {
+/** Planned labor for effective demand — scales from on-shift wages when partially staffed. */
+export function outletShiftTargetLaborCost(
+  shift: OutletCutLossShiftSlice & { shift: string; prs?: string[] },
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  prTierById: Record<string, string | undefined>,
+): number {
   const demand = outletShiftEffectiveDemand(shift);
-  return demand > 0 ? shift.estimatedCost / demand : 0;
+  if (demand <= 0) return 0;
+  const supplied = outletShiftSuppliedCount(shift);
+  const actual = outletShiftActualLaborCost(
+    { shift: shift.shift, prs: shift.prs ?? [] },
+    tierRates,
+    prTierById,
+  );
+  if (supplied > 0) {
+    return Math.round((actual * demand) / supplied);
+  }
+  return estimateShiftLaborCost({
+    tierRates,
+    hours: shiftHoursFromLabel(shift.shift),
+    quantity: demand,
+  });
+}
+
+export function outletShiftPlannedLaborPerSlot(
+  shift: OutletCutLossShiftSlice & { shift: string; prs?: string[] },
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  prTierById: Record<string, string | undefined>,
+): number {
+  const demand = outletShiftEffectiveDemand(shift);
+  if (demand <= 0) return 0;
+  return outletShiftTargetLaborCost(shift, tierRates, prTierById) / demand;
 }
 
 export function outletShiftLaborCostForPrIds(
@@ -654,14 +686,17 @@ export function outletShiftCutLoss(targetCost: number, actualCost: number): numb
 }
 
 export function outletShiftCutLossForShift(
-  shift: { estimatedCost: number; shift: string; prs: string[] },
+  shift: OutletCutLossShiftSlice & { shift: string; prs?: string[] },
   tierRates: Record<OutletPrTier, OutletTierRateSettings>,
   prTierById: Record<string, string | undefined>,
 ): number {
-  return outletShiftCutLoss(
-    shift.estimatedCost,
-    outletShiftActualLaborCost(shift, tierRates, prTierById),
+  const target = outletShiftTargetLaborCost(shift, tierRates, prTierById);
+  const actual = outletShiftActualLaborCost(
+    { shift: shift.shift, prs: shift.prs ?? [] },
+    tierRates,
+    prTierById,
   );
+  return outletShiftCutLoss(target, actual);
 }
 
 export type OutletCutLossPatch = Partial<{
@@ -672,7 +707,6 @@ export type OutletCutLossPatch = Partial<{
 
 export function outletShiftCutLossAfterPatch(
   shift: OutletCutLossShiftSlice & {
-    estimatedCost: number;
     shift: string;
     prs: string[];
     releasedEarlyPrIds?: string[];
@@ -683,35 +717,22 @@ export function outletShiftCutLossAfterPatch(
   tierRates: Record<OutletPrTier, OutletTierRateSettings>,
   prTierById: Record<string, string | undefined>,
 ): number {
-  const hours = shiftHoursFromLabel(shift.shift);
-  let estimatedCost = shift.estimatedCost;
-  let prs = [...shift.prs];
-
   const prevReleased = new Set(shift.releasedEarlyPrIds ?? []);
   const nextReleased = patch.releasedEarlyPrIds ?? shift.releasedEarlyPrIds ?? [];
   const newlyReleased = nextReleased.filter((id) => !prevReleased.has(id));
+  let prs = [...shift.prs];
   if (newlyReleased.length) {
     prs = prs.filter((id) => !newlyReleased.includes(id));
-    estimatedCost = estimateShiftLaborCost({
-      tierRates,
-      hours,
-      quantity: prs.length,
-      prIds: prs,
-      prTierById,
-    });
-  }
-
-  const addedDemandCut = (patch.demandCut ?? shift.demandCut ?? 0) - (shift.demandCut ?? 0);
-  if (addedDemandCut > 0) {
-    const demand = outletShiftEffectiveDemand(shift);
-    if (demand > 0) {
-      const perSlot = shift.estimatedCost / demand;
-      estimatedCost = Math.round(estimatedCost - perSlot * addedDemandCut);
-    }
   }
 
   return outletShiftCutLossForShift(
-    { ...shift, ...patch, prs, estimatedCost },
+    {
+      ...shift,
+      ...patch,
+      prs,
+      demandCut: patch.demandCut ?? shift.demandCut,
+      releasedEarlyPrIds: patch.releasedEarlyPrIds ?? shift.releasedEarlyPrIds,
+    },
     tierRates,
     prTierById,
   );
@@ -719,7 +740,6 @@ export function outletShiftCutLossAfterPatch(
 
 export function outletShiftCutLossSavings(
   shift: OutletCutLossShiftSlice & {
-    estimatedCost: number;
     shift: string;
     prs: string[];
     releasedEarlyPrIds?: string[];

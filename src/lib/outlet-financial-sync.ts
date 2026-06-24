@@ -10,7 +10,9 @@ import {
 import { floorTipsForOutletFromRoster } from "@/lib/portal-sync";
 import type { ShiftRequest } from "@/lib/store";
 
-import { averageDrinkPrice, effectiveShiftDrinkMenu, type OutletDrinkPrice } from "@/lib/outlet-demo";
+import { averageDrinkPrice, effectiveShiftDrinkMenu, shiftStartTimeFromLabel, type OutletDrinkPrice } from "@/lib/outlet-demo";
+import { resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
+import { shiftStartMs } from "@/lib/pr-schedule-cancellation";
 
 export const DEFAULT_PER_DRINK_RM = 120;
 export const DEFAULT_PER_TABLE_RM = 100;
@@ -69,6 +71,23 @@ export function computeShiftLiveSales(
   return Math.round(drinkSales * 100) / 100;
 }
 
+/** Floor sales count only after shift start — confirmed/live before opening shows RM 0. */
+export function outletShiftFloorSalesStarted(
+  shift: Pick<ShiftRequest, "date" | "dateIso" | "shift" | "status">,
+  now = new Date(),
+): boolean {
+  if (shift.status === "sealed") return true;
+  const dateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso);
+  const start = shiftStartTimeFromLabel(shift.shift);
+  if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return false;
+  return now.getTime() >= shiftStartMs(dateIso, start);
+}
+
+export function outletShiftDisplayLiveSales(shift: ShiftRequest, now = new Date()): number {
+  if (!outletShiftFloorSalesStarted(shift, now)) return 0;
+  return shift.liveSales ?? 0;
+}
+
 export function floorTipsForOutlet(outletName: string, roster: AgencyRosterSlot[] = []): number {
   return floorTipsForOutletFromRoster(roster, outletName);
 }
@@ -93,7 +112,9 @@ export function withShiftFinancialDefaults(
   const drinkMenu = effectiveShiftDrinkMenu(shift, workspaceDrinkMenu);
   const perDrinkRm = shift.perDrinkRm ?? averageDrinkPrice(drinkMenu);
   const drinkUnits = totalDrinkUnits(shift);
-  const live = computeShiftLiveSales({ ...shift, drinkUnits }, drinkMenu);
+  const computed =
+    drinkUnits > 0 ? computeShiftLiveSales({ ...shift, drinkUnits }, drinkMenu) : 0;
+  const live = outletShiftFloorSalesStarted(shift) ? computed : 0;
   const anchorLiveSales = shift.anchorLiveSales ?? live;
   return {
     ...shift,

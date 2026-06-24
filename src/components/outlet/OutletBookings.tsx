@@ -20,10 +20,12 @@ import {
   outletShiftCutLoss,
   outletShiftCutLossAdjustmentsLabel,
   outletShiftDemandSupplied,
+  outletShiftTargetLaborCost,
   outletShiftTargetSalesForShift,
   resolveShiftTierRates,
   shiftDrinkMenuDetailLines,
 } from "@/lib/outlet-demo";
+import { outletShiftDisplayLiveSales } from "@/lib/outlet-financial-sync";
 import { OutletCutLossActions } from "@/components/outlet/OutletCutLossActions";
 import { formatTierSalesTargets, formatTierWageRange } from "@/lib/agency-demo";
 import { ShiftTierWagesStrip } from "@/components/outlet/ShiftTierWagesStrip";
@@ -125,8 +127,10 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
     const salesTargets = formatTierSalesTargets(tierRates);
     const prTierById = Object.fromEntries(agencyPRs.map((pr) => [pr.id, pr.trainingLevel]));
     const targetSales = outletShiftTargetSalesForShift(s, tierRates);
+    const targetCost = outletShiftTargetLaborCost(s, tierRates, prTierById);
     const actualCost = outletShiftActualLaborCost(s, tierRates, prTierById);
-    const cutLoss = outletShiftCutLoss(s.estimatedCost, actualCost);
+    const displaySales = outletShiftDisplayLiveSales(s);
+    const cutLoss = outletShiftCutLoss(targetCost, actualCost);
     const { demand: staffingDemand, supplied } = outletShiftDemandSupplied(s);
     const adjustmentsLabel = outletShiftCutLossAdjustmentsLabel(s);
 
@@ -148,7 +152,7 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
             </div>
             <p className="iz-tiny iz-muted mt-0.5 truncate group-open:hidden">
               {s.date} · {supplied}/{s.quantity} PRs · {targetPay}
-              {salesTargets ? ` · ${salesTargets}` : ""} · RM {s.liveSales.toLocaleString()} sales
+              {salesTargets ? ` · ${salesTargets}` : ""} · RM {displaySales.toLocaleString()} sales
             </p>
           </div>
           <ChevronDown className="h-4 w-4 shrink-0 text-[var(--iz-muted)] transition-transform group-open:rotate-180" />
@@ -190,12 +194,12 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
             <Metric label="Demand/Supplied" value={`${staffingDemand}/${supplied}`} />
             <Metric
               label="Target Cost/ Actual Cost"
-              value={formatOutletShiftDualMetric(s.estimatedCost, actualCost)}
+              value={formatOutletShiftDualMetric(targetCost, actualCost)}
               gold
             />
             <Metric
               label="Target Sales/ Actual Sales"
-              value={formatOutletShiftDualMetric(targetSales, s.liveSales)}
+              value={formatOutletShiftDualMetric(targetSales, displaySales)}
               green
             />
             <Metric

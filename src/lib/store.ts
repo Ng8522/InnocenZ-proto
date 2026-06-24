@@ -184,6 +184,7 @@ import {
   resolveShiftTierRates,
   shiftHoursFromLabel,
   outletShiftEffectiveDemand,
+  outletShiftPlannedLaborPerSlot,
   outletUnfilledDemandSlots,
   type OutletDrinkPrice,
 } from "@/lib/outlet-demo";
@@ -4640,9 +4641,6 @@ export const useStore = create<StoreState>()(
           hour: "2-digit",
           minute: "2-digit",
         });
-        const prTierById = Object.fromEntries(st.agencyPRs.map((p) => [p.id, p.trainingLevel]));
-        const tierRates = resolveShiftTierRates(shift, st.outletWorkspace);
-        const hours = shiftHoursFromLabel(shift.shift);
         set((cur) => {
           let agencyRoster = cur.agencyRoster;
           for (const prId of valid) {
@@ -4659,13 +4657,6 @@ export const useStore = create<StoreState>()(
                 prs,
                 filled: prs.length,
                 releasedEarlyPrIds,
-                estimatedCost: estimateShiftLaborCost({
-                  tierRates,
-                  hours,
-                  quantity: prs.length,
-                  prIds: prs,
-                  prTierById,
-                }),
               };
             }),
           };
@@ -4694,17 +4685,16 @@ export const useStore = create<StoreState>()(
           get().toast("No open demand slots to cut", "warn");
           return;
         }
-        const demand = outletShiftEffectiveDemand(shift);
-        const laborCut = demand > 0 ? Math.round((shift.estimatedCost / demand) * cut) : 0;
+        const tierRates = resolveShiftTierRates(shift, get().outletWorkspace);
+        const prTierById = Object.fromEntries(get().agencyPRs.map((p) => [p.id, p.trainingLevel]));
+        const perSlot = outletShiftPlannedLaborPerSlot(shift, tierRates, prTierById);
+        const laborCut = Math.round(perSlot * cut);
         set((st) => ({
           shifts: st.shifts.map((sh) => {
             if (sh.id !== shiftId) return sh;
-            const slotDemand = outletShiftEffectiveDemand(sh);
-            const perSlot = slotDemand > 0 ? sh.estimatedCost / slotDemand : 0;
             return {
               ...sh,
               demandCut: (sh.demandCut ?? 0) + cut,
-              estimatedCost: Math.max(0, sh.estimatedCost - Math.round(perSlot * cut)),
             };
           }),
         }));

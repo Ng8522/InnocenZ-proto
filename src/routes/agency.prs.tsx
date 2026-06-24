@@ -9,7 +9,7 @@ import { StaticComcardVisual } from "@/components/pr/PortfolioComcardVisual";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import type { AgencyManagedPR } from "@/lib/agency-demo";
-import { collectAgencyPrLanguages, languagesFromPr } from "@/lib/agency-demo";
+import { collectAgencyPrLanguages, languagesFromPr, sortAgencyPrsByName } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { IzCard, IzPill, IzSectionLabel, IzSelect, formatRM } from "@/components/iz/ui";
 import { publicAssetPath } from "@/lib/public-asset";
@@ -85,17 +85,19 @@ function AgencyManagePRs() {
 
   const filtered = useMemo(
     () =>
-      agencyPRs.filter((p) => {
-        if (p.detached) return false;
-        if (ageMin && (p.age ?? 0) < Number(ageMin)) return false;
-        if (ratingMin && (p.rating ?? 0) < Number(ratingMin)) return false;
-        const langs = languagesFromPr(p);
-        if (lang && !langs.some((l) => l.toLowerCase() === lang.toLowerCase())) return false;
-        if (race && p.race !== race) return false;
-        if (place && p.place !== place) return false;
-        if (expMin && (p.yearsExp ?? 0) < Number(expMin)) return false;
-        return true;
-      }),
+      sortAgencyPrsByName(
+        agencyPRs.filter((p) => {
+          if (p.detached) return false;
+          if (ageMin && (p.age ?? 0) < Number(ageMin)) return false;
+          if (ratingMin && (p.rating ?? 0) < Number(ratingMin)) return false;
+          const langs = languagesFromPr(p);
+          if (lang && !langs.some((l) => l.toLowerCase() === lang.toLowerCase())) return false;
+          if (race && p.race !== race) return false;
+          if (place && p.place !== place) return false;
+          if (expMin && (p.yearsExp ?? 0) < Number(expMin)) return false;
+          return true;
+        }),
+      ),
     [agencyPRs, ageMin, ratingMin, lang, race, place, expMin],
   );
 

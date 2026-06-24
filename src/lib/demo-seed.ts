@@ -138,6 +138,84 @@ function demoShiftDateLabel(daysFromToday: number): string {
   return fmtDateLabelFromIso(addDaysToIso(DEFAULT_ROSTER_DATE_ISO, daysFromToday));
 }
 
+/** Next occurrence of a weekday (0=Sun … 6=Sat) — keeps event names like "Friday lounge" aligned. */
+function demoShiftDateOnWeekday(weekday: number, allowToday = false): string {
+  const todayIso = DEFAULT_ROSTER_DATE_ISO;
+  const [y, m, d] = todayIso.split("-").map(Number);
+  const todayDow = new Date(y, m - 1, d).getDay();
+  let delta = (weekday - todayDow + 7) % 7;
+  if (delta === 0 && !allowToday) delta = 7;
+  if (delta === 0) return "Tonight";
+  if (delta === 1) return "Tomorrow";
+  return fmtDateLabelFromIso(addDaysToIso(todayIso, delta));
+}
+
+/** Outlet home — Private VIP Hennessy Launch (Velvet 23 tonight). */
+export const HENNESSY_LAUNCH_SHIFT_ID = "s1";
+
+export const HENNESSY_LAUNCH_PR_IDS = [
+  "p1",
+  "pr-comcard-alice",
+  "pr-comcard-angie",
+  "pr-comcard-ava",
+  "pr-comcard-bernice",
+  "pr-comcard-charlotte",
+  "pr-comcard-grace",
+  "pr-comcard-hazel",
+] as const;
+
+const AGENCY_PR_NAME_BY_ID = Object.fromEntries(SEED_AGENCY_PRS.map((p) => [p.id, p.name]));
+
+/** Re-apply demo staffing on the Hennessy shift after localStorage hydrate. */
+export function mergeDemoShiftStaffing(
+  shifts: ShiftRequest[],
+  seedShifts?: ShiftRequest[],
+): ShiftRequest[] {
+  const seed = seedShifts?.find((s) => s.id === HENNESSY_LAUNCH_SHIFT_ID);
+  const prIds = [...HENNESSY_LAUNCH_PR_IDS];
+  return shifts.map((sh) => {
+    if (sh.id !== HENNESSY_LAUNCH_SHIFT_ID) return sh;
+    return {
+      ...sh,
+      prs: prIds,
+      filled: Math.max(sh.filled ?? 0, prIds.length, seed?.filled ?? 0),
+    };
+  });
+}
+
+/** Re-apply demo shift dates after localStorage hydrate — keeps weekday event names aligned. */
+export function mergeDemoShiftDates(
+  shifts: ShiftRequest[],
+  seedShifts: ShiftRequest[],
+): ShiftRequest[] {
+  const seedById = Object.fromEntries(seedShifts.map((s) => [s.id, s]));
+  return shifts.map((sh) => {
+    const seed = seedById[sh.id];
+    if (!seed) return sh;
+    const dateIso =
+      seed.dateIso ??
+      resolveOutletShiftDateIso(seed.date, seed.dateIso, DEFAULT_ROSTER_DATE_ISO);
+    return { ...sh, date: seed.date, dateIso };
+  });
+}
+
+function velvetTonightRosterSlot(id: string, prId: string, estPayout = 360): AgencyRosterSlot {
+  const date = fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO);
+  return {
+    id,
+    prId,
+    prName: AGENCY_PR_NAME_BY_ID[prId] ?? "PR",
+    outlet: "Velvet 23",
+    date,
+    dateIso: DEFAULT_ROSTER_DATE_ISO,
+    shift: "22:00 — 04:00",
+    shiftStart: "22:00",
+    shiftEnd: "04:00",
+    status: "scheduled",
+    estPayout,
+  };
+}
+
 function buildDemoShifts(): ShiftRequest[] {
   const wsTierRates = DEFAULT_OUTLET_WORKSPACE.tierRates;
   const tierRatesFor = (
@@ -189,7 +267,7 @@ function buildDemoShifts(): ShiftRequest[] {
       liveSales: 0,
       drinkUnits: 8,
       status: "confirmed",
-      prs: ["p1", "p2", "p3", "p4", "p5"],
+      prs: [...HENNESSY_LAUNCH_PR_IDS],
       payPerHour: tonightTiers["Tier I"].wagePerHour,
       tierRates: tonightTiers,
       dressCode: "Black elegant",
@@ -209,7 +287,7 @@ function buildDemoShifts(): ShiftRequest[] {
       estimatedCost: 4320,
       liveSales: 0,
       status: "open",
-      prs: ["p1", "p2", "p3", "p4"],
+      prs: ["p1", "pr-comcard-alice", "pr-comcard-charlotte", "pr-comcard-angie"],
       payPerHour: ladiesTiers["Tier I"].wagePerHour,
       tierRates: ladiesTiers,
       dressCode: "Cocktail attire",
@@ -228,7 +306,7 @@ function buildDemoShifts(): ShiftRequest[] {
       estimatedCost: 2520,
       liveSales: 0,
       status: "open",
-      prs: ["p2", "p3"],
+      prs: ["pr-comcard-alice", "pr-comcard-charlotte"],
       payPerHour: corporateTiers["Tier I"].wagePerHour,
       tierRates: corporateTiers,
       dressCode: "Smart casual",
@@ -237,7 +315,7 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s4",
       outletName: "Mermate",
-      date: demoShiftDateLabel(0),
+      date: demoShiftDateOnWeekday(4, true),
       shift: "21:00 — 02:00",
       quantity: 14,
       filled: 9,
@@ -247,7 +325,7 @@ function buildDemoShifts(): ShiftRequest[] {
       estimatedCost: 2520,
       liveSales: 0,
       status: "open",
-      prs: ["p7"],
+      prs: ["pr-comcard-sarah"],
       payPerHour: mermateThuTiers["Tier I"].wagePerHour,
       tierRates: mermateThuTiers,
       dressCode: "Smart casual",
@@ -267,7 +345,7 @@ function buildDemoShifts(): ShiftRequest[] {
       estimatedCost: 2880,
       liveSales: 0,
       status: "open",
-      prs: ["p5", "p6"],
+      prs: ["pr-comcard-victoria", "pr-comcard-moon"],
       payPerHour: mermateRelaunchTiers["Tier I"].wagePerHour,
       tierRates: mermateRelaunchTiers,
       dressCode: "Cocktail attire",
@@ -296,7 +374,7 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s7",
       outletName: "Bear Lounge",
-      date: demoShiftDateLabel(0),
+      date: demoShiftDateOnWeekday(4, true),
       shift: "22:00 — 04:00",
       quantity: 12,
       filled: 7,
@@ -306,7 +384,7 @@ function buildDemoShifts(): ShiftRequest[] {
       estimatedCost: 2400,
       liveSales: 0,
       status: "open",
-      prs: ["p3"],
+      prs: ["pr-comcard-charlotte"],
       payPerHour: bearLaunchTiers["Tier I"].wagePerHour,
       tierRates: bearLaunchTiers,
       dressCode: "Smart casual",
@@ -326,7 +404,7 @@ function buildDemoShifts(): ShiftRequest[] {
       estimatedCost: 3200,
       liveSales: 0,
       status: "open",
-      prs: ["p4", "p5"],
+      prs: ["pr-comcard-angie", "pr-comcard-victoria"],
       payPerHour: bearLaunchTiers["Tier I"].wagePerHour,
       tierRates: bearLaunchTiers,
       dressCode: "Black dress code",
@@ -335,7 +413,7 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s8b",
       outletName: "Bear Lounge",
-      date: demoShiftDateLabel(2),
+      date: demoShiftDateOnWeekday(6),
       shift: "20:00 — 01:00",
       quantity: 12,
       filled: 5,
@@ -354,7 +432,7 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s9",
       outletName: "Onyx KL",
-      date: demoShiftDateLabel(0),
+      date: demoShiftDateOnWeekday(4, true),
       shift: "21:00 — 03:00",
       quantity: 14,
       filled: 8,
@@ -364,7 +442,7 @@ function buildDemoShifts(): ShiftRequest[] {
       estimatedCost: 3080,
       liveSales: 0,
       status: "open",
-      prs: ["p6"],
+      prs: ["pr-comcard-moon"],
       payPerHour: onyxThuTiers["Tier I"].wagePerHour,
       tierRates: onyxThuTiers,
       dressCode: "Smart casual",
@@ -373,7 +451,7 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s10",
       outletName: "Onyx KL",
-      date: demoShiftDateLabel(1),
+      date: demoShiftDateOnWeekday(5),
       shift: "20:00 — 02:00",
       quantity: 16,
       filled: 11,
@@ -384,7 +462,7 @@ function buildDemoShifts(): ShiftRequest[] {
       estimatedCost: 3520,
       liveSales: 0,
       status: "open",
-      prs: ["p1", "p2"],
+      prs: ["p1", "pr-comcard-alice"],
       payPerHour: onyxRooftopTiers["Tier I"].wagePerHour,
       tierRates: onyxRooftopTiers,
       dressCode: "Cocktail attire",
@@ -393,7 +471,7 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s11",
       outletName: "Urban Soul",
-      date: demoShiftDateLabel(1),
+      date: demoShiftDateOnWeekday(5),
       shift: "20:00 — 01:00",
       quantity: 18,
       filled: 12,
@@ -404,7 +482,7 @@ function buildDemoShifts(): ShiftRequest[] {
       estimatedCost: 4320,
       liveSales: 0,
       status: "open",
-      prs: ["p2", "p3", "p4"],
+      prs: ["pr-comcard-alice", "pr-comcard-charlotte", "pr-comcard-angie"],
       payPerHour: urbanPartyTiers["Tier I"].wagePerHour,
       tierRates: urbanPartyTiers,
       dressCode: "Heels required",
@@ -413,7 +491,7 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s12",
       outletName: "Urban Soul",
-      date: demoShiftDateLabel(2),
+      date: demoShiftDateOnWeekday(6),
       shift: "21:00 — 03:00",
       quantity: 14,
       filled: 7,
@@ -423,7 +501,7 @@ function buildDemoShifts(): ShiftRequest[] {
       estimatedCost: 2520,
       liveSales: 0,
       status: "open",
-      prs: ["p7"],
+      prs: ["pr-comcard-sarah"],
       payPerHour: urbanSatTiers["Tier I"].wagePerHour,
       tierRates: urbanSatTiers,
       dressCode: "Smart casual",
@@ -432,7 +510,7 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s13",
       outletName: "Velvet 23",
-      date: demoShiftDateLabel(3),
+      date: demoShiftDateOnWeekday(5),
       shift: "22:00 — 04:00",
       quantity: 15,
       filled: 9,
@@ -451,7 +529,7 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s14",
       outletName: "Onyx KL",
-      date: demoShiftDateLabel(4),
+      date: demoShiftDateOnWeekday(1),
       shift: "21:00 — 03:00",
       quantity: 14,
       filled: 6,
@@ -470,7 +548,7 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s15",
       outletName: "Bear Lounge",
-      date: demoShiftDateLabel(5),
+      date: demoShiftDateOnWeekday(2),
       shift: "22:30 — 04:30",
       quantity: 12,
       filled: 4,
@@ -489,7 +567,7 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s17",
       outletName: "Velvet 23",
-      date: demoShiftDateLabel(4),
+      date: demoShiftDateOnWeekday(6),
       shift: "21:00 — 03:00",
       quantity: 16,
       filled: 10,
@@ -557,13 +635,13 @@ function clonePaymentVoucher(pv: PrPaymentVoucher): PrPaymentVoucher {
 }
 
 const DEMO_APPLICANTS: ShiftApplicant[] = [
-  { id: "app-s2-p5", shiftId: "s2", prId: "p5", prName: "Nina", rating: 4.6, status: "pending", source: "freelancer" },
-  { id: "app-s2-p6", shiftId: "s2", prId: "p6", prName: "Yuki", rating: 4.4, status: "pending", source: "freelancer" },
+  { id: "app-s2-p5", shiftId: "s2", prId: "pr-comcard-victoria", prName: "Victoria", rating: 4.6, status: "pending", source: "freelancer" },
+  { id: "app-s2-p6", shiftId: "s2", prId: "pr-comcard-moon", prName: "Moon", rating: 4.4, status: "pending", source: "freelancer" },
   {
     id: "app-s2-p7",
     shiftId: "s2",
-    prId: "p7",
-    prName: "Chen Wei",
+    prId: "pr-comcard-sarah",
+    prName: "Sarah",
     rating: 4.2,
     status: "pending",
     source: "freelancer",
@@ -571,8 +649,6 @@ const DEMO_APPLICANTS: ShiftApplicant[] = [
 ];
 
 function buildDemoRoster(): AgencyRosterSlot[] {
-  const date = fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO);
-  const shift = "22:00 — 04:00";
   const patched = SEED_AGENCY_ROSTER.map(cloneRosterSlot).map((slot) => {
     if (slot.id === "rs3") {
       const { outletSwap: _swap, ...rest } = slot;
@@ -587,47 +663,9 @@ function buildDemoRoster(): AgencyRosterSlot[] {
     }
     return slot;
   });
-  const velvetTonight: AgencyRosterSlot[] = [
-    {
-      id: "rs-demo-p3",
-      prId: "p3",
-      prName: "Vivi",
-      outlet: "Velvet 23",
-      date,
-      dateIso: DEFAULT_ROSTER_DATE_ISO,
-      shift,
-      shiftStart: "22:00",
-      shiftEnd: "04:00",
-      status: "scheduled",
-      estPayout: 480,
-    },
-    {
-      id: "rs-demo-p4",
-      prId: "p4",
-      prName: "Cici",
-      outlet: "Velvet 23",
-      date,
-      dateIso: DEFAULT_ROSTER_DATE_ISO,
-      shift,
-      shiftStart: "22:00",
-      shiftEnd: "04:00",
-      status: "scheduled",
-      estPayout: 360,
-    },
-    {
-      id: "rs-demo-p5",
-      prId: "p5",
-      prName: "Nina",
-      outlet: "Velvet 23",
-      date,
-      dateIso: DEFAULT_ROSTER_DATE_ISO,
-      shift,
-      shiftStart: "22:00",
-      shiftEnd: "04:00",
-      status: "scheduled",
-      estPayout: 360,
-    },
-  ];
+  const velvetTonight: AgencyRosterSlot[] = HENNESSY_LAUNCH_PR_IDS.filter(
+    (prId) => prId !== "p1" && prId !== "pr-comcard-alice",
+  ).map((prId, index) => velvetTonightRosterSlot(`rs-hennessy-${index + 1}`, prId));
   return [...patched, ...velvetTonight];
 }
 

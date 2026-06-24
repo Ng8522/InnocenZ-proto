@@ -5,7 +5,12 @@ import type {
   CollectionLineItem,
 } from "@/lib/agency-demo";
 import type { PrPaymentVoucher, PrReceiptScan } from "@/lib/pr-demo";
-import { getPvNetTotal, pvStatusLabel, type PrPvStatus } from "@/lib/pr-demo";
+import {
+  getPvNetTotal,
+  isLegacyReceiptScanIdentity,
+  pvStatusLabel,
+  type PrPvStatus,
+} from "@/lib/pr-demo";
 
 function prNameMatchesAgency(scanName: string, pr: AgencyManagedPR): boolean {
   const sn = scanName.trim().toLowerCase();
@@ -149,6 +154,7 @@ export function getAgencyManagedReceiptScans(
   );
 
   return scans.filter((scan) => {
+    if (isLegacyReceiptScanIdentity(scan)) return false;
     if (scan.prId && agencyPRs.some((pr) => pr.id === scan.prId)) return true;
     if (agencyPRs.some((pr) => prNameMatchesAgency(scan.prName, pr))) return true;
     if (scan.pvId && agencyPvIds.has(scan.pvId)) return true;

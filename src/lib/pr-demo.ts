@@ -726,8 +726,8 @@ export const PAYROLL_CYCLE = getPayrollCycleLabel();
 export const SEED_PR_PVS: PrPaymentVoucher[] = [
   {
     id: "PV-2026-0512",
-    prName: "Jaya Nair",
-    prIc: "880214-10-5566",
+    prName: "Alice",
+    prIc: "990801-08-5564",
     outlet: "Multi-Outlet (3)",
     cycle: "4 May \u2013 10 May 2026",
     issued: "10 May 2026",
@@ -792,8 +792,8 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
   },
   {
     id: "PV-2026-0498",
-    prName: "Jaya Nair",
-    prIc: "880214-10-5566",
+    prName: "Bernice",
+    prIc: "990415-08-1120",
     outlet: "Mermate",
     paidRefs: ["27 Apr-Mermate-Sealed", "27 Apr-Mermate-Tap log"],
     cycle: "27 Apr \u2013 3 May 2026",
@@ -839,7 +839,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     status: "PAID",
     ...seedFinanceHeadStamp("3 May 2026 · 08:42"),
     prSignedAt: "5 May 2026 · 14:22",
-    ...seedPrSignature("Jaya Nair"),
+    ...seedPrSignature("Bernice"),
     paidAt: "5 May 2026 · 14:22",
     bankRef: "INZ-TRF-202605051422",
     shiftSessionId: "shift-2026-04-27-mermate",
@@ -850,8 +850,8 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
   },
   {
     id: "PV-2026-0521",
-    prName: "Jaya Nair",
-    prIc: "880214-10-5566",
+    prName: "Charlotte",
+    prIc: "000512-10-6675",
     outlet: "Bear Lounge",
     prDisputeReason:
       "Commission – Drinks shows RM120 but my receipt scans (rc-seed-4) only total RM120 from 8 cocktails — outlet POS log shows 18 units. Please reconcile with Bear Lounge before payment.",
@@ -896,8 +896,8 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
   },
   {
     id: "PV-2026-0535-J",
-    prName: "Jaya Nair",
-    prIc: "880214-10-5566",
+    prName: "Grace",
+    prIc: "990427-14-7685",
     outlet: "Urban Soul",
     cycle: "11 May \u2013 17 May 2026",
     issued: "17 May 2026",
@@ -932,8 +932,8 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
   },
   {
     id: "PV-2026-0548-J",
-    prName: "Jaya Nair",
-    prIc: "880214-10-5566",
+    prName: "Hazel",
+    prIc: "000811-10-6574",
     outlet: "Mermate",
     cycle: "18 May \u2013 24 May 2026",
     issued: "24 May 2026",
@@ -976,12 +976,12 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     status: "SIGNED",
     ...seedFinanceHeadStamp("24 May 2026 · 08:55"),
     prSignedAt: "26 May 2026 · 11:05",
-    ...seedPrSignature("Jaya Nair"),
+    ...seedPrSignature("Hazel"),
   },
   {
     id: "PV-2026-0472-J",
-    prName: "Jaya Nair",
-    prIc: "880214-10-5566",
+    prName: "Angie",
+    prIc: "990926-14-7786",
     outlet: "Velvet 23",
     paidRefs: ["19 Apr-Velvet 23-Sealed"],
     cycle: "13 Apr \u2013 19 Apr 2026",
@@ -1015,7 +1015,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     status: "PAID",
     ...seedFinanceHeadStamp("19 Apr 2026 · 09:30"),
     prSignedAt: "21 Apr 2026 · 15:40",
-    ...seedPrSignature("Jaya Nair"),
+    ...seedPrSignature("Angie"),
     paidAt: "21 Apr 2026 · 15:40",
     bankRef: "INZ-TRF-202604211540",
   },
@@ -1553,6 +1553,34 @@ function parseIsoYear(iso: string) {
 
 export function remapSeedPaymentVouchers(pvs: PrPaymentVoucher[]): PrPaymentVoucher[] {
   return pvs.map((pv) => reconcilePvTotals(remapSeedPaymentVoucher(pv)));
+}
+
+/** Persisted scans that kept pre-comcard freelancer / Luna identity. */
+export function isLegacyReceiptScanIdentity(
+  scan: Pick<PrReceiptScan, "prId" | "prName">,
+): boolean {
+  return (
+    scan.prId === FREELANCER_DEMO_PR_ID ||
+    scan.prName === "Jaya Nair" ||
+    scan.prName === "Jaya" ||
+    scan.prName === "Luna"
+  );
+}
+
+export function mergePersistedReceiptScanWithSeed(
+  seed: PrReceiptScan,
+  saved?: PrReceiptScan,
+): PrReceiptScan {
+  if (!saved) return remapSeedReceiptScan(seed);
+  const identityFromSeed = isLegacyReceiptScanIdentity(saved);
+  return remapSeedReceiptScan({
+    ...seed,
+    ...saved,
+    receiptRef: saved.receiptRef ?? seed.receiptRef,
+    prId: identityFromSeed ? seed.prId : (saved.prId ?? seed.prId),
+    prName: identityFromSeed ? seed.prName : (saved.prName ?? seed.prName),
+    prCode: identityFromSeed ? seed.prCode : (saved.prCode ?? seed.prCode),
+  });
 }
 
 export function remapSeedReceiptScan(scan: PrReceiptScan): PrReceiptScan {
@@ -2098,8 +2126,8 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 4, 27],
     outlet: "Mermate",
     prCode: "PR-0042",
-    prName: "Jaya",
-    prId: "freelancer-jaya",
+    prName: "Bernice",
+    prId: "pr-comcard-bernice",
     shiftSessionId: "shift-2026-04-27-mermate",
     items: [
       { label: "Cocktail", qty: 6, unitPrice: 45, amount: 270, category: "drinks" },
@@ -2121,8 +2149,8 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 4, 27],
     outlet: "Mermate",
     prCode: "PR-0042",
-    prName: "Jaya",
-    prId: "freelancer-jaya",
+    prName: "Bernice",
+    prId: "pr-comcard-bernice",
     shiftSessionId: "shift-2026-04-27-mermate",
     items: [{ label: "Whisky", qty: 1, unitPrice: 320, amount: 320, category: "drinks" }],
     totalLogged: 320,
@@ -2141,8 +2169,8 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 4, 27],
     outlet: "Mermate",
     prCode: "PR-0042",
-    prName: "Jaya",
-    prId: "freelancer-jaya",
+    prName: "Bernice",
+    prId: "pr-comcard-bernice",
     shiftSessionId: "shift-2026-04-27-mermate",
     items: [{ label: "Tip", qty: 1, unitPrice: 80, amount: 80, category: "tips" }],
     totalLogged: 80,
@@ -2161,8 +2189,8 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 5, 9],
     outlet: "Bear Lounge",
     prCode: "PR-0042",
-    prName: "Jaya",
-    prId: "freelancer-jaya",
+    prName: "Charlotte",
+    prId: "pr-comcard-charlotte",
     shiftSessionId: "shift-2026-05-09-bearlounge",
     items: [{ label: "Cocktail", qty: 8, unitPrice: 45, amount: 360, category: "drinks" }],
     totalLogged: 360,
@@ -2182,8 +2210,8 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 5, 21],
     outlet: "Mermate",
     prCode: "PR-0042",
-    prName: "Jaya",
-    prId: "freelancer-jaya",
+    prName: "Hazel",
+    prId: "pr-comcard-hazel",
     shiftSessionId: "shift-2026-05-21-mermate",
     pvId: "PV-SHIFT-2026-0521-MERMATE",
     items: [
@@ -2269,8 +2297,8 @@ export const SEED_RECEIPT_SCANS: PrReceiptScan[] = [
     date: [2026, 6, 3],
     outlet: "Mermate",
     prCode: "PR-0002",
-    prName: "Mia",
-    prId: "p2",
+    prName: "Alice",
+    prId: "pr-comcard-alice",
     shiftSessionId: "shift-2026-06-03-mermate",
     pvId: "PV-2026-0608-B",
     items: [{ label: "Cocktail", qty: 5, unitPrice: 45, amount: 225, category: "drinks" }],

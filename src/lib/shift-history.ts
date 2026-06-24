@@ -24,8 +24,8 @@ export const OUTLET_VENUE_NAME = "Velvet 23";
 const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
   {
     id: "h5",
-    prName: "Nina",
-    prId: "p5",
+    prName: "Victoria",
+    prId: "pr-comcard-victoria",
     outlet: "Mermate",
     agencyName: "Atlas Agency",
     dateDisplay: "7 Jun 2026",
@@ -38,8 +38,8 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
   },
   {
     id: "h6",
-    prName: "Chen Wei",
-    prId: "p7",
+    prName: "Sarah",
+    prId: "pr-comcard-sarah",
     outlet: "Bear Lounge",
     agencyName: "Atlas Agency",
     dateDisplay: "6 Jun 2026",

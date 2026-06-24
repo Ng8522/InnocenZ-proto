@@ -99,7 +99,10 @@ function AgencyRoster() {
   );
 
   const filtered = useMemo(
-    () => filterRosterShifts(dateFiltered, shiftFilters),
+    () =>
+      [...filterRosterShifts(dateFiltered, shiftFilters)].sort((a, b) =>
+        a.prName.localeCompare(b.prName, undefined, { sensitivity: "base" }),
+      ),
     [dateFiltered, shiftFilters],
   );
 

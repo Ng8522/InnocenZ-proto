@@ -37,7 +37,7 @@ export const VELVET_WEEKLY_NIGHTS: VelvetNightShift[] = [
     sales: 3_200,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 480, drinks: 20, tips: 26, durationHours: 8 },
-      { prId: "p2", prName: "Mia", payout: 480, drinks: 18, tips: 22, durationHours: 8 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 480, drinks: 18, tips: 22, durationHours: 8 },
     ],
   },
   {
@@ -46,8 +46,8 @@ export const VELVET_WEEKLY_NIGHTS: VelvetNightShift[] = [
     day: "T",
     sales: 2_750,
     prs: [
-      { prId: "p3", prName: "Vivi", payout: 480, drinks: 17, tips: 20, durationHours: 8 },
-      { prId: "p4", prName: "Cici", payout: 480, drinks: 15, tips: 18, durationHours: 8 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 480, drinks: 17, tips: 20, durationHours: 8 },
+      { prId: "pr-comcard-angie", prName: "Angie", payout: 480, drinks: 15, tips: 18, durationHours: 8 },
     ],
   },
   {
@@ -57,8 +57,8 @@ export const VELVET_WEEKLY_NIGHTS: VelvetNightShift[] = [
     sales: 4_600,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 480, drinks: 26, tips: 32, durationHours: 8 },
-      { prId: "p2", prName: "Mia", payout: 480, drinks: 24, tips: 28, durationHours: 8 },
-      { prId: "p3", prName: "Vivi", payout: 480, drinks: 22, tips: 26, durationHours: 8 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 480, drinks: 24, tips: 28, durationHours: 8 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 480, drinks: 22, tips: 26, durationHours: 8 },
     ],
   },
   {
@@ -68,8 +68,8 @@ export const VELVET_WEEKLY_NIGHTS: VelvetNightShift[] = [
     sales: 5_350,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 480, drinks: 30, tips: 36, durationHours: 8 },
-      { prId: "p2", prName: "Mia", payout: 480, drinks: 28, tips: 34, durationHours: 8 },
-      { prId: "p6", prName: "Yuki", payout: 480, drinks: 24, tips: 30, durationHours: 8 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 480, drinks: 28, tips: 34, durationHours: 8 },
+      { prId: "pr-comcard-moon", prName: "Moon", payout: 480, drinks: 24, tips: 30, durationHours: 8 },
     ],
   },
   {
@@ -79,9 +79,9 @@ export const VELVET_WEEKLY_NIGHTS: VelvetNightShift[] = [
     sales: 11_800,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 480, drinks: 44, tips: 52, durationHours: 8 },
-      { prId: "p2", prName: "Mia", payout: 480, drinks: 40, tips: 48, durationHours: 8 },
-      { prId: "p3", prName: "Vivi", payout: 480, drinks: 38, tips: 44, durationHours: 8 },
-      { prId: "p4", prName: "Cici", payout: 480, drinks: 34, tips: 40, durationHours: 8 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 480, drinks: 40, tips: 48, durationHours: 8 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 480, drinks: 38, tips: 44, durationHours: 8 },
+      { prId: "pr-comcard-angie", prName: "Angie", payout: 480, drinks: 34, tips: 40, durationHours: 8 },
     ],
   },
   {
@@ -91,9 +91,9 @@ export const VELVET_WEEKLY_NIGHTS: VelvetNightShift[] = [
     sales: 14_100,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 540, drinks: 50, tips: 58, durationHours: 9 },
-      { prId: "p2", prName: "Mia", payout: 540, drinks: 46, tips: 54, durationHours: 9 },
-      { prId: "p3", prName: "Vivi", payout: 540, drinks: 44, tips: 50, durationHours: 9 },
-      { prId: "p5", prName: "Nina", payout: 540, drinks: 40, tips: 46, durationHours: 9 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 540, drinks: 46, tips: 54, durationHours: 9 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 540, drinks: 44, tips: 50, durationHours: 9 },
+      { prId: "pr-comcard-victoria", prName: "Victoria", payout: 540, drinks: 40, tips: 46, durationHours: 9 },
     ],
   },
   {
@@ -103,8 +103,8 @@ export const VELVET_WEEKLY_NIGHTS: VelvetNightShift[] = [
     sales: 7_600,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 480, drinks: 32, tips: 38, durationHours: 8 },
-      { prId: "p2", prName: "Mia", payout: 480, drinks: 30, tips: 36, durationHours: 8 },
-      { prId: "p3", prName: "Vivi", payout: 480, drinks: 26, tips: 32, durationHours: 8 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 480, drinks: 30, tips: 36, durationHours: 8 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 480, drinks: 26, tips: 32, durationHours: 8 },
     ],
   },
 ];
@@ -118,7 +118,7 @@ const VELVET_PRIOR_WEEK_NIGHTS: VelvetNightShift[] = [
     sales: 2_850,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 450, drinks: 16, tips: 22, durationHours: 7.5 },
-      { prId: "p4", prName: "Cici", payout: 450, drinks: 14, tips: 18, durationHours: 7.5 },
+      { prId: "pr-comcard-angie", prName: "Angie", payout: 450, drinks: 14, tips: 18, durationHours: 7.5 },
     ],
   },
   {
@@ -127,8 +127,8 @@ const VELVET_PRIOR_WEEK_NIGHTS: VelvetNightShift[] = [
     day: "T",
     sales: 2_400,
     prs: [
-      { prId: "p2", prName: "Mia", payout: 450, drinks: 13, tips: 16, durationHours: 7.5 },
-      { prId: "p6", prName: "Yuki", payout: 450, drinks: 12, tips: 15, durationHours: 7.5 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 450, drinks: 13, tips: 16, durationHours: 7.5 },
+      { prId: "pr-comcard-moon", prName: "Moon", payout: 450, drinks: 12, tips: 15, durationHours: 7.5 },
     ],
   },
   {
@@ -138,8 +138,8 @@ const VELVET_PRIOR_WEEK_NIGHTS: VelvetNightShift[] = [
     sales: 3_900,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 450, drinks: 22, tips: 28, durationHours: 8 },
-      { prId: "p3", prName: "Vivi", payout: 450, drinks: 19, tips: 24, durationHours: 8 },
-      { prId: "p5", prName: "Nina", payout: 450, drinks: 17, tips: 20, durationHours: 8 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 450, drinks: 19, tips: 24, durationHours: 8 },
+      { prId: "pr-comcard-victoria", prName: "Victoria", payout: 450, drinks: 17, tips: 20, durationHours: 8 },
     ],
   },
   {
@@ -148,9 +148,9 @@ const VELVET_PRIOR_WEEK_NIGHTS: VelvetNightShift[] = [
     day: "T",
     sales: 4_750,
     prs: [
-      { prId: "p2", prName: "Mia", payout: 450, drinks: 24, tips: 30, durationHours: 8 },
-      { prId: "p3", prName: "Vivi", payout: 450, drinks: 21, tips: 26, durationHours: 8 },
-      { prId: "p4", prName: "Cici", payout: 450, drinks: 18, tips: 22, durationHours: 8 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 450, drinks: 24, tips: 30, durationHours: 8 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 450, drinks: 21, tips: 26, durationHours: 8 },
+      { prId: "pr-comcard-angie", prName: "Angie", payout: 450, drinks: 18, tips: 22, durationHours: 8 },
     ],
   },
   {
@@ -160,9 +160,9 @@ const VELVET_PRIOR_WEEK_NIGHTS: VelvetNightShift[] = [
     sales: 10_200,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 480, drinks: 38, tips: 46, durationHours: 8 },
-      { prId: "p2", prName: "Mia", payout: 480, drinks: 34, tips: 42, durationHours: 8 },
-      { prId: "p3", prName: "Vivi", payout: 480, drinks: 32, tips: 38, durationHours: 8 },
-      { prId: "p6", prName: "Yuki", payout: 480, drinks: 28, tips: 34, durationHours: 8 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 480, drinks: 34, tips: 42, durationHours: 8 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 480, drinks: 32, tips: 38, durationHours: 8 },
+      { prId: "pr-comcard-moon", prName: "Moon", payout: 480, drinks: 28, tips: 34, durationHours: 8 },
     ],
   },
   {
@@ -172,9 +172,9 @@ const VELVET_PRIOR_WEEK_NIGHTS: VelvetNightShift[] = [
     sales: 12_400,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 520, drinks: 44, tips: 52, durationHours: 8.5 },
-      { prId: "p2", prName: "Mia", payout: 520, drinks: 40, tips: 48, durationHours: 8.5 },
-      { prId: "p5", prName: "Nina", payout: 520, drinks: 36, tips: 42, durationHours: 8.5 },
-      { prId: "p4", prName: "Cici", payout: 520, drinks: 32, tips: 38, durationHours: 8.5 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 520, drinks: 40, tips: 48, durationHours: 8.5 },
+      { prId: "pr-comcard-victoria", prName: "Victoria", payout: 520, drinks: 36, tips: 42, durationHours: 8.5 },
+      { prId: "pr-comcard-angie", prName: "Angie", payout: 520, drinks: 32, tips: 38, durationHours: 8.5 },
     ],
   },
   {
@@ -183,9 +183,9 @@ const VELVET_PRIOR_WEEK_NIGHTS: VelvetNightShift[] = [
     day: "S",
     sales: 6_800,
     prs: [
-      { prId: "p2", prName: "Mia", payout: 450, drinks: 26, tips: 32, durationHours: 8 },
-      { prId: "p3", prName: "Vivi", payout: 450, drinks: 24, tips: 28, durationHours: 8 },
-      { prId: "p6", prName: "Yuki", payout: 450, drinks: 20, tips: 24, durationHours: 8 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 450, drinks: 26, tips: 32, durationHours: 8 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 450, drinks: 24, tips: 28, durationHours: 8 },
+      { prId: "pr-comcard-moon", prName: "Moon", payout: 450, drinks: 20, tips: 24, durationHours: 8 },
     ],
   },
 ];
@@ -198,8 +198,8 @@ const VELVET_OLDER_WEEK_NIGHTS: VelvetNightShift[] = [
     day: "M",
     sales: 2_100,
     prs: [
-      { prId: "p3", prName: "Vivi", payout: 420, drinks: 11, tips: 14, durationHours: 7 },
-      { prId: "p4", prName: "Cici", payout: 420, drinks: 10, tips: 12, durationHours: 7 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 420, drinks: 11, tips: 14, durationHours: 7 },
+      { prId: "pr-comcard-angie", prName: "Angie", payout: 420, drinks: 10, tips: 12, durationHours: 7 },
     ],
   },
   {
@@ -209,7 +209,7 @@ const VELVET_OLDER_WEEK_NIGHTS: VelvetNightShift[] = [
     sales: 1_950,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 420, drinks: 10, tips: 12, durationHours: 7 },
-      { prId: "p2", prName: "Mia", payout: 420, drinks: 9, tips: 11, durationHours: 7 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 420, drinks: 9, tips: 11, durationHours: 7 },
     ],
   },
   {
@@ -219,8 +219,8 @@ const VELVET_OLDER_WEEK_NIGHTS: VelvetNightShift[] = [
     sales: 3_400,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 420, drinks: 18, tips: 22, durationHours: 7.5 },
-      { prId: "p2", prName: "Mia", payout: 420, drinks: 16, tips: 20, durationHours: 7.5 },
-      { prId: "p6", prName: "Yuki", payout: 420, drinks: 14, tips: 18, durationHours: 7.5 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 420, drinks: 16, tips: 20, durationHours: 7.5 },
+      { prId: "pr-comcard-moon", prName: "Moon", payout: 420, drinks: 14, tips: 18, durationHours: 7.5 },
     ],
   },
   {
@@ -229,9 +229,9 @@ const VELVET_OLDER_WEEK_NIGHTS: VelvetNightShift[] = [
     day: "T",
     sales: 4_100,
     prs: [
-      { prId: "p2", prName: "Mia", payout: 450, drinks: 20, tips: 24, durationHours: 8 },
-      { prId: "p3", prName: "Vivi", payout: 450, drinks: 18, tips: 22, durationHours: 8 },
-      { prId: "p5", prName: "Nina", payout: 450, drinks: 15, tips: 18, durationHours: 8 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 450, drinks: 20, tips: 24, durationHours: 8 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 450, drinks: 18, tips: 22, durationHours: 8 },
+      { prId: "pr-comcard-victoria", prName: "Victoria", payout: 450, drinks: 15, tips: 18, durationHours: 8 },
     ],
   },
   {
@@ -241,9 +241,9 @@ const VELVET_OLDER_WEEK_NIGHTS: VelvetNightShift[] = [
     sales: 9_600,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 480, drinks: 34, tips: 40, durationHours: 8 },
-      { prId: "p2", prName: "Mia", payout: 480, drinks: 30, tips: 36, durationHours: 8 },
-      { prId: "p3", prName: "Vivi", payout: 480, drinks: 28, tips: 32, durationHours: 8 },
-      { prId: "p4", prName: "Cici", payout: 480, drinks: 24, tips: 28, durationHours: 8 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 480, drinks: 30, tips: 36, durationHours: 8 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 480, drinks: 28, tips: 32, durationHours: 8 },
+      { prId: "pr-comcard-angie", prName: "Angie", payout: 480, drinks: 24, tips: 28, durationHours: 8 },
     ],
   },
   {
@@ -253,9 +253,9 @@ const VELVET_OLDER_WEEK_NIGHTS: VelvetNightShift[] = [
     sales: 11_200,
     prs: [
       { prId: "p1", prName: "Vicky", payout: 500, drinks: 40, tips: 46, durationHours: 8 },
-      { prId: "p3", prName: "Vivi", payout: 500, drinks: 36, tips: 42, durationHours: 8 },
-      { prId: "p5", prName: "Nina", payout: 500, drinks: 32, tips: 38, durationHours: 8 },
-      { prId: "p6", prName: "Yuki", payout: 500, drinks: 28, tips: 34, durationHours: 8 },
+      { prId: "pr-comcard-charlotte", prName: "Charlotte", payout: 500, drinks: 36, tips: 42, durationHours: 8 },
+      { prId: "pr-comcard-victoria", prName: "Victoria", payout: 500, drinks: 32, tips: 38, durationHours: 8 },
+      { prId: "pr-comcard-moon", prName: "Moon", payout: 500, drinks: 28, tips: 34, durationHours: 8 },
     ],
   },
   {
@@ -264,9 +264,9 @@ const VELVET_OLDER_WEEK_NIGHTS: VelvetNightShift[] = [
     day: "S",
     sales: 5_900,
     prs: [
-      { prId: "p2", prName: "Mia", payout: 420, drinks: 22, tips: 26, durationHours: 7.5 },
-      { prId: "p4", prName: "Cici", payout: 420, drinks: 18, tips: 22, durationHours: 7.5 },
-      { prId: "p6", prName: "Yuki", payout: 420, drinks: 16, tips: 20, durationHours: 7.5 },
+      { prId: "pr-comcard-alice", prName: "Alice", payout: 420, drinks: 22, tips: 26, durationHours: 7.5 },
+      { prId: "pr-comcard-angie", prName: "Angie", payout: 420, drinks: 18, tips: 22, durationHours: 7.5 },
+      { prId: "pr-comcard-moon", prName: "Moon", payout: 420, drinks: 16, tips: 20, durationHours: 7.5 },
     ],
   },
 ];

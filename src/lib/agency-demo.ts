@@ -7,9 +7,8 @@ import {
   migrateDemoDateIso,
 } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { SEED_COMCARD_AGENCY_PRS } from "@/lib/agency-pr-comcards";
 import {
-  DEFAULT_TIED_AGENCY_ID,
-  FREELANCER_DEMO_PR_ID,
   buildSeedPrPortfolio,
   fmtDateLabelFromIso,
   DEFAULT_PR_AGENCY_NAME,
@@ -543,8 +542,8 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
   }),
   withRosterDate({
     id: "rs2",
-    prId: "p2",
-    prName: "Mia",
+    prId: "pr-comcard-alice",
+    prName: "Alice",
     outlet: "Velvet 23",
     dateIso: DEFAULT_ROSTER_DATE_ISO,
     shift: "22:00 — 04:00",
@@ -557,8 +556,8 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
   }),
   withRosterDate({
     id: "rs3",
-    prId: "p6",
-    prName: "Yuki",
+    prId: "pr-comcard-moon",
+    prName: "Moon",
     outlet: "Onyx KL",
     dateIso: DEFAULT_ROSTER_DATE_ISO,
     shift: "21:00 — 03:00",
@@ -568,8 +567,8 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
   }),
   withRosterDate({
     id: "rs4",
-    prId: "p5",
-    prName: "Nina",
+    prId: "pr-comcard-victoria",
+    prName: "Victoria",
     outlet: "Mermate",
     dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
     shift: "20:00 — 02:00",
@@ -598,8 +597,8 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
   }),
   withRosterDate({
     id: "rs5",
-    prId: "p3",
-    prName: "Vivi",
+    prId: "pr-comcard-charlotte",
+    prName: "Charlotte",
     outlet: "Bear Lounge",
     dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
     shift: "22:30 — 04:30",
@@ -609,8 +608,8 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
   }),
   withRosterDate({
     id: "rs7",
-    prId: "p4",
-    prName: "Cici",
+    prId: "pr-comcard-angie",
+    prName: "Angie",
     outlet: "Bear Lounge",
     dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
     shift: "22:30 — 04:30",
@@ -628,8 +627,8 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
   }),
   withRosterDate({
     id: "rs8",
-    prId: "p2",
-    prName: "Mia",
+    prId: "pr-comcard-alice",
+    prName: "Alice",
     outlet: "Onyx KL",
     dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 2),
     shift: "20:00 — 02:00",
@@ -647,8 +646,8 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
   }),
   withRosterDate({
     id: "rs9",
-    prId: "p7",
-    prName: "Chen Wei",
+    prId: "pr-comcard-sarah",
+    prName: "Sarah",
     outlet: "Urban Soul",
     dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
     shift: "20:00 — 01:00",
@@ -701,7 +700,13 @@ export interface AgencyManagedPR {
   portfolioPhotos?: (string | null)[];
 }
 
-export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
+export function sortAgencyPrsByName(prs: AgencyManagedPR[]): AgencyManagedPR[] {
+  return [...prs].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+}
+
+export const SEED_AGENCY_PRS: AgencyManagedPR[] = sortAgencyPrsByName([
   {
     id: "p1",
     name: "Vicky",
@@ -730,175 +735,8 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = [
     comcardImageUrl: SEED_PR_COMCARD_IMAGE,
     portfolioPhotos: buildSeedPrPortfolio(),
   },
-  {
-    id: "p2",
-    name: "Mia",
-    icName: "Mia Chen Wei",
-    ic: "970801-08-4412",
-    mobile: "+60 16-992 1103",
-    email: "mia@inz.my",
-    age: 24,
-    height: 165,
-    weight: 48,
-    race: "Chinese",
-    languages: ["English", "Mandarin", "Cantonese"],
-    place: "PJ",
-    yearsExp: 3,
-    rating: 4.8,
-    trainingLevel: "Tier IV",
-    totalPaid: 14280,
-    attendancePct: 96,
-    checkIns: 38,
-    checkOuts: 37,
-    noShows: 1,
-    kpiScore: 88,
-    kpiTier: "B",
-    tiedSince: "2025-08-01",
-  },
-  {
-    id: "p3",
-    name: "Vivi",
-    icName: "Vivian Abdullah",
-    ic: "960515-10-7733",
-    mobile: "+60 11-223 8890",
-    email: "vivi@inz.my",
-    age: 25,
-    height: 170,
-    weight: 54,
-    race: "Malay",
-    languages: ["English", "Malay"],
-    place: "KL",
-    yearsExp: 5,
-    rating: 4.7,
-    trainingLevel: "Tier V",
-    totalPaid: 22100,
-    attendancePct: 94,
-    checkIns: 52,
-    checkOuts: 51,
-    noShows: 1,
-    kpiScore: 85,
-  },
-  {
-    id: "p5",
-    name: "Nina",
-    icName: "Nina Aisyah Rahman",
-    ic: "980220-06-5511",
-    mobile: "+60 17-441 9922",
-    email: "nina@inz.my",
-    age: 23,
-    height: 162,
-    weight: 47,
-    race: "Malay",
-    languages: ["English", "Malay"],
-    place: "Shah Alam",
-    yearsExp: 2,
-    rating: 3.4,
-    trainingLevel: "Tier III",
-    totalPaid: 8640,
-    attendancePct: 91,
-    checkIns: 19,
-    checkOuts: 18,
-    noShows: 1,
-    kpiScore: 78,
-    consecutiveLowRatings: 1,
-    tiedSince: "2024-06-01",
-  },
-  {
-    id: "p6",
-    name: "Yuki",
-    icName: "Yuki Tanaka",
-    ic: "941108-12-9901",
-    mobile: "+60 19-772 3301",
-    email: "yuki@inz.my",
-    age: 27,
-    height: 166,
-    weight: 51,
-    race: "Japanese",
-    languages: ["English", "Japanese", "Mandarin"],
-    place: "Mont Kiara",
-    yearsExp: 6,
-    rating: 4.8,
-    trainingLevel: "Tier V",
-    totalPaid: 31200,
-    attendancePct: 99,
-    checkIns: 58,
-    checkOuts: 58,
-    noShows: 0,
-    kpiScore: 95,
-  },
-  {
-    id: "p4",
-    name: "Cici",
-    icName: "Cici Lim Jia Wen",
-    ic: "990101-08-3344",
-    mobile: "+60 18-220 6612",
-    email: "cici@inz.my",
-    age: 24,
-    height: 163,
-    weight: 49,
-    race: "Chinese",
-    languages: ["English", "Mandarin"],
-    place: "PJ",
-    yearsExp: 2,
-    rating: 2.9,
-    trainingLevel: "Tier III",
-    totalPaid: 9200,
-    attendancePct: 93,
-    checkIns: 22,
-    checkOuts: 21,
-    noShows: 0,
-    kpiScore: 82,
-    consecutiveLowRatings: 3,
-    suspended: true,
-    tiedSince: "2023-01-15",
-  },
-  {
-    id: "p7",
-    name: "Chen Wei",
-    icName: "Chen Wei Ming",
-    ic: "970515-10-6622",
-    mobile: "+60 16-772 4410",
-    email: "chen.wei@inz.my",
-    age: 25,
-    height: 167,
-    weight: 55,
-    race: "Chinese",
-    languages: ["English", "Mandarin"],
-    place: "KL",
-    yearsExp: 3,
-    rating: 4.7,
-    trainingLevel: "Tier IV",
-    totalPaid: 11800,
-    attendancePct: 95,
-    checkIns: 28,
-    checkOuts: 28,
-    noShows: 0,
-    kpiScore: 86,
-  },
-  {
-    id: "freelancer-jaya",
-    name: "Jaya Nair",
-    icName: "Jaya Nair a/l Subramaniam",
-    ic: "880214-10-5566",
-    mobile: "+60 17-662 3391",
-    email: "jaya.nair@inz.my",
-    age: 27,
-    height: 166,
-    weight: 52,
-    race: "Indian",
-    languages: ["English", "Cantonese"],
-    place: "KL",
-    yearsExp: 2,
-    rating: 4.6,
-    trainingLevel: "Tier III",
-    totalPaid: 6840,
-    attendancePct: 91,
-    checkIns: 19,
-    checkOuts: 18,
-    noShows: 1,
-    kpiScore: 78,
-  },
-];
+  ...SEED_COMCARD_AGENCY_PRS,
+]);
 
 function parsePendingLanguages(raw: string): string[] {
   return raw
@@ -1029,59 +867,15 @@ export const SEED_PENDING_PRS: PendingPR[] = [
     source: "self-signup",
     status: "pending",
   },
-  {
-    id: "signup-raj",
-    targetPrId: "p10",
-    name: "Raj Kumar",
-    languages: "EN · Tamil · Hindi",
-    ic: "950330-10-9922",
-    mobile: "+60 16-550 3310",
-    email: "raj.k@inz.my",
-    age: 26,
-    height: 172,
-    weight: 68,
-    race: "Indian",
-    hasIcPhotos: true,
-    hasSelfie: true,
-    hasComcard3d: false,
-    portfolioCount: 3,
-    submittedAt: "7 Jun 2026 · 16:08",
-    source: "self-signup",
-    status: "pending",
-  },
-  {
-    id: "signup-kevin-invite",
-    targetPrId: "p11",
-    name: "Kevin Lim",
-    languages: "Pending profile",
-    ic: "991205-14-2201",
-    mobile: "+60 11-882 4400",
-    email: "kevin.lim@inz.my",
-    hasIcPhotos: false,
-    hasSelfie: false,
-    hasComcard3d: false,
-    portfolioCount: 0,
-    submittedAt: "9 Jun 2026 · 08:02",
-    source: "owner-invite",
-    status: "pending",
-  },
 ];
 
-export const SEED_PENDING_FREELANCER_PAYROLLS: PendingFreelancerPayroll[] = [
-  {
-    id: "fp-seed-jaya",
-    prId: FREELANCER_DEMO_PR_ID,
-    prName: "Jaya Nair",
-    languages: "English · Cantonese",
-    ic: "880214-10-5566",
-    mobile: "+60 17-662 3391",
-    email: "jaya.nair@inz.my",
-    agencyId: DEFAULT_TIED_AGENCY_ID,
-    agencyName: "Atlas Agency",
-    status: "pending",
-    requestedAt: "18 Jun 2026 · 10:42",
-  },
-];
+/** Dropped from pending sign-ups — male names / legacy demo rows */
+export const RETIRED_PENDING_PR_IDS = new Set(["signup-raj", "signup-kevin-invite"]);
+
+export const SEED_PENDING_FREELANCER_PAYROLLS: PendingFreelancerPayroll[] = [];
+
+/** Legacy freelancer payroll demo row (Jaya Nair) — strip on hydrate */
+export const RETIRED_PENDING_FREELANCER_PAYROLL_IDS = new Set(["fp-seed-jaya"]);
 
 export function pendingPRToManagedPR(p: PendingPR): AgencyManagedPR {
   const langs =
@@ -1299,7 +1093,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     linkedPvIds: ["PV-2026-0498", "PV-2026-0548-J"],
     kind: "outlet",
     lines: [
-      { label: "Daily wages", detail: "Jaya Nair · 27 Apr + 20–22 May shifts", amount: 1050, group: "payroll" },
+      { label: "Daily wages", detail: "Bernice · 27 Apr + Hazel · 20–22 May shifts", amount: 1050, group: "payroll" },
       { label: "Commission – Drinks", detail: "Mermate POS reconciled", amount: 1620, group: "commissions" },
       { label: "Commission – Tips", detail: "Receipt scans rc-seed-1…3", amount: 350, group: "commissions" },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 100, group: "fees" },
@@ -1318,7 +1112,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     reminderSent: true,
     kind: "outlet",
     lines: [
-      { label: "Daily wages", detail: "Jaya Nair · 9 May sealed shift", amount: 350, group: "payroll" },
+      { label: "Daily wages", detail: "Charlotte · 9 May sealed shift", amount: 350, group: "payroll" },
       { label: "Overtime (OT)", detail: "Check-out past shift end · 47 min", amount: 280, group: "payroll" },
       { label: "Commission – Drinks", detail: "Disputed · rc-seed-4 · outlet reconciling", amount: 1890, group: "commissions" },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 120, group: "fees" },
@@ -1336,7 +1130,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     linkedPvIds: [],
     kind: "outlet",
     lines: [
-      { label: "Daily wages", detail: "Mia + guest PR · 2 shifts", amount: 1420, group: "payroll" },
+      { label: "Daily wages", detail: "Alice + guest PR · 2 shifts", amount: 1420, group: "payroll" },
       { label: "Commission – Drinks", detail: "Onyx KL · weekend cycle", amount: 1980, group: "commissions" },
       { label: "Commission – Tables", detail: "VIP tables · 3 units", amount: 360, group: "commissions" },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 130, group: "fees" },
@@ -1355,7 +1149,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     reminderSent: true,
     kind: "outlet",
     lines: [
-      { label: "Daily wages", detail: "Jaya Nair · 14 May shift", amount: 350, group: "payroll" },
+      { label: "Daily wages", detail: "Grace · 14 May shift", amount: 350, group: "payroll" },
       { label: "Commission – Drinks", detail: "Urban Soul tap log", amount: 1420, group: "commissions" },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 180, group: "fees" },
     ],
@@ -1427,7 +1221,50 @@ const DEMO_LAYOUT_ROSTER_IDS = new Set(["rs2", "rs3", "rs4"]);
 /** Demo slots — seed outletSwap state wins on hydrate (clears stale agency swap requests). */
 const FORCE_SEED_OUTLET_SWAP_IDS = new Set(["rs1", "rs3"]);
 /** Removed from seed — drop stale extras on hydrate */
-const RETIRED_DEMO_ROSTER_IDS = new Set(["rs-demo-p7", "rs7"]);
+const RETIRED_DEMO_ROSTER_IDS = new Set([
+  "rs-demo-p7",
+  "rs7",
+  "rs-demo-p3",
+  "rs-demo-p4",
+  "rs-demo-p5",
+]);
+
+/** Placeholder demo PRs removed from Manage PR — migrate roster slots on hydrate. */
+export const RETIRED_DEMO_PR_IDS = new Set([
+  "p2",
+  "p3",
+  "p4",
+  "p5",
+  "p6",
+  "p7",
+  "freelancer-jaya",
+]);
+
+function rosterSlotUsesRetiredPr(slot: Pick<AgencyRosterSlot, "prId">): boolean {
+  return RETIRED_DEMO_PR_IDS.has(slot.prId);
+}
+
+function mergeRosterSlotFromSeed(
+  saved: AgencyRosterSlot,
+  seedSlot: AgencyRosterSlot,
+  dateIso: string,
+): AgencyRosterSlot {
+  const preserveFloor = saved.status === "on-duty" && !!saved.checkedInAt;
+  return {
+    ...seedSlot,
+    dateIso,
+    prId: seedSlot.prId,
+    prName: seedSlot.prName,
+    outlet: seedSlot.outlet,
+    status: preserveFloor ? saved.status : seedSlot.status,
+    checkedInAt: preserveFloor ? saved.checkedInAt : seedSlot.checkedInAt,
+    floorDrinks: preserveFloor ? (saved.floorDrinks ?? seedSlot.floorDrinks) : seedSlot.floorDrinks,
+    floorTips: preserveFloor ? (saved.floorTips ?? seedSlot.floorTips) : seedSlot.floorTips,
+    estPayout: preserveFloor ? (saved.estPayout ?? seedSlot.estPayout) : seedSlot.estPayout,
+    outletSwap: seedSlot.outletSwap ?? saved.outletSwap,
+    agencyAssignment: seedSlot.agencyAssignment ?? saved.agencyAssignment,
+  };
+}
 
 /** Prefer canonical agency PR name over stale roster slot labels (e.g. Luna → Vicky). */
 export function resolveRosterPrName(
@@ -1464,7 +1301,12 @@ export function mergeAgencyRoster(
   if (!persisted?.length) return seed.map(normalize);
   const seedIds = new Set(seed.map((s) => s.id));
   const extras = persisted
-    .filter((s) => !seedIds.has(s.id) && !RETIRED_DEMO_ROSTER_IDS.has(s.id))
+    .filter(
+      (s) =>
+        !seedIds.has(s.id) &&
+        !RETIRED_DEMO_ROSTER_IDS.has(s.id) &&
+        !rosterSlotUsesRetiredPr(s),
+    )
     .map((slot) =>
       slot.prId === TIED_DEMO_ROSTER_PR_ID && slot.prName === "Luna"
         ? { ...slot, prName: "Vicky" }
@@ -1480,14 +1322,19 @@ export function mergeAgencyRoster(
           ? seedSlot.dateIso
           : saved.dateIso ?? seedSlot.dateIso,
       );
+      if (rosterSlotUsesRetiredPr(saved)) {
+        return normalize(mergeRosterSlotFromSeed(saved, seedSlot, dateIso));
+      }
       if (DEMO_LAYOUT_ROSTER_IDS.has(seedSlot.id)) {
+        const layoutReassigned = saved.prId !== seedSlot.prId;
         return normalize({
           ...seedSlot,
           ...saved,
           status: seedSlot.status,
           dateIso,
           outlet: seedSlot.outlet,
-          prName: mergeRosterSlotPrName(saved, seedSlot, saved.prId !== seedSlot.prId),
+          prId: layoutReassigned ? saved.prId : (saved.prId ?? seedSlot.prId),
+          prName: mergeRosterSlotPrName(saved, seedSlot, layoutReassigned),
           checkedInAt: saved.checkedInAt ?? seedSlot.checkedInAt,
           floorDrinks: saved.floorDrinks ?? seedSlot.floorDrinks,
           floorTips: saved.floorTips ?? seedSlot.floorTips,
@@ -1518,7 +1365,8 @@ export function mergeAgencyRoster(
       const savedFloorIdle = saved.status === "scheduled" && !saved.checkedInAt;
       const restoreSeedFloor =
         seedFloorActive && savedFloorIdle && !preserveLiveOnDuty && !staleOnDuty;
-      const reassigned = saved.prId !== seedSlot.prId;
+      const reassigned =
+        !rosterSlotUsesRetiredPr(saved) && saved.prId !== seedSlot.prId;
       return normalize({
         ...seedSlot,
         ...saved,

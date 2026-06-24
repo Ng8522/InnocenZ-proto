@@ -17,6 +17,8 @@ import {
   remapSeedPaymentVouchers,
   remapSeedReceiptScan,
   remapSeedReceiptScans,
+  mergePersistedReceiptScanWithSeed,
+  isLegacyReceiptScanIdentity,
   getShiftToday,
   SEED_RECEIPT_SCANS,
   COMCARD,
@@ -25,7 +27,7 @@ import {
   findDuplicateReceiptScan,
   receiptScanFingerprint,
   buildManualReceiptItems,
-  receiptPrimaryCategory,
+  receiptScanCategory,
   buildPaymentVoucherFromShift,
   getPrProfile,
   makeShiftSessionId,
@@ -69,6 +71,8 @@ import {
   SEED_AGENCY_PRS,
   SEED_PENDING_PRS,
   SEED_PENDING_FREELANCER_PAYROLLS,
+  RETIRED_PENDING_PR_IDS,
+  RETIRED_PENDING_FREELANCER_PAYROLL_IDS,
   pendingPRToManagedPR,
   OUTLET_COMMISSION_RULES,
   SCALING_TIER_MULTIPLIERS,
@@ -83,6 +87,7 @@ import {
   estimateShiftLaborCost,
   snapTierWage,
   languagesFromPr,
+  sortAgencyPrsByName,
   syncAgencyPrFromPrPortal,
   type OutletCommissionRule,
   type OutletPrTier,
@@ -182,7 +187,7 @@ import {
   outletUnfilledDemandSlots,
   type OutletDrinkPrice,
 } from "@/lib/outlet-demo";
-import { buildDemoStoreReset, buildPrDemoReset } from "@/lib/demo-seed";
+import { buildDemoStoreReset, buildPrDemoReset, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
 import {
   SEED_SPECIAL_SERVICES,
   mergeSpecialServiceOrders,
@@ -731,6 +736,19 @@ interface StoreState {
 
 const demoSnapshot = buildDemoStoreReset();
 
+function mergeAgencyPRs(
+  persisted: AgencyManagedPR[] | undefined,
+  current: AgencyManagedPR[],
+): AgencyManagedPR[] {
+  const seedIds = new Set(SEED_AGENCY_PRS.map((s) => s.id));
+  const base = (persisted?.length ? persisted : current).filter((p) => seedIds.has(p.id));
+  const byId = new Map(base.map((p) => [p.id, p]));
+  for (const seed of SEED_AGENCY_PRS) {
+    if (!byId.has(seed.id)) byId.set(seed.id, seed);
+  }
+  return sortAgencyPrsByName(SEED_AGENCY_PRS.map((seed) => byId.get(seed.id) ?? seed));
+}
+
 function normalizeAgencyPrs(list: AgencyManagedPR[]): AgencyManagedPR[] {
   return list.map((pr) => ({
     ...pr,
@@ -937,24 +955,30 @@ function syncLedgerState(
 }
 
 function mergePendingPRs(persisted: PendingPR[] | undefined, current: PendingPR[]): PendingPR[] {
-  const base = persisted && persisted.length > 0 ? persisted : current;
+  const seedIds = new Set(SEED_PENDING_PRS.map((s) => s.id));
+  const base = (persisted?.length ? persisted : current).filter(
+    (p) => seedIds.has(p.id) && !RETIRED_PENDING_PR_IDS.has(p.id),
+  );
   const byId = new Map(base.map((p) => [p.id, p]));
   for (const seed of SEED_PENDING_PRS) {
     if (!byId.has(seed.id)) byId.set(seed.id, seed);
   }
-  return Array.from(byId.values());
+  return SEED_PENDING_PRS.map((seed) => byId.get(seed.id) ?? seed);
 }
 
 function mergePendingFreelancerPayrolls(
   persisted: PendingFreelancerPayroll[] | undefined,
   current: PendingFreelancerPayroll[],
 ): PendingFreelancerPayroll[] {
-  const base = persisted && persisted.length > 0 ? persisted : current;
+  const seedIds = new Set(SEED_PENDING_FREELANCER_PAYROLLS.map((s) => s.id));
+  const base = (persisted?.length ? persisted : current).filter(
+    (p) => seedIds.has(p.id) && !RETIRED_PENDING_FREELANCER_PAYROLL_IDS.has(p.id),
+  );
   const byId = new Map(base.map((p) => [p.id, p]));
   for (const seed of SEED_PENDING_FREELANCER_PAYROLLS) {
     if (!byId.has(seed.id)) byId.set(seed.id, seed);
   }
-  return Array.from(byId.values());
+  return SEED_PENDING_FREELANCER_PAYROLLS.map((seed) => byId.get(seed.id) ?? seed);
 }
 
 let toastId = 0;
@@ -2121,7 +2145,10 @@ export const useStore = create<StoreState>()(
         }
         const manual = draft.manualSelfLog;
         const items = manual
-          ? buildManualReceiptItems(manual.category, manual.amount)
+          ? buildManualReceiptItems(
+              manual.category === "tables" ? "drinks" : manual.category,
+              manual.amount,
+            )
           : draft.items;
         const totalLogged = manual ? manual.amount : draft.totalLogged;
         const fingerprint = receiptScanFingerprint({
@@ -2257,7 +2284,12 @@ export const useStore = create<StoreState>()(
           get().toast("Enter a valid amount", "warn");
           return;
         }
-        const category = patch.category ?? receiptPrimaryCategory(scan);
+        const category =
+          patch.category != null
+            ? patch.category === "tables"
+              ? "drinks"
+              : patch.category
+            : receiptScanCategory(scan);
         const items = buildManualReceiptItems(category, amount);
         const comm = calcReceiptCommissions(items);
         const oldQty = receiptQtyDelta(scan.items);
@@ -5055,6 +5087,11 @@ export const useStore = create<StoreState>()(
                   }
                   return { ...pv, prName };
                 }
+                const identityFromSeed =
+                  pv.prIc !== seed.prIc ||
+                  pv.prName === "Jaya Nair" ||
+                  pv.prName === "Jaya" ||
+                  pv.prName === "Luna";
                 return {
                   ...seed,
                   ...pv,
@@ -5077,12 +5114,14 @@ export const useStore = create<StoreState>()(
                   financeHeadSignedAt: pv.financeHeadSignedAt ?? seed.financeHeadSignedAt,
                   financeHeadSignatureDataUrl:
                     pv.financeHeadSignatureDataUrl ?? seed.financeHeadSignatureDataUrl,
-                  prSignatureDataUrl:
-                    pv.prSignatureDataUrl ??
-                    seed.prSignatureDataUrl ??
-                    (pv.prSignedAt || pv.status === "PAID" || pv.status === "SIGNED"
-                      ? buildDemoESignatureDataUrl(pv.prName ?? seed.prName)
-                      : undefined),
+                  prSignatureDataUrl: identityFromSeed
+                    ? (seed.prSignatureDataUrl ??
+                      buildDemoESignatureDataUrl(seed.prName))
+                    : (pv.prSignatureDataUrl ??
+                      seed.prSignatureDataUrl ??
+                      (pv.prSignedAt || pv.status === "PAID" || pv.status === "SIGNED"
+                        ? buildDemoESignatureDataUrl(pv.prName ?? seed.prName)
+                        : undefined)),
                   prDisputeReason: pv.prDisputeReason ?? seed.prDisputeReason,
                   disputedAt: pv.disputedAt ?? seed.disputedAt,
                   disputeUpdatedAt: pv.disputeUpdatedAt ?? seed.disputeUpdatedAt,
@@ -5112,28 +5151,31 @@ export const useStore = create<StoreState>()(
           persistedPvs.length > 0 ? [...mergedFromPersisted, ...missingSeedPvs] : LIVE_SEED_PR_PVS,
         );
         const seedScanById = Object.fromEntries(LIVE_SEED_RECEIPT_SCANS.map((s) => [s.id, s]));
+        const seedScanByRef = Object.fromEntries(
+          LIVE_SEED_RECEIPT_SCANS.filter((s) => s.receiptRef).map((s) => [s.receiptRef!, s]),
+        );
         const persistedScans = p?.prReceiptScans ?? [];
         const userScans = persistedScans
           .filter((s) => !seedScanById[s.id])
-          .map((s) => ({
-            ...s,
-            receiptRef: s.receiptRef ?? `LEGACY-${s.id}`,
-          }));
+          .map((s) => {
+            const seed = seedScanByRef[s.receiptRef ?? ""];
+            const base = { ...s, receiptRef: s.receiptRef ?? `LEGACY-${s.id}` };
+            if (!seed || !isLegacyReceiptScanIdentity(s)) return base;
+            return {
+              ...base,
+              prId: seed.prId,
+              prName: seed.prName,
+              prCode: seed.prCode,
+            };
+          });
         const mergedScansBase = [
           ...userScans,
-          ...LIVE_SEED_RECEIPT_SCANS.map((seed) => {
-            const saved = persistedScans.find((s) => s.id === seed.id);
-            return remapSeedReceiptScan(
-              saved
-                ? {
-                    ...seed,
-                    ...saved,
-                    receiptRef: saved.receiptRef ?? seed.receiptRef,
-                    prId: saved.prId ?? seed.prId,
-                  }
-                : seed,
-            );
-          }),
+          ...LIVE_SEED_RECEIPT_SCANS.map((seed) =>
+            mergePersistedReceiptScanWithSeed(
+              seed,
+              persistedScans.find((s) => s.id === seed.id),
+            ),
+          ),
         ].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt));
         const persistedShiftRows = migrateShiftHistoryPrNames(
           (p?.shiftHistory ?? []).map((row) => {
@@ -5183,7 +5225,7 @@ export const useStore = create<StoreState>()(
         };
         const seedAgencyById = Object.fromEntries(demoSnapshot.agencyPRs.map((s) => [s.id, s]));
         const mergedAgencyPRs = normalizeAgencyPrs(
-          p?.agencyPRs?.length ? p.agencyPRs : current.agencyPRs,
+          mergeAgencyPRs(p?.agencyPRs, current.agencyPRs),
         ).map((pr) => {
           let next = syncAgencyPrFromPrPortal(pr, TIED_DEMO_ROSTER_PR_ID, portalForAgencySync);
           const seed = seedAgencyById[pr.id];
@@ -5204,6 +5246,13 @@ export const useStore = create<StoreState>()(
                 ? next.portfolioPhotos
                 : seed.portfolioPhotos
               )?.map((photo) => migratePrPortfolioAssetPath(photo) ?? photo),
+            };
+          } else if (seed?.comcardImageUrl) {
+            next = {
+              ...next,
+              comcardImageUrl:
+                migratePrPortfolioAssetPath(next.comcardImageUrl ?? seed.comcardImageUrl) ??
+                seed.comcardImageUrl,
             };
           }
           return next;
@@ -5304,9 +5353,16 @@ export const useStore = create<StoreState>()(
           shifts: (() => {
             const ws = normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace);
             const menu = ws.drinkMenu;
-            return (p?.shifts ?? current.shifts).map((sh) =>
-              migrateShiftTierRates(withShiftFinancialDefaults(sh, menu), ws),
+            const merged = mergeDemoShiftDates(
+              mergeDemoShiftStaffing(
+                (p?.shifts ?? current.shifts).map((sh) =>
+                  migrateShiftTierRates(withShiftFinancialDefaults(sh, menu), ws),
+                ),
+                demoSnapshot.shifts,
+              ),
+              demoSnapshot.shifts,
             );
+            return merged;
           })(),
           outletPnl: (() => {
             const ws = normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace);

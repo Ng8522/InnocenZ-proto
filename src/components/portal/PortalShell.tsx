@@ -1,8 +1,8 @@
 import { type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import {
-  ArrowLeftRight,
   CreditCard,
+  LogOut,
   Settings,
   Shield,
   SlidersHorizontal,
@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { BottomNav, type NavItem, navIsActive } from "@/components/Nav";
 import { AGENCY_SUB_ROLE_LABELS, agencyCan } from "@/lib/agency-rbac";
-import { goToWelcome } from "@/lib/go-welcome";
+import { signOutToWelcome } from "@/lib/go-welcome";
 import { OUTLET_SUB_ROLE_LABELS, outletCan } from "@/lib/outlet-rbac";
 import { OpsNotificationBell } from "@/components/portal/OpsNotificationBell";
 import { useStore } from "@/lib/store";
@@ -140,9 +140,9 @@ function PortalSidebar({
       </nav>
 
       <div className="iz-portal-sidebar-foot">
-        <button type="button" className="iz-portal-nav-link w-full" onClick={() => goToWelcome()}>
-          <ArrowLeftRight className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
-          <span>Switch role</span>
+        <button type="button" className="iz-portal-nav-link w-full" onClick={signOutToWelcome}>
+          <LogOut className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+          <span>Sign out</span>
         </button>
       </div>
     </aside>

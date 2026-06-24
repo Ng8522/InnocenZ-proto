@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
+import { SecuritySettingsSheets } from "@/components/auth/SecuritySettingsSheets";
 import { useStore } from "@/lib/store";
 import type { OutletFinanceHead, OutletOpsHead, OutletOwnerSettings } from "@/lib/outlet-demo";
 import { outletCan } from "@/lib/outlet-rbac";
@@ -60,14 +61,13 @@ function OutletSettingsPage() {
   const outletOpsHead = useStore((s) => s.outletOpsHead);
   const outletSettings = useStore((s) => s.outletSettings);
   const saveOutletProfileSettings = useStore((s) => s.saveOutletProfileSettings);
+  const saveOutletOwner = useStore((s) => s.saveOutletOwner);
   const saveOutletSettings = useStore((s) => s.saveOutletSettings);
-  const sendOutletOtp = useStore((s) => s.sendOutletOtp);
-  const verifyOutletOtp = useStore((s) => s.verifyOutletOtp);
   const outletSubRole = useStore((s) => s.outletSubRole);
   const toast = useStore((s) => s.toast);
 
   const [editing, setEditing] = useState(false);
-  const [otp, setOtp] = useState("");
+  const [securityOpen, setSecurityOpen] = useState(false);
   const [draft, setDraft] = useState(outletOwner);
   const [financeDraft, setFinanceDraft] = useState(outletFinanceHead);
   const [opsDraft, setOpsDraft] = useState(outletOpsHead);
@@ -93,7 +93,6 @@ function OutletSettingsPage() {
     setFinanceDraft({ ...outletFinanceHead });
     setOpsDraft({ ...outletOpsHead });
     setLocationDraft(outletSettings.location);
-    setOtp("");
     setEditing(true);
   };
 
@@ -102,7 +101,6 @@ function OutletSettingsPage() {
     setFinanceDraft({ ...outletFinanceHead });
     setOpsDraft({ ...outletOpsHead });
     setLocationDraft(outletSettings.location);
-    setOtp("");
     setEditing(false);
   };
 
@@ -145,13 +143,18 @@ function OutletSettingsPage() {
       return;
     }
     saveOutletProfileSettings({
-      owner: { ...draft, ownerName: draft.ownerName.trim(), orgName: draft.orgName.trim() },
+      owner: {
+        ...draft,
+        ownerName: draft.ownerName.trim(),
+        orgName: draft.orgName.trim(),
+        email: outletOwner.email,
+        mobile: outletOwner.mobile,
+      },
       financeHead: { ...financeDraft },
       opsHead: { ...opsDraft },
       location: locationDraft.trim(),
     });
     setEditing(false);
-    setOtp("");
   };
 
   if (!outletCan(outletSubRole, "viewSettings")) {
@@ -256,15 +259,17 @@ function OutletSettingsPage() {
           icon={Phone}
           label="Mobile"
           value={owner.mobile}
-          onChange={(v) => update({ mobile: v })}
-          readOnly={fieldsLocked}
+          onChange={() => {}}
+          readOnly
+          hint="Change in Login & security"
         />
         <Field
           icon={Mail}
           label="Email"
           value={owner.email}
-          onChange={(v) => update({ email: v })}
-          readOnly={fieldsLocked}
+          onChange={() => {}}
+          readOnly
+          hint="Change in Login & security"
         />
         <Field
           icon={Shield}
@@ -288,6 +293,31 @@ function OutletSettingsPage() {
           readOnly={fieldsLocked}
         />
       </IzCard>
+
+      <IzSectionLabel>Login &amp; security</IzSectionLabel>
+      <IzCard>
+        <p className="iz-tiny iz-muted mb-3">
+          Update password anytime. Email and mobile changes require OTP verification.
+        </p>
+        <button
+          type="button"
+          className="iz-btn iz-btn-primary w-full"
+          onClick={() => setSecurityOpen(true)}
+        >
+          Security settings
+        </button>
+      </IzCard>
+
+      <SecuritySettingsSheets
+        open={securityOpen}
+        onClose={() => setSecurityOpen(false)}
+        sheetVariant="side"
+        email={outletOwner.email}
+        mobile={outletOwner.mobile}
+        canEdit={canEdit}
+        onUpdateEmail={(email) => saveOutletOwner({ email })}
+        onUpdateMobile={(mobile) => saveOutletOwner({ mobile })}
+      />
 
       <IzSectionLabel>Finance Head</IzSectionLabel>
       <IzCard className={editCardClass}>
@@ -343,60 +373,6 @@ function OutletSettingsPage() {
         />
       </IzCard>
 
-      <IzSectionLabel>OTP &amp; 2FA</IzSectionLabel>
-      <IzCard className={editCardClass}>
-        <p className="iz-tiny iz-muted mb-2">Switch channel · enforce login MFA</p>
-        {editing && canEdit ? (
-          <>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className={`iz-chip flex-1 ${draft.otpChannel === "email" ? "border-[var(--iz-gold)]" : ""}`}
-                onClick={() => update({ otpChannel: "email" })}
-              >
-                Email
-              </button>
-              <button
-                type="button"
-                className={`iz-chip flex-1 ${draft.otpChannel === "phone" ? "border-[var(--iz-gold)]" : ""}`}
-                onClick={() => update({ otpChannel: "phone" })}
-              >
-                Phone
-              </button>
-            </div>
-            <button
-              type="button"
-              className="iz-btn iz-btn-soft mt-2 w-full"
-              onClick={sendOutletOtp}
-            >
-              Send OTP
-            </button>
-            <input
-              className="mt-2 w-full rounded-xl border border-[var(--iz-line)] bg-[var(--iz-bg2)] px-3 py-2 text-sm"
-              placeholder="Enter 6-digit OTP (demo: 123456)"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-            />
-            <button
-              type="button"
-              className="iz-btn iz-btn-primary mt-2 w-full"
-              onClick={() => verifyOutletOtp(otp)}
-            >
-              Verify &amp; activate
-            </button>
-          </>
-        ) : (
-          <p className="iz-tiny iz-muted">
-            OTP channel:{" "}
-            <b className="text-[var(--iz-txt)]">
-              {owner.otpChannel === "email" ? "Email" : "Phone"}
-            </b>
-            {" · "}
-            {owner.accountActivated ? "MFA active" : "Activation pending"}
-          </p>
-        )}
-      </IzCard>
-
       <IzSectionLabel>Notifications</IzSectionLabel>
       <IzCard className="mt-2 !py-0 px-4">
         <ToggleRow
@@ -435,12 +411,14 @@ function Field({
   value,
   onChange,
   readOnly,
+  hint,
 }: {
   icon: typeof User;
   label: string;
   value: string;
   onChange: (v: string) => void;
   readOnly?: boolean;
+  hint?: string;
 }) {
   return (
     <div className="border-b border-[var(--iz-line)] py-2.5 last:border-0">
@@ -448,7 +426,10 @@ function Field({
         <Icon className="h-3 w-3" /> {label}
       </div>
       {readOnly ? (
-        <p className="mt-1 font-medium text-[var(--iz-txt)]">{value || "—"}</p>
+        <>
+          <p className="mt-1 font-medium text-[var(--iz-txt)]">{value || "—"}</p>
+          {hint && <p className="iz-tiny iz-muted2 mt-0.5">{hint}</p>}
+        </>
       ) : (
         <input
           className="mt-1 w-full bg-transparent font-medium text-[var(--iz-txt)] outline-none"

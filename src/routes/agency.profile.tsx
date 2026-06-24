@@ -6,6 +6,7 @@ import type { AgencyFinanceHead, AgencyOwnerSettings } from "@/lib/agency-demo";
 import { getAgencySubscriptionPlan } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
+import { SecuritySettingsSheets } from "@/components/auth/SecuritySettingsSheets";
 import { Building2, Camera, Mail, Pencil, Phone, Shield, User, X } from "lucide-react";
 
 export const Route = createFileRoute("/agency/profile")({
@@ -18,12 +19,11 @@ function AgencyProfile() {
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const scalingTierMultipliers = useStore((s) => s.scalingTierMultipliers);
   const saveAgencyProfileSettings = useStore((s) => s.saveAgencyProfileSettings);
-  const sendAgencyOtp = useStore((s) => s.sendAgencyOtp);
-  const verifyAgencyOtp = useStore((s) => s.verifyAgencyOtp);
+  const saveAgencyOwner = useStore((s) => s.saveAgencyOwner);
   const agencySubRole = useStore((s) => s.agencySubRole);
   const toast = useStore((s) => s.toast);
   const [editing, setEditing] = useState(false);
-  const [otp, setOtp] = useState("");
+  const [securityOpen, setSecurityOpen] = useState(false);
   const [draft, setDraft] = useState(agencyOwner);
   const [financeDraft, setFinanceDraft] = useState(agencyFinanceHead);
   const [inviteEmail, setInviteEmail] = useState(agencyFinanceHead.email);
@@ -45,7 +45,6 @@ function AgencyProfile() {
     setDraft({ ...agencyOwner });
     setFinanceDraft({ ...agencyFinanceHead });
     setInviteEmail(agencyFinanceHead.email);
-    setOtp("");
     setEditing(true);
   };
 
@@ -53,7 +52,6 @@ function AgencyProfile() {
     setDraft({ ...agencyOwner });
     setFinanceDraft({ ...agencyFinanceHead });
     setInviteEmail(agencyFinanceHead.email);
-    setOtp("");
     setEditing(false);
   };
 
@@ -98,7 +96,13 @@ function AgencyProfile() {
       nextFinance.eSignatureStored = false;
     }
     saveAgencyProfileSettings({
-      owner: { ...draft, ownerName: draft.ownerName.trim(), orgName: draft.orgName.trim() },
+      owner: {
+        ...draft,
+        ownerName: draft.ownerName.trim(),
+        orgName: draft.orgName.trim(),
+        email: agencyOwner.email,
+        mobile: agencyOwner.mobile,
+      },
       financeHead: nextFinance,
       scalingTierMultipliers,
       outletCommissionRules: outletCommissionRules.map((r) => ({ ...r })),
@@ -110,7 +114,6 @@ function AgencyProfile() {
       );
     }
     setEditing(false);
-    setOtp("");
   };
 
   if (!agencyCan(agencySubRole, "viewSettings")) {
@@ -211,15 +214,17 @@ function AgencyProfile() {
           icon={Phone}
           label="Mobile"
           value={owner.mobile}
-          onChange={(v) => update({ mobile: v })}
-          readOnly={fieldsLocked}
+          onChange={() => {}}
+          readOnly
+          hint="Change in Login & security"
         />
         <Field
           icon={Mail}
           label="Email"
           value={owner.email}
-          onChange={(v) => update({ email: v })}
-          readOnly={fieldsLocked}
+          onChange={() => {}}
+          readOnly
+          hint="Change in Login & security"
         />
         <Field
           icon={Shield}
@@ -237,59 +242,30 @@ function AgencyProfile() {
         />
       </IzCard>
 
-      <IzSectionLabel>OTP &amp; 2FA</IzSectionLabel>
-      <IzCard className={editCardClass}>
-        <p className="iz-tiny iz-muted mb-2">Switch channel · enforce login MFA</p>
-        {editing && canEdit ? (
-          <>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className={`iz-chip flex-1 ${draft.otpChannel === "email" ? "border-[var(--iz-gold)]" : ""}`}
-                onClick={() => update({ otpChannel: "email" })}
-              >
-                Email
-              </button>
-              <button
-                type="button"
-                className={`iz-chip flex-1 ${draft.otpChannel === "phone" ? "border-[var(--iz-gold)]" : ""}`}
-                onClick={() => update({ otpChannel: "phone" })}
-              >
-                Phone
-              </button>
-            </div>
-            <button
-              type="button"
-              className="iz-btn iz-btn-soft mt-2 w-full"
-              onClick={sendAgencyOtp}
-            >
-              Send OTP
-            </button>
-            <input
-              className="mt-2 w-full rounded-xl border border-[var(--iz-line)] bg-[var(--iz-bg2)] px-3 py-2 text-sm"
-              placeholder="Enter 6-digit OTP (demo: 123456)"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-            />
-            <button
-              type="button"
-              className="iz-btn iz-btn-primary mt-2 w-full"
-              onClick={() => verifyAgencyOtp(otp)}
-            >
-              Verify &amp; activate
-            </button>
-          </>
-        ) : (
-          <p className="iz-tiny iz-muted">
-            OTP channel:{" "}
-            <b className="text-[var(--iz-txt)]">
-              {owner.otpChannel === "email" ? "Email" : "Phone"}
-            </b>
-            {" · "}
-            {owner.accountActivated ? "MFA active" : "Activation pending"}
-          </p>
-        )}
+      <IzSectionLabel>Login &amp; security</IzSectionLabel>
+      <IzCard>
+        <p className="iz-tiny iz-muted mb-3">
+          Update password anytime. Email and mobile changes require OTP verification.
+        </p>
+        <button
+          type="button"
+          className="iz-btn iz-btn-primary w-full"
+          onClick={() => setSecurityOpen(true)}
+        >
+          Security settings
+        </button>
       </IzCard>
+
+      <SecuritySettingsSheets
+        open={securityOpen}
+        onClose={() => setSecurityOpen(false)}
+        sheetVariant="side"
+        email={agencyOwner.email}
+        mobile={agencyOwner.mobile}
+        canEdit={canEdit}
+        onUpdateEmail={(email) => saveAgencyOwner({ email })}
+        onUpdateMobile={(mobile) => saveAgencyOwner({ mobile })}
+      />
 
       <IzSectionLabel>Finance Head · dual-sign PV</IzSectionLabel>
       <IzCard className={editCardClass}>
@@ -367,12 +343,14 @@ function Field({
   value,
   onChange,
   readOnly,
+  hint,
 }: {
   icon: typeof User;
   label: string;
   value: string;
   onChange: (v: string) => void;
   readOnly?: boolean;
+  hint?: string;
 }) {
   return (
     <div className="border-b border-[var(--iz-line)] py-2.5 last:border-0">
@@ -380,7 +358,10 @@ function Field({
         <Icon className="h-3 w-3" /> {label}
       </div>
       {readOnly ? (
-        <p className="mt-1 font-medium text-[var(--iz-txt)]">{value || "—"}</p>
+        <>
+          <p className="mt-1 font-medium text-[var(--iz-txt)]">{value || "—"}</p>
+          {hint && <p className="iz-tiny iz-muted2 mt-0.5">{hint}</p>}
+        </>
       ) : (
         <input
           className="mt-1 w-full bg-transparent font-medium text-[var(--iz-txt)] outline-none"

@@ -172,7 +172,7 @@ export function fmtDFriendly(y: number, m: number, d: number) {
 
 /** Compact date for PR topbar (no year). */
 export function fmtDTopbar(y: number, m: number, d: number) {
-  return `${dayName(y, m, d)} · ${String(d).padStart(2, "0")} ${MONTH_NAMES[m - 1]}`;
+  return `${dayName(y, m, d)} ${String(d).padStart(2, "0")} ${MONTH_NAMES[m - 1]}`;
 }
 
 export function parseYmdIso(iso: string): [number, number, number] {

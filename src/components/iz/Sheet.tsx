@@ -2,11 +2,21 @@ import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 type MountMode = "phone" | "overlay";
+export type SheetVariant = "bottom" | "dialog" | "side";
 
-function resolveSheetMount(): { el: HTMLElement; mode: MountMode } {
+function resolveSheetMount(variant: SheetVariant): { el: HTMLElement; mode: MountMode } {
+  if (variant === "side") {
+    return { el: document.body, mode: "overlay" };
+  }
   const phone = document.querySelector(".iz-phone");
   if (phone instanceof HTMLElement) return { el: phone, mode: "phone" };
   return { el: document.body, mode: "overlay" };
+}
+
+function sheetVariantClass(mode: MountMode, variant: SheetVariant) {
+  if (mode === "phone" || variant === "bottom") return "";
+  if (variant === "side") return " iz-sheet--side";
+  return " iz-sheet--dialog";
 }
 
 function lockScroll() {
@@ -34,12 +44,14 @@ function SheetContent({
   onClose,
   children,
   mode,
+  variant,
   wide,
   rating,
 }: {
   onClose: () => void;
   children: ReactNode;
   mode: MountMode;
+  variant: SheetVariant;
   wide?: boolean;
   rating?: boolean;
 }) {
@@ -51,11 +63,16 @@ function SheetContent({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const wrapClass =
+    variant === "side"
+      ? `iz-sheet-wrap open iz-sheet-wrap--${mode} iz-sheet-wrap--side`
+      : `iz-sheet-wrap open iz-sheet-wrap--${mode}`;
+
   return (
-    <div className={`iz-sheet-wrap open iz-sheet-wrap--${mode}`}>
+    <div className={wrapClass}>
       <button type="button" className="iz-sheet-bg" aria-label="Close" onClick={onClose} />
       <div
-        className={`iz-sheet${mode === "overlay" ? " iz-sheet--dialog" : ""}${wide ? " iz-sheet--wide" : ""}${rating ? " iz-sheet--rating" : ""}`}
+        className={`iz-sheet${sheetVariantClass(mode, variant)}${wide ? " iz-sheet--wide" : ""}${rating ? " iz-sheet--rating" : ""}`}
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
@@ -71,12 +88,15 @@ export function IzSheet({
   open,
   onClose,
   children,
+  variant = "dialog",
   wide = false,
   rating = false,
 }: {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
+  /** bottom = phone frame; dialog = centered/bottom overlay; side = right panel (portal) */
+  variant?: SheetVariant;
   wide?: boolean;
   rating?: boolean;
 }) {
@@ -87,9 +107,16 @@ export function IzSheet({
 
   if (!open || typeof document === "undefined") return null;
 
-  const mount = resolveSheetMount();
+  const mount = resolveSheetMount(variant);
+  const sheetVariant = mount.mode === "phone" ? "bottom" : variant;
   const sheet = (
-    <SheetContent onClose={onClose} mode={mount.mode} wide={wide} rating={rating}>
+    <SheetContent
+      onClose={onClose}
+      mode={mount.mode}
+      variant={sheetVariant}
+      wide={wide}
+      rating={rating}
+    >
       {children}
     </SheetContent>
   );

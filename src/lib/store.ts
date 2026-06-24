@@ -472,17 +472,22 @@ interface StoreState {
   prLanguages: string[];
   prDisplayName: string | null;
   prEmail: string | null;
+  prIcName: string | null;
+  prMobile: string | null;
   prAvatarPhoto: string | null;
   prPayrollAgencyId: string | null;
   setPrPayrollAgency: (agencyId: string) => void;
   savePrProfile: (data: {
     displayName: string;
+    icName: string;
+    mobile: string;
     email: string;
     avatarPhoto: string | null;
     comcard: PrComcard;
     portfolio: (string | null)[];
     languages: string[];
   }) => void;
+  savePrContact: (patch: { email?: string; mobile?: string }) => void;
 
   prPaymentVouchers: PrPaymentVoucher[];
   ensurePreviousWeekPv: () => void;
@@ -1738,6 +1743,8 @@ export const useStore = create<StoreState>()(
       prLanguages: ["English", "Mandarin", "Cantonese"],
       prDisplayName: null,
       prEmail: null,
+      prIcName: null,
+      prMobile: null,
       prAvatarPhoto: demoSnapshot.prAvatarPhoto,
       prPayrollAgencyId: null,
       setPrPayrollAgency: (agencyId) => {
@@ -1799,10 +1806,14 @@ export const useStore = create<StoreState>()(
       savePrProfile: (data) => {
         const prId = getPrRosterId(get().prSubRole);
         const displayName = data.displayName.trim();
+        const icName = data.icName.trim();
+        const mobile = data.mobile.trim();
         const email = data.email.trim();
         set((st) => {
           const portal = {
             prDisplayName: displayName,
+            prIcName: icName,
+            prMobile: mobile,
             prEmail: email,
             prAvatarPhoto: data.avatarPhoto,
             prComcard: data.comcard,
@@ -1815,6 +1826,8 @@ export const useStore = create<StoreState>()(
           );
           return {
             prDisplayName: displayName,
+            prIcName: icName,
+            prMobile: mobile,
             prEmail: email,
             prAvatarPhoto: data.avatarPhoto,
             prComcard: data.comcard,
@@ -1826,6 +1839,32 @@ export const useStore = create<StoreState>()(
           };
         });
         get().toast("Profile saved — synced across agency roster & outlet", "success");
+      },
+      savePrContact: (patch) => {
+        const st = get();
+        const prId = getPrRosterId(st.prSubRole);
+        const email = patch.email?.trim() ?? st.prEmail;
+        const mobile = patch.mobile?.trim() ?? st.prMobile;
+        set((cur) => {
+          const portal = {
+            prDisplayName: cur.prDisplayName,
+            prIcName: cur.prIcName,
+            prMobile: mobile,
+            prEmail: email,
+            prAvatarPhoto: cur.prAvatarPhoto,
+            prComcard: cur.prComcard,
+            prPortfolio: cur.prPortfolio,
+            prLanguages: cur.prLanguages,
+          };
+          const nextAgencyPRs = cur.agencyPRs.map((p) => syncAgencyPrFromPrPortal(p, prId, portal));
+          return {
+            prEmail: email,
+            prMobile: mobile,
+            agencyPRs: nextAgencyPRs,
+            prs: marketplacePrsFromAgency(nextAgencyPRs),
+          };
+        });
+        get().toast(patch.email ? "Email updated" : "Mobile number updated", "success");
       },
 
       prPaymentVouchers: demoSnapshot.prPaymentVouchers,
@@ -5122,6 +5161,8 @@ export const useStore = create<StoreState>()(
         const portalForAgencySync = {
           prDisplayName:
             p?.prDisplayName === "Luna" ? null : (p?.prDisplayName ?? current.prDisplayName),
+          prIcName: p?.prIcName ?? current.prIcName,
+          prMobile: p?.prMobile ?? current.prMobile,
           prEmail: (() => {
             const raw = p?.prEmail ?? current.prEmail;
             if (!raw || raw.toLowerCase() === "luna@inz.my") return null;

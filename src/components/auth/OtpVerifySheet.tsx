@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
-import { IzSheet } from "@/components/iz/Sheet";
+import { IzSheet, type SheetVariant } from "@/components/iz/Sheet";
+
+import { verifyDemoOtp } from "@/lib/verify-demo-otp";
 
 export function isValidDemoOtp(code: string) {
-  return code === "123456" || code.length === 6;
+  return verifyDemoOtp(code);
 }
 
 export function OtpVerifySheet({
@@ -15,6 +17,7 @@ export function OtpVerifySheet({
   onVerify,
   onResend,
   verifyLabel = "Verify OTP",
+  variant = "dialog",
 }: {
   open: boolean;
   onClose: () => void;
@@ -25,9 +28,10 @@ export function OtpVerifySheet({
   onVerify: () => void;
   onResend: () => void;
   verifyLabel?: string;
+  variant?: SheetVariant;
 }) {
   return (
-    <IzSheet open={open} onClose={onClose}>
+    <IzSheet open={open} onClose={onClose} variant={variant}>
       <div className="iz-cardttl">{title}</div>
       <p className="iz-tiny iz-muted mb-3">{description}</p>
       <input

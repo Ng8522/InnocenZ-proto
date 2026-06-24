@@ -288,7 +288,7 @@ export function PrAgencySchedulePanel({
         onSubmit={submitCancel}
         submitLabel={
           cancelEval && cancelEval.deductionRm > 0
-            ? `Cancel & accept ΓêÆRM ${cancelEval.deductionRm}`
+            ? `Cancel & accept −RM ${cancelEval.deductionRm}`
             : "Cancel shift"
         }
       />
@@ -301,7 +301,7 @@ function SourceBadge({ source, label }: { source: ShiftDataSource; label: string
   return (
     <span className={cn("iz-pr-source-badge", isAgency ? "is-agency" : "is-outlet")}>
       {isAgency ? <Shield className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
-      {isAgency ? "Agency" : "Outlet"} ┬╖ {label}
+      {isAgency ? "Agency" : "Outlet"} · {label}
     </span>
   );
 }
@@ -337,7 +337,7 @@ function TimetableRow({
           </dl>
           {slot?.payDeductionRm ? (
             <p className="iz-tiny mt-2 text-[var(--iz-red)]">
-              ΓêÆRM {slot.payDeductionRm} logged ┬╖ {slot.cancelledAt}
+              −RM {slot.payDeductionRm} logged · {slot.cancelledAt}
             </p>
           ) : null}
         </div>

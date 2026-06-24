@@ -13,9 +13,20 @@ import {
 } from "@/lib/pr-demo";
 import { buildAgencyPayee } from "@/lib/pv-template";
 import { downloadPvBreakdownCsv, downloadPvBreakdownPdf } from "@/lib/pv-pdf";
-import { summarizePv } from "@/lib/pv-breakdown";
+import { summarizePv, type PvEarningsBreakdown } from "@/lib/pv-breakdown";
 import type { AgencyManagedPR } from "@/lib/agency-demo";
 import { useStore } from "@/lib/store";
+
+function pvBreakdownDisplayRows(breakdown: PvEarningsBreakdown) {
+  const rows = [
+    { label: "Daily wages", value: breakdown.wages },
+    { label: "Drink commissions", value: breakdown.drinks },
+    { label: "Tip commissions", value: breakdown.tips },
+    { label: "Overtime (check-out)", value: breakdown.overtime },
+  ].filter((r) => r.value > 0);
+  if (breakdown.other > 0) rows.push({ label: "Other", value: breakdown.other });
+  return rows;
+}
 
 export function AgencyPaidPvDetail({
   pv,
@@ -31,6 +42,7 @@ export function AgencyPaidPvDetail({
   const toast = useStore((s) => s.toast);
   const payee = buildAgencyPayee(pv, agencyPRs);
   const breakdown = summarizePv(pv);
+  const breakdownRows = pvBreakdownDisplayRows(breakdown);
 
   return (
     <div className="iz-screen">
@@ -44,7 +56,7 @@ export function AgencyPaidPvDetail({
 
       <IzCard flat className="mb-2">
         <p className="iz-tiny iz-muted2">4-part earnings breakdown</p>
-        {breakdown.rows.map((r) => (
+        {breakdownRows.map((r) => (
           <div key={r.label} className="iz-v-sum">
             <span className="iz-muted">{r.label}</span>
             <b>{formatRM(r.value)}</b>

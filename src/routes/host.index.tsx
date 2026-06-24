@@ -365,7 +365,7 @@ function HostShifts() {
                   outlet={activeShift.outlet}
                   date={fmtDFriendly(activeShift.date[0], activeShift.date[1], activeShift.date[2])}
                   time={activeShift.time}
-                  footnote={`${activeShift.event} ┬╖ ${formatRM(activeShift.base + activeShift.comm)}`}
+                  footnote={`${activeShift.event} · ${formatRM(activeShift.base + activeShift.comm)}`}
                 >
                   <Link to="/host/tonight" className="iz-btn iz-btn-primary iz-btn-sm mt-3 w-full">
                     <MapPin className="h-3.5 w-3.5" />
@@ -411,7 +411,7 @@ function HostShifts() {
                       key={pv.id}
                       icon={<FileText className="h-4 w-4" />}
                       title="Review payment voucher"
-                      subtitle={`${pv.outlet} ┬╖ ${pv.cycle} ┬╖ ${formatRM(pv.net)}`}
+                      subtitle={`${pv.outlet} · ${pv.cycle} · ${formatRM(pv.net)}`}
                       actionLabel="Review PV"
                       to="/host/PaymentVoucher"
                       search={{ pvId: pv.id }}
@@ -431,7 +431,7 @@ function HostShifts() {
                     <InboxCard
                       key={offer.id}
                       title={offer.outlet}
-                      subtitle={`Cover for ${offer.requestingPrName} ┬╖ ${offer.date} ┬╖ ${offer.shift}`}
+                      subtitle={`Cover for ${offer.requestingPrName} · ${offer.date} · ${offer.shift}`}
                       onApprove={() => acceptSwapReplacement(offer.id)}
                       onReject={() => {
                         setSwapRejectId(offer.id);
@@ -443,7 +443,7 @@ function HostShifts() {
                     <div key={slot.id} className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
                       <PrOfferRow
                         title={slot.outlet}
-                        subtitle={`${slot.date} ┬╖ ${slot.shift} ┬╖ Agency assigned ΓÇö awaiting outlet roster sync`}
+                        subtitle={`${slot.date} · ${slot.shift} · Agency assigned — awaiting outlet roster sync`}
                         badge={<PrStatusPill variant="amber">Outlet pending</PrStatusPill>}
                       />
                     </div>
@@ -452,7 +452,7 @@ function HostShifts() {
                     <div className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
                       <PrOfferRow
                         title="Agency assignment"
-                        subtitle="Your agency is finalizing this shift ΓÇö no action needed from you"
+                        subtitle="Your agency is finalizing this shift — no action needed from you"
                         badge={<PrStatusPill variant="amber">Pending</PrStatusPill>}
                       />
                     </div>
@@ -472,7 +472,7 @@ function HostShifts() {
 
             {!tied && prFreelancerLowRatingStrikes >= 3 && (
               <p className="iz-pr-note mt-3 border-[rgba(255,107,107,.35)] text-[var(--iz-red)]">
-                Marketplace suspended ΓÇö 3 ratings below 3.0Γÿà. See Profile for details.
+                Marketplace suspended — 3 ratings below 3.0★. See Profile for details.
               </p>
             )}
 
@@ -521,7 +521,7 @@ function HostShifts() {
                     <div key={l.id} className="iz-pr-inbox-card">
                       <PrOfferRow
                         title={l.outlet}
-                        subtitle={`${fmtDFriendly(l.date[0], l.date[1], l.date[2])} ┬╖ ${l.time} ┬╖ ${l.area}`}
+                        subtitle={`${fmtDFriendly(l.date[0], l.date[1], l.date[2])} · ${l.time} · ${l.area}`}
                         amount={formatRM(l.rate)}
                         onClick={hideOfferActions ? undefined : () => setConfirmMktId(l.id)}
                       />
@@ -658,7 +658,7 @@ function HostShifts() {
       >
         <div className="iz-cardttl">Decline coverage</div>
         <p className="iz-tiny iz-muted mb-3">
-          Tell the agency why you cannot take this shift ΓÇö they will find someone else.
+          Tell the agency why you cannot take this shift — they will find someone else.
         </p>
         <textarea
           className="iz-pv-dispute-input mb-3"
@@ -841,7 +841,7 @@ function OfferDetailSheet({
     <>
       <div className="iz-cardttl">{listing.outlet}</div>
       <p className="iz-tiny iz-muted mb-1">
-        {fmtDFriendly(listing.date[0], listing.date[1], listing.date[2])} ┬╖ {listing.time}
+        {fmtDFriendly(listing.date[0], listing.date[1], listing.date[2])} · {listing.time}
       </p>
       <p className="iz-tiny iz-muted mb-3">{listing.event}</p>
       <div className="iz-gps-map mb-2" style={{ height: 64 }}>
@@ -864,7 +864,7 @@ function OfferDetailSheet({
         <div className="mb-4 space-y-1">
           {listing.tierSlots.map((s) => (
             <p key={s.tier} className="iz-tiny iz-muted2">
-              {s.tier} ├ù{s.count} ┬╖ {s.hours}
+              {s.tier} ×{s.count} · {s.hours}
             </p>
           ))}
         </div>

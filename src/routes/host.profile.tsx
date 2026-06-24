@@ -1,6 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
+import { PrSecuritySettingsSheets } from "@/components/pr/PrSecuritySettingsSheets";
 import { useStore } from "@/lib/store";
 import { goToWelcome } from "@/lib/go-welcome";
 import { PORTFOLIO_SLOT_COUNT, getPrProfile, getPrRosterId, resolvePrAccountFields, type PrComcard } from "@/lib/pr-demo";
@@ -52,7 +53,6 @@ function buildProfileDraft(
 }
 
 function ProfilePage() {
-  const navigate = useNavigate();
   const prSubRole = useStore((s) => s.prSubRole);
   const prFreelancerLowRatingStrikes = useStore((s) => s.prFreelancerLowRatingStrikes);
   const demoFreelancerLowRatingStrike = useStore((s) => s.demoFreelancerLowRatingStrike);
@@ -66,6 +66,7 @@ function ProfilePage() {
   const agencyPRs = useStore((s) => s.agencyPRs);
   const prAvatarPhoto = useStore((s) => s.prAvatarPhoto);
   const savePrProfile = useStore((s) => s.savePrProfile);
+  const savePrContact = useStore((s) => s.savePrContact);
   const signOut = useStore((s) => s.signOut);
   const toast = useStore((s) => s.toast);
 
@@ -81,6 +82,7 @@ function ProfilePage() {
   });
 
   const [editing, setEditing] = useState(false);
+  const [securityOpen, setSecurityOpen] = useState(false);
   const [draft, setDraft] = useState<ProfileDraft>(() =>
     buildProfileDraft(account, prAvatarPhoto, prComcard, prPortfolio, prLanguages),
   );
@@ -110,12 +112,12 @@ function ProfilePage() {
       toast("Enter your IC name (legal full name)", "warn");
       return;
     }
-    const mobile = draft.mobile.trim();
+    const mobile = account.mobile.trim();
     if (!mobile) {
       toast("Enter your mobile number", "warn");
       return;
     }
-    const email = draft.email.trim();
+    const email = account.email.trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast("Enter a valid email address", "warn");
       return;
@@ -310,28 +312,17 @@ function ProfilePage() {
                     onChange={(e) => setDraft((p) => ({ ...p, icName: e.target.value }))}
                   />
                 </div>
-                <div className="iz-field iz-pr-account-hero__name-field !mb-0 mt-2">
-                  <label className="!text-[9px]">Mobile</label>
-                  <input
-                    type="tel"
-                    value={draft.mobile}
-                    maxLength={24}
-                    placeholder="+60 12-345 6789"
-                    autoComplete="tel"
-                    onChange={(e) => setDraft((p) => ({ ...p, mobile: e.target.value }))}
-                  />
-                </div>
-                <div className="iz-field iz-pr-account-hero__name-field !mb-0 mt-2">
-                  <label className="!text-[9px]">Email</label>
-                  <input
-                    type="email"
-                    value={draft.email}
-                    maxLength={80}
-                    placeholder="you@example.com"
-                    autoComplete="email"
-                    onChange={(e) => setDraft((p) => ({ ...p, email: e.target.value }))}
-                  />
-                </div>
+                <p className="iz-tiny iz-muted2 mt-2">
+                  Mobile and email are updated in{" "}
+                  <button
+                    type="button"
+                    className="text-[var(--iz-gold-l)] underline"
+                    onClick={() => setSecurityOpen(true)}
+                  >
+                    Security settings
+                  </button>{" "}
+                  (OTP required).
+                </p>
               </>
             ) : (
               <>
@@ -537,10 +528,19 @@ function ProfilePage() {
       <button
         type="button"
         className="mt-4 w-full rounded-full border border-[var(--iz-line2)] py-3 text-sm font-semibold text-[var(--iz-txt)]"
-        onClick={() => navigate({ to: "/host/security" })}
+        onClick={() => setSecurityOpen(true)}
       >
-        Change password
+        Security settings
       </button>
+
+      <PrSecuritySettingsSheets
+        open={securityOpen}
+        onClose={() => setSecurityOpen(false)}
+        email={account.email}
+        mobile={account.mobile}
+        onUpdateEmail={(email) => savePrContact({ email })}
+        onUpdateMobile={(mobile) => savePrContact({ mobile })}
+      />
 
       <button
         type="button"

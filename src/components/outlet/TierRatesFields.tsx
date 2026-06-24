@@ -128,7 +128,7 @@ export function TierRatesFields({
   onPatchTier: (tier: OutletPrTier, patch: Partial<OutletTierRateSettings>) => void;
   readOnly?: boolean;
   hint?: string;
-  /** Hide OT and commission % ΓÇö wage per tier only */
+  /** Hide OT and commission % — wage per tier only */
   wageOnly?: boolean;
   /** Post Job: multiplier-scaled pay + optional sales targets per tier */
   postJob?: boolean;
@@ -173,11 +173,11 @@ export function TierRatesFields({
                   <>
                     Pay / hr for{" "}
                     <span className="text-[var(--iz-gold-l)]">{activeTier}</span>
-                    {" ┬╖ "}
-                    {tierMultipliers?.[activeTier]}├ù base
+                    {" · "}
+                    {tierMultipliers?.[activeTier]}× base
                   </>
                 )}
-                {" ┬╖ "}optional sales target below
+                {" · "}optional sales target below
               </>
             ) : wageOnly ? (
               <>

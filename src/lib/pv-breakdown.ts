@@ -18,7 +18,7 @@ function bucketRow(desc: string, amt: number, buckets: PvEarningsBreakdown) {
   else buckets.other += amt;
 }
 
-export function summarizePvRows(rows: PrPvRow[]): PvEarningsBreakdown {
+export function summarizePvRows(rows: PrPvRow[] = []): PvEarningsBreakdown {
   const buckets: PvEarningsBreakdown = {
     wages: 0,
     drinks: 0,
@@ -33,7 +33,7 @@ export function summarizePvRows(rows: PrPvRow[]): PvEarningsBreakdown {
 }
 
 export function summarizePv(pv: PrPaymentVoucher): PvEarningsBreakdown {
-  return summarizePvRows(pv.rows);
+  return summarizePvRows(pv.rows ?? []);
 }
 
 export const PV_WORKFLOW_STEPS = [

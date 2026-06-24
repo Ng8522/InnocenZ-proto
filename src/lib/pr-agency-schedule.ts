@@ -5,7 +5,7 @@ import { addDaysToIso, getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/de
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
 
-/** Atlas payroll cycle window ΓÇö agency publishes shifts here (live Sun through +3 weeks). */
+/** Atlas payroll cycle window — agency publishes shifts here (live Sun through +3 weeks). */
 export function getAgencyScheduleFromIso(): string {
   return getPayrollWeekSundayIso();
 }
@@ -35,7 +35,7 @@ function ymdFromIso(iso: string): [number, number, number] {
   return [y, m, d];
 }
 
-/** Future shifts ΓÇö roster assignments, swaps, bookings + outlet-confirmed upcoming list. */
+/** Future shifts — roster assignments, swaps, bookings + outlet-confirmed upcoming list. */
 export function buildPrUpcomingEvents(
   prId: string,
   roster: AgencyRosterSlot[],
@@ -71,7 +71,7 @@ export function buildPrUpcomingEvents(
         date: dateYmd,
         time: slot.shift,
         kind: "swap",
-        detail: `Move to ${slot.outletSwap.targetOutlet} ΓÇö ${slot.outletSwap.agencyNote ?? "agency swap request"}`,
+        detail: `Move to ${slot.outletSwap.targetOutlet} — ${slot.outletSwap.agencyNote ?? "agency swap request"}`,
       });
       covered.add(key);
       continue;
@@ -104,7 +104,7 @@ export function buildPrUpcomingEvents(
           kind: slot.status === "swap-pending" ? "pending" : "confirmed",
           detail:
             slot.status === "swap-pending"
-              ? "Swap in progress ΓÇö awaiting outlet confirmation"
+              ? "Swap in progress — awaiting outlet confirmation"
               : "Scheduled on agency roster",
         });
         covered.add(key);
@@ -332,7 +332,7 @@ function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
       statusVariant: "amber",
       source: "agency",
       sourceLabel: agency,
-      sourceDetail: `Move to ${slot.outletSwap.targetOutlet} ΓÇö ${slot.outletSwap.agencyNote ?? "agency request"}`,
+      sourceDetail: `Move to ${slot.outletSwap.targetOutlet} — ${slot.outletSwap.agencyNote ?? "agency request"}`,
       slot,
     };
   }

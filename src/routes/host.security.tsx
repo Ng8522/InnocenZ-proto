@@ -1,11 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppTopbar } from "@/components/Nav";
+import { PrSecuritySettingsSheets } from "@/components/pr/PrSecuritySettingsSheets";
 import { IzCard } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import { goToWelcome } from "@/lib/go-welcome";
-import { ChevronRight, Eye, EyeOff, Trash2, X } from "lucide-react";
+import { getPrProfile, getPrRosterId, resolvePrAccountFields } from "@/lib/pr-demo";
+import { ChevronRight, Trash2, X } from "lucide-react";
 
 export const Route = createFileRoute("/host/security")({
   component: SecuritySettingsPage,
@@ -15,41 +17,30 @@ function SecuritySettingsPage() {
   const navigate = useNavigate();
   const toast = useStore((s) => s.toast);
   const signOut = useStore((s) => s.signOut);
+  const prSubRole = useStore((s) => s.prSubRole);
+  const prDisplayName = useStore((s) => s.prDisplayName);
+  const prIcName = useStore((s) => s.prIcName);
+  const prMobile = useStore((s) => s.prMobile);
+  const prEmail = useStore((s) => s.prEmail);
+  const agencyPRs = useStore((s) => s.agencyPRs);
+  const savePrContact = useStore((s) => s.savePrContact);
 
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [securityOpen, setSecurityOpen] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const changePassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentPassword.trim()) {
-      toast("Enter your current password", "warn");
-      return;
-    }
-    if (!newPassword.trim()) {
-      toast("Enter a new password", "warn");
-      return;
-    }
-    if (newPassword.length < 6) {
-      toast("New password must be at least 6 characters", "warn");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast("New passwords do not match", "warn");
-      return;
-    }
-    if (newPassword === currentPassword) {
-      toast("New password must be different from your current password", "warn");
-      return;
-    }
-    toast("Password updated successfully", "success");
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+  const profile = getPrProfile(prSubRole);
+  const agencyPr = agencyPRs.find((p) => p.id === getPrRosterId(prSubRole));
+  const account = resolvePrAccountFields(prSubRole, {
+    prDisplayName,
+    prIcName,
+    prMobile,
+    prEmail,
+    agencyPr,
+  });
+
+  const closeSecurity = () => {
+    setSecurityOpen(false);
+    navigate({ to: "/host/profile" });
   };
 
   const confirmDeleteAccount = () => {
@@ -63,60 +54,23 @@ function SecuritySettingsPage() {
     <div className="iz-screen">
       <AppTopbar backTo="/host/profile" backLabel="Profile" />
 
-      <IzCard glow className="iz-security-card mt-3">
-        <div className="iz-security-card__head">
-          <h1 className="iz-security-card__title">Security Settings</h1>
-          <button
-            type="button"
-            className="iz-sheet-close"
-            aria-label="Close"
-            onClick={() => navigate({ to: "/host/profile" })}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+      <header className="mb-2">
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Security settings</h2>
+        <p className="iz-tiny iz-muted mt-0.5">{profile.name}</p>
+      </header>
 
-        <form onSubmit={changePassword} className="iz-security-form">
-          <PasswordField
-            label="Current password"
-            placeholder="Enter your current password"
-            value={currentPassword}
-            onChange={setCurrentPassword}
-            show={showCurrent}
-            onToggleShow={() => setShowCurrent((v) => !v)}
-            autoComplete="current-password"
-          />
-          <PasswordField
-            label="New password"
-            placeholder="Enter your new password"
-            value={newPassword}
-            onChange={setNewPassword}
-            show={showNew}
-            onToggleShow={() => setShowNew((v) => !v)}
-            autoComplete="new-password"
-          />
-          <PasswordField
-            label="Confirm new password"
-            placeholder="Confirm your new password"
-            value={confirmPassword}
-            onChange={setConfirmPassword}
-            show={showConfirm}
-            onToggleShow={() => setShowConfirm((v) => !v)}
-            autoComplete="new-password"
-          />
-
-          <button type="submit" className="iz-btn iz-btn-primary iz-security-form__submit">
-            Change password
-          </button>
-        </form>
-
-        <div className="iz-divider iz-security-divider" />
-
+      <IzCard className="iz-security-card">
         <button
           type="button"
-          className="iz-security-delete"
-          onClick={() => setDeleteOpen(true)}
+          className="iz-btn iz-btn-primary w-full"
+          onClick={() => setSecurityOpen(true)}
         >
+          Open security settings
+        </button>
+      </IzCard>
+
+      <IzCard className="iz-security-card mt-4">
+        <button type="button" className="iz-security-delete" onClick={() => setDeleteOpen(true)}>
           <span className="iz-security-delete__icon" aria-hidden>
             <Trash2 className="h-4 w-4" />
           </span>
@@ -124,6 +78,15 @@ function SecuritySettingsPage() {
           <ChevronRight className="iz-security-delete__chevron" aria-hidden />
         </button>
       </IzCard>
+
+      <PrSecuritySettingsSheets
+        open={securityOpen}
+        onClose={closeSecurity}
+        email={account.email}
+        mobile={account.mobile}
+        onUpdateEmail={(email) => savePrContact({ email })}
+        onUpdateMobile={(mobile) => savePrContact({ mobile })}
+      />
 
       <IzSheet open={deleteOpen} onClose={() => setDeleteOpen(false)}>
         <div className="iz-sheet-head">
@@ -150,47 +113,6 @@ function SecuritySettingsPage() {
           </button>
         </div>
       </IzSheet>
-    </div>
-  );
-}
-
-function PasswordField({
-  label,
-  placeholder,
-  value,
-  onChange,
-  show,
-  onToggleShow,
-  autoComplete,
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-  show: boolean;
-  onToggleShow: () => void;
-  autoComplete?: string;
-}) {
-  return (
-    <div className="iz-field iz-security-field">
-      <label>{label}</label>
-      <div className="iz-security-field__wrap">
-        <input
-          type={show ? "text" : "password"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
-        />
-        <button
-          type="button"
-          className="iz-signin-password-toggle iz-security-field__toggle"
-          aria-label={show ? "Hide password" : "Show password"}
-          onClick={onToggleShow}
-        >
-          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-      </div>
     </div>
   );
 }

@@ -8384,9 +8384,17 @@ button.iz-agency-row:hover {
   font-size: 13px;
 }
 
+/* Agency + outlet — scale root rem so Tailwind text-* utilities read larger */
+html:has(.iz-portal),
+html:has(.iz-portal-auth) {
+  --iz-portal-fs: 20px;
+  font-size: var(--iz-portal-fs);
+}
+
 /* ── Responsive portal shell (agency + outlet) ── */
 .iz-portal {
   --iz-portal-sidebar-w: 240px;
+  --iz-portal-fs: 20px;
   min-height: 100dvh;
   display: flex;
   background: #03020a;
@@ -8395,6 +8403,175 @@ button.iz-agency-row:hover {
     radial-gradient(800px 500px at -10% 110%, rgba(217, 185, 122, 0.06), transparent 55%);
   color: var(--iz-txt);
   font-family: "Manrope", sans-serif;
+  font-size: var(--iz-portal-fs);
+  line-height: 1.5;
+}
+
+/* Main content — larger type for readability (sidebar has its own scale) */
+.iz-portal-main .iz-tiny,
+.iz-portal-auth .iz-tiny {
+  font-size: 16px;
+  line-height: 1.55;
+}
+.iz-portal-main .iz-sm,
+.iz-portal-auth .iz-sm {
+  font-size: 18px;
+}
+.iz-portal-main .iz-sect-label,
+.iz-portal-auth .iz-sect-label {
+  font-size: 14px;
+  letter-spacing: 1.5px;
+}
+.iz-portal-main .iz-btn,
+.iz-portal-auth .iz-btn {
+  font-size: 19px;
+  padding: 14px 16px;
+}
+.iz-portal-main .iz-btn-sm,
+.iz-portal-auth .iz-btn-sm {
+  font-size: 16px;
+  padding: 10px 14px;
+}
+.iz-portal-main .iz-pill,
+.iz-portal-auth .iz-pill {
+  font-size: 14px;
+  padding: 6px 12px;
+}
+.iz-portal-main .iz-chip,
+.iz-portal-auth .iz-chip {
+  font-size: 16px;
+  padding: 7px 12px;
+}
+.iz-portal-main .iz-select,
+.iz-portal-auth .iz-select {
+  font-size: 16px;
+  padding: 10px 32px 10px 12px;
+}
+.iz-portal-main .iz-field label,
+.iz-portal-auth .iz-field label,
+.iz-portal-main .iz-field-label,
+.iz-portal-auth .iz-field-label {
+  font-size: 16px;
+}
+.iz-portal-main .iz-field input,
+.iz-portal-main .iz-field textarea,
+.iz-portal-main .iz-field select,
+.iz-portal-auth .iz-field input,
+.iz-portal-auth .iz-field textarea,
+.iz-portal-auth .iz-field select,
+.iz-portal-main .iz-field-input,
+.iz-portal-auth .iz-field-input {
+  font-size: 18px;
+}
+.iz-portal-main .iz-card,
+.iz-portal-auth .iz-card {
+  font-size: 18px;
+}
+.iz-portal-main .iz-portal-table {
+  font-size: 16px;
+}
+.iz-portal-main .iz-portal-table th {
+  font-size: 14px;
+}
+.iz-portal-main .iz-portal-table-name {
+  font-size: 18px;
+}
+.iz-portal-main .iz-portal-kpi .l {
+  font-size: 14px;
+}
+.iz-portal-main .iz-portal-kpi .n {
+  font-size: 36px;
+}
+.iz-portal-main .iz-time-picker-btn {
+  font-size: 16px;
+  min-height: 42px;
+}
+.iz-portal-main .iz-time-picker-col-btn {
+  font-size: 16px;
+}
+.iz-portal-main .iz-outlet-report-range-target-label {
+  font-size: 12px;
+}
+.iz-portal-main .iz-outlet-report-range-target-value {
+  font-size: 16px;
+}
+.iz-portal-main .text-xs,
+.iz-portal-auth .text-xs {
+  font-size: 0.875rem !important;
+  line-height: 1.3rem !important;
+}
+.iz-portal-main .text-sm,
+.iz-portal-auth .text-sm {
+  font-size: 1rem !important;
+  line-height: 1.45rem !important;
+}
+.iz-portal-main .text-base,
+.iz-portal-auth .text-base {
+  font-size: 1.125rem !important;
+}
+.iz-portal-main .text-lg,
+.iz-portal-auth .text-lg,
+.iz-portal-main h2.font-sora.text-lg,
+.iz-portal-auth h2.font-sora.text-lg {
+  font-size: 1.3125rem !important;
+  line-height: 1.65rem !important;
+}
+.iz-portal-main .text-xl,
+.iz-portal-auth .text-xl {
+  font-size: 1.5rem !important;
+}
+.iz-portal-main .text-2xl,
+.iz-portal-auth .text-2xl {
+  font-size: 1.75rem !important;
+}
+.iz-portal-main .text-\[9px\],
+.iz-portal-auth .text-\[9px\] {
+  font-size: 14px !important;
+}
+.iz-portal-main .text-\[10px\],
+.iz-portal-auth .text-\[10px\] {
+  font-size: 14px !important;
+}
+.iz-portal-main .text-\[11px\],
+.iz-portal-auth .text-\[11px\] {
+  font-size: 16px !important;
+}
+.iz-portal-main header h2.font-sora {
+  font-size: 1.45rem;
+}
+.iz-portal-main .iz-portal-header h1 {
+  font-size: 1.45rem;
+}
+@media (min-width: 768px) {
+  .iz-portal-main .iz-portal-header h1 {
+    font-size: 1.85rem;
+  }
+}
+.iz-portal-main .iz-collapsible-section__title {
+  font-size: 16px;
+}
+.iz-portal-main .iz-collapsible-section__hint,
+.iz-portal-main .iz-collapsible-section__action {
+  font-size: 14px;
+}
+.iz-portal-main .iz-roster-table {
+  font-size: 16px;
+}
+.iz-portal-main .iz-roster-table th {
+  font-size: 12px;
+}
+.iz-portal-main .iz-pr-week-pay__table {
+  font-size: 14px;
+}
+.iz-portal-main .iz-pr-week-pay__row-label {
+  font-size: 14px;
+}
+.iz-portal-main .iz-pr-week-pay--large .iz-pr-week-pay__table {
+  font-size: 16px;
+}
+.iz-portal .iz-tabbar a,
+.iz-portal .iz-tabbar button {
+  font-size: 12px;
 }
 
 .iz-portal-sidebar {
@@ -8409,6 +8586,21 @@ button.iz-agency-row:hover {
   top: 0;
   height: 100dvh;
   overflow-y: auto;
+  font-size: 15px;
+}
+
+.iz-portal-sidebar .iz-portal-nav-link {
+  font-size: 15px;
+  padding: 10px 12px;
+}
+
+.iz-portal-sidebar .iz-wordmark,
+.iz-portal-sidebar .iz-wordmark.text-lg {
+  font-size: 20px !important;
+}
+
+.iz-portal-sidebar .iz-tiny {
+  font-size: 12px;
 }
 
 .iz-portal-sidebar-brand {
@@ -9307,6 +9499,8 @@ button.iz-agency-row:hover {
     radial-gradient(800px 500px at -10% 110%, rgba(217, 185, 122, 0.06), transparent 55%);
   color: var(--iz-txt);
   font-family: "Manrope", sans-serif;
+  font-size: 20px;
+  line-height: 1.5;
 }
 
 .iz-portal-auth-brand {

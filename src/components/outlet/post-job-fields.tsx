@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { format, startOfToday } from "date-fns";
-import { CalendarIcon, Check, ChevronDown, Minus, Pencil, Plus, X } from "lucide-react";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format, startOfToday, addDays } from "date-fns";
+import { Check, HelpCircle, Minus, Pencil, Plus, X } from "lucide-react";
+import { OutletDatePopoverChip, OutletDatePopoverField, OutletDateRangePopover } from "@/components/outlet/outlet-date-popover";
 import { IzCard, IzSelect } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
 import { TierRatesFields } from "@/components/outlet/TierRatesFields";
@@ -30,6 +29,8 @@ import {
   cloneDrinkMenu,
   DRESS_CODE_OPTIONS,
   drinkMenuPriceRange,
+  formatOutletPlanPrPickerRule,
+  getOutletSubscriptionPlan,
   SHIFT_DESTINATION_LABELS,
   SHIFT_EVENT_KIND_LABELS,
   SHIFT_SPECIAL_EVENT_OPTIONS,
@@ -40,6 +41,15 @@ import {
   type ShiftSpecialEventType,
 } from "@/lib/outlet-demo";
 import { OutletDrinkMenuEditor } from "@/components/outlet/OutletDrinkMenuEditor";
+import {
+  buildOutletWeeklyTopPrRanks,
+  prWeeklyRankContext,
+  TOP_PR_RANK_STYLES,
+  type PrWeekTopRank,
+  weekLabelForSundayIso,
+  weekSundayIsoForDate,
+} from "@/lib/outlet-pr-weekly-ranks";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const DEFAULT_DRAFT_TIER_BASE: OutletTierRateSettings = {
   wagePerHour: 60,
@@ -67,6 +77,7 @@ export function languagesForPrIds(prIds: string[], agencyPRs: AgencyManagedPR[])
 export type DraftShift = {
   id: string;
   jobDate: Date;
+  jobEndDate: Date;
   event: string;
   eventKind: ShiftEventKind;
   specialEventType?: ShiftSpecialEventType;
@@ -104,6 +115,7 @@ export function newDraftShift(
   return {
     id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     jobDate: partial?.jobDate ?? startOfToday(),
+    jobEndDate: partial?.jobEndDate ?? partial?.jobDate ?? startOfToday(),
     event: partial?.event ?? "Private VIP - Hennessy Launch",
     eventKind,
     specialEventType: partial?.specialEventType ?? "vip",
@@ -196,6 +208,41 @@ export function isoFromJobDate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+export type JobDateSpan = "3d" | "week";
+
+function normalizeJobDateRange(from: Date, to: Date): { from: Date; to: Date } {
+  const start = new Date(from);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(to);
+  end.setHours(0, 0, 0, 0);
+  if (end < start) return { from: end, to: start };
+  return { from: start, to: end };
+}
+
+export function eachJobDateInRange(from: Date, to: Date): Date[] {
+  const { from: start, to: end } = normalizeJobDateRange(from, to);
+  const dates: Date[] = [];
+  let cur = start;
+  while (cur <= end) {
+    dates.push(new Date(cur));
+    cur = addDays(cur, 1);
+  }
+  return dates;
+}
+
+export function formatJobDateRange(from: Date, to: Date): string {
+  if (isoFromJobDate(from) === isoFromJobDate(to)) return formatJobDate(from);
+  return `${formatJobDate(from)} → ${formatJobDate(to)}`;
+}
+
+export function jobEndDateForSpan(from: Date, span: JobDateSpan): Date {
+  return addDays(from, span === "3d" ? 2 : 6);
+}
+
+function jobRangeMatchesSpan(from: Date, to: Date, span: JobDateSpan): boolean {
+  return isoFromJobDate(to) === isoFromJobDate(jobEndDateForSpan(from, span));
 }
 
 export function starTierToMinRating(tier: number): number {
@@ -308,40 +355,90 @@ export function JobTextInput({
   );
 }
 
-export function JobDatePicker({ value, onChange }: { value: Date; onChange: (d: Date) => void }) {
-  const [open, setOpen] = useState(false);
+export function JobDatePicker({
+  value,
+  onChange,
+  layout = "chip",
+  className,
+}: {
+  value: Date;
+  onChange: (d: Date) => void;
+  layout?: "chip" | "field";
+  className?: string;
+}) {
   const label = formatJobDate(value);
+  const isPast = (date: Date) => date < startOfToday();
+
+  if (layout === "field") {
+    return (
+      <OutletDatePopoverField
+        label="Date"
+        value={value}
+        displayLabel={label}
+        onChange={onChange}
+        disabled={isPast}
+        align="start"
+        className={cn("w-full", className)}
+      />
+    );
+  }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="iz-chip flex items-center gap-1.5 py-1.5 pl-2.5 pr-2 text-sm font-semibold text-[var(--iz-txt)]"
-        >
-          <CalendarIcon className="h-3.5 w-3.5 text-[var(--iz-gold)]" />
-          {label}
-          <ChevronDown className="h-3.5 w-3.5 text-[var(--iz-muted)]" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-auto border-[var(--iz-line)] bg-[var(--iz-panel)] p-0 text-[var(--iz-txt)]"
-      >
-        <Calendar
-          mode="single"
-          selected={value}
-          onSelect={(d) => {
-            if (d) {
-              onChange(d);
-              setOpen(false);
-            }
-          }}
-          disabled={{ before: startOfToday() }}
-          className="rounded-md [--cell-size:2.25rem]"
-        />
-      </PopoverContent>
-    </Popover>
+    <OutletDatePopoverChip
+      value={value}
+      displayLabel={label}
+      onChange={onChange}
+      disabled={isPast}
+    />
+  );
+}
+
+export function JobDateRangePicker({
+  jobDate,
+  jobEndDate,
+  onChange,
+}: {
+  jobDate: Date;
+  jobEndDate: Date;
+  onChange: (patch: { jobDate: Date; jobEndDate: Date }) => void;
+}) {
+  const isPast = (date: Date) => date < startOfToday();
+
+  const applyRange = (from: Date, to: Date) => {
+    const n = normalizeJobDateRange(from, to);
+    onChange({ jobDate: n.from, jobEndDate: n.to });
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1">
+        {(["3d", "week"] as const).map((span) => (
+          <button
+            key={span}
+            type="button"
+            onClick={() => applyRange(jobDate, jobEndDateForSpan(jobDate, span))}
+            className={cn(
+              "iz-pill !text-[10px]",
+              jobRangeMatchesSpan(jobDate, jobEndDate, span) ? "iz-pill-gold" : "iz-pill-ink",
+            )}
+          >
+            {span === "3d" ? "3 days" : "1 week"}
+          </button>
+        ))}
+      </div>
+      <OutletDateRangePopover
+        from={jobDate}
+        to={jobEndDate}
+        onRangeChange={applyRange}
+        disabled={isPast}
+        formatRangeLabel={formatJobDateRange}
+        className="w-full"
+      />
+      <p className="iz-tiny iz-muted2">
+        {eachJobDateInRange(jobDate, jobEndDate).length} day
+        {eachJobDateInRange(jobDate, jobEndDate).length === 1 ? "" : "s"} in range
+      </p>
+    </div>
   );
 }
 
@@ -569,37 +666,132 @@ export function DraftPrPicker({
   onSelectedChange,
   quantity,
   excludePrIds,
+  poolSize,
+  maxSelect,
+  dailyRemaining,
+  poolHint,
+  referenceDate,
+  outletName,
 }: {
   selected: string[];
   onSelectedChange: (prIds: string[]) => void;
   quantity: number;
   /** PRs already on the shift or pending request — hidden from the picker */
   excludePrIds?: string[];
+  /** Subscription tier — max PRs shown in the scroll list */
+  poolSize?: number;
+  /** Subscription tier — max PRs selectable per shift */
+  maxSelect?: number;
+  /** Remaining PR slots today (subscription daily cap) */
+  dailyRemaining?: number;
+  poolHint?: string;
+  /** Shift night — used to highlight top 1–3 earners for that week */
+  referenceDate?: Date;
+  outletName?: string;
 }) {
   const prs = useStore((s) => s.prs);
+  const outletWorkspace = useStore((s) => s.outletWorkspace);
   const toast = useStore((s) => s.toast);
 
-  const blocked = useMemo(() => new Set(excludePrIds ?? []), [excludePrIds]);
+  const resolvedOutlet = outletName ?? outletWorkspace.outletName;
+  const referenceDateIso = referenceDate ? isoFromJobDate(referenceDate) : undefined;
+  const shiftWeekSun = referenceDateIso ? weekSundayIsoForDate(referenceDateIso) : undefined;
+  const shiftWeekLabel = shiftWeekSun ? weekLabelForSundayIso(shiftWeekSun) : undefined;
 
-  const candidates = useMemo(
-    () => [...prs].filter((p) => !blocked.has(p.id)).sort((a, b) => b.rating - a.rating),
-    [prs, blocked],
+  const weeklyRanks = useMemo(
+    () => buildOutletWeeklyTopPrRanks(resolvedOutlet),
+    [resolvedOutlet],
   );
+
+  const blocked = useMemo(() => new Set(excludePrIds ?? []), [excludePrIds]);
+  const selectCap = useMemo(() => {
+    if (maxSelect === undefined) return quantity;
+    let cap = maxSelect;
+    if (dailyRemaining !== undefined) cap = Math.min(cap, dailyRemaining);
+    return cap;
+  }, [maxSelect, quantity, dailyRemaining]);
+
+  const candidates = useMemo(() => {
+    const sorted = [...prs].filter((p) => !blocked.has(p.id)).sort((a, b) => {
+      if (shiftWeekSun) {
+        const rankA =
+          weeklyRanks.get(a.id)?.find((r) => r.weekSundayIso === shiftWeekSun)?.rank ?? 99;
+        const rankB =
+          weeklyRanks.get(b.id)?.find((r) => r.weekSundayIso === shiftWeekSun)?.rank ?? 99;
+        if (rankA !== rankB) return rankA - rankB;
+      }
+      return b.rating - a.rating;
+    });
+    return poolSize !== undefined ? sorted.slice(0, poolSize) : sorted;
+  }, [prs, blocked, poolSize, weeklyRanks, shiftWeekSun]);
 
   const toggle = (prId: string) => {
     const has = selected.includes(prId);
-    if (!has && selected.length >= quantity) {
-      toast(`This shift needs ${quantity} PR${quantity !== 1 ? "s" : ""} — remove one to add another`, "warn");
+    if (!has && selected.length >= selectCap) {
+      toast(
+        maxSelect !== undefined
+          ? dailyRemaining !== undefined && selected.length >= dailyRemaining
+            ? `Daily PR limit — ${dailyRemaining} slot${dailyRemaining === 1 ? "" : "s"} left today on your plan`
+            : `Your plan allows ${selectCap} PR${selectCap !== 1 ? "s" : ""} per shift — remove one to add another`
+          : `This shift needs ${quantity} PR${quantity !== 1 ? "s" : ""} — remove one to add another`,
+        "warn",
+      );
       return;
     }
     onSelectedChange(has ? selected.filter((id) => id !== prId) : [...selected, prId]);
   };
 
   return (
-    <div className="w-full min-w-0">
-      <div className="mb-2 flex items-center justify-between gap-2">
+    <TooltipProvider delayDuration={200}>
+      <div className="w-full min-w-0">
+        {poolHint && (
+          <p className="mb-2 text-[10px] leading-snug text-[var(--iz-muted2)]">{poolHint}</p>
+        )}
+        {shiftWeekLabel && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="text-[10px] text-[var(--iz-muted)]">Top earners · {shiftWeekLabel}</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[var(--iz-line)] text-[var(--iz-muted)]"
+                  aria-label="Top PR rank legend"
+                >
+                  <HelpCircle className="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[220px] text-xs leading-snug">
+                <p className="font-semibold text-[var(--iz-txt)]">Weekly top PRs</p>
+                <p className="mt-1 text-[var(--iz-muted2)]">
+                  #1–#3 = highest outlet payouts that week. Badges on cards match the shift week (
+                  {shiftWeekLabel}). Tap ? on a card to see other weeks they ranked top 3.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+            <span className="flex items-center gap-1.5 text-[9px] text-[var(--iz-muted2)]">
+              {([1, 2, 3] as const).map((n) => (
+                <span
+                  key={n}
+                  className={cn(
+                    "inline-flex h-4 min-w-[1.1rem] items-center justify-center rounded px-1 font-bold",
+                    TOP_PR_RANK_STYLES[n],
+                  )}
+                >
+                  #{n}
+                </span>
+              ))}
+            </span>
+          </div>
+        )}
+        <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[10px] text-[var(--iz-muted)]">
-          {selected.length}/{quantity} selected
+          {selected.length}/{selectCap} selected
+          {poolSize !== undefined && (
+            <span className="text-[var(--iz-muted2)]">
+              {" "}
+              · pool of {poolSize ?? candidates.length}
+            </span>
+          )}
         </span>
         {selected.length > 0 && (
           <button
@@ -617,19 +809,55 @@ export function DraftPrPicker({
         <IzHScroll className="-mx-4 flex gap-2 pb-1 pl-2 pr-4">
           {candidates.map((p) => {
             const on = selected.includes(p.id);
-            const full = !on && selected.length >= quantity;
+            const full = !on && selected.length >= selectCap;
+            const rankCtx = referenceDateIso
+              ? prWeeklyRankContext(p.id, referenceDateIso, weeklyRanks)
+              : { shiftWeek: undefined, otherWeeks: [] as PrWeekTopRank[] };
+            const otherWeeksTooltip =
+              rankCtx.otherWeeks.length > 0
+                ? `Also top ${rankCtx.otherWeeks.map((w) => `#${w.rank} · ${w.weekLabel}`).join(" · ")}`
+                : undefined;
+
             return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => toggle(p.id)}
-                disabled={full}
-                className={cn(
-                  "iz-card iz-card-flat w-[118px] shrink-0 snap-start !mb-0 p-2.5 text-left transition-opacity",
-                  full && "opacity-40",
-                  on && "ring-1 ring-[var(--iz-gold-d)]",
+              <div key={p.id} className="relative w-[118px] shrink-0 snap-start">
+                {otherWeeksTooltip && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="absolute left-1 top-1 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[var(--iz-muted)] hover:text-[var(--iz-txt)]"
+                        aria-label={otherWeeksTooltip}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <HelpCircle className="h-3 w-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[220px] text-xs">
+                      {otherWeeksTooltip}
+                    </TooltipContent>
+                  </Tooltip>
                 )}
-              >
+                <button
+                  type="button"
+                  onClick={() => toggle(p.id)}
+                  disabled={full}
+                  className={cn(
+                    "relative iz-card iz-card-flat w-full !mb-0 p-2.5 text-left transition-opacity",
+                    full && "opacity-40",
+                    on && "ring-1 ring-[var(--iz-gold-d)]",
+                    rankCtx.shiftWeek?.rank === 1 && !on && "ring-1 ring-[var(--iz-gold)]/40",
+                  )}
+                >
+                  {rankCtx.shiftWeek && (
+                    <span
+                      className={cn(
+                        "absolute right-1.5 top-1.5 z-10 flex h-5 min-w-[1.25rem] items-center justify-center rounded-md px-1 text-[9px] font-extrabold shadow-sm",
+                        TOP_PR_RANK_STYLES[rankCtx.shiftWeek.rank],
+                      )}
+                    >
+                      #{rankCtx.shiftWeek.rank}
+                    </span>
+                  )}
                 <div className="flex h-16 items-center justify-center rounded-lg bg-[var(--iz-violet-ink)] text-3xl">
                   {p.avatar}
                 </div>
@@ -650,11 +878,13 @@ export function DraftPrPicker({
                   )}
                 </div>
               </button>
+              </div>
             );
           })}
         </IzHScroll>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -751,7 +981,7 @@ export function DraftShiftSummary({
           )}
         </div>
       </div>
-      <SummaryLine label="Date" value={formatJobDate(shift.jobDate)} />
+      <SummaryLine label="Date" value={formatJobDateRange(shift.jobDate, shift.jobEndDate)} />
       <SummaryLine
         label="Event type"
         value={formatShiftEventTypeSummary(shift.eventKind, shift.specialEventType)}
@@ -783,6 +1013,7 @@ export function DraftShiftEditor({
   showRemove,
   title,
   onDone,
+  headcountOnDate = 0,
 }: {
   shift: DraftShift;
   onChange: (patch: Partial<DraftShift>) => void;
@@ -790,11 +1021,23 @@ export function DraftShiftEditor({
   showRemove?: boolean;
   title: string;
   onDone?: () => void;
+  /** PR headcount already booked on this shift date (excludes current shift quantity) */
+  headcountOnDate?: number;
 }) {
   const agencyPRs = useStore((s) => s.agencyPRs);
+  const outletOwner = useStore((s) => s.outletOwner);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const [activeTier, setActiveTier] = useState<OutletPrTier>(OUTLET_BASE_TIER);
+
+  const subscriptionPlan = getOutletSubscriptionPlan(outletOwner.subscriptionPlanId);
+  const dailyRemaining = Math.max(0, subscriptionPlan.prPerDayMax - headcountOnDate);
+  const maxPeople =
+    dailyRemaining === 0 ? 0 : Math.min(subscriptionPlan.prSelectMax, dailyRemaining);
+  const prPickerHint =
+    dailyRemaining === 0
+      ? `${subscriptionPlan.label} plan · daily limit of ${subscriptionPlan.prPerDayMax} PRs reached for this date`
+      : `${subscriptionPlan.label} plan · ${formatOutletPlanPrPickerRule(subscriptionPlan)} · ${dailyRemaining} PR slot${dailyRemaining === 1 ? "" : "s"} left today`;
 
   const languageOptions = useMemo(() => collectAgencyPrLanguages(agencyPRs), [agencyPRs]);
   const pickerOptions = useMemo(
@@ -845,9 +1088,13 @@ export function DraftShiftEditor({
           )}
         </div>
       </div>
-      <FormRow label="Date">
-        <JobDatePicker value={shift.jobDate} onChange={(jobDate) => onChange({ jobDate })} />
-      </FormRow>
+      <div className="border-b border-[var(--iz-line)] py-2.5">
+        <JobDateRangePicker
+          jobDate={shift.jobDate}
+          jobEndDate={shift.jobEndDate}
+          onChange={(patch) => onChange(patch)}
+        />
+      </div>
       <FormRow label="Event type" alignTop>
         <div className="flex w-full min-w-0 flex-col items-end gap-2">
           <div className="flex flex-nowrap justify-end gap-1">
@@ -926,13 +1173,20 @@ export function DraftShiftEditor({
         <ShiftTimePicker value={shift.shiftTime} onChange={(shiftTime) => onChange({ shiftTime })} />
       </FormRow>
       <FormRow label="People needed">
-        <QuantityStepper
-          value={shift.quantity}
-          onChange={(quantity) => {
-            const prIds = shift.prIds.length > quantity ? shift.prIds.slice(0, quantity) : shift.prIds;
-            onChange({ quantity, prIds });
-          }}
-        />
+        {maxPeople === 0 ? (
+          <p className="text-right text-xs text-[var(--iz-red)]">
+            Daily PR limit reached · upgrade plan or pick another date
+          </p>
+        ) : (
+          <QuantityStepper
+            value={Math.min(shift.quantity, maxPeople)}
+            onChange={(quantity) => {
+              const capped = Math.min(quantity, maxPeople);
+              onChange({ quantity: capped });
+            }}
+            max={maxPeople}
+          />
+        )}
       </FormRow>
       <FormRow label="Languages" alignTop>
         <JobLanguagePicker
@@ -996,17 +1250,28 @@ export function DraftShiftEditor({
         </div>
       </FormRow>
       <FormRow label="Select PRs" stacked last>
-        <DraftPrPicker
-          selected={shift.prIds}
-          onSelectedChange={(prIds) =>
-            onChange({
-              prIds,
-              langs: languagesForPrIds(prIds, agencyPRs),
-              otherLang: "",
-            })
-          }
-          quantity={shift.quantity}
-        />
+        {maxPeople === 0 ? (
+          <p className="text-[11px] text-[var(--iz-muted)]">{prPickerHint}</p>
+        ) : (
+          <DraftPrPicker
+            selected={shift.prIds}
+            onSelectedChange={(prIds) =>
+              onChange({
+                prIds,
+                quantity: Math.min(Math.max(shift.quantity, prIds.length), maxPeople),
+                langs: languagesForPrIds(prIds, agencyPRs),
+                otherLang: "",
+              })
+            }
+            quantity={shift.quantity}
+            poolSize={subscriptionPlan.prPoolSize}
+            maxSelect={subscriptionPlan.prSelectMax}
+            dailyRemaining={dailyRemaining}
+            poolHint={prPickerHint}
+            referenceDate={shift.jobDate}
+            outletName={outletWorkspace.outletName}
+          />
+        )}
       </FormRow>
     </IzCard>
   );

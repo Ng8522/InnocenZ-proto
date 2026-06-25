@@ -4,10 +4,9 @@ import { useStore } from "@/lib/store";
 import {
   formatOutletPlanPrPickerRule,
   getOutletSubscriptionPlan,
-  maxDailyOutletPrHeadcount,
-  OUTLET_SUBSCRIPTION_BILLING,
+  maxDailyOutletNamedPrCount,
   OUTLET_SUBSCRIPTION_PLANS,
-  outletPrHeadcountForDate,
+  outletNamedPrCountForDate,
   type OutletSubscriptionPlanId,
 } from "@/lib/outlet-demo";
 import { outletCan } from "@/lib/outlet-rbac";
@@ -29,6 +28,8 @@ function OutletSubscriptionPage() {
   const shifts = useStore((s) => s.shifts);
   const paymentCardLast4 = useStore((s) => s.paymentCardLast4);
   const saveOutletOwner = useStore((s) => s.saveOutletOwner);
+  const recordOutletSubscriptionPlanChange = useStore((s) => s.recordOutletSubscriptionPlanChange);
+  const billingHistory = useStore((s) => s.outletSubscriptionBilling);
   const updateOutletPaymentCard = useStore((s) => s.updateOutletPaymentCard);
   const toast = useStore((s) => s.toast);
   const canEdit = outletCan(outletSubRole, "editSettings");
@@ -37,28 +38,27 @@ function OutletSubscriptionPage() {
   const currentPlan = getOutletSubscriptionPlan(outletOwner.subscriptionPlanId);
 
   const todayIso = isoKeyFromDate(new Date());
-  const prsToday = useMemo(
-    () => outletPrHeadcountForDate(shifts, outletName, todayIso),
+  const namedPrsToday = useMemo(
+    () => outletNamedPrCountForDate(shifts, outletName, todayIso),
     [shifts, outletName, todayIso],
   );
-  const peakDailyPrs = useMemo(
-    () => maxDailyOutletPrHeadcount(shifts, outletName),
+  const peakDailyNamedPrs = useMemo(
+    () => maxDailyOutletNamedPrCount(shifts, outletName),
     [shifts, outletName],
   );
-
-  const billingHistory = OUTLET_SUBSCRIPTION_BILLING;
 
   const selectPlan = (planId: OutletSubscriptionPlanId) => {
     if (!canEdit || planId === currentPlan.id) return;
     const next = getOutletSubscriptionPlan(planId);
-    if (peakDailyPrs > next.prPerDayMax) {
+    if (peakDailyNamedPrs > next.prPerDayMax) {
       toast(
-        `Peak day has ${peakDailyPrs} PRs booked — reduce to ${next.prPerDayMax}/day before downgrading to ${next.label}`,
+        `Peak day has ${peakDailyNamedPrs} requested PRs — reduce to ${next.prPerDayMax}/day before downgrading to ${next.label}`,
         "warn",
       );
       return;
     }
     saveOutletOwner({ subscriptionPlanId: planId });
+    recordOutletSubscriptionPlanChange(planId);
     toast(
       `Switched to ${next.label} · ${formatRM(next.monthlyRm)}/mo · ${next.capacityLabel} · ${formatOutletPlanPrPickerRule(next)}`,
       "success",
@@ -94,13 +94,12 @@ function OutletSubscriptionPage() {
 
       <IzSectionLabel>Plans · monthly</IzSectionLabel>
       <p className="iz-tiny iz-muted2 -mt-1 mb-2">
-        PR limit = max headcount per day on Post Job · {prsToday} PR{prsToday === 1 ? "" : "s"} booked
-        today · peak day {peakDailyPrs}
+        PR limit = max specific PRs you name per day (agency fill does not count) · {namedPrsToday} requested today · peak day {peakDailyNamedPrs}
       </p>
       <div className="grid grid-cols-2 gap-2">
         {OUTLET_SUBSCRIPTION_PLANS.map((plan) => {
           const isCurrent = plan.id === currentPlan.id;
-          const atCapacity = prsToday >= plan.prPerDayMax;
+          const atCapacity = namedPrsToday >= plan.prPerDayMax;
           return (
             <IzCard
               key={plan.id}
@@ -130,7 +129,7 @@ function OutletSubscriptionPage() {
               </div>
               {isCurrent ? (
                 <p className="iz-tiny iz-muted2 mt-2">
-                  Renewal {RENEWAL_DATE} · {prsToday} / {plan.prPerDayMax} PRs today · pool of{" "}
+                  Renewal {RENEWAL_DATE} · {namedPrsToday} / {plan.prPerDayMax} requested PRs today · pool of{" "}
                   {plan.prPoolSize}
                 </p>
               ) : (
@@ -162,7 +161,7 @@ function OutletSubscriptionPage() {
                 <div className="flex min-w-0 items-start gap-2">
                   <Receipt className="mt-0.5 h-4 w-4 shrink-0 text-[var(--iz-muted)]" />
                   <div className="min-w-0">
-                    <p className="iz-sm truncate font-semibold">InnocenZ Outlet · {currentPlan.label}</p>
+                    <p className="iz-sm truncate font-semibold">InnocenZ Outlet · {inv.planLabel}</p>
                     <p className="iz-tiny iz-muted">
                       {inv.issueDate} · {inv.detail}
                     </p>

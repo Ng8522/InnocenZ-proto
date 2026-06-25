@@ -414,7 +414,7 @@ export interface OutletSubscriptionPlan {
   id: OutletSubscriptionPlanId;
   label: string;
   monthlyRm: number;
-  /** Max PR headcount bookable per calendar day */
+  /** Max outlet-requested specific PRs per calendar day (agency-assigned fill excluded) */
   prPerDayMax: number;
   /** Lower bound of daily PR band (display) */
   prPerDayMin?: number;
@@ -487,7 +487,7 @@ function canonicalOutletName(name: string): string {
   return name.trim().toLowerCase();
 }
 
-/** Total PR headcount already booked for one outlet on a date */
+/** Total PR headcount (people needed) already booked for one outlet on a date */
 export function outletPrHeadcountForDate(
   shifts: { outletName: string; dateIso?: string; quantity: number }[],
   outletName: string,
@@ -499,6 +499,35 @@ export function outletPrHeadcountForDate(
       (s) => canonicalOutletName(s.outletName) === canon && (s.dateIso ?? "") === dateIso,
     )
     .reduce((sum, s) => sum + s.quantity, 0);
+}
+
+/** PRs the outlet explicitly requested (Post Job picker) — not agency-assigned fill */
+export function outletNamedPrCountForDate(
+  shifts: { outletName: string; dateIso?: string; requestedPrIds?: string[] }[],
+  outletName: string,
+  dateIso: string,
+): number {
+  const canon = canonicalOutletName(outletName);
+  return shifts
+    .filter(
+      (s) => canonicalOutletName(s.outletName) === canon && (s.dateIso ?? "") === dateIso,
+    )
+    .reduce((sum, s) => sum + (s.requestedPrIds?.length ?? 0), 0);
+}
+
+/** Peak daily outlet-requested PR count across all booked shift dates */
+export function maxDailyOutletNamedPrCount(
+  shifts: { outletName: string; dateIso?: string; requestedPrIds?: string[] }[],
+  outletName: string,
+): number {
+  const canon = canonicalOutletName(outletName);
+  const byDate = new Map<string, number>();
+  for (const s of shifts) {
+    if (canonicalOutletName(s.outletName) !== canon || !s.dateIso) continue;
+    byDate.set(s.dateIso, (byDate.get(s.dateIso) ?? 0) + (s.requestedPrIds?.length ?? 0));
+  }
+  if (byDate.size === 0) return 0;
+  return Math.max(...byDate.values());
 }
 
 /** Peak daily PR headcount across all booked shift dates for an outlet */
@@ -520,6 +549,7 @@ export interface OutletSubscriptionInvoice {
   id: string;
   issueDate: string;
   detail: string;
+  planLabel: string;
   amount: number;
   status: "SETTLED" | "PENDING";
 }
@@ -529,6 +559,7 @@ export const OUTLET_SUBSCRIPTION_BILLING: OutletSubscriptionInvoice[] = [
     id: "SUB-2026-0601",
     issueDate: "1 Jun 2026",
     detail: "Jun 2026 · Plus · InnocenZ Outlet SaaS",
+    planLabel: "Plus",
     amount: 999,
     status: "SETTLED",
   },
@@ -536,10 +567,60 @@ export const OUTLET_SUBSCRIPTION_BILLING: OutletSubscriptionInvoice[] = [
     id: "SUB-2026-0501",
     issueDate: "1 May 2026",
     detail: "May 2026 · Plus · InnocenZ Outlet SaaS",
+    planLabel: "Plus",
     amount: 999,
     status: "SETTLED",
   },
 ];
+
+export function outletSubscriptionInvoiceForPlan(
+  plan: OutletSubscriptionPlan,
+  issueDate = new Date(),
+): OutletSubscriptionInvoice {
+  const month = issueDate.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  const day = issueDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return {
+    id: `SUB-${issueDate.getFullYear()}-${String(issueDate.getMonth() + 1).padStart(2, "0")}-${plan.id}`,
+    issueDate: day,
+    detail: `${month} · ${plan.label} · InnocenZ Outlet SaaS`,
+    planLabel: plan.label,
+    amount: plan.monthlyRm,
+    status: "SETTLED",
+  };
+}
+
+/** Backfill plan label/amount on invoices saved before planLabel existed */
+export function normalizeOutletSubscriptionInvoice(
+  inv: OutletSubscriptionInvoice & { planLabel?: string },
+): OutletSubscriptionInvoice {
+  if (inv.planLabel) return inv;
+  if (inv.detail.includes("Enterprise")) {
+    return { ...inv, planLabel: "Enterprise", amount: 3999 };
+  }
+  if (inv.detail.includes("Pro")) {
+    return { ...inv, planLabel: "Pro", amount: 1999 };
+  }
+  if (inv.detail.includes("Essential")) {
+    return { ...inv, planLabel: "Essential", amount: 499 };
+  }
+  return { ...inv, planLabel: "Plus", amount: inv.amount || 999 };
+}
+
+/** Ensure billing reflects the active plan (e.g. after upgrade from persisted Plus history). */
+export function syncOutletSubscriptionBilling(
+  invoices: OutletSubscriptionInvoice[],
+  planId?: OutletSubscriptionPlanId | null,
+): OutletSubscriptionInvoice[] {
+  const normalized = invoices.map(normalizeOutletSubscriptionInvoice);
+  const plan = getOutletSubscriptionPlan(planId);
+  const hasPlanInvoice = normalized.some(
+    (inv) => inv.planLabel === plan.label && inv.amount === plan.monthlyRm,
+  );
+  if (hasPlanInvoice) return normalized;
+  const upgrade = outletSubscriptionInvoiceForPlan(plan);
+  const withoutDup = normalized.filter((inv) => inv.id !== upgrade.id);
+  return [upgrade, ...withoutDup];
+}
 
 export interface OutletFinanceHead {
   name: string;

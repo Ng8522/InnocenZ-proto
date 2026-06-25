@@ -2034,7 +2034,21 @@ export type ManualSelfLogInput = {
   amount: number;
   drinkId?: string;
   drinkQty?: number;
+  drinkQtys?: Record<string, number>;
 };
+
+export function buildDrinkSelfLogItemsFromQtys(
+  outlet: string,
+  qtys: Record<string, number>,
+): PrReceiptItem[] {
+  const menu = getDrinkMenuForOutlet(outlet);
+  const items: PrReceiptItem[] = [];
+  for (const drink of menu) {
+    const qty = Math.floor(qtys[drink.id] ?? 0);
+    if (qty > 0) items.push(...buildDrinkSelfLogItems(drink, qty));
+  }
+  return items;
+}
 
 export function resolveManualSelfLogItems(
   manual: ManualSelfLogInput,
@@ -2042,6 +2056,10 @@ export function resolveManualSelfLogItems(
 ): PrReceiptItem[] {
   if (manual.category === "tips") {
     return buildManualReceiptItems("tips", manual.amount);
+  }
+  if (manual.drinkQtys) {
+    const fromQtys = buildDrinkSelfLogItemsFromQtys(outlet, manual.drinkQtys);
+    if (fromQtys.length > 0) return fromQtys;
   }
   if (manual.drinkId && manual.drinkQty && manual.drinkQty > 0) {
     const drink = getDrinkMenuForOutlet(outlet).find((d) => d.id === manual.drinkId);

@@ -538,7 +538,7 @@ function ReportRangeFields({
         }
         className="w-full"
       />
-      <p className="iz-tiny iz-muted2 mt-2">Tap the date range to open the calendar</p>
+      <p className="iz-tiny iz-muted2 mt-2">Tap the date range · first tap = start, second = end</p>
     </div>
   );
 }
@@ -568,7 +568,7 @@ function CustomRangePanel({
   return (
     <IzCard flat className="space-y-2 !p-3">
       <p className="iz-tiny iz-muted2">
-        Tap From or To to pick dates, or use a quick span from your start date
+        Tap the date range to pick start, then end
       </p>
       <div className="flex flex-wrap gap-1">
         {PERIOD_OPTIONS.map((p) => (

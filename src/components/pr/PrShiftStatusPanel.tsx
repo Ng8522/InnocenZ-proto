@@ -81,7 +81,11 @@ function ShiftReceiptScanRows() {
             </Link>
             <Link
               to="/host/scan"
-              search={{ category: row.category, blurry: true }}
+              search={
+                row.category === "drinks"
+                  ? { category: row.category, manual: true }
+                  : { category: row.category, blurry: true }
+              }
               className="iz-btn iz-btn-soft iz-btn-sm iz-pr-shift-scan-row__btn iz-pr-shift-scan-row__btn--selflog w-full"
             >
               <PenLine className="h-3.5 w-3.5" />

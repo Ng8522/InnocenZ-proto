@@ -5,20 +5,30 @@ import type {
   CollectionLineItem,
 } from "@/lib/agency-demo";
 import { buildReceiptScansFromPaymentVouchers } from "@/lib/history-demo-sync";
+import { pvRowDateToIso } from "@/lib/pr-payment-history";
 import type { PrPaymentVoucher, PrReceiptScan } from "@/lib/pr-demo";
 import {
   DEMO_PV_ISSUED_WEEKS_AGO,
+  fmtDateLabelFromIso,
   getPvNetTotal,
   isLegacyReceiptScanIdentity,
   pvPayByDeadlineMsFromIssued,
   formatPvPayByDeadlineShort,
   pvStatusLabel,
+  RECEIPT_COMMISSION_RULES,
   type PrProfile,
   type PrPvStatus,
 } from "@/lib/pr-demo";
+import {
+  dedupeShiftHistorySlots,
+  sortShiftHistoryDesc,
+  type ShiftHistoryRow,
+} from "@/lib/shift-history-utils";
 
 const PV_COMMISSION_SCAN_PREFIX = "rc-pv-";
+const PAYROLL_SHIFT_ROW_PREFIX = "ap-shift-";
 const PAYROLL_RECEIPT_WEEKS_AGO = new Set([0, 1]);
+const PAYROLL_AGENCY_NAME = "Atlas Agency";
 
 function agencyPrReceiptCode(pr: AgencyManagedPR): string {
   const digits = pr.id.replace(/\D/g, "").slice(0, 4);
@@ -245,6 +255,136 @@ export function syncAgencyPayrollReceiptScans(
   for (const scan of base) byId.set(scan.id, scan);
   for (const scan of generated) byId.set(scan.id, scan);
   return [...byId.values()].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt));
+}
+
+type PayrollShiftSlot = {
+  prId: string;
+  prName: string;
+  outlet: string;
+  dateIso: string;
+  dateDisplay: string;
+  totalPayout: number;
+  drinksAmt: number;
+  tipsAmt: number;
+  tablesAmt: number;
+  pvId: string;
+};
+
+function payrollDemoPvs(pvs: PrPaymentVoucher[]): PrPaymentVoucher[] {
+  return pvs.filter((pv) => {
+    const weeksAgo = DEMO_PV_ISSUED_WEEKS_AGO[pv.id];
+    return weeksAgo != null && PAYROLL_RECEIPT_WEEKS_AGO.has(weeksAgo);
+  });
+}
+
+function dateInPayrollDemoWeek(dateIso: string, pvs: PrPaymentVoucher[]): boolean {
+  return payrollDemoPvs(pvs).some(
+    (pv) =>
+      pv.weekStartIso &&
+      pv.weekEndIso &&
+      dateIso >= pv.weekStartIso &&
+      dateIso <= pv.weekEndIso,
+  );
+}
+
+function outletSlug(outlet: string): string {
+  return outlet.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+function buildShiftHistoryFromPayrollPvs(
+  pvs: PrPaymentVoucher[],
+  agencyPRs: AgencyManagedPR[],
+): ShiftHistoryRow[] {
+  const slots = new Map<string, PayrollShiftSlot>();
+
+  for (const pv of payrollDemoPvs(pvs)) {
+    const pr = agencyPRs.find(
+      (p) => !p.detached && (pv.prIc === p.ic || prNameMatchesAgency(pv.prName, p)),
+    );
+    if (!pr) continue;
+
+    const prName = resolvePvPrName(pv, agencyPRs);
+    const year = pv.weekStartIso
+      ? parseInt(pv.weekStartIso.slice(0, 4), 10)
+      : parseInt(pv.issued.match(/\d{4}/)?.[0] ?? "2026", 10);
+
+    for (const row of pv.rows) {
+      const outlet = row.outlet?.trim();
+      if (!outlet || outlet === "\u2014") continue;
+
+      const dateIso = pvRowDateToIso(row, year);
+      if (!dateIso) continue;
+      if (
+        pv.weekStartIso &&
+        pv.weekEndIso &&
+        (dateIso < pv.weekStartIso || dateIso > pv.weekEndIso)
+      ) {
+        continue;
+      }
+
+      const slotKey = `${pr.id}|${dateIso}|${outlet.toLowerCase()}`;
+      const acc =
+        slots.get(slotKey) ??
+        ({
+          prId: pr.id,
+          prName,
+          outlet,
+          dateIso,
+          dateDisplay: fmtDateLabelFromIso(dateIso),
+          totalPayout: 0,
+          drinksAmt: 0,
+          tipsAmt: 0,
+          tablesAmt: 0,
+          pvId: pv.id,
+        } satisfies PayrollShiftSlot);
+
+      acc.totalPayout += row.amt;
+      const desc = row.desc.toLowerCase();
+      if (desc.includes("drink")) acc.drinksAmt += row.amt;
+      else if (desc.includes("tip")) acc.tipsAmt += row.amt;
+      else if (desc.includes("table")) acc.tablesAmt += row.amt;
+      slots.set(slotKey, acc);
+    }
+  }
+
+  const { drinkPerUnit, tablePerUnit } = RECEIPT_COMMISSION_RULES;
+  return [...slots.values()].map((acc) => ({
+    id: `${PAYROLL_SHIFT_ROW_PREFIX}${acc.pvId}-${acc.dateIso}-${outletSlug(acc.outlet)}`,
+    prName: acc.prName,
+    prId: acc.prId,
+    outlet: acc.outlet,
+    agencyName: PAYROLL_AGENCY_NAME,
+    dateDisplay: acc.dateDisplay,
+    dateIso: acc.dateIso,
+    totalPayout: Math.round(acc.totalPayout * 100) / 100,
+    totalDrinks: drinkPerUnit > 0 ? Math.max(0, Math.round(acc.drinksAmt / drinkPerUnit)) : 0,
+    totalTips: Math.round(acc.tipsAmt * 100) / 100,
+    totalTables: tablePerUnit > 0 ? Math.max(0, Math.round(acc.tablesAmt / tablePerUnit)) : 0,
+    durationHours: 6,
+  }));
+}
+
+/**
+ * Replace agency-roster shift rows in Last Week / Last Last Week with PV line items
+ * so History totals match agency Payroll vouchers.
+ */
+export function syncAgencyPayrollShiftHistory(
+  rows: ShiftHistoryRow[],
+  pvs: PrPaymentVoucher[],
+  agencyPRs: AgencyManagedPR[],
+): ShiftHistoryRow[] {
+  const generated = buildShiftHistoryFromPayrollPvs(pvs, agencyPRs);
+  if (generated.length === 0) return rows;
+
+  const rosterPrIds = new Set(agencyPRs.filter((p) => !p.detached).map((p) => p.id));
+  const filtered = rows.filter((row) => {
+    if (row.id.startsWith(PAYROLL_SHIFT_ROW_PREFIX)) return false;
+    if (!rosterPrIds.has(row.prId)) return true;
+    if (!dateInPayrollDemoWeek(row.dateIso, pvs)) return true;
+    return false;
+  });
+
+  return dedupeShiftHistorySlots(sortShiftHistoryDesc([...filtered, ...generated]));
 }
 
 /** Receipt scans belonging to PRs on the agency roster (or linked agency PVs). */

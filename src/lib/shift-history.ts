@@ -11,6 +11,7 @@ export {
   dedupeShiftHistorySlots,
   filterShiftHistoryThroughToday,
   isCheckoutShiftHistoryRow,
+  isPayrollSyncedShiftHistoryRow,
   isDateInCurrentPayrollWeek,
   mergeShiftHistory,
   prepareShiftHistoryForDisplay,

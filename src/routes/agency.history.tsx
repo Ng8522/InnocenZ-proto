@@ -77,7 +77,7 @@ function AgencyHistory() {
           portal="agency"
           groupBy="pr"
           rows={shiftHistory}
-          subtitle="PR view — totals per PR. Tap a PR, then tap an outlet to see every shift."
+          subtitle="PR view — shift totals match Last Week / Last Last Week payroll PVs. Tap a PR, then an outlet for each night."
           embedded
         />
       )}
@@ -88,7 +88,7 @@ function AgencyHistory() {
           portal="agency"
           groupBy="venue"
           rows={shiftHistory}
-          subtitle="Agency view — totals per outlet across PR shifts. Tap a row for PR breakdown."
+          subtitle="Outlet view — same shift nights as payroll PVs. Tap a row for PR breakdown."
           embedded
         />
       )}

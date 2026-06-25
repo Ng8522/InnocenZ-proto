@@ -7,8 +7,11 @@ import {
   getShiftToday,
   fmtDtable,
   formatPvSignTimestamp,
+  getPvNetTotal,
+  isDemoTimelinePayrollPv,
   RECEIPT_COMMISSION_RULES,
   reconcilePvTotals,
+  pvPayByDeadlineIsoFromIssueIso,
   type PrPaymentVoucher,
   type PrProfile,
   type PrPvRow,
@@ -632,12 +635,12 @@ export function buildWeeklyPaymentSummary(opts: {
       opts.prId &&
       weekHasShiftHistoryForPr(columns, opts.shiftHistory, opts.prId, isCurrentWeek),
   );
-  /** Issued past weeks: sealed shift history is the amount source; PV rows carry disputes + receipt links. */
+  /** Issued past weeks: shift history unless a seeded payroll PV defines the amounts. */
   const pvIsAuthoritative =
     pvMatchesWeek &&
     pvReady &&
     (opts.pv?.rows?.length ?? 0) > 0 &&
-    !(hasShiftHistorySource && !isCurrentWeek);
+    (isDemoTimelinePayrollPv(opts.pv!) || !(hasShiftHistorySource && !isCurrentWeek));
 
   if (pvIsAuthoritative) {
     for (const [iso, b] of breakdownsFromPvRows(opts.pv!.rows, year, weekStartIso, weekEndIso)) {
@@ -734,6 +737,12 @@ export function buildWeeklyPaymentSummary(opts: {
   const dayOutlets = columns.map((col) => dayMap.get(col.dateIso)?.outlet);
   const verifiedTotals = computeVerifiedTotals(columns, dayStatus, rows);
 
+  if (pvIsAuthoritative && isDemoTimelinePayrollPv(opts.pv!)) {
+    const net = getPvNetTotal(opts.pv!);
+    totals.net = net;
+    verifiedTotals.net = net;
+  }
+
   return {
     weekStartIso,
     weekEndIso,
@@ -811,7 +820,8 @@ export function buildSentWeeklyPv(opts: {
   const subtotal = opts.summary.totals.net;
   const issueDate = parseIsoDate(opts.summary.issueDayIso);
   const issuedLabel = format(issueDate, "d MMM yyyy");
-  const dueLabel = format(addDays(issueDate, 7), "d MMM yyyy");
+  const dueLabel =
+    format(parseISO(pvPayByDeadlineIsoFromIssueIso(opts.summary.issueDayIso)), "d MMM yyyy");
   const issuedStamp = formatPvSignTimestamp(issueDate);
   return reconcilePvTotals({
     id: opts.existing?.id ?? makeWeeklyPvId(opts.summary.weekStartIso, opts.prSuffix),

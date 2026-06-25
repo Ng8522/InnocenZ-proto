@@ -17,46 +17,39 @@ import { cn } from "@/lib/utils";
 
 type PaymentHistStatus = PaymentHistoryRecord["status"] | "";
 
-const STATUS_CHIP_OPTIONS: {
-  value: PaymentHistStatus;
-  label: string;
-  tone?: "green" | "amber";
-}[] = [
+const STATUS_CHIP_OPTIONS: { value: PaymentHistStatus; label: string }[] = [
   { value: "", label: "All" },
-  { value: "PAID", label: "Paid", tone: "green" },
-  { value: "SIGNED", label: "Signed", tone: "amber" },
+  { value: "PAID", label: "Paid" },
+  { value: "SIGNED", label: "Signed" },
 ];
 
 export function PaymentHistStatusChips({
   value,
   onChange,
   className,
+  showLabel = false,
 }: {
   value: PaymentHistStatus;
   onChange: (status: PaymentHistStatus) => void;
   className?: string;
+  showLabel?: boolean;
 }) {
   return (
-    <div
-      className={cn("iz-pay-hist-status-chips", className)}
-      role="group"
-      aria-label="Filter by payment status"
-    >
-      {STATUS_CHIP_OPTIONS.map((opt) => (
-        <button
-          key={opt.value || "all"}
-          type="button"
-          className={cn(
-            "iz-pay-hist-status-chip",
-            opt.tone && `iz-pay-hist-status-chip--${opt.tone}`,
-            value === opt.value && "iz-pay-hist-status-chip--on",
-          )}
-          aria-pressed={value === opt.value}
-          onClick={() => onChange(opt.value)}
-        >
-          {opt.label}
-        </button>
-      ))}
+    <div className={className}>
+      {showLabel && <p className="iz-tiny iz-muted2 mb-1.5 font-semibold tracking-wide">Status</p>}
+      <div className="iz-payroll-tabs" role="group" aria-label="Filter by payment status">
+        {STATUS_CHIP_OPTIONS.map((opt) => (
+          <button
+            key={opt.value || "all"}
+            type="button"
+            className={cn("iz-payroll-tab", value === opt.value && "on")}
+            aria-pressed={value === opt.value}
+            onClick={() => onChange(opt.value)}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -225,19 +218,23 @@ export function PrPaymentHistoryPanel({
 }) {
   const records = buildPaymentHistoryRecords(vouchers);
   const pvById = Object.fromEntries(vouchers.map((p) => [p.id, p]));
-  const totalPaid = records.filter((r) => r.status === "PAID").reduce((s, r) => s + r.net, 0);
-  const totalSigned = records.filter((r) => r.status === "SIGNED").reduce((s, r) => s + r.net, 0);
+  const paidRecords = records.filter((r) => r.status === "PAID");
+  const signedRecords = records.filter((r) => r.status === "SIGNED");
+  const totalPaid = paidRecords.reduce((s, r) => s + r.net, 0);
+  const totalSigned = signedRecords.reduce((s, r) => s + r.net, 0);
   const totalShifts = records.reduce((s, r) => s + r.shiftDays, 0);
+  const totalNet = totalPaid + totalSigned;
 
-  const statCells: {
-    key: PaymentHistStatus;
-    label: string;
-    amount: number;
-    tone: "green" | "amber";
-  }[] = [
-    { key: "PAID", label: "Paid", amount: totalPaid, tone: "green" },
-    { key: "SIGNED", label: "Signed", amount: totalSigned, tone: "amber" },
-  ];
+  const netLabel =
+    statusFilter === "PAID" ? "Paid" : statusFilter === "SIGNED" ? "Signed" : "Total net";
+  const netAmount =
+    statusFilter === "PAID" ? totalPaid : statusFilter === "SIGNED" ? totalSigned : totalNet;
+  const netTone =
+    statusFilter === "PAID"
+      ? "text-[var(--iz-green)]"
+      : statusFilter === "SIGNED"
+        ? "text-[var(--iz-amber)]"
+        : "text-[var(--iz-gold-l)]";
 
   return (
     <div className={hideHeader ? "" : "mt-4"}>
@@ -257,52 +254,41 @@ export function PrPaymentHistoryPanel({
         />
       )}
 
-      <div className={`iz-pay-hist-stat-strip${hideHeader ? " mt-0" : " mt-3"}`}>
-        {statCells.map((cell) => {
-          const active = statusFilter === cell.key;
-          const clickable = Boolean(onStatusFilterChange);
-          const inner = (
-            <>
-              <div className="l">{cell.label}</div>
-              <div
-                className={cn(
-                  "n",
-                  cell.tone === "green" && "text-[var(--iz-green)]",
-                  cell.tone === "amber" && "text-[var(--iz-amber)]",
-                )}
-              >
-                {formatRM(cell.amount)}
-              </div>
-            </>
-          );
-          if (!clickable) {
-            return (
-              <div key={cell.key} className="iz-pay-hist-stat-cell">
-                {inner}
-              </div>
-            );
-          }
-          return (
-            <button
-              key={cell.key}
-              type="button"
-              className={cn("iz-pay-hist-stat-cell", active && "iz-pay-hist-stat-cell--on")}
-              aria-pressed={active}
-              onClick={() => onStatusFilterChange?.(active ? "" : cell.key)}
-            >
-              {inner}
-            </button>
-          );
-        })}
-        <div className="iz-pay-hist-stat-cell iz-pay-hist-stat-cell--meta">
-          <div className="l">Weeks</div>
-          <div className="n">{records.length}</div>
-        </div>
-        <div className="iz-pay-hist-stat-cell iz-pay-hist-stat-cell--meta">
-          <div className="l">Shifts</div>
-          <div className="n">{totalShifts}</div>
-        </div>
-      </div>
+      {records.length > 0 && (
+        <>
+          <div className={cn("iz-grid3", hideHeader && !onStatusFilterChange ? "mt-0" : "mt-2.5")}>
+            <div className="iz-stat-tile">
+              <div className="n">{records.length}</div>
+              <div className="l">Weeks</div>
+            </div>
+            <div className="iz-stat-tile">
+              <div className="n">{totalShifts}</div>
+              <div className="l">Shifts</div>
+            </div>
+            <div className="iz-stat-tile">
+              <div className={cn("n", netTone)}>{formatRM(netAmount)}</div>
+              <div className="l">{netLabel}</div>
+            </div>
+          </div>
+          {!statusFilter && paidRecords.length + signedRecords.length > 0 && (
+            <p className="iz-tiny iz-muted2 mt-2 text-center">
+              {paidRecords.length > 0 && (
+                <span className="font-semibold text-[var(--iz-green)]">
+                  {paidRecords.length} paid · {formatRM(totalPaid)}
+                </span>
+              )}
+              {paidRecords.length > 0 && signedRecords.length > 0 && (
+                <span className="mx-1.5 text-[var(--iz-muted)]">·</span>
+              )}
+              {signedRecords.length > 0 && (
+                <span className="font-semibold text-[var(--iz-amber)]">
+                  {signedRecords.length} signed · {formatRM(totalSigned)}
+                </span>
+              )}
+            </p>
+          )}
+        </>
+      )}
 
       {records.length === 0 && !hideHeader ? (
         <IzCard flat className="mt-4 px-4 py-8 text-center">

@@ -1,12 +1,17 @@
 /** PR Talent demo data — mirrors InnocenZ_Prototype.html */
 
 import {
+  AGENCY_PAYROLL_PV_WEEKS_AGO,
+  AGENCY_PAYROLL_WEEK_PVS,
+} from "@/lib/agency-payroll-demo-pvs";
+import {
   seedFinanceHeadStamp,
   buildDemoESignatureDataUrl,
   type FinanceHeadPvStamp,
 } from "@/lib/finance-head-stamp";
 import {
   addDaysToIso,
+  getLiveTodayIso,
   getPayrollWeekSundayIso,
   getPreviousWeekSundayIso,
   isWeekPvIssuedOnCalendar,
@@ -16,7 +21,7 @@ import {
   remapIsoByWeekSlide,
   ymdToIso,
 } from "@/lib/demo-clock";
-import { differenceInCalendarDays, parseISO } from "date-fns";
+import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 import { getDrinkMenuForOutlet } from "@/lib/outlet-drink-menu";
 
 export type PrSubRole = "pr_tied" | "pr_free";
@@ -595,6 +600,49 @@ export function parsePvIssuedMs(issued: string): number {
   return new Date(parseInt(m[3], 10), monthIdx, day).getTime();
 }
 
+/** Pay-by Wednesday — 14 days after issue, aligned to that week's Wednesday. */
+export function pvPayByDeadlineIsoFromIssueIso(issueDayIso: string): string {
+  const [y, m, d] = issueDayIso.split("-").map(Number);
+  const anchor = new Date(y, m - 1, d);
+  anchor.setDate(anchor.getDate() + 14);
+  const daysUntilWed = (3 - anchor.getDay() + 7) % 7;
+  anchor.setDate(anchor.getDate() + daysUntilWed);
+  return ymdToIso(anchor.getFullYear(), anchor.getMonth() + 1, anchor.getDate());
+}
+
+export function pvPayByDeadlineIsoFromIssued(issued: string): string | null {
+  const issuedMs = parsePvIssuedMs(issued);
+  if (!issuedMs) return null;
+  const d = new Date(issuedMs);
+  return pvPayByDeadlineIsoFromIssueIso(
+    ymdToIso(d.getFullYear(), d.getMonth() + 1, d.getDate()),
+  );
+}
+
+export function pvPayByDeadlineMsFromIssued(issued: string): number {
+  const iso = pvPayByDeadlineIsoFromIssued(issued);
+  if (!iso) return 0;
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+}
+
+export function formatPvPayByDeadline(issued: string): string | null {
+  const iso = pvPayByDeadlineIsoFromIssued(issued);
+  if (!iso) return null;
+  return fmtDateLabelFromIso(iso);
+}
+
+export function formatPvPayByDeadlineShort(issued: string): string | null {
+  const iso = pvPayByDeadlineIsoFromIssued(issued);
+  if (!iso) return null;
+  const [y, m, d] = iso.split("-").map(Number);
+  return fmtDTopbar(y, m, d);
+}
+
+export function resolvePvPayByDue(pv: Pick<PrPaymentVoucher, "issued" | "due">): string {
+  return formatPvPayByDeadline(pv.issued) ?? pv.due;
+}
+
 export function getLatestPvIssuedMs(pvs: PrPaymentVoucher[]): number {
   if (pvs.length === 0) return 0;
   return Math.max(...pvs.map((p) => parsePvIssuedMs(p.issued)));
@@ -849,52 +897,6 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     receiptIds: ["rc-seed-1", "rc-seed-2", "rc-seed-3"],
   },
   {
-    id: "PV-2026-0521",
-    prName: "Charlotte",
-    prIc: "000512-10-6675",
-    outlet: "Bear Lounge",
-    prDisputeReason:
-      "Commission – Drinks shows RM120 but my receipt scans (rc-seed-4) only total RM120 from 8 cocktails — outlet POS log shows 18 units. Please reconcile with Bear Lounge before payment.",
-    disputedAt: "11 May 2026 · 16:40",
-    disputeNote: "Agency: verifying with outlet manager — POS export pending",
-    cycle: "4 May \u2013 10 May 2026",
-    issued: "10 May 2026",
-    due: "17 May 2026",
-    rows: [
-      {
-        i: 1,
-        date: "9 May",
-        day: "Sat",
-        outlet: "Bear Lounge",
-        desc: "Daily Wages",
-        qty: 1,
-        amt: 350,
-        ref: "Sealed",
-      },
-      {
-        i: 2,
-        date: "9 May",
-        day: "Sat",
-        outlet: "Bear Lounge",
-        desc: "Commission – Drinks",
-        qty: 1,
-        amt: 120,
-        ref: "Disputed",
-        receiptIds: ["rc-seed-4"],
-      },
-    ],
-    subtotal: 470,
-    deduct: 0,
-    net: 470,
-    status: "DISPUTED",
-    ...seedFinanceHeadStamp("10 May 2026 · 09:14"),
-    shiftSessionId: "shift-2026-05-09-bearlounge",
-    timeIn: "9 May 2026 · 21:00",
-    timeOut: "10 May 2026 · 02:05",
-    shiftTime: "9:00 PM – 2:00 AM",
-    receiptIds: ["rc-seed-4"],
-  },
-  {
     id: "PV-2026-0535-J",
     prName: "Grace",
     prIc: "990427-14-7685",
@@ -932,12 +934,12 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
   },
   {
     id: "PV-2026-0548-J",
-    prName: "Hazel",
-    prIc: "000811-10-6574",
-    outlet: "Mermate",
+    prName: "Angie",
+    prIc: "990926-14-7786",
+    outlet: "Velvet 23",
     cycle: "18 May \u2013 24 May 2026",
     issued: "24 May 2026",
-    due: "31 May 2026",
+    due: "10 Jun 2026",
     rows: [
       {
         i: 1,
@@ -976,7 +978,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     status: "SIGNED",
     ...seedFinanceHeadStamp("24 May 2026 · 08:55"),
     prSignedAt: "26 May 2026 · 11:05",
-    ...seedPrSignature("Hazel"),
+    ...seedPrSignature("Angie"),
   },
   {
     id: "PV-2026-0472-J",
@@ -1191,300 +1193,7 @@ export const SEED_PR_PVS: PrPaymentVoucher[] = [
     prSignedAt: "12 May 2026 · 20:05",
     ...seedPrSignature("Vicky"),
   },
-  {
-    id: "PV-2026-0611-A",
-    prName: "Vicky",
-    prIc: "950312-14-8821",
-    outlet: "Multi-outlet (2)",
-    weekStartIso: "2026-06-15",
-    weekEndIso: "2026-06-21",
-    cycle: "15 Jun – 21 Jun 2026",
-    issued: "20 Jun 2026",
-    due: "27 Jun 2026",
-    rows: [
-      {
-        i: 1,
-        date: "15 Jun",
-        day: "Mon",
-        outlet: "Velvet 23",
-        desc: "Daily Wages",
-        qty: 1,
-        amt: 280,
-        ref: "Sealed",
-      },
-      {
-        i: 2,
-        date: "15 Jun",
-        day: "Mon",
-        outlet: "Velvet 23",
-        desc: "Commission – Tips",
-        qty: 1,
-        amt: 45,
-        ref: "Verified",
-      },
-      {
-        i: 3,
-        date: "16 Jun",
-        day: "Tue",
-        outlet: "Velvet 23",
-        desc: "Daily Wages",
-        qty: 1,
-        amt: 300,
-        ref: "Sealed",
-      },
-      {
-        i: 4,
-        date: "16 Jun",
-        day: "Tue",
-        outlet: "Velvet 23",
-        desc: "Commission – Drinks",
-        qty: 1,
-        amt: 96,
-        ref: "Verified",
-        receiptIds: ["rc-luna-w2-d"],
-      },
-      {
-        i: 5,
-        date: "16 Jun",
-        day: "Tue",
-        outlet: "Velvet 23",
-        desc: "Commission – Tips",
-        qty: 1,
-        amt: 84,
-        ref: "Verified",
-      },
-      {
-        i: 6,
-        date: "17 Jun",
-        day: "Wed",
-        outlet: "Bear Lounge",
-        desc: "Daily Wages",
-        qty: 1,
-        amt: 290,
-        ref: "Sealed",
-      },
-      {
-        i: 7,
-        date: "17 Jun",
-        day: "Wed",
-        outlet: "Bear Lounge",
-        desc: "Commission – Drinks",
-        qty: 1,
-        amt: 85,
-        ref: "Verified",
-        receiptIds: ["rc-luna-2"],
-      },
-      {
-        i: 8,
-        date: "17 Jun",
-        day: "Wed",
-        outlet: "Bear Lounge",
-        desc: "Commission – Tips",
-        qty: 1,
-        amt: 60,
-        ref: "Verified",
-      },
-      {
-        i: 9,
-        date: "18 Jun",
-        day: "Thu",
-        outlet: "Velvet 23",
-        desc: "Daily Wages",
-        qty: 1,
-        amt: 300,
-        ref: "Sealed",
-      },
-      {
-        i: 10,
-        date: "18 Jun",
-        day: "Thu",
-        outlet: "Velvet 23",
-        desc: "Commission – Drinks",
-        qty: 1,
-        amt: 90,
-        ref: "Verified",
-        receiptIds: ["rc-luna-1"],
-      },
-      {
-        i: 11,
-        date: "18 Jun",
-        day: "Thu",
-        outlet: "Velvet 23",
-        desc: "Commission – Tables",
-        qty: 1,
-        amt: 55,
-        ref: "Verified",
-      },
-      {
-        i: 12,
-        date: "19 Jun",
-        day: "Fri",
-        outlet: "Velvet 23",
-        desc: "Daily Wages",
-        qty: 1,
-        amt: 310,
-        ref: "Sealed",
-      },
-      {
-        i: 13,
-        date: "19 Jun",
-        day: "Fri",
-        outlet: "Velvet 23",
-        desc: "Commission – Drinks",
-        qty: 1,
-        amt: 88,
-        ref: "Verified",
-      },
-      {
-        i: 14,
-        date: "19 Jun",
-        day: "Fri",
-        outlet: "Velvet 23",
-        desc: "Commission – Tips",
-        qty: 1,
-        amt: 72,
-        ref: "Verified",
-      },
-      {
-        i: 15,
-        date: "19 Jun",
-        day: "Fri",
-        outlet: "Velvet 23",
-        desc: "Commission – Tables",
-        qty: 1,
-        amt: 40,
-        ref: "Verified",
-      },
-      {
-        i: 16,
-        date: "19 Jun",
-        day: "Fri",
-        outlet: "Velvet 23",
-        desc: "Others",
-        qty: 1,
-        amt: 25,
-        ref: "Verified",
-      },
-      {
-        i: 17,
-        date: "20 Jun",
-        day: "Sat",
-        outlet: "Bear Lounge",
-        desc: "Daily Wages",
-        qty: 1,
-        amt: 300,
-        ref: "Sealed",
-      },
-      {
-        i: 18,
-        date: "20 Jun",
-        day: "Sat",
-        outlet: "Bear Lounge",
-        desc: "Commission – Drinks",
-        qty: 1,
-        amt: 95,
-        ref: "Verified",
-      },
-      {
-        i: 19,
-        date: "21 Jun",
-        day: "Sun",
-        outlet: "Velvet 23",
-        desc: "Daily Wages",
-        qty: 1,
-        amt: 320,
-        ref: "Sealed",
-      },
-      {
-        i: 20,
-        date: "21 Jun",
-        day: "Sun",
-        outlet: "Velvet 23",
-        desc: "Commission – Tips",
-        qty: 1,
-        amt: 90,
-        ref: "Verified",
-      },
-      {
-        i: 21,
-        date: "21 Jun",
-        day: "Sun",
-        outlet: "Velvet 23",
-        desc: "Commission – Tables",
-        qty: 1,
-        amt: 65,
-        ref: "Verified",
-      },
-    ],
-    subtotal: 3090,
-    deduct: 0,
-    net: 3090,
-    status: "SENT",
-    ...seedFinanceHeadStamp("20 Jun 2026 · 09:00"),
-    receiptIds: ["rc-luna-w2-d", "rc-luna-2", "rc-luna-1"],
-  },
-  {
-    id: "PV-2026-0604-L",
-    prName: "Vicky",
-    prIc: "950312-14-8821",
-    outlet: "Bear Lounge",
-    weekStartIso: "2026-05-26",
-    weekEndIso: "2026-06-01",
-    cycle: "26 May – 1 Jun 2026",
-    issued: "31 May 2026",
-    due: "7 Jun 2026",
-    rows: [
-      {
-        i: 1,
-        date: "28 May",
-        day: "Thu",
-        outlet: "Bear Lounge",
-        desc: "Daily Wages",
-        qty: 1,
-        amt: 290,
-        ref: "Sealed",
-      },
-      {
-        i: 2,
-        date: "28 May",
-        day: "Thu",
-        outlet: "Bear Lounge",
-        desc: "Commission – Drinks",
-        qty: 6,
-        amt: 85,
-        ref: "Verified",
-        receiptIds: ["rc-luna-2"],
-      },
-      {
-        i: 3,
-        date: "30 May",
-        day: "Sat",
-        outlet: "Velvet 23",
-        desc: "Daily Wages",
-        qty: 1,
-        amt: 300,
-        ref: "Sealed",
-      },
-      {
-        i: 4,
-        date: "30 May",
-        day: "Sat",
-        outlet: "Velvet 23",
-        desc: "Commission – Tips",
-        qty: 1,
-        amt: 72,
-        ref: "Verified",
-      },
-    ],
-    subtotal: 747,
-    deduct: 0,
-    net: 747,
-    status: "SIGNED",
-    ...seedFinanceHeadStamp("31 May 2026 · 09:14"),
-    prSignedAt: "2 Jun 2026 · 11:05",
-    ...seedPrSignature("Vicky"),
-    receiptIds: ["rc-luna-2"],
-  },
+  ...AGENCY_PAYROLL_WEEK_PVS,
 ];
 
 function pvRowDateIso(row: PrPvRow, year: number): string | null {
@@ -1511,48 +1220,275 @@ function pvRowDateIso(row: PrPvRow, year: number): string | null {
   return ymdToIso(year, mi + 1, day);
 }
 
-export function remapSeedPaymentVoucher(pv: PrPaymentVoucher): PrPaymentVoucher {
-  if (pv.id !== "PV-2026-0611-A" || !pv.weekStartIso) return pv;
-  const prevSunday = getPreviousWeekSundayIso();
-  const prevEnd = addDaysToIso(prevSunday, 6);
-  if (!isWeekPvIssuedOnCalendar(prevEnd))
-    return { ...pv, weekStartIso: prevSunday, weekEndIso: prevEnd };
-  const fromAnchor = pv.weekStartIso;
-  const issueIso = addDaysToIso(prevEnd, 1);
-  const [iy, im, id] = issueIso.split("-").map(Number);
-  const issuedLabel = fmtDtable(iy, im, id);
-  const dueIso = addDaysToIso(issueIso, 7);
-  const [dy, dm, dd] = dueIso.split("-").map(Number);
-  const startLabel = fmtDtable(...(prevSunday.split("-").map(Number) as [number, number, number]));
-  const endLabel = fmtDtable(...(prevEnd.split("-").map(Number) as [number, number, number]));
-  const year = parseIsoYear(prevSunday);
-  return {
-    ...pv,
-    weekStartIso: prevSunday,
-    weekEndIso: prevEnd,
-    cycle: `${startLabel} – ${endLabel} ${year}`,
-    issued: `${issuedLabel} ${year}`,
-    due: `${fmtDtable(dy, dm, dd)} ${dy}`,
-    status: "SENT",
-    rows: pv.rows.map((row) => {
-      const iso = pvRowDateIso(row, parseIsoYear(fromAnchor));
-      if (!iso) return row;
-      const dayOffset = differenceInCalendarDays(parseISO(iso), parseISO(fromAnchor));
-      const newIso = addDaysToIso(prevSunday, dayOffset);
-      const [y, m, d] = newIso.split("-").map(Number);
-      const dayDate = new Date(y, m - 1, d);
-      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      return { ...row, date: fmtDtable(y, m, d), day: dayNames[dayDate.getDay()] };
-    }),
-  };
-}
-
 function parseIsoYear(iso: string) {
   return parseInt(iso.slice(0, 4), 10);
 }
 
+const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+/**
+ * Completed payroll weeks ago relative to the latest issued PV Sunday.
+ * 0 = just issued (PR review) · 1 = signed, awaiting agency payout · 2+ = paid (History).
+ */
+export const DEMO_PV_ISSUED_WEEKS_AGO: Record<string, number> = {
+  "PV-2026-0498": 5,
+  "PV-2026-0472-J": 4,
+  "PV-2026-W20-L": 4,
+  "PV-2026-W19-L": 3,
+  "PV-2026-0535-J": 2,
+  "PV-2026-0512": 3,
+  "PV-2026-0548-J": 2,
+  ...AGENCY_PAYROLL_PV_WEEKS_AGO,
+};
+
+/** Seeded payroll-week PV — row amounts are canonical (agency + PR must match). */
+export function isDemoTimelinePayrollPv(pv: Pick<PrPaymentVoucher, "id">): boolean {
+  return pv.id in DEMO_PV_ISSUED_WEEKS_AGO;
+}
+
+/** Most recent weekly PV issue Sunday on or before live today. */
+export function latestDemoPvIssueSundayIso(fromIso = getLiveTodayIso()): string {
+  const currentWeekSun = getPayrollWeekSundayIso(fromIso);
+  const currentWeekEnd = addDaysToIso(currentWeekSun, 6);
+  if (isWeekPvIssuedOnCalendar(currentWeekEnd, fromIso)) {
+    return addDaysToIso(currentWeekEnd, 1);
+  }
+  const prevWeekEnd = addDaysToIso(currentWeekSun, -1);
+  return addDaysToIso(prevWeekEnd, 1);
+}
+
+/** Weekly PVs are only sent after the payroll week ends (Sunday after Sat week-end). */
+export function isDemoWeeklyPvIssued(
+  pv: Pick<PrPaymentVoucher, "weekEndIso">,
+  fromIso = getLiveTodayIso(),
+): boolean {
+  if (!pv.weekEndIso) return true;
+  return isWeekPvIssuedOnCalendar(pv.weekEndIso, fromIso);
+}
+
+export function demoPvIssueIsoForWeeksAgo(
+  weeksAgo: number,
+  fromIso = getLiveTodayIso(),
+): string {
+  return addDaysToIso(latestDemoPvIssueSundayIso(fromIso), -7 * weeksAgo);
+}
+
+/** Sun–Sat payroll week bounds for a completed week N Sundays before the latest issue. */
+export function demoPayrollWeekBoundsForWeeksAgo(
+  weeksAgo: number,
+  fromIso = getLiveTodayIso(),
+) {
+  const issueIso = demoPvIssueIsoForWeeksAgo(weeksAgo, fromIso);
+  const weekEndIso = addDaysToIso(issueIso, -1);
+  const weekStartIso = addDaysToIso(weekEndIso, -6);
+  const year = parseIsoYear(weekStartIso);
+  const [sy, sm, sd] = weekStartIso.split("-").map(Number);
+  const [ey, em, ed] = weekEndIso.split("-").map(Number);
+  return {
+    weekStartIso,
+    weekEndIso,
+    cycle: `${fmtDtable(sy, sm, sd)} – ${fmtDtable(ey, em, ed)} ${year}`,
+  };
+}
+
+function issuedLabelFromIso(issueIso: string): string {
+  return format(parseISO(issueIso), "d MMM yyyy");
+}
+
+function dueLabelFromIssueIso(issueIso: string): string {
+  const dueIso = pvPayByDeadlineIsoFromIssueIso(issueIso);
+  const [y, m, d] = dueIso.split("-").map(Number);
+  return `${fmtDtable(y, m, d)} ${y}`;
+}
+
+function demoPvSignStamp(issueIso: string, daysAfter: number, time = "11:05"): string {
+  const iso = addDaysToIso(issueIso, daysAfter);
+  return `${issuedLabelFromIso(iso)} · ${time}`;
+}
+
+function payrollWeekBoundsFromIssueIso(issueIso: string) {
+  const weekEndIso = addDaysToIso(issueIso, -1);
+  const weekStartIso = addDaysToIso(weekEndIso, -6);
+  const year = parseIsoYear(weekStartIso);
+  const [sy, sm, sd] = weekStartIso.split("-").map(Number);
+  const [ey, em, ed] = weekEndIso.split("-").map(Number);
+  return {
+    weekStartIso,
+    weekEndIso,
+    cycle: `${fmtDtable(sy, sm, sd)} – ${fmtDtable(ey, em, ed)} ${year}`,
+  };
+}
+
+function parseCycleStartIso(cycle: string | undefined): string | null {
+  if (!cycle) return null;
+  const m = cycle.match(/^(\d{1,2}\s+[A-Za-z]+)\s*[–-]/);
+  if (!m) return null;
+  const year = cycle.match(/(\d{4})\s*$/)?.[1] ?? getLiveTodayIso().slice(0, 4);
+  return pvRowDateIso(
+    { i: 0, date: m[1], day: "", outlet: "", desc: "", qty: 0, amt: 0, ref: "" },
+    parseInt(year, 10),
+  );
+}
+
+function sourceWeekStartForRemap(pv: PrPaymentVoucher, seed?: PrPaymentVoucher): string | null {
+  const anchor = seed ?? pv;
+  if (anchor.weekStartIso) return anchor.weekStartIso;
+  const fromCycle = parseCycleStartIso(anchor.cycle);
+  if (fromCycle) return fromCycle;
+  const issuedMs = parsePvIssuedMs(anchor.issued);
+  if (!issuedMs) return null;
+  const oldDate = new Date(issuedMs);
+  const issueIso = ymdToIso(oldDate.getFullYear(), oldDate.getMonth() + 1, oldDate.getDate());
+  return addDaysToIso(addDaysToIso(issueIso, -1), -6);
+}
+
+function shiftPvRowsToWeek(
+  pv: PrPaymentVoucher,
+  targetWeekStartIso: string,
+  fromAnchor?: string,
+): PrPvRow[] {
+  const anchor = fromAnchor ?? pv.weekStartIso;
+  if (!anchor) return pv.rows;
+  const anchorYear = parseIsoYear(anchor);
+  return pv.rows.map((row) => {
+    const iso = pvRowDateIso(row, anchorYear);
+    if (!iso) return row;
+    const dayOffset = differenceInCalendarDays(parseISO(iso), parseISO(anchor));
+    const newIso = addDaysToIso(targetWeekStartIso, dayOffset);
+    const [y, m, d] = newIso.split("-").map(Number);
+    const dayDate = new Date(y, m - 1, d);
+    return { ...row, date: fmtDtable(y, m, d), day: DAY_NAMES_SHORT[dayDate.getDay()] };
+  });
+}
+
+/** Map agency payroll seed rows onto Sun–Sat slots (matches agency-payroll-demo-pvs). */
+const AGENCY_PAYROLL_SHIFT_SLOTS = [0, 1, 2, 3, 5, 6] as const;
+
+function remapAgencyPayrollRowsToTargetWeek(
+  rows: PrPvRow[],
+  targetWeekStartIso: string,
+): PrPvRow[] {
+  const dateOrder: string[] = [];
+  for (const row of rows) {
+    if (!dateOrder.includes(row.date)) dateOrder.push(row.date);
+  }
+  const out: PrPvRow[] = [];
+  for (let slot = 0; slot < dateOrder.length; slot++) {
+    const offset = AGENCY_PAYROLL_SHIFT_SLOTS[slot] ?? slot;
+    const iso = addDaysToIso(targetWeekStartIso, offset);
+    const [y, m, d] = iso.split("-").map(Number);
+    const dayDate = new Date(y, m - 1, d);
+    const dateLabel = fmtDtable(y, m, d);
+    const dayLabel = DAY_NAMES_SHORT[dayDate.getDay()]!;
+    for (const row of rows.filter((r) => r.date === dateOrder[slot])) {
+      out.push({ ...row, date: dateLabel, day: dayLabel });
+    }
+  }
+  return out;
+}
+
+function alignDemoPaymentVoucherTimeline(
+  pv: PrPaymentVoucher,
+  weeksAgo: number,
+  fromIso = getLiveTodayIso(),
+  seed?: PrPaymentVoucher,
+): PrPaymentVoucher {
+  const issueIso = demoPvIssueIsoForWeeksAgo(weeksAgo, fromIso);
+  const issued = issuedLabelFromIso(issueIso);
+  const due = dueLabelFromIssueIso(issueIso);
+  const financeStamp = seedFinanceHeadStamp(`${issued} · 09:00`);
+  const week = payrollWeekBoundsFromIssueIso(issueIso);
+  const rowSource = seed ? { ...pv, rows: seed.rows } : pv;
+  const sourceWeekStart = sourceWeekStartForRemap(rowSource, seed);
+  const rows =
+    seed && isDemoTimelinePayrollPv(pv)
+      ? remapAgencyPayrollRowsToTargetWeek(seed.rows, week.weekStartIso)
+      : sourceWeekStart
+        ? shiftPvRowsToWeek(rowSource, week.weekStartIso, sourceWeekStart)
+        : rowSource.rows;
+
+  let next: PrPaymentVoucher = {
+    ...pv,
+    issued,
+    due,
+    ...financeStamp,
+    weekStartIso: week.weekStartIso,
+    weekEndIso: week.weekEndIso,
+    cycle: week.cycle,
+    rows,
+  };
+
+  if (weeksAgo >= 2) {
+    const signedStamp = demoPvSignStamp(issueIso, 2, "14:22");
+    const paidStamp = demoPvSignStamp(issueIso, 3, "11:42");
+    const paidIso = addDaysToIso(issueIso, 3).replace(/-/g, "");
+    return {
+      ...next,
+      status: "PAID",
+      prSignedAt: signedStamp,
+      prSignatureDataUrl: next.prSignatureDataUrl ?? buildDemoESignatureDataUrl(next.prName),
+      paidAt: paidStamp,
+      bankRef: next.bankRef ?? `INZ-TRF-${paidIso}001`,
+      prDisputeReason: undefined,
+      disputedAt: undefined,
+      disputeNote: undefined,
+      disputeUpdatedAt: undefined,
+    };
+  }
+
+  if (weeksAgo === 1) {
+    return {
+      ...next,
+      status: "SIGNED",
+      prSignedAt: demoPvSignStamp(issueIso, 2, "11:05"),
+      prSignatureDataUrl: next.prSignatureDataUrl ?? buildDemoESignatureDataUrl(next.prName),
+      paidAt: undefined,
+      bankRef: undefined,
+      prDisputeReason: undefined,
+      disputedAt: undefined,
+      disputeNote: undefined,
+      disputeUpdatedAt: undefined,
+    };
+  }
+
+  const w0Status = seed?.status ?? "SENT";
+  const w0Base: PrPaymentVoucher = {
+    ...next,
+    status: w0Status,
+    prSignedAt: undefined,
+    prSignatureDataUrl: undefined,
+    paidAt: undefined,
+    bankRef: undefined,
+    disputeNote: undefined,
+    disputeUpdatedAt: undefined,
+  };
+
+  if (w0Status === "DISPUTED") {
+    return {
+      ...w0Base,
+      prDisputeReason: seed?.prDisputeReason ?? next.prDisputeReason,
+      disputedAt: seed?.disputedAt ?? demoPvSignStamp(issueIso, 1, "14:08"),
+    };
+  }
+
+  return {
+    ...w0Base,
+    prDisputeReason: undefined,
+    disputedAt: undefined,
+  };
+}
+
+export function remapSeedPaymentVoucher(pv: PrPaymentVoucher): PrPaymentVoucher {
+  const weeksAgo = DEMO_PV_ISSUED_WEEKS_AGO[pv.id];
+  if (weeksAgo == null) return pv;
+  const seed = SEED_PR_PVS.find((s) => s.id === pv.id);
+  return alignDemoPaymentVoucherTimeline(pv, weeksAgo, getLiveTodayIso(), seed);
+}
+
 export function remapSeedPaymentVouchers(pvs: PrPaymentVoucher[]): PrPaymentVoucher[] {
-  return pvs.map((pv) => reconcilePvTotals(remapSeedPaymentVoucher(pv)));
+  return pvs
+    .map((pv) => reconcilePvTotals(remapSeedPaymentVoucher(pv)))
+    .filter((pv) => isDemoWeeklyPvIssued(pv));
 }
 
 /** Persisted scans that kept pre-comcard freelancer / Luna identity. */

@@ -936,53 +936,150 @@ export const SEED_OUTLET_PNL: OutletPnlRow[] = [
   { outlet: "Onyx KL", grossRevenue: 11200, prPayout: 1980, agencyNet: 3200, outletNet: 5640, platformFee: 560 },
 ];
 
-export type AgencySubscriptionPlanId = "starter" | "plus" | "growth" | "enterprise";
+export type AgencySubscriptionPlanId =
+  | "starter"
+  | "plus"
+  | "growth"
+  | "enterprise"
+  | "scale"
+  | "renego";
 
 export interface AgencySubscriptionPlan {
   id: AgencySubscriptionPlanId;
   label: string;
-  monthlyRm: number;
-  /** Max PRs the agency can roster on this plan */
-  prLimit: number;
-  /** Shown on plan cards — e.g. "Below 25 PR" */
+  /** Monthly fee — null when price is negotiated with admin */
+  monthlyRm: number | null;
+  priceLabel?: string;
+  /** Max PVs/month on this plan (upper bound for ranged tiers) */
+  pvLimit: number;
+  /** Shown on plan cards — e.g. "5 PV/M" */
   capacityLabel: string;
   description: string;
+  /** Requires InnocenZ admin to quote pricing */
+  renegotiate?: boolean;
 }
 
 export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
   {
     id: "starter",
     label: "Starter",
-    monthlyRm: 999,
-    prLimit: 24,
-    capacityLabel: "Below 25 PR",
+    monthlyRm: 499,
+    pvLimit: 5,
+    capacityLabel: "5 PV/M",
     description: "InnocenZ Agency · core portal access",
   },
   {
     id: "plus",
     label: "Plus",
-    monthlyRm: 1499,
-    prLimit: 49,
-    capacityLabel: "Below 50 PR",
+    monthlyRm: 999,
+    pvLimit: 10,
+    capacityLabel: "10 PV/M",
     description: "Growing roster · payroll & history",
   },
   {
     id: "growth",
     label: "Growth",
     monthlyRm: 1999,
-    prLimit: 99,
-    capacityLabel: "Below 100 PR",
+    pvLimit: 25,
+    capacityLabel: "25 PV/M",
     description: "Expanded roster · payroll & reporting",
   },
   {
     id: "enterprise",
     label: "Enterprise",
-    monthlyRm: 2499,
-    prLimit: 9999,
-    capacityLabel: "100+ PR",
+    monthlyRm: 3999,
+    pvLimit: 100,
+    capacityLabel: "26–100 PV/M",
     description: "Large roster · priority support",
   },
+  {
+    id: "scale",
+    label: "Scale",
+    monthlyRm: 5999,
+    pvLimit: 200,
+    capacityLabel: "101–200 PV/M",
+    description: "High volume · dedicated success",
+  },
+  {
+    id: "renego",
+    label: "Custom",
+    monthlyRm: null,
+    priceLabel: "Renegotiate Price",
+    pvLimit: Number.POSITIVE_INFINITY,
+    capacityLabel: "201+ PV/M",
+    description: "Enterprise volume · custom terms with InnocenZ admin",
+    renegotiate: true,
+  },
 ];
+
+/** Demo billing: 1 PV issued per active PR per payroll week (~4 weeks/month). */
+export const AGENCY_PVS_PER_PR_PER_MONTH = 4;
+
+export function agencyActivePrCount(
+  agencyPRs: Pick<AgencyManagedPR, "detached">[],
+): number {
+  return agencyPRs.filter((p) => !p.detached).length;
+}
+
+export function agencyExpectedMonthlyPvFromPrCount(prCount: number): number {
+  return Math.max(0, prCount) * AGENCY_PVS_PER_PR_PER_MONTH;
+}
+
+export function resolveAgencySubscriptionPlanForMonthlyPv(
+  monthlyPv: number,
+): AgencySubscriptionPlan {
+  for (const plan of AGENCY_SUBSCRIPTION_PLANS) {
+    if (plan.renegotiate) continue;
+    if (monthlyPv <= plan.pvLimit) return plan;
+  }
+  return getAgencySubscriptionPlan("renego");
+}
+
+export function resolveAgencySubscriptionPlanForRoster(
+  agencyPRs: Pick<AgencyManagedPR, "detached">[],
+): AgencySubscriptionPlan {
+  return resolveAgencySubscriptionPlanForMonthlyPv(
+    agencyExpectedMonthlyPvFromPrCount(agencyActivePrCount(agencyPRs)),
+  );
+}
+
+export function syncAgencyOwnerSubscriptionPlan(
+  owner: AgencyOwnerSettings,
+  agencyPRs: Pick<AgencyManagedPR, "detached">[],
+): AgencyOwnerSettings {
+  const plan = resolveAgencySubscriptionPlanForRoster(agencyPRs);
+  return { ...owner, subscriptionPlanId: plan.id };
+}
+
+export function agencyMonthlyPvCount(
+  pvs: { issued: string }[],
+  _agencyPRs: { id: string; name: string; ic?: string }[] = [],
+  reference = new Date(),
+): number {
+  const month = reference.getMonth();
+  const year = reference.getFullYear();
+  return pvs.filter((pv) => {
+    const m = pv.issued.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+    if (!m) return false;
+    const months: Record<string, number> = {
+      jan: 0,
+      feb: 1,
+      mar: 2,
+      apr: 3,
+      may: 4,
+      jun: 5,
+      jul: 6,
+      aug: 7,
+      sep: 8,
+      oct: 9,
+      nov: 10,
+      dec: 11,
+    };
+    const mi = months[m[2].slice(0, 3).toLowerCase()];
+    if (mi == null) return false;
+    return mi === month && parseInt(m[3], 10) === year;
+  }).length;
+}
 
 export function getAgencySubscriptionPlan(id?: AgencySubscriptionPlanId | null): AgencySubscriptionPlan {
   return AGENCY_SUBSCRIPTION_PLANS.find((p) => p.id === id) ?? AGENCY_SUBSCRIPTION_PLANS[0];
@@ -1009,7 +1106,7 @@ export const DEFAULT_AGENCY_OWNER: AgencyOwnerSettings = {
   otpChannel: "email",
   accountActivated: true,
   avatarPhoto: null,
-  subscriptionPlanId: "growth",
+  subscriptionPlanId: resolveAgencySubscriptionPlanForRoster(SEED_AGENCY_PRS).id,
 };
 
 export interface AgencyFinanceHead {
@@ -1157,7 +1254,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
   {
     id: "AINV-2026-0601",
     outlet: "Platform fee",
-    amount: 1999,
+    amount: 3999,
     issueDate: "1 Jun 2026",
     issueTime: "08:00",
     dueDate: "1 Jun 2026",
@@ -1166,7 +1263,14 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     linkedPvIds: [],
     kind: "agency",
     counterparty: "InnocenZ Platform",
-    lines: [{ label: "Atlas Agency subscription", detail: "Jun 2026 · Growth · SaaS", amount: 1999, group: "fees" }],
+    lines: [
+      {
+        label: "Atlas Agency subscription",
+        detail: "Jun 2026 · Enterprise · SaaS",
+        amount: 3999,
+        group: "fees",
+      },
+    ],
   },
 ];
 

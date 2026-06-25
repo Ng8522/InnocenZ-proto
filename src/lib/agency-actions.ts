@@ -6,6 +6,7 @@ import type { FinanceHeadPvStamp } from "@/lib/finance-head-stamp";
 import {
   fmtDtable,
   dayName,
+  formatPvPayByDeadline,
   makeShiftPvId,
   type PrPaymentVoucher,
   type PrPvRow,
@@ -131,7 +132,7 @@ export function buildPvFromShiftHistoryRow(
     outlet: row.outlet,
     cycle: `${dateLabel} shift`,
     issued,
-    due: issued,
+    due: formatPvPayByDeadline(issued) ?? issued,
     rows,
     subtotal,
     deduct: 0,

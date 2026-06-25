@@ -8,10 +8,12 @@ import { addDaysToIso, getLiveTodayIso, getPayrollWeekSundayIso, isWeekPvIssuedO
 import { buildDemoESignatureDataUrl, seedFinanceHeadStamp } from "@/lib/finance-head-stamp";
 import {
   calcReceiptCommissions,
+  DEMO_PV_ISSUED_WEEKS_AGO,
   fmtDtable,
   RECEIPT_COMMISSION_RULES,
   TIED_DEMO_ROSTER_PR_ID,
   reconcilePvTotals,
+  pvPayByDeadlineIsoFromIssueIso,
   type PrPaymentVoucher,
   type PrProfile,
   type PrReceiptScan,
@@ -198,6 +200,11 @@ function mergeReceiptScansById(...groups: PrReceiptScan[][]): PrReceiptScan[] {
   return [...byId.values()];
 }
 
+/** Agency / demo-timeline PVs — do not replace with shift-history reconstructions. */
+function isAuthoritativeDemoPayrollPv(pv: PrPaymentVoucher): boolean {
+  return pv.id in DEMO_PV_ISSUED_WEEKS_AGO;
+}
+
 /** Drop shift-history synced ledger rows so they can be rebuilt from the current log. */
 function stripShiftHistorySyncedLedger(
   scans: PrReceiptScan[],
@@ -218,6 +225,7 @@ function stripShiftHistorySyncedLedger(
       (s) => !s.id.startsWith(histScanPrefix(prId)) && !s.id.startsWith(pvScanPrefix()),
     ),
     pvs: pvs.filter((p) => {
+      if (isAuthoritativeDemoPayrollPv(p)) return true;
       if (p.prName !== profileName || !p.weekStartIso) return true;
       if (inboxWeeks.has(p.weekStartIso) && !isPrPaymentInboxPv(p)) return false;
       return !(p.status === "PAID" || p.status === "SIGNED");
@@ -401,6 +409,16 @@ export function buildWeeklyPvsFromShiftHistory(
       )
       .map((p) => p.weekStartIso!),
   );
+  const authoritativeWeekStarts = new Set(
+    existing
+      .filter(
+        (p) =>
+          p.weekStartIso &&
+          p.prName === profile.name &&
+          isAuthoritativeDemoPayrollPv(p),
+      )
+      .map((p) => p.weekStartIso!),
+  );
   const weekStarts = new Set<string>();
 
   for (const row of rows) {
@@ -415,6 +433,7 @@ export function buildWeeklyPvsFromShiftHistory(
 
   for (const weekStartIso of [...weekStarts].sort()) {
     if (inboxWeekStarts.has(weekStartIso)) continue;
+    if (authoritativeWeekStarts.has(weekStartIso)) continue;
     const bounds = getWeekBounds(ymdFromIso(weekStartIso));
     const summary = buildWeeklyPaymentSummary({
       weekStartIso,
@@ -427,7 +446,10 @@ export function buildWeeklyPvsFromShiftHistory(
     const status = weekStartIso === prevWeekSun ? ("SIGNED" as const) : ("PAID" as const);
     const issueDate = parseISO(bounds.issueDayIso);
     const issuedLabel = format(issueDate, "d MMM yyyy");
-    const dueLabel = format(addDays(issueDate, 7), "d MMM yyyy");
+    const dueLabel = format(
+      parseISO(pvPayByDeadlineIsoFromIssueIso(bounds.issueDayIso)),
+      "d MMM yyyy",
+    );
     const signedStamp = format(addDays(issueDate, 1), "d MMM yyyy · 16:20");
     const paidStamp = format(addDays(issueDate, 2), "d MMM yyyy · 11:42");
 

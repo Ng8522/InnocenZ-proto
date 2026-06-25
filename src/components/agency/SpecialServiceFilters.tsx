@@ -1,9 +1,9 @@
 import { RosterPlanningDatePicker } from "@/components/agency/RosterPlanningDatePicker";
 import { IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
 import {
-  AGENCY_SPECIAL_SERVICE_OFFERS,
   EMPTY_SPECIAL_SERVICE_FILTERS,
   specialServiceFiltersActive,
+  type AgencySpecialServiceOffer,
   type SpecialServiceFilterState,
 } from "@/lib/special-service-demo";
 import { RotateCcw } from "lucide-react";
@@ -16,6 +16,7 @@ export function SpecialServiceFilters({
   amountOutOptions,
   resultCount,
   totalCount,
+  serviceOffers,
   compact = false,
 }: {
   filters: SpecialServiceFilterState;
@@ -25,6 +26,7 @@ export function SpecialServiceFilters({
   amountOutOptions: number[];
   resultCount: number;
   totalCount: number;
+  serviceOffers: AgencySpecialServiceOffer[];
   /** Narrow phone layout (PR host portal) */
   compact?: boolean;
 }) {
@@ -51,7 +53,7 @@ export function SpecialServiceFilters({
             placeholder="All dates"
             allowClear
             hint="Dots mark days with bookings."
-            className="iz-outlet-manage-filter-date"
+            className="iz-special-service-filter-date"
           />
         </label>
 
@@ -61,7 +63,7 @@ export function SpecialServiceFilters({
             value={filters.time}
             onChange={(time) => onChange({ time })}
             showIcon={false}
-            className="iz-roster-filter-time iz-pr-manage-filter-control !min-h-0 !py-2 !text-xs"
+            className="iz-special-service-filter-control"
             aria-label="Filter from time"
           />
         </label>
@@ -70,12 +72,12 @@ export function SpecialServiceFilters({
           <span className="iz-roster-filter-label">{compact ? "Service" : "Service type"}</span>
           <IzSelect
             block
-            className="iz-pr-manage-filter-control"
+            className="iz-special-service-filter-control"
             value={filters.serviceType}
             onChange={(e) => onChange({ serviceType: e.target.value })}
           >
             <option value="">{compact ? "All" : "All services"}</option>
-            {AGENCY_SPECIAL_SERVICE_OFFERS.map((offer) => (
+            {serviceOffers.map((offer) => (
               <option key={offer.id} value={offer.id}>
                 {offer.label}
               </option>
@@ -87,7 +89,7 @@ export function SpecialServiceFilters({
           <span className="iz-roster-filter-label">{compact ? "Amt in" : "Amount in (min)"}</span>
           <IzSelect
             block
-            className="iz-pr-manage-filter-control"
+            className="iz-special-service-filter-control"
             value={filters.amountInMin}
             onChange={(e) => onChange({ amountInMin: e.target.value })}
           >
@@ -104,7 +106,7 @@ export function SpecialServiceFilters({
           <span className="iz-roster-filter-label">{compact ? "Amt out" : "Amount out (min)"}</span>
           <IzSelect
             block
-            className="iz-pr-manage-filter-control"
+            className="iz-special-service-filter-control"
             value={filters.amountOutMin}
             onChange={(e) => onChange({ amountOutMin: e.target.value })}
           >
@@ -121,7 +123,7 @@ export function SpecialServiceFilters({
           <span className="iz-roster-filter-label">Status</span>
           <IzSelect
             block
-            className="iz-pr-manage-filter-control"
+            className="iz-special-service-filter-control"
             value={filters.status}
             onChange={(e) =>
               onChange({ status: e.target.value as SpecialServiceFilterState["status"] })

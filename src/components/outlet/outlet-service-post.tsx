@@ -444,6 +444,7 @@ export function OutletServicePostSection() {
           amountOutOptions={amountOutOptions}
           resultCount={filtered.length}
           totalCount={scopedRecords.length}
+          serviceOffers={serviceOffers}
         />
       </IzCard>
 

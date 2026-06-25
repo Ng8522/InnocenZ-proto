@@ -17,7 +17,7 @@ import {
   type AgencyManagedPR,
   type AgencyRosterSlot,
 } from "@/lib/agency-demo";
-import { syncAgencyPayrollReceiptScans } from "@/lib/agency-payroll";
+import { syncAgencyPayrollReceiptScans, syncAgencyPayrollShiftHistory } from "@/lib/agency-payroll";
 import {
   DEFAULT_OUTLET_SETTINGS,
   DEFAULT_OUTLET_WORKSPACE,
@@ -40,7 +40,7 @@ import {
   DEMO_RECONCILIATION_WEEK,
   recomputeWeeklyReconciliation,
 } from "@/lib/reconciliation-weekly";
-import { SEED_SHIFT_HISTORY } from "@/lib/shift-history";
+import { SEED_SHIFT_HISTORY, prepareShiftHistoryForDisplay } from "@/lib/shift-history";
 import {
   SEED_PR_PVS,
   LIVE_SEED_PR_PVS,
@@ -757,6 +757,15 @@ export function buildDemoStoreReset() {
   const shifts = buildDemoShifts();
   const agencyRoster = mergeOutletRequestRosterSlots(buildDemoRoster(), shifts, DEMO_APPLICANTS);
   const outletPnl = recomputeAllOutletPnl(shifts, undefined, agencyRoster);
+  const agencyPRs = SEED_AGENCY_PRS.map(cloneAgencyPr);
+  const prDemo = buildPrDemoReset(agencyRoster);
+  const shiftHistory = prepareShiftHistoryForDisplay(
+    syncAgencyPayrollShiftHistory(
+      SEED_SHIFT_HISTORY.map((row) => ({ ...row })),
+      prDemo.prPaymentVouchers,
+      agencyPRs,
+    ),
+  );
 
   return {
     shifts,
@@ -764,9 +773,9 @@ export function buildDemoStoreReset() {
     outletPnlSyncAt: 0,
     outletMoneyEditCount: 0,
     agencyRoster,
-    agencyPRs: SEED_AGENCY_PRS.map(cloneAgencyPr),
+    agencyPRs,
     prs: marketplacePrsFromAgency(SEED_AGENCY_PRS.map(cloneAgencyPr)),
-    shiftHistory: SEED_SHIFT_HISTORY.map((row) => ({ ...row })),
+    shiftHistory,
     shiftApplicants: [...DEMO_APPLICANTS],
     ratings: [
       {
@@ -778,7 +787,7 @@ export function buildDemoStoreReset() {
         date: "3 Jun 2026",
       },
     ],
-    agencyReconciliation: buildDemoReconciliation(SEED_SHIFT_HISTORY.map((row) => ({ ...row }))),
+    agencyReconciliation: buildDemoReconciliation(shiftHistory),
     agencyCollections: DEMO_COLLECTIONS.map((c) => ({ ...c })),
     agencyOwner: { ...DEFAULT_AGENCY_OWNER },
     agencyFinanceHead: { ...DEFAULT_FINANCE_HEAD },
@@ -796,6 +805,6 @@ export function buildDemoStoreReset() {
     postSealRatePrompt: null,
     pendingPRs: SEED_PENDING_PRS.map((p) => ({ ...p })),
     pendingFreelancerPayrolls: SEED_PENDING_FREELANCER_PAYROLLS.map((p) => ({ ...p })),
-    ...buildPrDemoReset(agencyRoster),
+    ...prDemo,
   };
 }

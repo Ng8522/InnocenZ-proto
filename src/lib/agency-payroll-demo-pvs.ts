@@ -161,9 +161,17 @@ function attachLinkedReceipts(
   return rows;
 }
 
-function buildWeeklyRows(prIndex: number, anchor: typeof ANCHOR_W0): PayrollPvRow[] {
-  const wage = 298 + (prIndex % 5) * 12;
-  const shiftDays = [0, 1, 2, 3, 5, 6];
+function buildWeeklyRows(
+  prIndex: number,
+  anchor: typeof ANCHOR_W0,
+  weeksAgo: 0 | 1,
+): PayrollPvRow[] {
+  const wage =
+    weeksAgo === 0
+      ? 298 + (prIndex % 5) * 12
+      : 268 + (prIndex % 5) * 14;
+  const commBias = weeksAgo === 0 ? 0 : 19;
+  const shiftDays = weeksAgo === 0 ? [0, 1, 2, 3, 5, 6] : [0, 1, 2, 3, 4, 6];
   const rows: PayrollPvRow[] = [];
   let i = 1;
 
@@ -192,7 +200,7 @@ function buildWeeklyRows(prIndex: number, anchor: typeof ANCHOR_W0): PayrollPvRo
       outlet,
       desc: "Commission \u2013 Drinks",
       qty: 1,
-      amt: 88 + ((prIndex * 19 + dayOff * 13) % 42),
+      amt: 88 + ((prIndex * 19 + dayOff * 13 + commBias) % 42),
       ref: "Verified",
     });
 
@@ -204,12 +212,12 @@ function buildWeeklyRows(prIndex: number, anchor: typeof ANCHOR_W0): PayrollPvRo
         outlet,
         desc: "Commission \u2013 Tips",
         qty: 1,
-        amt: 62 + ((prIndex * 11 + dayOff * 7) % 34),
+        amt: 62 + ((prIndex * 11 + dayOff * 7 + commBias) % 34),
         ref: "Verified",
       });
     }
 
-    if (dayOff === 5) {
+    if (dayOff === 5 || (weeksAgo === 1 && dayOff === 4)) {
       rows.push({
         i: i++,
         date: dateStr,
@@ -240,7 +248,7 @@ function buildPayrollWeekPv(
   const rows = attachLinkedReceipts(
     pr.name,
     weeksAgo,
-    buildWeeklyRows(prIndex, anchor),
+    buildWeeklyRows(prIndex, anchor, weeksAgo),
   );
   const lastWeekStatus = weeksAgo === 0 ? lastWeekPvStatus(pr.name) : null;
   const rowsForPv =

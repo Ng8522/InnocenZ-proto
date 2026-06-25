@@ -26,9 +26,14 @@ export function filterShiftHistoryThroughToday(
   return (rows ?? []).filter((row) => row.dateIso <= todayIso);
 }
 
+/** Payroll-synced row — amounts match agency demo PV line items (`ap-shift-…`) */
+export function isPayrollSyncedShiftHistoryRow(row: ShiftHistoryRow): boolean {
+  return row.id.startsWith("ap-shift-");
+}
+
 /** Real checkout row — not Velvet demo seed (`vh-…`) */
 export function isCheckoutShiftHistoryRow(row: ShiftHistoryRow): boolean {
-  return row.id.startsWith("h") && !row.id.startsWith("vh-");
+  return row.id.startsWith("h") && !row.id.startsWith("vh-") && !isPayrollSyncedShiftHistoryRow(row);
 }
 
 export function isDateInCurrentPayrollWeek(dateIso: string, todayIso = getLiveTodayIso()): boolean {
@@ -42,6 +47,7 @@ export function shiftHistorySlotKey(row: ShiftHistoryRow): string {
 }
 
 function shiftHistoryRowPriority(row: ShiftHistoryRow): number {
+  if (isPayrollSyncedShiftHistoryRow(row)) return 3;
   if (isCheckoutShiftHistoryRow(row)) return 2;
   if (row.id.startsWith("vh-")) return 1;
   return 0;
@@ -71,7 +77,7 @@ export function prepareShiftHistoryForDisplay(
   const throughToday = filterShiftHistoryThroughToday(rows, todayIso);
   const scoped = throughToday.filter((row) => {
     if (isDateInCurrentPayrollWeek(row.dateIso, todayIso)) {
-      return isCheckoutShiftHistoryRow(row);
+      return isCheckoutShiftHistoryRow(row) || isPayrollSyncedShiftHistoryRow(row);
     }
     return true;
   });
@@ -215,13 +221,20 @@ export function aggregateShiftHistoryByPr(
     }
   }
 
-  return [...map.values()]
-    .map(({ venueSet, ...rollup }) => ({
-      ...rollup,
-      venues: [...venueSet].sort(),
-    }))
-    .sort(
-      (a, b) =>
-        b.latestDateIso.localeCompare(a.latestDateIso) || a.prName.localeCompare(b.prName),
+  const rollups = [...map.values()].map(({ venueSet, ...rollup }) => ({
+    ...rollup,
+    venues: [...venueSet].sort(),
+  }));
+
+  if (portal === "outlet") {
+    return rollups.sort((a, b) =>
+      a.prName.localeCompare(b.prName, undefined, { sensitivity: "base" }),
     );
+  }
+
+  return rollups.sort(
+    (a, b) =>
+      b.latestDateIso.localeCompare(a.latestDateIso) ||
+      a.prName.localeCompare(b.prName, undefined, { sensitivity: "base" }),
+  );
 }

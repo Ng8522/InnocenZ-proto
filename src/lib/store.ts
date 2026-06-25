@@ -112,7 +112,7 @@ import {
   isWeekPvIssued,
   type WeeklyDisputeTarget,
 } from "@/lib/pr-weekly-payment";
-import { mergeAgencyCollections, syncAgencyPayrollReceiptScans } from "@/lib/agency-payroll";
+import { mergeAgencyCollections, syncAgencyPayrollReceiptScans, syncAgencyPayrollShiftHistory } from "@/lib/agency-payroll";
 import { getFreePrsWithDistances } from "@/lib/roster-availability";
 import {
   buildPlanningWeekOutletShiftMap,
@@ -5236,6 +5236,17 @@ export const useStore = create<StoreState>()(
           mergedPvs,
           mergedAgencyPRsForLedger,
         );
+        const mergedShiftHistorySynced = prepareShiftHistoryForDisplay(
+          migrateShiftHistoryPrNames(
+            syncAgencyPayrollShiftHistory(
+              mergedShiftHistory,
+              mergedPvs,
+              mergedAgencyPRsForLedger,
+            ),
+            current.shiftHistory,
+            mergedAgencyPRsForLedger,
+          ),
+        );
         const portalForAgencySync = {
           prDisplayName:
             p?.prDisplayName === "Luna" ? null : (p?.prDisplayName ?? current.prDisplayName),
@@ -5344,7 +5355,7 @@ export const useStore = create<StoreState>()(
           prReceiptScans: mergedScans.length ? mergedScans : current.prReceiptScans,
           prActiveShift: p?.prActiveShift ?? current.prActiveShift,
           shiftHistory: migrateShiftHistoryPrNames(
-            mergedShiftHistory,
+            mergedShiftHistorySynced,
             current.shiftHistory,
             mergedAgencyPRs,
           ),

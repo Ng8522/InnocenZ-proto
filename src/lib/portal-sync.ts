@@ -630,7 +630,13 @@ export function syncPrAttendanceToRoster(
 
 /** Outlet shift PR list aligned with agency managed PRs */
 export function marketplacePrsFromAgency(
-  agencyPRs: { id: string; name: string; rating: number; languages: string[] }[],
+  agencyPRs: {
+    id: string;
+    name: string;
+    rating: number;
+    languages: string[];
+    comcardImageUrl?: string | null;
+  }[],
 ) {
   const avatars: Record<string, string> = {
     p1: "🌙",
@@ -653,6 +659,7 @@ export function marketplacePrsFromAgency(
     languages: p.languages.map((l) => (l.length <= 3 ? l : l.slice(0, 2).toUpperCase())),
     status: "available" as const,
     avatar: avatars[p.id] ?? "✨",
+    comcardImageUrl: p.comcardImageUrl ?? null,
   }));
 }
 

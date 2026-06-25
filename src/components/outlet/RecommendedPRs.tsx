@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useStore } from "@/lib/store";
+import { PrComcardPickerThumb } from "@/components/pr/PortfolioComcardVisual";
 import { IzSectionLabel, IzPill } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
 import { Sparkles, Check } from "lucide-react";
@@ -41,10 +42,12 @@ export function RecommendedPRs() {
         {recommended.map((p) => {
           const selected = staffingShift.prs.includes(p.id);
           return (
-            <div key={p.id} className="iz-card iz-card-flat w-[140px] shrink-0 snap-start !mb-0 p-3">
-              <div className="flex h-24 items-center justify-center rounded-xl bg-[var(--iz-violet-ink)] text-4xl">
-                {p.avatar}
-              </div>
+            <div key={p.id} className="iz-card iz-card-flat w-[148px] shrink-0 snap-start !mb-0 p-3">
+              <PrComcardPickerThumb
+                comcardImageUrl={p.comcardImageUrl}
+                avatar={p.avatar}
+                name={p.name}
+              />
               <div className="mt-2 text-sm font-semibold">{p.name}</div>
               <div className="text-[11px] text-[var(--iz-gold)]">{p.rating} star</div>
               <div className="text-[10px] text-[var(--iz-muted)]">{p.languages.join(" / ")}</div>

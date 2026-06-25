@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { format, startOfToday, addDays } from "date-fns";
 import { Check, HelpCircle, Minus, Pencil, Plus, X } from "lucide-react";
 import { OutletDatePopoverChip, OutletDatePopoverField, OutletDateRangePopover } from "@/components/outlet/outlet-date-popover";
+import { PrComcardPickerThumb } from "@/components/pr/PortfolioComcardVisual";
 import { IzCard, IzSelect, IzTimeInput, normalizeTimeValue } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
 import { TierRatesFields } from "@/components/outlet/TierRatesFields";
@@ -735,7 +736,7 @@ export function DraftPrPicker({
                 : undefined;
 
             return (
-              <div key={p.id} className="relative w-[118px] shrink-0 snap-start">
+              <div key={p.id} className="relative w-[140px] shrink-0 snap-start">
                 {otherWeeksTooltip && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -774,9 +775,11 @@ export function DraftPrPicker({
                       #{rankCtx.shiftWeek.rank}
                     </span>
                   )}
-                <div className="flex h-16 items-center justify-center rounded-lg bg-[var(--iz-violet-ink)] text-3xl">
-                  {p.avatar}
-                </div>
+                <PrComcardPickerThumb
+                  comcardImageUrl={p.comcardImageUrl}
+                  avatar={p.avatar}
+                  name={p.name}
+                />
                 <div className="mt-1.5 truncate text-xs font-semibold text-[var(--iz-txt)]">{p.name}</div>
                 <div className="text-[10px] text-[var(--iz-gold)]">{p.rating}★</div>
                 <div

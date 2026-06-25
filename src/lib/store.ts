@@ -276,6 +276,7 @@ export interface PR {
   languages: string[];
   status: "available" | "booked" | "pending";
   avatar: string;
+  comcardImageUrl?: string | null;
 }
 
 export interface ShiftRequest {

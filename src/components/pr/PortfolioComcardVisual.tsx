@@ -19,6 +19,32 @@ export function StaticComcardVisual({ src, className }: { src: string; className
   );
 }
 
+/** Compact comcard for PR picker cards — falls back to emoji avatar. */
+export function PrComcardPickerThumb({
+  comcardImageUrl,
+  avatar,
+  name,
+}: {
+  comcardImageUrl?: string | null;
+  avatar: string;
+  name: string;
+}) {
+  if (comcardImageUrl) {
+    return (
+      <StaticComcardVisual
+        src={comcardImageUrl}
+        className="iz-static-comcard--picker"
+      />
+    );
+  }
+  return (
+    <div className="flex aspect-[3/4] w-full items-center justify-center rounded-[10px] bg-[var(--iz-violet-ink)] text-4xl">
+      <span aria-hidden>{avatar}</span>
+      <span className="sr-only">{name}</span>
+    </div>
+  );
+}
+
 export function PortfolioComcardVisual({
   photos,
   pr,

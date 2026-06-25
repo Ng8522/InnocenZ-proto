@@ -4,7 +4,8 @@ import { useStore } from "@/lib/store";
 import {
   getOutletReportForDateRange,
   getOutletReportForWeek,
-  VELVET_REPORT_WEEK_OPTIONS,
+  getVelvetReportWeekOptions,
+  payrollWeekRangeLabel,
   velvetReportDateBounds,
   type OutletWeeklyReport,
 } from "@/lib/velvet-week-demo";
@@ -19,7 +20,7 @@ import {
   type OutletReportPrefs,
   type OutletReportTab,
 } from "@/lib/outlet-report-prefs";
-import { getPayrollWeekSundayIso, getPreviousWeekSundayIso } from "@/lib/demo-clock";
+import { getLiveTodayIso, getPayrollWeekSundayIso, getPreviousWeekSundayIso } from "@/lib/demo-clock";
 import { shiftHistoryForOutlet, tonightShiftOutletName } from "@/lib/portal-sync";
 import { aggregateShiftHistoryByPr } from "@/lib/shift-history-utils";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
@@ -28,7 +29,7 @@ import {
   OutletDateRangePopover,
 } from "@/components/outlet/outlet-date-popover";
 import { dateFromIsoKey, isoKeyFromDate } from "@/components/iz/HistDateCalendar";
-import { IzCard, IzPill, IzSectionLabel, IzSelect, formatRM } from "@/components/iz/ui";
+import { IzCard, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { cn } from "@/lib/utils";
 import { CalendarDays, TrendingDown, TrendingUp } from "lucide-react";
@@ -36,16 +37,6 @@ import { CalendarDays, TrendingDown, TrendingUp } from "lucide-react";
 function weekdayLabel(dateIso: string): string {
   const d = new Date(`${dateIso}T12:00:00`);
   return d.toLocaleDateString("en-GB", { weekday: "short" });
-}
-
-function sundayFirstSortKey(dateIso: string): number {
-  return new Date(`${dateIso}T12:00:00`).getDay();
-}
-
-function sortDaysSundayFirst<T extends { dateIso: string }>(rows: T[]): T[] {
-  return [...rows].sort(
-    (a, b) => sundayFirstSortKey(a.dateIso) - sundayFirstSortKey(b.dateIso) || a.dateIso.localeCompare(b.dateIso),
-  );
 }
 
 const chartConfig = {
@@ -87,6 +78,12 @@ function EarningsTooltip({
   );
 }
 
+function effectiveWeekSundayIso(prefs: OutletReportPrefs): string {
+  if (prefs.tab === "this_week") return getPayrollWeekSundayIso();
+  if (prefs.tab === "last_week") return getPreviousWeekSundayIso();
+  return prefs.weekSundayIso;
+}
+
 function resolveReportRange(
   prefs: OutletReportPrefs,
 ): { startIso: string; endIso: string; kind: "week" | "custom" } {
@@ -94,12 +91,13 @@ function resolveReportRange(
     const { startIso, endIso } = normalizeCustomReportRange(prefs.customStartIso, prefs.customEndIso);
     return { startIso, endIso, kind: "custom" };
   }
+  const weekSun = effectiveWeekSundayIso(prefs);
   const week =
-    VELVET_REPORT_WEEK_OPTIONS.find((w) => w.weekSundayIso === prefs.weekSundayIso) ??
-    VELVET_REPORT_WEEK_OPTIONS[0]!;
+    getVelvetReportWeekOptions().find((w) => w.weekSundayIso === weekSun) ??
+    getVelvetReportWeekOptions()[0]!;
   return {
-    startIso: week.nights[0]!.dateIso,
-    endIso: week.nights[week.nights.length - 1]!.dateIso,
+    startIso: week.weekSundayIso,
+    endIso: week.weekEndIso,
     kind: "week",
   };
 }
@@ -109,7 +107,7 @@ function loadReport(outletName: string, prefs: OutletReportPrefs): OutletWeeklyR
     const { startIso, endIso } = normalizeCustomReportRange(prefs.customStartIso, prefs.customEndIso);
     return getOutletReportForDateRange(outletName, startIso, endIso);
   }
-  return getOutletReportForWeek(outletName, prefs.weekSundayIso);
+  return getOutletReportForWeek(outletName, effectiveWeekSundayIso(prefs));
 }
 
 const REPORT_TABS: { id: OutletReportTab; label: string }[] = [
@@ -141,6 +139,9 @@ export function OutletSalesDashboard() {
 
   const report = useMemo(() => loadReport(outletName, prefs), [outletName, prefs]);
   const range = useMemo(() => resolveReportRange(prefs), [prefs]);
+  const todayIso = getLiveTodayIso();
+  const isCurrentWeek = prefs.tab === "this_week";
+  const sealedEndIso = isCurrentWeek ? todayIso : range.endIso;
 
   const outletHistoryRows = useMemo(
     () => shiftHistoryForOutlet(shiftHistory, outletName),
@@ -150,9 +151,9 @@ export function OutletSalesDashboard() {
   const historyInRange = useMemo(
     () =>
       outletHistoryRows.filter(
-        (r) => r.dateIso >= range.startIso && r.dateIso <= range.endIso,
+        (r) => r.dateIso >= range.startIso && r.dateIso <= sealedEndIso,
       ),
-    [outletHistoryRows, range.startIso, range.endIso],
+    [outletHistoryRows, range.startIso, sealedEndIso],
   );
 
   const topPrs = useMemo(() => {
@@ -189,7 +190,9 @@ export function OutletSalesDashboard() {
         marginPct,
       };
     });
-    return range.kind === "week" ? sortDaysSundayFirst(rows) : rows;
+    return range.kind === "week"
+      ? rows
+      : [...rows].sort((a, b) => a.dateIso.localeCompare(b.dateIso));
   }, [report, range.kind]);
 
   const { minIso: minDateIso, maxIso: maxDateIso } = velvetReportDateBounds();
@@ -201,9 +204,7 @@ export function OutletSalesDashboard() {
         {prefs.tab === "custom" && (
           <CustomRangePanel prefs={prefs} onChange={updatePrefs} minDateIso={minDateIso} maxDateIso={maxDateIso} />
         )}
-        {prefs.tab !== "custom" && (
-          <WeekPicker prefs={prefs} onChange={updatePrefs} className="mt-3" />
-        )}
+        {prefs.tab !== "custom" && <ReportPeriodBadge prefs={prefs} className="mt-3" />}
         <IzSectionLabel>Outlet earnings</IzSectionLabel>
         <p className="iz-sm iz-muted mt-3 rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
           No PR-attributed earnings for this period — try another week or date range.
@@ -216,7 +217,8 @@ export function OutletSalesDashboard() {
   const marginPct = totalSales > 0 ? Math.round((margin / totalSales) * 100) : 0;
   const avgEarnedPerNight = shiftCount > 0 ? Math.round(margin / shiftCount) : 0;
   const topEarnedMax = Math.max(...topPrs.map((p) => p.earned), 1);
-  const bestDay = [...dayRows].sort((a, b) => b.earned - a.earned)[0];
+  const bestDay = [...dayRows].filter((d) => d.earned > 0).sort((a, b) => b.earned - a.earned)[0];
+  const sealedDayCount = dayRows.filter((d) => d.dateIso <= todayIso && (d.earned > 0 || d.sales > 0)).length;
   const growthUp = wowGrowthPct >= 0;
 
   return (
@@ -226,7 +228,7 @@ export function OutletSalesDashboard() {
       {prefs.tab === "custom" ? (
         <CustomRangePanel prefs={prefs} onChange={updatePrefs} minDateIso={minDateIso} maxDateIso={maxDateIso} />
       ) : (
-        <WeekPicker prefs={prefs} onChange={updatePrefs} />
+        <ReportPeriodBadge prefs={prefs} />
       )}
 
       <div>
@@ -238,7 +240,7 @@ export function OutletSalesDashboard() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground">
-              {prefs.tab === "custom" ? "Net margin · selected period" : "Net margin this period"}
+              {isCurrentWeek ? "Net margin so far" : "Net margin this period"}
             </p>
             <p className="mt-1 text-3xl font-display font-semibold text-gradient-gold">{formatRM(margin)}</p>
             <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
@@ -318,8 +320,9 @@ export function OutletSalesDashboard() {
           </BarChart>
         </ChartContainer>
         <p className="mt-2 text-center text-[10px] text-[var(--iz-muted2)]">
-          {dayRows.length} day{dayRows.length === 1 ? "" : "s"} · bar height = net earned · synced with breakdown
-          below
+          {isCurrentWeek
+            ? `${sealedDayCount} night${sealedDayCount === 1 ? "" : "s"} sealed so far · future days show when shifts end`
+            : `${dayRows.length} day${dayRows.length === 1 ? "" : "s"} · bar height = net earned · synced with breakdown below`}
         </p>
       </div>
 
@@ -339,7 +342,7 @@ export function OutletSalesDashboard() {
             <span className="text-right">Net</span>
           </div>
           <div className="space-y-1.5">
-            {dayRows.map((row) => (
+            {(isCurrentWeek ? dayRows.filter((row) => row.dateIso <= todayIso) : dayRows).map((row) => (
               <div
                 key={row.dateIso}
                 className="grid grid-cols-[2.5rem_1fr_auto] items-center gap-2 rounded-xl border border-[var(--iz-line)] bg-black/15 px-3 py-2 sm:grid-cols-[3rem_1fr_6.5rem_6.5rem_6.5rem]"
@@ -449,9 +452,9 @@ function ReportTabs({
           onClick={() => {
             const patch: Partial<OutletReportPrefs> = { tab: tab.id };
             if (tab.id === "this_week") {
-              patch.weekSundayIso = VELVET_REPORT_WEEK_OPTIONS[0]?.weekSundayIso ?? getPayrollWeekSundayIso();
+              patch.weekSundayIso = getPayrollWeekSundayIso();
             } else if (tab.id === "last_week") {
-              patch.weekSundayIso = VELVET_REPORT_WEEK_OPTIONS[1]?.weekSundayIso ?? getPreviousWeekSundayIso();
+              patch.weekSundayIso = getPreviousWeekSundayIso();
             }
             onChange(patch);
           }}
@@ -467,37 +470,26 @@ function ReportTabs({
   );
 }
 
-function WeekPicker({
+function ReportPeriodBadge({
   prefs,
-  onChange,
   className,
 }: {
   prefs: OutletReportPrefs;
-  onChange: (patch: Partial<OutletReportPrefs>) => void;
   className?: string;
 }) {
+  const label =
+    prefs.tab === "this_week"
+      ? payrollWeekRangeLabel(getPayrollWeekSundayIso())
+      : prefs.tab === "last_week"
+        ? payrollWeekRangeLabel(getPreviousWeekSundayIso())
+        : getVelvetReportWeekOptions().find((w) => w.weekSundayIso === prefs.weekSundayIso)?.label;
+
+  if (!label) return null;
+
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <CalendarDays className="h-4 w-4 shrink-0 text-[var(--iz-muted)]" />
-      <span className="iz-tiny iz-muted shrink-0">Previous weeks</span>
-      <IzSelect
-        block
-        className="!text-xs"
-        value={prefs.weekSundayIso}
-        onChange={(e) => {
-          const weekSundayIso = e.target.value;
-          let tab: OutletReportTab = prefs.tab;
-          if (weekSundayIso === VELVET_REPORT_WEEK_OPTIONS[0]?.weekSundayIso) tab = "this_week";
-          else if (weekSundayIso === VELVET_REPORT_WEEK_OPTIONS[1]?.weekSundayIso) tab = "last_week";
-          onChange({ weekSundayIso, tab });
-        }}
-      >
-        {VELVET_REPORT_WEEK_OPTIONS.map((w) => (
-          <option key={w.weekSundayIso} value={w.weekSundayIso}>
-            {w.label}
-          </option>
-        ))}
-      </IzSelect>
+      <span className="iz-tiny iz-muted">{label}</span>
     </div>
   );
 }

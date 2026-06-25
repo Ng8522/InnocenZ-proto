@@ -3,7 +3,7 @@
  */
 
 import { addDaysToIso, getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/demo-clock";
-import { fmtDateLabelFromIso, RECEIPT_COMMISSION_RULES } from "@/lib/pr-demo";
+import { fmtDateLabelFromIso, fmtDtable, RECEIPT_COMMISSION_RULES } from "@/lib/pr-demo";
 import { SHIFT_SEALED_BASE_WAGE } from "@/lib/pr-weekly-payment";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 
@@ -353,34 +353,79 @@ export function buildVelvetWeekShiftHistory(): ShiftHistoryRow[] {
   return nightsToShiftHistory(VELVET_WEEKLY_NIGHTS, getPayrollWeekSundayIso());
 }
 
+/** Demo payroll weeks slide with the live Sun–Sat calendar (same as History / payroll). */
+const VELVET_REPORT_WEEK_NIGHTS = [
+  VELVET_WEEKLY_NIGHTS,
+  VELVET_PRIOR_WEEK_NIGHTS,
+  VELVET_OLDER_WEEK_NIGHTS,
+] as const;
+
+export function liveReportWeekSundayIso(weeksAgo = 0, fromIso = getLiveTodayIso()): string {
+  return addDaysToIso(getPayrollWeekSundayIso(fromIso), -7 * weeksAgo);
+}
+
+export function getVelvetReportWeekOptions(fromIso = getLiveTodayIso()): OutletReportWeekOption[] {
+  return VELVET_REPORT_WEEK_NIGHTS.map((nights, weeksAgo) =>
+    makeReportWeekOption(liveReportWeekSundayIso(weeksAgo, fromIso), nights),
+  );
+}
+
+/** @deprecated use getVelvetReportWeekOptions() — weeks follow live calendar */
+export const VELVET_REPORT_WEEK_OPTIONS: OutletReportWeekOption[] = getVelvetReportWeekOptions();
+
+const NIGHTCLUB_DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"] as const;
+
+function nightclubDayLetter(dateIso: string): string {
+  const dow = new Date(`${dateIso}T12:00:00`).getDay();
+  return NIGHTCLUB_DAY_LETTERS[dow] ?? "M";
+}
+
+/** Sun–Sat label for a payroll week (e.g. "31 May – 6 Jun 2026"). */
+export function payrollWeekRangeLabel(weekSundayIso: string): string {
+  const endIso = addDaysToIso(weekSundayIso, 6);
+  const [sy, sm, sd] = weekSundayIso.split("-").map(Number);
+  const [ey, em, ed] = endIso.split("-").map(Number);
+  const year = sy;
+  if (sm === em) {
+    return `${sd}–${fmtDtable(ey, em, ed)} ${year}`;
+  }
+  return `${fmtDtable(sy, sm, sd)} – ${fmtDtable(ey, em, ed)} ${year}`;
+}
+
+/**
+ * Map seed nights onto Sun–Sat slots (index 0 = Sunday) — matches History shift rows.
+ * Seed dateIso values are legacy; display dates follow payroll week boundaries.
+ */
+export function mapNightsToPayrollWeek(
+  weekSundayIso: string,
+  nights: VelvetNightShift[],
+): VelvetNightShift[] {
+  return nights.map((night, index) => {
+    const dateIso = addDaysToIso(weekSundayIso, index);
+    return {
+      ...night,
+      dateIso,
+      dateDisplay: fmtDateLabelFromIso(dateIso),
+      day: nightclubDayLetter(dateIso),
+    };
+  });
+}
+
+function makeReportWeekOption(weekSundayIso: string, nights: VelvetNightShift[]): OutletReportWeekOption {
+  return {
+    weekSundayIso,
+    weekEndIso: addDaysToIso(weekSundayIso, 6),
+    label: payrollWeekRangeLabel(weekSundayIso),
+    nights,
+  };
+}
+
 export interface OutletReportWeekOption {
   weekSundayIso: string;
   weekEndIso: string;
   label: string;
   nights: VelvetNightShift[];
 }
-
-/** Demo weeks available on Reports — newest first */
-export const VELVET_REPORT_WEEK_OPTIONS: OutletReportWeekOption[] = [
-  {
-    weekSundayIso: "2026-06-01",
-    weekEndIso: "2026-06-08",
-    label: "2–8 Jun 2026",
-    nights: VELVET_WEEKLY_NIGHTS,
-  },
-  {
-    weekSundayIso: "2026-05-25",
-    weekEndIso: "2026-06-01",
-    label: "26 May – 1 Jun 2026",
-    nights: VELVET_PRIOR_WEEK_NIGHTS,
-  },
-  {
-    weekSundayIso: "2026-05-18",
-    weekEndIso: "2026-05-25",
-    label: "19–25 May 2026",
-    nights: VELVET_OLDER_WEEK_NIGHTS,
-  },
-];
 
 export const ALL_VELVET_NIGHTS: VelvetNightShift[] = [
   ...VELVET_OLDER_WEEK_NIGHTS,
@@ -389,11 +434,9 @@ export const ALL_VELVET_NIGHTS: VelvetNightShift[] = [
 ].sort((a, b) => a.dateIso.localeCompare(b.dateIso));
 
 export function velvetReportDateBounds(): { minIso: string; maxIso: string } {
-  const first = ALL_VELVET_NIGHTS[0];
-  const last = ALL_VELVET_NIGHTS[ALL_VELVET_NIGHTS.length - 1];
   return {
-    minIso: first?.dateIso ?? "2026-05-19",
-    maxIso: last?.dateIso ?? "2026-06-08",
+    minIso: liveReportWeekSundayIso(2),
+    maxIso: addDaysToIso(getPayrollWeekSundayIso(), 6),
   };
 }
 
@@ -401,12 +444,23 @@ function nightsInRange(startIso: string, endIso: string): VelvetNightShift[] {
   return ALL_VELVET_NIGHTS.filter((n) => n.dateIso >= startIso && n.dateIso <= endIso);
 }
 
+/** Future nights are not sealed yet — keep the week grid but zero earnings. */
+function sealNightsThroughToday(
+  nights: VelvetNightShift[],
+  todayIso = getLiveTodayIso(),
+): VelvetNightShift[] {
+  return nights.map((night) =>
+    night.dateIso > todayIso ? { ...night, sales: 0, prs: [] } : night,
+  );
+}
+
 function buildReportFromNights(
   nights: VelvetNightShift[],
   periodLabel: string,
   priorNights: VelvetNightShift[] = [],
 ): OutletWeeklyReport {
-  const days: OutletWeeklyDaySales[] = nights.map((night) => ({
+  const sealed = sealNightsThroughToday(nights);
+  const days: OutletWeeklyDaySales[] = sealed.map((night) => ({
     day: night.day,
     dateIso: night.dateIso,
     dateDisplay: night.dateDisplay,
@@ -420,7 +474,7 @@ function buildReportFromNights(
   const margin = totalSales - totalCost;
 
   const prEarned = new Map<string, { name: string; earned: number }>();
-  for (const night of nights) {
+  for (const night of sealed) {
     for (const pr of night.prs) {
       const earned = sealedShiftPayout(pr, demoTablesForShift(night, pr));
       const cur = prEarned.get(pr.prId) ?? { name: pr.prName, earned: 0 };
@@ -442,7 +496,8 @@ function buildReportFromNights(
   const wowGrowthPct =
     priorMargin > 0 ? Math.round(((margin - priorMargin) / priorMargin) * 100) : margin > 0 ? 100 : 0;
 
-  const drinkUnits = nights.reduce((a, n) => a + n.prs.reduce((s, pr) => s + pr.drinks, 0), 0);
+  const drinkUnits = sealed.reduce((a, n) => a + n.prs.reduce((s, pr) => s + pr.drinks, 0), 0);
+  const sealedShiftNights = sealed.filter((n) => n.prs.length > 0 || n.sales > 0);
 
   return {
     weekLabel: periodLabel,
@@ -450,7 +505,7 @@ function buildReportFromNights(
     totalSales,
     totalCost,
     margin,
-    shifts: nights.length,
+    shifts: sealedShiftNights.length,
     avgTicket: drinkUnits > 0 ? Math.round(totalSales / drinkUnits) : 0,
     wowGrowthPct,
     topPrs,
@@ -459,11 +514,16 @@ function buildReportFromNights(
 
 export function getOutletReportForWeek(outletName: string, weekSundayIso: string): OutletWeeklyReport | null {
   if (outletName !== VELVET_OUTLET_NAME) return null;
-  const idx = VELVET_REPORT_WEEK_OPTIONS.findIndex((w) => w.weekSundayIso === weekSundayIso);
-  const week = VELVET_REPORT_WEEK_OPTIONS[idx];
+  const options = getVelvetReportWeekOptions();
+  const idx = options.findIndex((w) => w.weekSundayIso === weekSundayIso);
+  const week = options[idx];
   if (!week) return null;
-  const prior = idx >= 0 ? VELVET_REPORT_WEEK_OPTIONS[idx + 1]?.nights ?? [] : [];
-  return buildReportFromNights(week.nights, week.label, prior);
+  const mapped = mapNightsToPayrollWeek(week.weekSundayIso, week.nights);
+  const priorWeek = idx >= 0 ? options[idx + 1] : undefined;
+  const priorMapped = priorWeek
+    ? mapNightsToPayrollWeek(priorWeek.weekSundayIso, priorWeek.nights)
+    : [];
+  return buildReportFromNights(mapped, payrollWeekRangeLabel(week.weekSundayIso), priorMapped);
 }
 
 export function getOutletReportForDateRange(
@@ -493,9 +553,7 @@ export function getOutletReportForDateRange(
 }
 
 export function getOutletWeeklyReport(outletName: string): OutletWeeklyReport | null {
-  const current =
-    VELVET_REPORT_WEEK_OPTIONS[0] ??
-    VELVET_REPORT_WEEK_OPTIONS.find((w) => w.weekSundayIso === getPayrollWeekSundayIso());
+  const current = getVelvetReportWeekOptions()[0];
   if (!current) return null;
   return getOutletReportForWeek(outletName, current.weekSundayIso);
 }

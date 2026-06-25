@@ -1,8 +1,10 @@
 import {
   getOutletReportForWeek,
+  getVelvetReportWeekOptions,
+  payrollWeekRangeLabel,
   VELVET_OUTLET_NAME,
-  VELVET_REPORT_WEEK_OPTIONS,
 } from "@/lib/velvet-week-demo";
+import { getPayrollWeekSundayIso } from "@/lib/demo-clock";
 
 export type PrWeekTopRank = {
   rank: 1 | 2 | 3;
@@ -19,7 +21,7 @@ export function buildOutletWeeklyTopPrRanks(outletName: string): Map<string, PrW
   const byPr = new Map<string, PrWeekTopRank[]>();
   if (canonicalOutlet(outletName) !== canonicalOutlet(VELVET_OUTLET_NAME)) return byPr;
 
-  for (const week of VELVET_REPORT_WEEK_OPTIONS) {
+  for (const week of getVelvetReportWeekOptions()) {
     const report = getOutletReportForWeek(outletName, week.weekSundayIso);
     if (!report) continue;
     report.topPrs.slice(0, 3).forEach((p, index) => {
@@ -38,16 +40,19 @@ export function buildOutletWeeklyTopPrRanks(outletName: string): Map<string, PrW
 }
 
 export function weekSundayIsoForDate(dateIso: string): string | undefined {
-  for (const week of VELVET_REPORT_WEEK_OPTIONS) {
-    const start = week.nights[0]!.dateIso;
-    const end = week.nights[week.nights.length - 1]!.dateIso;
-    if (dateIso >= start && dateIso <= end) return week.weekSundayIso;
+  for (const week of getVelvetReportWeekOptions()) {
+    if (dateIso >= week.weekSundayIso && dateIso <= week.weekEndIso) {
+      return week.weekSundayIso;
+    }
   }
-  return VELVET_REPORT_WEEK_OPTIONS[0]?.weekSundayIso;
+  return getPayrollWeekSundayIso();
 }
 
 export function weekLabelForSundayIso(weekSundayIso: string): string {
-  return VELVET_REPORT_WEEK_OPTIONS.find((w) => w.weekSundayIso === weekSundayIso)?.label ?? weekSundayIso;
+  return (
+    getVelvetReportWeekOptions().find((w) => w.weekSundayIso === weekSundayIso)?.label ??
+    payrollWeekRangeLabel(weekSundayIso)
+  );
 }
 
 export function prWeeklyRankContext(

@@ -1,15 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { nowAgencyDateTime, OUTLET_NAMES } from "@/lib/agency-demo";
-import { agencyPrToPayTotal } from "@/lib/agency-payroll";
+import { agencyPendingPayoutDeadline, agencyPrToPayTotal } from "@/lib/agency-payroll";
 import { LIVE_SEED_PR_PVS } from "@/lib/pr-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { shouldShowWeeklyReconciliation } from "@/lib/reconciliation-weekly";
-import { AlertTriangle } from "lucide-react";
 import { AiSuggestionsPanel } from "@/components/portal/AiSuggestionsPanel";
 import { AgencyHomeHubTabs } from "@/components/portal/AgencyHomeHubTabs";
-import { IzCard, formatRM } from "@/components/iz/ui";
+import { formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/agency/")({
   component: AgencyHub,
@@ -19,27 +17,19 @@ function AgencyHub() {
   const agencySubRole = useStore((s) => s.agencySubRole);
   const agencyPRs = useStore((s) => s.agencyPRs);
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers);
-  const reconciliation = useStore((s) => s.agencyReconciliation);
-  const confirmAgencyReconciliation = useStore((s) => s.confirmAgencyReconciliation);
-  const syncReconciliationFromLedger = useStore((s) => s.syncReconciliationFromLedger);
   const prToPayTotal = useMemo(() => {
     const pvs = prPaymentVouchers?.length ? prPaymentVouchers : LIVE_SEED_PR_PVS;
     return agencyPrToPayTotal(pvs, agencyPRs ?? []);
+  }, [prPaymentVouchers, agencyPRs]);
+  const payoutDeadline = useMemo(() => {
+    const pvs = prPaymentVouchers?.length ? prPaymentVouchers : LIVE_SEED_PR_PVS;
+    return agencyPendingPayoutDeadline(pvs, agencyPRs ?? []);
   }, [prPaymentVouchers, agencyPRs]);
   const totalPrs = agencyPRs.filter((p) => !p.detached).length;
   const totalOutlets = OUTLET_NAMES.length;
   const { date, time } = nowAgencyDateTime();
   const isFinance = agencySubRole === "agency_finance";
   const showWorkforce = agencyCan(agencySubRole, "viewWorkforce");
-
-  useEffect(() => {
-    syncReconciliationFromLedger();
-  }, [syncReconciliationFromLedger]);
-
-  const showWeeklyReconciliation =
-    shouldShowWeeklyReconciliation(reconciliation) &&
-    !reconciliation.agencyConfirmed &&
-    agencyCan(agencySubRole, "confirmReconciliation");
 
   return (
     <div className="iz-screen iz-portal-page">
@@ -55,6 +45,17 @@ function AgencyHub() {
         <Link to="/agency/pv" search={{ status: "TO_PAY" }} className="iz-portal-kpi no-underline">
           <div className="l">Pending payout</div>
           <div className="n text-[var(--iz-gold-l)]">{formatRM(prToPayTotal)}</div>
+          {payoutDeadline && prToPayTotal > 0 && (
+            <p
+              className={`iz-tiny mt-1 leading-snug ${
+                payoutDeadline.isOverdue ? "text-[var(--iz-red)]" : "text-[var(--iz-muted2)]"
+              }`}
+            >
+              {payoutDeadline.isOverdue ? "Overdue · " : "Pay by "}
+              {payoutDeadline.payByLabel}
+              {payoutDeadline.pvCount > 1 ? ` · ${payoutDeadline.pvCount} PVs` : ""}
+            </p>
+          )}
         </Link>
       </div>
 
@@ -67,50 +68,12 @@ function AgencyHub() {
             </p>
             {isFinance && (
               <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
-                Read-only overview — payroll, PV &amp; collections only
+                Read-only overview — payroll &amp; PV only
               </p>
             )}
           </header>
 
           <AgencyHomeHubTabs agencySubRole={agencySubRole} />
-
-          {showWeeklyReconciliation && (
-            <IzCard flat className="mt-3 border-[rgba(232,194,122,.4)] bg-[rgba(232,194,122,.06)]">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--iz-amber)]" />
-                <div className="min-w-0 flex-1">
-                  <p className="iz-sm font-bold">Confirm weekly reconciliation</p>
-                  <p className="iz-tiny iz-muted mt-0.5">
-                    {reconciliation.dateLabel} · PR earnings{" "}
-                    {formatRM(reconciliation.prIncomeTotal ?? 0)} vs PV{" "}
-                    {formatRM(reconciliation.pvTotal)}
-                    {(reconciliation.prVariance ?? 0) !== 0 && (
-                      <span className="text-[var(--iz-amber)]">
-                        {" "}
-                        · variance {formatRM(reconciliation.prVariance ?? 0)}
-                      </span>
-                    )}
-                  </p>
-                  <p className="iz-tiny iz-muted2 mt-1">
-                    Agency–PR weekly reconcile · confirm in Payroll → Reconcile
-                  </p>
-                  <Link
-                    to="/agency/pv"
-                    className="iz-tiny mt-1 inline-block text-[var(--iz-gold-l)]"
-                  >
-                    Review in Payroll →
-                  </Link>
-                  <button
-                    type="button"
-                    className="iz-btn iz-btn-primary mt-2 w-full !py-2 !text-xs"
-                    onClick={() => confirmAgencyReconciliation()}
-                  >
-                    Confirm reconciliation
-                  </button>
-                </div>
-              </div>
-            </IzCard>
-          )}
         </div>
 
         {showWorkforce && !isFinance && (

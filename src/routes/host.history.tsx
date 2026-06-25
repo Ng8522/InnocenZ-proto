@@ -1707,6 +1707,7 @@ function PaymentHistorySection({
             ]}
           />
           <PaymentHistStatusChips
+            showLabel
             value={paymentDraft.status}
             onChange={(status) => setPaymentDraft((p) => ({ ...p, status }))}
           />

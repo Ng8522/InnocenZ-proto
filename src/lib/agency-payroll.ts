@@ -4,13 +4,47 @@ import type {
   CollectionLineGroup,
   CollectionLineItem,
 } from "@/lib/agency-demo";
+import { buildReceiptScansFromPaymentVouchers } from "@/lib/history-demo-sync";
 import type { PrPaymentVoucher, PrReceiptScan } from "@/lib/pr-demo";
 import {
+  DEMO_PV_ISSUED_WEEKS_AGO,
   getPvNetTotal,
   isLegacyReceiptScanIdentity,
+  pvPayByDeadlineMsFromIssued,
+  formatPvPayByDeadlineShort,
   pvStatusLabel,
+  type PrProfile,
   type PrPvStatus,
 } from "@/lib/pr-demo";
+
+const PV_COMMISSION_SCAN_PREFIX = "rc-pv-";
+const PAYROLL_RECEIPT_WEEKS_AGO = new Set([0, 1]);
+
+function agencyPrReceiptCode(pr: AgencyManagedPR): string {
+  const digits = pr.id.replace(/\D/g, "").slice(0, 4);
+  return `PR-${digits.padStart(4, "0") || "0099"}`;
+}
+
+function agencyPrReceiptProfile(pr: AgencyManagedPR): PrProfile {
+  return {
+    name: pr.name,
+    first: pr.icName?.trim() || pr.name,
+    ic: pr.ic ?? "",
+    mobile: pr.mobile ?? "",
+    email: pr.email ?? "",
+    bank: "—",
+    acc: "—",
+    av: "",
+    avg: "",
+    tier: pr.trainingLevel ?? "—",
+    rep: "",
+    shifts: String(pr.checkIns ?? 0),
+    noshow: String(pr.noShows ?? 0),
+    langs: [],
+    prog: 0,
+    next: "—",
+  };
+}
 
 function prNameMatchesAgency(scanName: string, pr: AgencyManagedPR): boolean {
   const sn = scanName.trim().toLowerCase();
@@ -117,6 +151,34 @@ export function agencyPrToPayCount(
   ).length;
 }
 
+/** Earliest pay-by Wednesday among signed agency PVs (14 days after issue). */
+export function agencyPendingPayoutDeadline(
+  pvs: PrPaymentVoucher[] = [],
+  agencyPRs: AgencyManagedPR[] = [],
+  now = Date.now(),
+): { payByLabel: string; payByMs: number; isOverdue: boolean; pvCount: number } | null {
+  const signed = getAgencyManagedPvs(pvs, agencyPRs).filter((pv) => pv.status === "SIGNED");
+  if (!signed.length) return null;
+
+  let payByMs = Infinity;
+  let payByLabel = "";
+  for (const pv of signed) {
+    const ms = pvPayByDeadlineMsFromIssued(pv.issued);
+    if (ms > 0 && ms < payByMs) {
+      payByMs = ms;
+      payByLabel = formatPvPayByDeadlineShort(pv.issued) ?? "";
+    }
+  }
+  if (!Number.isFinite(payByMs) || !payByLabel) return null;
+
+  return {
+    payByLabel,
+    payByMs,
+    isOverdue: payByMs < now,
+    pvCount: signed.length,
+  };
+}
+
 export function resolvePvPrId(
   pv: Pick<PrPaymentVoucher, "prName" | "prIc">,
   agencyPRs: AgencyManagedPR[] = [],
@@ -132,13 +194,57 @@ export function resolvePvPrId(
 export const AGENCY_PV_STATUS_LABELS: Record<PrPvStatus, string> = {
   PENDING_REVIEW: "Pending Agency Review",
   SENT: "Pending PR Review",
-  SIGNED: "Signed",
+  SIGNED: "To pay",
   DISPUTED: "Disputed",
   PAID: "Paid",
 };
 
 export function agencyPvStatusLabel(status: PrPvStatus): string {
   return AGENCY_PV_STATUS_LABELS[status] ?? pvStatusLabel(status);
+}
+
+/**
+ * Build commission receipt scans for Last Week / Last Last Week demo PVs.
+ * Dates follow remapped PV rows so agency Payroll receipts stay in sync with vouchers.
+ */
+export function syncAgencyPayrollReceiptScans(
+  scans: PrReceiptScan[],
+  pvs: PrPaymentVoucher[],
+  agencyPRs: AgencyManagedPR[],
+): PrReceiptScan[] {
+  const payrollPvIds = new Set(
+    pvs
+      .filter((pv) => {
+        const weeksAgo = DEMO_PV_ISSUED_WEEKS_AGO[pv.id];
+        return weeksAgo != null && PAYROLL_RECEIPT_WEEKS_AGO.has(weeksAgo);
+      })
+      .map((pv) => pv.id),
+  );
+  if (payrollPvIds.size === 0) return scans;
+
+  const base = scans.filter(
+    (scan) => !(scan.pvId && payrollPvIds.has(scan.pvId) && scan.id.startsWith(PV_COMMISSION_SCAN_PREFIX)),
+  );
+
+  const generated: PrReceiptScan[] = [];
+  for (const pr of agencyPRs) {
+    if (pr.detached) continue;
+    const prPvs = pvs.filter(
+      (pv) =>
+        payrollPvIds.has(pv.id) &&
+        (pv.prIc === pr.ic || prNameMatchesAgency(pv.prName, pr)),
+    );
+    if (prPvs.length === 0) continue;
+    const profile = agencyPrReceiptProfile(pr);
+    for (const scan of buildReceiptScansFromPaymentVouchers(prPvs, pr.id, profile)) {
+      generated.push({ ...scan, prCode: agencyPrReceiptCode(pr) });
+    }
+  }
+
+  const byId = new Map<string, PrReceiptScan>();
+  for (const scan of base) byId.set(scan.id, scan);
+  for (const scan of generated) byId.set(scan.id, scan);
+  return [...byId.values()].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt));
 }
 
 /** Receipt scans belonging to PRs on the agency roster (or linked agency PVs). */

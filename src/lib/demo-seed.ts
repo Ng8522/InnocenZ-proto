@@ -17,6 +17,7 @@ import {
   type AgencyManagedPR,
   type AgencyRosterSlot,
 } from "@/lib/agency-demo";
+import { syncAgencyPayrollReceiptScans } from "@/lib/agency-payroll";
 import {
   DEFAULT_OUTLET_SETTINGS,
   DEFAULT_OUTLET_WORKSPACE,
@@ -705,6 +706,12 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     pvs: remapSeedPaymentVouchers(SEED_PR_PVS).map(clonePaymentVoucher),
     profile: getPrProfile("pr_tied"),
   });
+  const agencyPRs = SEED_AGENCY_PRS.map(cloneAgencyPr);
+  const payrollScans = syncAgencyPayrollReceiptScans(
+    historyLedger.scans,
+    historyLedger.pvs,
+    agencyPRs,
+  );
 
   return {
     prSessionByRole,
@@ -718,7 +725,7 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     outletRatingStars: 0,
     prActiveShift: null,
     prPaymentVouchers: historyLedger.pvs,
-    prReceiptScans: historyLedger.scans,
+    prReceiptScans: payrollScans,
     prComcard: { ...COMCARD },
     prPortfolio: buildSeedPrPortfolio(),
     prLanguages: ["English", "Mandarin", "Cantonese"],

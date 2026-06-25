@@ -158,8 +158,18 @@ export function PrWeeklyPaymentWeekCard({
               activeDisputeKey={activeDisputeKey}
             />
             <p className="iz-tiny iz-muted2 mt-2 text-center">
-              PV issued every Sunday · Total{" "}
-              <b className="text-[var(--iz-gold)]">{formatRM(weekTotalRm(summary))}</b>
+              {weekPhase === "open" && !summary.pvReady ? (
+                <>
+                  PV will be sent on <b>{summary.issueDayLabel}</b> after this week ends · running
+                  total{" "}
+                  <b className="text-[var(--iz-gold)]">{formatRM(weekTotalRm(summary))}</b>
+                </>
+              ) : (
+                <>
+                  PV issued every Sunday · Total{" "}
+                  <b className="text-[var(--iz-gold)]">{formatRM(weekTotalRm(summary))}</b>
+                </>
+              )}
             </p>
             {actionPv && needsReview && !hasOpenDisputes && (
               <button

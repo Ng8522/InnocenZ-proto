@@ -5927,21 +5927,61 @@ button.iz-pr-offer-row:hover {
   min-width: 0;
 }
 
-.iz-special-service-filter-field .iz-roster-planning-date {
+.iz-special-service-filter-field .iz-roster-planning-date,
+.iz-special-service-filter-date {
   min-width: 0;
   width: 100%;
 }
 
-.iz-special-service-filters-grid .iz-pr-manage-filter-control,
-.iz-special-service-filters-grid .iz-select,
-.iz-special-service-filters-grid .iz-roster-filter-time {
+.iz-special-service-filters-grid .iz-special-service-filter-control,
+.iz-special-service-filters-grid .iz-special-service-filter-control.iz-select {
   width: 100%;
   min-width: 0;
   max-width: 100%;
 }
 
-.iz-special-service-filters-grid .iz-roster-planning-date-trigger {
-  min-width: 0;
+.iz-special-service-filter-date .iz-roster-planning-date-trigger,
+.iz-special-service-filters-grid .iz-special-service-filter-control.iz-select,
+.iz-special-service-filters-grid .iz-special-service-filter-control .iz-time-picker-btn {
+  min-height: 38px;
+  border: 1px solid var(--iz-line2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  font-family: "Sora", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--iz-txt);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.iz-special-service-filters-grid .iz-special-service-filter-control.iz-select {
+  padding: 9px 30px 9px 13px;
+  line-height: 1.3;
+}
+
+.iz-special-service-filters-grid .iz-special-service-filter-control .iz-time-picker-btn {
+  padding: 0 36px 0 13px;
+  border-radius: 10px;
+}
+
+.iz-special-service-filter-date .iz-roster-planning-date-trigger:hover,
+.iz-special-service-filter-date .iz-roster-planning-date-trigger.open,
+.iz-special-service-filters-grid .iz-special-service-filter-control.iz-select:hover,
+.iz-special-service-filters-grid .iz-special-service-filter-control.iz-select:focus,
+.iz-special-service-filters-grid .iz-special-service-filter-control .iz-time-picker-btn:hover:not(:disabled),
+.iz-special-service-filters-grid .iz-special-service-filter-control .iz-time-picker-btn:focus-visible {
+  border-color: rgba(232, 194, 122, 0.4);
+  background: rgba(232, 194, 122, 0.06);
+  box-shadow: none;
+}
+
+.iz-special-service-filters-grid .iz-special-service-filter-control .iz-time-picker-label.iz-muted2 {
+  color: var(--iz-muted2);
+  font-weight: 500;
+}
+
+.iz-special-service-filters-grid .iz-special-service-filter-control .iz-time-picker-btn.has-value {
+  color: var(--iz-txt);
 }
 
 /* PR phone portal — single column, 2-col pairs for amounts + status */
@@ -5958,13 +5998,11 @@ button.iz-pr-offer-row:hover {
   font-size: 8px;
 }
 
-.iz-special-service-filters--compact .iz-pr-manage-filter-control,
-.iz-special-service-filters--compact .iz-roster-planning-date-trigger,
-.iz-special-service-filters--compact .iz-roster-filter-time {
-  font-size: 11px !important;
+.iz-special-service-filters--compact .iz-special-service-filter-date .iz-roster-planning-date-trigger,
+.iz-special-service-filters--compact .iz-special-service-filters-grid .iz-special-service-filter-control.iz-select,
+.iz-special-service-filters--compact .iz-special-service-filters-grid .iz-special-service-filter-control .iz-time-picker-btn {
+  font-size: 11px;
   min-height: 34px;
-  padding-top: 5px;
-  padding-bottom: 5px;
 }
 
 @media (min-width: 480px) {

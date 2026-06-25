@@ -134,6 +134,7 @@ export function SpecialServiceSection({ canBook }: { canBook: boolean }) {
           amountOutOptions={amountOutOptions}
           resultCount={filtered.length}
           totalCount={records.length}
+          serviceOffers={AGENCY_SERVICE_OFFERS}
         />
       </IzCard>
 

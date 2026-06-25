@@ -10,6 +10,8 @@ import {
   pvStatusLabel,
   pvStatusPillVariant,
   calcReceiptCommissions,
+  DEMO_PV_ISSUED_WEEKS_AGO,
+  demoPayrollWeekBoundsForWeeksAgo,
   type PrPaymentVoucher,
   type PrReceiptScan,
   type PrSubRole,
@@ -120,9 +122,23 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
     () => filterReceiptScansForPrProfile(prReceiptScans, profile, prSubRole, myVouchers),
     [prReceiptScans, profile, prSubRole, myVouchers],
   );
-  const prevWeekBounds = useMemo(() => getPreviousWeekBounds(), []);
+  const prevWeekBounds = useMemo(() => {
+    if (prSubRole === "pr_tied") {
+      const demo = demoPayrollWeekBoundsForWeeksAgo(0);
+      const cal = getPreviousWeekBounds();
+      return {
+        ...cal,
+        startIso: demo.weekStartIso,
+        endIso: demo.weekEndIso,
+        label: demo.cycle,
+      };
+    }
+    return getPreviousWeekBounds();
+  }, [prSubRole]);
   const previousWeekPv = useMemo(
-    () => myVouchers.find((p) => p.weekStartIso === prevWeekBounds.startIso),
+    () =>
+      myVouchers.find((p) => DEMO_PV_ISSUED_WEEKS_AGO[p.id] === 0) ??
+      myVouchers.find((p) => p.weekStartIso === prevWeekBounds.startIso),
     [myVouchers, prevWeekBounds.startIso],
   );
 
@@ -151,12 +167,12 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
     () =>
       buildWeeklyPaymentSummary({
         reference: getShiftToday(),
-        pv: currentWeekPv,
+        pv: isWeekPvIssued(weekBounds.endIso) ? currentWeekPv : null,
         shiftHistory,
         scans: myReceiptScans,
         prId,
       }),
-    [currentWeekPv, shiftHistory, myReceiptScans, prId],
+    [currentWeekPv, weekBounds.endIso, shiftHistory, myReceiptScans, prId],
   );
 
   useEffect(() => {
@@ -230,7 +246,9 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
   const lastWeekActionPv =
     previousWeekPv && isPrPaymentActionPv(previousWeekPv) ? previousWeekPv : null;
   const currentWeekActionPv =
-    currentWeekPv && isPrPaymentActionPv(currentWeekPv) ? currentWeekPv : null;
+    currentWeekPv && currentWeekSummary.pvReady && isPrPaymentActionPv(currentWeekPv)
+      ? currentWeekPv
+      : null;
   const lastWeekNeedsReview = Boolean(
     lastWeekActionPv &&
       (pvNeedsPrReview(lastWeekActionPv.status) || lastWeekActionPv.status === "DISPUTED"),

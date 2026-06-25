@@ -219,6 +219,7 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
           amountOutOptions={amountOutOptions}
           resultCount={filtered.length}
           totalCount={scopedRecords.length}
+          serviceOffers={serviceOffers}
           compact={role === "pr"}
         />
       </IzCard>

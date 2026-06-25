@@ -45,6 +45,9 @@ import {
   formatPvSignTimestamp,
   reconcilePvTotals,
   migratePrPortfolioAssetPath,
+  DEMO_PV_ISSUED_WEEKS_AGO,
+  demoPayrollWeekBoundsForWeeksAgo,
+  isDemoTimelinePayrollPv,
 } from "@/lib/pr-demo";
 import { writePersistedPrSubRole } from "@/lib/use-pr-sub-role";
 import { DEMO_SOS_LOCATION, type OpsNotification, type SosIncident } from "@/lib/ops-notifications";
@@ -69,6 +72,7 @@ import {
   SEED_RECONCILIATION,
   mergeAgencyRoster,
   SEED_AGENCY_PRS,
+  syncAgencyOwnerSubscriptionPlan,
   SEED_PENDING_PRS,
   SEED_PENDING_FREELANCER_PAYROLLS,
   RETIRED_PENDING_PR_IDS,
@@ -108,7 +112,7 @@ import {
   isWeekPvIssued,
   type WeeklyDisputeTarget,
 } from "@/lib/pr-weekly-payment";
-import { mergeAgencyCollections } from "@/lib/agency-payroll";
+import { mergeAgencyCollections, syncAgencyPayrollReceiptScans } from "@/lib/agency-payroll";
 import { getFreePrsWithDistances } from "@/lib/roster-availability";
 import {
   buildPlanningWeekOutletShiftMap,
@@ -1899,12 +1903,24 @@ export const useStore = create<StoreState>()(
         if (!role) return;
         const profile = getPrProfile(role);
         const prId = getPrRosterId(role);
-        const prev = getPreviousWeekBounds();
+        const demoWeek =
+          role === "pr_tied" ? demoPayrollWeekBoundsForWeeksAgo(0) : null;
+        const prev = demoWeek
+          ? {
+              ...getPreviousWeekBounds(),
+              startIso: demoWeek.weekStartIso,
+              endIso: demoWeek.weekEndIso,
+              label: demoWeek.cycle,
+            }
+          : getPreviousWeekBounds();
         if (!isWeekPvIssued(prev.endIso)) return;
 
         const pvs = st.prPaymentVouchers ?? SEED_PR_PVS;
         const mine = filterPvsForPrProfile(pvs, profile, role);
-        const existing = mine.find((p) => p.weekStartIso === prev.startIso);
+        const existing =
+          mine.find((p) => DEMO_PV_ISSUED_WEEKS_AGO[p.id] === 0) ??
+          mine.find((p) => p.weekStartIso === prev.startIso);
+        if (existing && isDemoTimelinePayrollPv(existing)) return;
         if (existing && (existing.status === "SIGNED" || existing.status === "PAID")) return;
 
         const scans = filterReceiptScansForPrProfile(st.prReceiptScans ?? [], profile, role, mine);
@@ -1980,7 +1996,11 @@ export const useStore = create<StoreState>()(
           );
           return {
             prPaymentVouchers: ledger.pvs,
-            prReceiptScans: ledger.scans,
+            prReceiptScans: syncAgencyPayrollReceiptScans(
+              ledger.scans,
+              ledger.pvs,
+              st.agencyPRs,
+            ),
           };
         });
         const prId = prIdForPayeeName(pv.prName, pv.prIc, get().agencyPRs);
@@ -2043,7 +2063,11 @@ export const useStore = create<StoreState>()(
           );
           return {
             prPaymentVouchers: ledger.pvs,
-            prReceiptScans: ledger.scans,
+            prReceiptScans: syncAgencyPayrollReceiptScans(
+              ledger.scans,
+              ledger.pvs,
+              st.agencyPRs,
+            ),
           };
         });
         get().pushNotify({
@@ -2452,7 +2476,11 @@ export const useStore = create<StoreState>()(
           );
           return {
             prPaymentVouchers: ledger.pvs,
-            prReceiptScans: ledger.scans,
+            prReceiptScans: syncAgencyPayrollReceiptScans(
+              ledger.scans,
+              ledger.pvs,
+              st.agencyPRs,
+            ),
           };
         });
         const prId = prIdForPayeeName(pv.prName, pv.prIc, get().agencyPRs);
@@ -2485,7 +2513,11 @@ export const useStore = create<StoreState>()(
           );
           return {
             prPaymentVouchers: ledger.pvs,
-            prReceiptScans: ledger.scans,
+            prReceiptScans: syncAgencyPayrollReceiptScans(
+              ledger.scans,
+              ledger.pvs,
+              st.agencyPRs,
+            ),
           };
         });
         get().toast("Dispute resolved — PV re-sent to PR", "success");
@@ -3656,11 +3688,15 @@ export const useStore = create<StoreState>()(
           get().toast("Tied < 1 year — use Request admin detach", "warn");
           return;
         }
-        set((st) => ({
-          agencyPRs: st.agencyPRs.map((p) =>
+        set((st) => {
+          const nextAgencyPRs = st.agencyPRs.map((p) =>
             p.id === prId ? { ...p, detached: true, suspended: true } : p,
-          ),
-        }));
+          );
+          return {
+            agencyPRs: nextAgencyPRs,
+            agencyOwner: syncAgencyOwnerSubscriptionPlan(st.agencyOwner, nextAgencyPRs),
+          };
+        });
         get().toast(`${pr.name} detached from agency roster`, "info");
       },
       requestAgencyPrDetach: (prId) => {
@@ -4119,6 +4155,7 @@ export const useStore = create<StoreState>()(
             ),
             agencyPRs: nextAgencyPRs,
             prs: marketplacePrsFromAgency(nextAgencyPRs),
+            agencyOwner: syncAgencyOwnerSubscriptionPlan(st.agencyOwner, nextAgencyPRs),
           };
         });
         get().toast(`${pending.name} approved — added to roster & marketplace`, "success");
@@ -5082,21 +5119,23 @@ export const useStore = create<StoreState>()(
                   pv.prName === "Jaya Nair" ||
                   pv.prName === "Jaya" ||
                   pv.prName === "Luna";
+                const isDemoTimelinePv = pv.id in DEMO_PV_ISSUED_WEEKS_AGO;
                 return {
                   ...seed,
                   ...pv,
                   prName: seed.prName,
                   prIc: seed.prIc,
-                  status:
-                    seed.status === "PAID" || seed.status === "SIGNED"
+                  status: isDemoTimelinePv
+                    ? seed.status
+                    : seed.status === "PAID" || seed.status === "SIGNED"
                       ? seed.status
                       : (pv.status ?? seed.status),
-                  issued: seed.weekStartIso ? seed.issued : (pv.issued ?? seed.issued),
+                  issued: isDemoTimelinePv || seed.weekStartIso ? seed.issued : (pv.issued ?? seed.issued),
                   due: pv.due ?? seed.due,
-                  cycle: seed.weekStartIso ? seed.cycle : (pv.cycle ?? seed.cycle),
+                  cycle: isDemoTimelinePv || seed.weekStartIso ? seed.cycle : (pv.cycle ?? seed.cycle),
                   weekStartIso: seed.weekStartIso ?? pv.weekStartIso,
                   weekEndIso: seed.weekEndIso ?? pv.weekEndIso,
-                  outlet: seed.weekStartIso ? seed.outlet : (pv.outlet ?? seed.outlet),
+                  outlet: isDemoTimelinePv || seed.weekStartIso ? seed.outlet : (pv.outlet ?? seed.outlet),
                   financeHeadName:
                     pv.financeHeadName === LEGACY_FINANCE_HEAD_SIGNER
                       ? seed.financeHeadName
@@ -5123,7 +5162,7 @@ export const useStore = create<StoreState>()(
                   timeOut: seed.weekStartIso ? undefined : (pv.timeOut ?? seed.timeOut),
                   shiftTime: seed.weekStartIso ? undefined : (pv.shiftTime ?? seed.shiftTime),
                   receiptIds: pv.receiptIds?.length ? pv.receiptIds : seed.receiptIds,
-                  rows: seed.weekStartIso
+                  rows: isDemoTimelinePv || seed.weekStartIso
                     ? seed.rows
                     : pv.rows?.length
                       ? pv.rows.map((row, idx) => ({
@@ -5182,6 +5221,9 @@ export const useStore = create<StoreState>()(
             current.shiftHistory,
           ),
         );
+        const mergedAgencyPRsForLedger = normalizeAgencyPrs(
+          mergeAgencyPRs(p?.agencyPRs, current.agencyPRs),
+        );
         const demoLedger = mergeHistoryDemoLedger({
           shiftHistory: mergedShiftHistory,
           scans: mergedScansBase,
@@ -5189,7 +5231,11 @@ export const useStore = create<StoreState>()(
           profile: getPrProfile("pr_tied"),
         });
         const mergedPvs = demoLedger.pvs;
-        const mergedScans = demoLedger.scans;
+        const mergedScans = syncAgencyPayrollReceiptScans(
+          demoLedger.scans,
+          mergedPvs,
+          mergedAgencyPRsForLedger,
+        );
         const portalForAgencySync = {
           prDisplayName:
             p?.prDisplayName === "Luna" ? null : (p?.prDisplayName ?? current.prDisplayName),
@@ -5214,9 +5260,7 @@ export const useStore = create<StoreState>()(
           prLanguages: p?.prLanguages?.length ? p.prLanguages : current.prLanguages,
         };
         const seedAgencyById = Object.fromEntries(demoSnapshot.agencyPRs.map((s) => [s.id, s]));
-        const mergedAgencyPRs = normalizeAgencyPrs(
-          mergeAgencyPRs(p?.agencyPRs, current.agencyPRs),
-        ).map((pr) => {
+        const mergedAgencyPRs = mergedAgencyPRsForLedger.map((pr) => {
           let next = syncAgencyPrFromPrPortal(pr, TIED_DEMO_ROSTER_PR_ID, portalForAgencySync);
           const seed = seedAgencyById[pr.id];
           if (seed && pr.id === TIED_DEMO_ROSTER_PR_ID) {
@@ -5392,6 +5436,10 @@ export const useStore = create<StoreState>()(
           agencyCollections: mergeAgencyCollections(
             p?.agencyCollections,
             current.agencyCollections,
+          ),
+          agencyOwner: syncAgencyOwnerSubscriptionPlan(
+            { ...DEFAULT_AGENCY_OWNER, ...current.agencyOwner, ...p?.agencyOwner },
+            mergedAgencyPRs,
           ),
           paymentCardLast4: p?.paymentCardLast4 ?? current.paymentCardLast4 ?? "4242",
           postSealRatePrompt: p?.postSealRatePrompt ?? null,

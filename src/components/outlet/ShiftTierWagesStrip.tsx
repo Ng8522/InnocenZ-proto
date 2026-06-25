@@ -18,26 +18,39 @@ export function TierSalesTargetChip({
   targetSalesRm,
   active,
   className,
+  compact = true,
 }: {
   targetSalesRm: number;
   active?: boolean;
   className?: string;
+  compact?: boolean;
 }) {
   if (targetSalesRm <= 0) return null;
   return (
     <div
       className={cn(
-        "w-full rounded-md border px-1.5 py-1 text-center",
+        "flex w-full flex-col items-center justify-center gap-0.5 text-center leading-none",
+        compact ? "min-h-[30px] rounded border px-1 py-1.5" : "rounded-md border px-1.5 py-1",
         active
           ? "border-[rgba(62,207,142,.45)] bg-[rgba(62,207,142,.18)]"
           : "border-[rgba(62,207,142,.3)] bg-[rgba(62,207,142,.12)]",
         className,
       )}
     >
-      <span className="block text-[8px] font-bold uppercase tracking-[0.12em] text-[var(--iz-green)]">
-        Sales target
+      <span
+        className={cn(
+          "font-bold uppercase text-[var(--iz-green)] leading-none",
+          compact ? "text-[8px] tracking-[0.05em]" : "text-[8px] tracking-[0.12em]",
+        )}
+      >
+        {compact ? "Target" : "Sales target"}
       </span>
-      <span className="font-sora text-[11px] font-extrabold tabular-nums leading-tight text-[var(--iz-green)]">
+      <span
+        className={cn(
+          "font-sora font-extrabold tabular-nums text-[var(--iz-green)] leading-none",
+          compact ? "text-[10px]" : "text-[11px]",
+        )}
+      >
         ≥ {formatTargetAmount(targetSalesRm)}
       </span>
     </div>
@@ -49,7 +62,7 @@ export function TierRatePill({
   wage,
   salesTarget,
   active,
-  accent,
+  accent: _accent,
   multiplier,
   onClick,
 }: {
@@ -66,56 +79,58 @@ export function TierRatePill({
   const hasTarget = (salesTarget ?? 0) > 0;
   const showMultiplier = multiplier != null;
   const Tag = onClick ? "button" : "div";
+  const selected = active === true;
 
   return (
     <Tag
       type={onClick ? "button" : undefined}
       onClick={onClick}
       className={cn(
-        "flex min-w-0 flex-col items-center rounded-lg border px-1.5 py-2 text-center",
-        showMultiplier ? "h-[8rem]" : "h-[7.5rem]",
-        accent || isBase
-          ? "border-[rgba(217,185,122,.35)] bg-[rgba(232,194,122,.08)]"
+        "flex h-full w-full min-w-0 flex-col items-center rounded-lg border px-1 py-1.5 text-center",
+        selected
+          ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)]"
           : "border-[var(--iz-line)] bg-white/[0.02]",
-        active && "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)]",
-        onClick && "transition-colors hover:border-[var(--iz-muted)]",
+        onClick && !selected && "transition-colors hover:border-[var(--iz-muted)]",
       )}
     >
-      <div className="flex h-7 shrink-0 flex-col items-center justify-center leading-none">
+      <div className="flex h-[18px] shrink-0 flex-col items-center justify-start leading-none">
         <span
           className={cn(
-            "text-[10px] font-bold",
-            active ? "text-[var(--iz-gold-l)]" : "text-[var(--iz-txt)]",
+            "text-[9px] font-bold leading-none",
+            selected ? "text-[var(--iz-gold-l)]" : "text-[var(--iz-txt)]",
           )}
         >
           {roman}
         </span>
-        <span className={cn("text-[9px] font-medium", isBase ? "text-[var(--iz-muted)]" : "invisible")}>
+        <span
+          className={cn(
+            "text-[7px] font-medium leading-tight",
+            isBase ? "text-[var(--iz-muted)]" : "invisible",
+          )}
+        >
           base
         </span>
       </div>
-      <span className="mt-0.5 shrink-0 text-[9px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
+      <span className="mt-0.5 shrink-0 text-[8px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
         Pay / hr
       </span>
       <span
         className={cn(
-          "shrink-0 font-sora text-xs font-extrabold tabular-nums leading-none",
-          active ? "text-[var(--iz-gold-l)]" : "text-[var(--iz-txt)]",
+          "shrink-0 font-sora text-[11px] font-extrabold tabular-nums leading-tight",
+          selected ? "text-[var(--iz-gold-l)]" : "text-[var(--iz-txt)]",
         )}
       >
         RM{wage}
       </span>
       {showMultiplier && (
-        <span className="shrink-0 text-[10px] font-semibold tabular-nums leading-none text-[var(--iz-gold-l)]">
+        <span className="shrink-0 text-[9px] font-semibold tabular-nums leading-none text-[var(--iz-muted)]">
           {multiplier}×
         </span>
       )}
-      <div className="mt-auto flex w-full min-h-[2.5rem] items-end justify-center">
+      <div className="mt-px w-full">
         {hasTarget ? (
-          <TierSalesTargetChip targetSalesRm={salesTarget!} active={active} />
-        ) : (
-          <div className="h-[2.5rem]" aria-hidden />
-        )}
+          <TierSalesTargetChip targetSalesRm={salesTarget!} active={selected} />
+        ) : null}
       </div>
     </Tag>
   );
@@ -123,6 +138,7 @@ export function TierRatePill({
 
 export function ShiftTierWagesStrip({
   tierRates,
+  compact = true,
 }: {
   tierRates: Record<OutletPrTier, OutletTierRateSettings>;
   compact?: boolean;
@@ -130,18 +146,22 @@ export function ShiftTierWagesStrip({
   const hasSalesTargets = OUTLET_PR_TIERS.some((t) => (tierRates[t].targetSalesRm ?? 0) > 0);
 
   return (
-    <div className="mt-2">
-      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
+    <div className={compact ? "mt-1.5" : "mt-2"}>
+      <p
+        className={cn(
+          "font-semibold uppercase tracking-wide text-[var(--iz-muted)]",
+          compact ? "mb-1 text-[9px]" : "mb-1.5 text-[10px]",
+        )}
+      >
         {hasSalesTargets ? "Target pay & sales by tier" : "Target pay / hr by tier"}
       </p>
-      <div className="grid grid-cols-5 gap-1">
+      <div className={cn("grid grid-cols-5 items-stretch gap-px", compact ? "" : "gap-0.5")}>
         {OUTLET_PR_TIERS.map((tier) => (
           <TierRatePill
             key={tier}
             tier={tier}
             wage={tierRates[tier].wagePerHour}
             salesTarget={tierRates[tier].targetSalesRm}
-            accent={tier === OUTLET_BASE_TIER}
           />
         ))}
       </div>

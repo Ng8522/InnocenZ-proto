@@ -37,6 +37,7 @@ import { outletCan } from "@/lib/outlet-rbac";
 import {
   getOutletSubscriptionPlan,
   outletNamedPrCountForDate,
+  outletPrHeadcountForDate,
 } from "@/lib/outlet-demo";
 
 import { cn } from "@/lib/utils";
@@ -125,9 +126,37 @@ function PostJobPage() {
     return booked + fromDrafts;
   };
 
+  const headcountOnDate = (jobDate: Date, excludeShiftId?: string) => {
+    const iso = isoFromJobDate(jobDate);
+    const booked = outletPrHeadcountForDate(shifts, outletName, iso);
+    const fromDrafts = draftShifts
+      .filter((d) => d.id !== excludeShiftId)
+      .flatMap((d) =>
+        eachJobDateInRange(d.jobDate, d.jobEndDate).map((day) => ({ day, quantity: d.quantity })),
+      )
+      .filter(({ day }) => isoFromJobDate(day) === iso)
+      .reduce((sum, { quantity }) => sum + quantity, 0);
+    return booked + fromDrafts;
+  };
+
+  const peopleRemainingForShift = (shift: DraftShift, excludeShiftId?: string) => {
+    const days = eachJobDateInRange(shift.jobDate, shift.jobEndDate);
+    if (days.length === 0) return subscriptionPlan.prPerDayMax;
+    return Math.min(
+      ...days.map((day) =>
+        Math.max(0, subscriptionPlan.prPerDayMax - headcountOnDate(day, excludeShiftId)),
+      ),
+    );
+  };
+
   const composerNamedPrsOnDate = useMemo(
     () => namedPrsOnDate(composer.jobDate),
     [composer.jobDate, shifts, draftShifts, outletName],
+  );
+
+  const composerPeopleRemaining = useMemo(
+    () => peopleRemainingForShift(composer),
+    [composer, shifts, draftShifts, subscriptionPlan.prPerDayMax, outletName],
   );
 
   const prTierById = useMemo(
@@ -139,8 +168,17 @@ function PostJobPage() {
 
   const addDraftShift = () => {
 
-    const snapshot = newDraftShift({
+    if (composerPeopleRemaining <= 0) {
+      toast("Daily PR limit reached for the selected date(s)", "warn");
+      return;
+    }
 
+    if (composer.quantity <= 0) {
+      toast("Set people needed before adding a shift", "warn");
+      return;
+    }
+
+    const snapshot = newDraftShift({
       jobDate: composer.jobDate,
 
       jobEndDate: composer.jobEndDate,
@@ -246,6 +284,7 @@ function PostJobPage() {
     );
 
     const byDate = new Map<string, number>();
+    const byDateHeadcount = new Map<string, number>();
     for (const s of expandedShifts) {
       if (s.prIds.length > subscriptionPlan.prSelectMax) {
         toast(
@@ -254,16 +293,34 @@ function PostJobPage() {
         );
         return;
       }
+      if (s.quantity > subscriptionPlan.prPerDayMax) {
+        toast(
+          `People needed exceeds your ${subscriptionPlan.label} plan (${subscriptionPlan.prPerDayMax}/day) for ${formatJobDate(s.jobDate)}`,
+          "warn",
+        );
+        return;
+      }
+      const iso = isoFromJobDate(s.jobDate);
       if (s.prIds.length > 0) {
-        const iso = isoFromJobDate(s.jobDate);
         byDate.set(iso, (byDate.get(iso) ?? 0) + s.prIds.length);
       }
+      byDateHeadcount.set(iso, (byDateHeadcount.get(iso) ?? 0) + s.quantity);
     }
     for (const [iso, total] of byDate) {
       const existing = outletNamedPrCountForDate(shifts, outletName, iso);
       if (existing + total > subscriptionPlan.prPerDayMax) {
         toast(
           `Daily named-PR limit is ${subscriptionPlan.prPerDayMax} — ${existing} already named on ${iso}, cannot add ${total} more`,
+          "warn",
+        );
+        return;
+      }
+    }
+    for (const [iso, total] of byDateHeadcount) {
+      const existing = outletPrHeadcountForDate(shifts, outletName, iso);
+      if (existing + total > subscriptionPlan.prPerDayMax) {
+        toast(
+          `Daily PR headcount limit is ${subscriptionPlan.prPerDayMax} — ${existing} already booked on ${iso}, cannot add ${total} more`,
           "warn",
         );
         return;
@@ -452,6 +509,8 @@ function PostJobPage() {
 
             namedPrsOnDate={composerNamedPrsOnDate}
 
+            peopleRemaining={composerPeopleRemaining}
+
           />
 
 
@@ -513,6 +572,8 @@ function PostJobPage() {
                     onDone={() => setEditingShiftId(null)}
 
                     namedPrsOnDate={namedPrsOnDate(s.jobDate, s.id)}
+
+                    peopleRemaining={peopleRemainingForShift(s, s.id)}
 
                   />
 

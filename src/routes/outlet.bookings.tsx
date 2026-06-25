@@ -36,7 +36,7 @@ import {
 import { outletCan } from "@/lib/outlet-rbac";
 import {
   getOutletSubscriptionPlan,
-  outletPrHeadcountForDate,
+  outletNamedPrCountForDate,
 } from "@/lib/outlet-demo";
 
 import { cn } from "@/lib/utils";
@@ -112,21 +112,21 @@ function PostJobPage() {
 
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
 
-  const headcountOnDate = (jobDate: Date, excludeShiftId?: string) => {
+  const namedPrsOnDate = (jobDate: Date, excludeShiftId?: string) => {
     const iso = isoFromJobDate(jobDate);
-    const booked = outletPrHeadcountForDate(shifts, outletName, iso);
+    const booked = outletNamedPrCountForDate(shifts, outletName, iso);
     const fromDrafts = draftShifts
       .filter((d) => d.id !== excludeShiftId)
       .flatMap((d) =>
-        eachJobDateInRange(d.jobDate, d.jobEndDate).map((day) => ({ day, quantity: d.quantity })),
+        eachJobDateInRange(d.jobDate, d.jobEndDate).map((day) => ({ day, prIds: d.prIds })),
       )
       .filter(({ day }) => isoFromJobDate(day) === iso)
-      .reduce((sum, { quantity }) => sum + quantity, 0);
+      .reduce((sum, { prIds }) => sum + prIds.length, 0);
     return booked + fromDrafts;
   };
 
-  const composerHeadcountOnDate = useMemo(
-    () => headcountOnDate(composer.jobDate),
+  const composerNamedPrsOnDate = useMemo(
+    () => namedPrsOnDate(composer.jobDate),
     [composer.jobDate, shifts, draftShifts, outletName],
   );
 
@@ -247,22 +247,23 @@ function PostJobPage() {
 
     const byDate = new Map<string, number>();
     for (const s of expandedShifts) {
-      const shiftHeadcount = Math.max(s.quantity, s.prIds.length);
-      if (shiftHeadcount > subscriptionPlan.prSelectMax) {
+      if (s.prIds.length > subscriptionPlan.prSelectMax) {
         toast(
-          `Shift exceeds your plan — max ${subscriptionPlan.prSelectMax} PRs per shift (${formatJobDate(s.jobDate)})`,
+          `Shift exceeds your plan — max ${subscriptionPlan.prSelectMax} named PRs per shift (${formatJobDate(s.jobDate)})`,
           "warn",
         );
         return;
       }
-      const iso = isoFromJobDate(s.jobDate);
-      byDate.set(iso, (byDate.get(iso) ?? 0) + shiftHeadcount);
+      if (s.prIds.length > 0) {
+        const iso = isoFromJobDate(s.jobDate);
+        byDate.set(iso, (byDate.get(iso) ?? 0) + s.prIds.length);
+      }
     }
     for (const [iso, total] of byDate) {
-      const existing = outletPrHeadcountForDate(shifts, outletName, iso);
+      const existing = outletNamedPrCountForDate(shifts, outletName, iso);
       if (existing + total > subscriptionPlan.prPerDayMax) {
         toast(
-          `Daily PR limit is ${subscriptionPlan.prPerDayMax} — ${existing} already booked on ${iso}, cannot add ${total} more`,
+          `Daily named-PR limit is ${subscriptionPlan.prPerDayMax} — ${existing} already named on ${iso}, cannot add ${total} more`,
           "warn",
         );
         return;
@@ -449,7 +450,7 @@ function PostJobPage() {
 
             title="Shift details"
 
-            headcountOnDate={composerHeadcountOnDate}
+            namedPrsOnDate={composerNamedPrsOnDate}
 
           />
 
@@ -511,7 +512,7 @@ function PostJobPage() {
 
                     onDone={() => setEditingShiftId(null)}
 
-                    headcountOnDate={headcountOnDate(s.jobDate, s.id)}
+                    namedPrsOnDate={namedPrsOnDate(s.jobDate, s.id)}
 
                   />
 

@@ -27,6 +27,8 @@ import {
   findDuplicateReceiptScan,
   receiptScanFingerprint,
   buildManualReceiptItems,
+  resolveManualSelfLogItems,
+  manualSelfLogTotal,
   receiptScanCategory,
   buildPaymentVoucherFromShift,
   getPrProfile,
@@ -106,6 +108,9 @@ import {
 import { validateReceiptScan } from "@/lib/receipt-scan-utils";
 import {
   applyDisputeTargetsToRows,
+  clearDisputeTargetsFromRows,
+  pvRowsHaveDisputes,
+  removeDisputeLinesForTargets,
   buildSentWeeklyPv,
   buildWeeklyPaymentSummary,
   getPreviousWeekBounds,
@@ -190,7 +195,13 @@ import {
   outletShiftEffectiveDemand,
   outletShiftPlannedLaborPerSlot,
   outletUnfilledDemandSlots,
+  OUTLET_SUBSCRIPTION_BILLING,
+  outletSubscriptionInvoiceForPlan,
+  syncOutletSubscriptionBilling,
+  getOutletSubscriptionPlan,
   type OutletDrinkPrice,
+  type OutletSubscriptionInvoice,
+  type OutletSubscriptionPlanId,
 } from "@/lib/outlet-demo";
 import { buildDemoStoreReset, buildPrDemoReset, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
 import {
@@ -298,6 +309,8 @@ export interface ShiftRequest {
   anchorLiveSales?: number;
   status: "draft" | "open" | "confirmed" | "sealed";
   prs: string[];
+  /** PRs the outlet named at post job (subscription cap) — excludes agency-assigned fill */
+  requestedPrIds?: string[];
   payPerHour: number;
   /** Per-shift wage & commission by PR training tier */
   tierRates?: Record<OutletPrTier, OutletTierRateSettings>;
@@ -515,6 +528,7 @@ interface StoreState {
     targets?: WeeklyDisputeTarget[],
   ) => void;
   escalatePrPvDispute: (id: string) => void;
+  withdrawPrPvDispute: (id: string, targets: WeeklyDisputeTarget[]) => void;
   demoFreelancerLowRatingStrike: () => void;
 
   prReceiptScans: PrReceiptScan[];
@@ -530,6 +544,9 @@ interface StoreState {
       reason: string;
       category: "drinks" | "tips" | "tables";
       amount: number;
+      drinkId?: string;
+      drinkQty?: number;
+      drinkQtys?: Record<string, number>;
     };
     /** Replace a wrong scan on the current shift (keeps slot on shift) */
     replaceScanId?: string;
@@ -538,7 +555,10 @@ interface StoreState {
   updateReceiptSelfLog: (
     scanId: string,
     patch: {
-      amount: number;
+      amount?: number;
+      drinkId?: string;
+      drinkQty?: number;
+      drinkQtys?: Record<string, number>;
       reason?: string;
       category?: "drinks" | "tips" | "tables";
     },
@@ -677,6 +697,7 @@ interface StoreState {
   outletWorkspace: OutletWorkspaceSettings;
   outletSettings: OutletSettings;
   outletOwner: OutletOwnerSettings;
+  outletSubscriptionBilling: OutletSubscriptionInvoice[];
   outletFinanceHead: OutletFinanceHead;
   outletOpsHead: OutletOpsHead;
   shiftApplicants: ShiftApplicant[];
@@ -702,6 +723,7 @@ interface StoreState {
   saveOutletWorkspace: (patch: Partial<OutletWorkspaceSettings>) => void;
   saveOutletSettings: (patch: Partial<OutletSettings>) => void;
   saveOutletOwner: (patch: Partial<OutletOwnerSettings>) => void;
+  recordOutletSubscriptionPlanChange: (planId: OutletSubscriptionPlanId) => void;
   saveOutletProfileSettings: (data: {
     owner: OutletOwnerSettings;
     financeHead: OutletFinanceHead;
@@ -1975,17 +1997,14 @@ export const useStore = create<StoreState>()(
         const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
         if (!pv) return;
         const stamp = formatPvSignTimestamp();
-        const bankRef = `INZ-TRF-${Date.now().toString(36).toUpperCase().slice(-8)}`;
         set((st) => {
           const nextPvs = (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
             p.id === id
               ? {
                   ...p,
-                  status: "PAID" as const,
+                  status: "SIGNED" as const,
                   prSignedAt: stamp,
                   prSignatureDataUrl: signatureDataUrl,
-                  paidAt: stamp,
-                  bankRef,
                 }
               : p,
           );
@@ -2003,22 +2022,14 @@ export const useStore = create<StoreState>()(
             ),
           };
         });
-        const prId = prIdForPayeeName(pv.prName, pv.prIc, get().agencyPRs);
         get().pushNotify({
           type: "pv_signed",
           pvId: id,
           prName: pv.prName,
           net: pv.net,
         });
-        get().pushNotify({
-          type: "pv_paid",
-          pvId: id,
-          prId,
-          prName: pv.prName,
-          net: pv.net,
-        });
         get().toast(
-          `Signed ✓ · ${pv.net.toLocaleString("en-MY", { style: "currency", currency: "MYR" })} sent to your bank (${bankRef})`,
+          `Signed ✓ · ${pv.net.toLocaleString("en-MY", { style: "currency", currency: "MYR" })} — awaiting bank transfer`,
           "success",
         );
       },
@@ -2145,6 +2156,71 @@ export const useStore = create<StoreState>()(
         });
         get().toast("Dispute escalated — InnocenZ support notified", "warn");
       },
+      withdrawPrPvDispute: (id, targets) => {
+        if (!targets?.length) {
+          get().toast("Nothing to withdraw", "warn");
+          return;
+        }
+        const pv = (get().prPaymentVouchers ?? SEED_PR_PVS).find((p) => p.id === id);
+        if (!pv) return;
+        if (pv.status !== "DISPUTED" && !pvRowsHaveDisputes(pv.rows)) {
+          get().toast("No open dispute on this amount", "warn");
+          return;
+        }
+        const year = pv.weekStartIso
+          ? parseInt(pv.weekStartIso.slice(0, 4), 10)
+          : new Date().getFullYear();
+        const rows = clearDisputeTargetsFromRows(pv.rows, targets, year);
+        const stillDisputed = pvRowsHaveDisputes(rows);
+        const nextReason = removeDisputeLinesForTargets(pv.prDisputeReason, targets);
+
+        set((st) => {
+          const nextPvs = (st.prPaymentVouchers ?? SEED_PR_PVS).map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  rows,
+                  prDisputeReason: stillDisputed ? nextReason : undefined,
+                  status: stillDisputed ? ("DISPUTED" as const) : ("SENT" as const),
+                  ...(stillDisputed
+                    ? { disputeUpdatedAt: new Date().toLocaleString("en-MY", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }) }
+                    : {
+                        disputedAt: undefined,
+                        disputeUpdatedAt: undefined,
+                        prDisputePhotoDataUrls: undefined,
+                        prDisputePhotoDataUrl: undefined,
+                        disputeEscalatedAt: undefined,
+                      }),
+                }
+              : p,
+          );
+          const ledger = syncStoreHistoryLedger(
+            st.shiftHistory,
+            st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS,
+            nextPvs,
+          );
+          return {
+            prPaymentVouchers: ledger.pvs,
+            prReceiptScans: syncAgencyPayrollReceiptScans(
+              ledger.scans,
+              ledger.pvs,
+              st.agencyPRs,
+            ),
+          };
+        });
+        get().toast(
+          stillDisputed
+            ? "Dispute withdrawn for that amount — other disputed lines still open"
+            : "Dispute withdrawn — review and sign when ready",
+          "success",
+        );
+      },
       demoFreelancerLowRatingStrike: () => {
         if (get().prSubRole !== "pr_free") return;
         set((st) => ({ prFreelancerLowRatingStrikes: st.prFreelancerLowRatingStrikes + 1 }));
@@ -2169,13 +2245,20 @@ export const useStore = create<StoreState>()(
           return "";
         }
         const manual = draft.manualSelfLog;
+        const outletNorm = draft.outlet.replace(/\s+KL$/i, "").trim() || draft.outlet;
         const items = manual
-          ? buildManualReceiptItems(
-              manual.category === "tables" ? "drinks" : manual.category,
-              manual.amount,
+          ? resolveManualSelfLogItems(
+              {
+                category: manual.category === "tables" ? "drinks" : manual.category,
+                amount: manual.amount,
+                drinkId: manual.drinkId,
+                drinkQty: manual.drinkQty,
+                drinkQtys: manual.drinkQtys,
+              },
+              outletNorm,
             )
           : draft.items;
-        const totalLogged = manual ? manual.amount : draft.totalLogged;
+        const totalLogged = manual ? manualSelfLogTotal(items) : draft.totalLogged;
         const fingerprint = receiptScanFingerprint({
           outlet: draft.outlet,
           totalLogged,
@@ -2304,18 +2387,34 @@ export const useStore = create<StoreState>()(
           get().toast("This self-log belongs to another shift", "warn");
           return;
         }
-        const amount = Math.max(0, Math.round(patch.amount * 100) / 100);
-        if (amount <= 0) {
-          get().toast("Enter a valid amount", "warn");
-          return;
-        }
         const category =
           patch.category != null
             ? patch.category === "tables"
               ? "drinks"
               : patch.category
             : receiptScanCategory(scan);
-        const items = buildManualReceiptItems(category, amount);
+        const outlet = scan.outlet.replace(/\s+KL$/i, "").trim() || scan.outlet;
+        const items =
+          category === "drinks" && (patch.drinkQtys || (patch.drinkId && patch.drinkQty))
+            ? resolveManualSelfLogItems(
+                {
+                  category: "drinks",
+                  amount: patch.amount ?? 0,
+                  drinkId: patch.drinkId,
+                  drinkQty: patch.drinkQty,
+                  drinkQtys: patch.drinkQtys,
+                },
+                outlet,
+              )
+            : buildManualReceiptItems(category, patch.amount ?? 0);
+        const amount = manualSelfLogTotal(items);
+        if (amount <= 0) {
+          get().toast(
+            category === "drinks" ? "Set quantity for at least one drink" : "Enter a valid amount",
+            "warn",
+          );
+          return;
+        }
         const comm = calcReceiptCommissions(items);
         const oldQty = receiptQtyDelta(scan.items);
         const newQty = receiptQtyDelta(items);
@@ -4134,6 +4233,7 @@ export const useStore = create<StoreState>()(
       outletWorkspace: demoSnapshot.outletWorkspace,
       outletSettings: demoSnapshot.outletSettings,
       outletOwner: demoSnapshot.outletOwner,
+      outletSubscriptionBilling: OUTLET_SUBSCRIPTION_BILLING.map((inv) => ({ ...inv })),
       outletFinanceHead: demoSnapshot.outletFinanceHead,
       outletOpsHead: demoSnapshot.outletOpsHead,
       shiftApplicants: demoSnapshot.shiftApplicants,
@@ -4272,6 +4372,7 @@ export const useStore = create<StoreState>()(
               dateIso,
               filled: prs.length,
               prs,
+              requestedPrIds: prs.length > 0 ? [...prs] : undefined,
               payPerHour: tierIPay,
               tierRates,
               eventDrinkMenu,
@@ -4353,6 +4454,19 @@ export const useStore = create<StoreState>()(
       },
       saveOutletOwner: (patch) => {
         set((st) => ({ outletOwner: { ...st.outletOwner, ...patch } }));
+      },
+      recordOutletSubscriptionPlanChange: (planId) => {
+        const plan = getOutletSubscriptionPlan(planId);
+        const invoice = outletSubscriptionInvoiceForPlan(plan);
+        set((st) => {
+          const withoutDup = st.outletSubscriptionBilling.filter((inv) => inv.id !== invoice.id);
+          return {
+            outletSubscriptionBilling: syncOutletSubscriptionBilling(
+              [invoice, ...withoutDup],
+              planId,
+            ),
+          };
+        });
       },
       saveOutletProfileSettings: (data) => {
         const orgName = data.owner.orgName.trim();
@@ -4573,6 +4687,12 @@ export const useStore = create<StoreState>()(
         set((cur) => ({
           shiftApplicants: [...newApplicants, ...cur.shiftApplicants],
           agencyRoster: [...newRosterSlots, ...cur.agencyRoster],
+          shifts: cur.shifts.map((sh) => {
+            if (sh.id !== shiftId) return sh;
+            const named = new Set(sh.requestedPrIds ?? []);
+            for (const id of toRequest) named.add(id);
+            return { ...sh, requestedPrIds: [...named] };
+          }),
         }));
         get().toast(
           `Requested ${toRequest.map((id) => st.prs.find((p) => p.id === id)?.name ?? id).join(", ")} · pending agency`,
@@ -5066,6 +5186,7 @@ export const useStore = create<StoreState>()(
           outletWorkspace: s.outletWorkspace,
           outletSettings: s.outletSettings,
           outletOwner: s.outletOwner,
+          outletSubscriptionBilling: s.outletSubscriptionBilling,
           outletFinanceHead: s.outletFinanceHead,
           outletOpsHead: s.outletOpsHead,
           shiftApplicants: s.shiftApplicants,
@@ -5430,6 +5551,12 @@ export const useStore = create<StoreState>()(
           outletMoneyEditCount: p?.outletMoneyEditCount ?? current.outletMoneyEditCount,
           outletSettings: p?.outletSettings ?? current.outletSettings ?? DEFAULT_OUTLET_SETTINGS,
           outletOwner: p?.outletOwner ?? current.outletOwner ?? DEFAULT_OUTLET_OWNER,
+          outletSubscriptionBilling: syncOutletSubscriptionBilling(
+            p?.outletSubscriptionBilling ??
+              current.outletSubscriptionBilling ??
+              OUTLET_SUBSCRIPTION_BILLING,
+            (p?.outletOwner ?? current.outletOwner ?? DEFAULT_OUTLET_OWNER).subscriptionPlanId,
+          ),
           outletFinanceHead:
             p?.outletFinanceHead ?? current.outletFinanceHead ?? DEFAULT_OUTLET_FINANCE_HEAD,
           outletOpsHead: p?.outletOpsHead ?? current.outletOpsHead ?? DEFAULT_OUTLET_OPS_HEAD,

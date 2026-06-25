@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { format, startOfToday, addDays } from "date-fns";
 import { Check, HelpCircle, Minus, Pencil, Plus, X } from "lucide-react";
 import { OutletDatePopoverChip, OutletDatePopoverField, OutletDateRangePopover } from "@/components/outlet/outlet-date-popover";
-import { IzCard, IzSelect } from "@/components/iz/ui";
+import { IzCard, IzSelect, IzTimeInput, normalizeTimeValue } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
 import { TierRatesFields } from "@/components/outlet/TierRatesFields";
 import { ShiftTierWagesStrip } from "@/components/outlet/ShiftTierWagesStrip";
@@ -522,84 +522,14 @@ export function QuantityStepper({
   );
 }
 
-function stepHourValue(current: number, delta: number) {
-  return ((current + delta) % 24 + 24) % 24;
+function hmFromParts(h: number, m: number): string {
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-function stepMinuteValue(current: number, delta: number) {
-  return ((current + delta) % 60 + 60) % 60;
-}
-
-function TimeDigit({
-  value,
-  max,
-  mode,
-  onChange,
-  "aria-label": ariaLabel,
-}: {
-  value: number;
-  max: number;
-  mode: "hour" | "minute";
-  onChange: (n: number) => void;
-  "aria-label": string;
-}) {
-  const [text, setText] = useState(() => String(value).padStart(2, "0"));
-
-  useEffect(() => {
-    setText(String(value).padStart(2, "0"));
-  }, [value]);
-
-  const adjust = (direction: -1 | 1) => {
-    const delta = mode === "minute" ? direction * 15 : direction;
-    const next = mode === "minute" ? stepMinuteValue(value, delta) : stepHourValue(value, delta);
-    onChange(next);
-  };
-
-  const commit = (raw: string) => {
-    const n = raw === "" ? 0 : parseInt(raw, 10);
-    onChange(clampTime(Number.isNaN(n) ? 0 : n, 0, max));
-  };
-
-  const holdFocusOnStep = (e: React.MouseEvent) => {
-    e.preventDefault();
-  };
-
-  return (
-    <div className="flex items-center gap-0.5">
-      <button
-        type="button"
-        onMouseDown={holdFocusOnStep}
-        onClick={() => adjust(-1)}
-        className="iz-chip flex h-6 w-6 items-center justify-center !p-0"
-        aria-label={`Decrease ${ariaLabel}`}
-      >
-        <Minus className="h-3 w-3" />
-      </button>
-      <input
-        type="text"
-        inputMode="numeric"
-        aria-label={ariaLabel}
-        value={text}
-        onFocus={(e) => e.target.select()}
-        onChange={(e) => {
-          const raw = e.target.value.replace(/\D/g, "").slice(0, 2);
-          setText(raw);
-          if (raw.length === 2) commit(raw);
-        }}
-        onBlur={() => commit(text)}
-        className="iz-chip h-7 w-9 border-0 bg-[rgba(255,255,255,0.04)] px-0 text-center text-sm font-semibold tabular-nums text-[var(--iz-txt)] outline-none focus:ring-1 focus:ring-[var(--iz-gold-d)]"
-      />
-      <button
-        type="button"
-        onMouseDown={holdFocusOnStep}
-        onClick={() => adjust(1)}
-        className="iz-chip flex h-6 w-6 items-center justify-center !p-0"
-        aria-label={`Increase ${ariaLabel}`}
-      >
-        <Plus className="h-3 w-3" />
-      </button>
-    </div>
-  );
+function partsFromHm(hhmm: string): { h: number; m: number } {
+  const normalized = normalizeTimeValue(hhmm);
+  const [h, m] = normalized.split(":").map((x) => parseInt(x, 10));
+  return { h, m };
 }
 
 export function ShiftTimePicker({
@@ -611,50 +541,36 @@ export function ShiftTimePicker({
 }) {
   const parts = useMemo(() => parseShiftTime(value), [value]);
 
-  const update = (patch: Partial<ShiftTimeParts>) => {
-    onChange(formatShiftTime({ ...parts, ...patch }));
-  };
-
   return (
-    <div className="flex w-full flex-col items-end gap-2 text-sm">
-      <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1">
-        <span className="mr-1 w-8 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
+    <div className="flex w-full flex-col items-end gap-2">
+      <div className="flex items-center justify-end gap-2">
+        <span className="w-8 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
           Start
         </span>
-        <TimeDigit
-          aria-label="Start hour"
-          mode="hour"
-          value={parts.startH}
-          max={23}
-          onChange={(startH) => update({ startH })}
-        />
-        <span className="font-semibold text-[var(--iz-muted)]">:</span>
-        <TimeDigit
-          aria-label="Start minute"
-          mode="minute"
-          value={parts.startM}
-          max={59}
-          onChange={(startM) => update({ startM })}
+        <IzTimeInput
+          value={hmFromParts(parts.startH, parts.startM)}
+          onChange={(v) => {
+            if (!v) return;
+            const { h, m } = partsFromHm(v);
+            onChange(formatShiftTime({ ...parts, startH: h, startM: m }));
+          }}
+          className="min-w-[8.5rem]"
+          aria-label="Start time"
         />
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1">
-        <span className="mr-1 w-8 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
+      <div className="flex items-center justify-end gap-2">
+        <span className="w-8 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
           End
         </span>
-        <TimeDigit
-          aria-label="End hour"
-          mode="hour"
-          value={parts.endH}
-          max={23}
-          onChange={(endH) => update({ endH })}
-        />
-        <span className="font-semibold text-[var(--iz-muted)]">:</span>
-        <TimeDigit
-          aria-label="End minute"
-          mode="minute"
-          value={parts.endM}
-          max={59}
-          onChange={(endM) => update({ endM })}
+        <IzTimeInput
+          value={hmFromParts(parts.endH, parts.endM)}
+          onChange={(v) => {
+            if (!v) return;
+            const { h, m } = partsFromHm(v);
+            onChange(formatShiftTime({ ...parts, endH: h, endM: m }));
+          }}
+          className="min-w-[8.5rem]"
+          aria-label="End time"
         />
       </div>
     </div>
@@ -1013,7 +929,7 @@ export function DraftShiftEditor({
   showRemove,
   title,
   onDone,
-  headcountOnDate = 0,
+  namedPrsOnDate = 0,
 }: {
   shift: DraftShift;
   onChange: (patch: Partial<DraftShift>) => void;
@@ -1021,8 +937,8 @@ export function DraftShiftEditor({
   showRemove?: boolean;
   title: string;
   onDone?: () => void;
-  /** PR headcount already booked on this shift date (excludes current shift quantity) */
-  headcountOnDate?: number;
+  /** Named agency PRs already booked on this shift date (excludes current shift selection) */
+  namedPrsOnDate?: number;
 }) {
   const agencyPRs = useStore((s) => s.agencyPRs);
   const outletOwner = useStore((s) => s.outletOwner);
@@ -1031,13 +947,13 @@ export function DraftShiftEditor({
   const [activeTier, setActiveTier] = useState<OutletPrTier>(OUTLET_BASE_TIER);
 
   const subscriptionPlan = getOutletSubscriptionPlan(outletOwner.subscriptionPlanId);
-  const dailyRemaining = Math.max(0, subscriptionPlan.prPerDayMax - headcountOnDate);
-  const maxPeople =
-    dailyRemaining === 0 ? 0 : Math.min(subscriptionPlan.prSelectMax, dailyRemaining);
+  const namedPrRemaining = Math.max(0, subscriptionPlan.prPerDayMax - namedPrsOnDate);
+  const maxNamedPrSelect =
+    namedPrRemaining === 0 ? 0 : Math.min(subscriptionPlan.prSelectMax, namedPrRemaining);
   const prPickerHint =
-    dailyRemaining === 0
-      ? `${subscriptionPlan.label} plan · daily limit of ${subscriptionPlan.prPerDayMax} PRs reached for this date`
-      : `${subscriptionPlan.label} plan · ${formatOutletPlanPrPickerRule(subscriptionPlan)} · ${dailyRemaining} PR slot${dailyRemaining === 1 ? "" : "s"} left today`;
+    namedPrRemaining === 0
+      ? `${subscriptionPlan.label} plan · daily limit of ${subscriptionPlan.prPerDayMax} named PRs reached for this date`
+      : `${subscriptionPlan.label} plan · ${formatOutletPlanPrPickerRule(subscriptionPlan)} · ${namedPrRemaining} named PR slot${namedPrRemaining === 1 ? "" : "s"} left today`;
 
   const languageOptions = useMemo(() => collectAgencyPrLanguages(agencyPRs), [agencyPRs]);
   const pickerOptions = useMemo(
@@ -1173,20 +1089,10 @@ export function DraftShiftEditor({
         <ShiftTimePicker value={shift.shiftTime} onChange={(shiftTime) => onChange({ shiftTime })} />
       </FormRow>
       <FormRow label="People needed">
-        {maxPeople === 0 ? (
-          <p className="text-right text-xs text-[var(--iz-red)]">
-            Daily PR limit reached · upgrade plan or pick another date
-          </p>
-        ) : (
-          <QuantityStepper
-            value={Math.min(shift.quantity, maxPeople)}
-            onChange={(quantity) => {
-              const capped = Math.min(quantity, maxPeople);
-              onChange({ quantity: capped });
-            }}
-            max={maxPeople}
-          />
-        )}
+        <QuantityStepper
+          value={shift.quantity}
+          onChange={(quantity) => onChange({ quantity })}
+        />
       </FormRow>
       <FormRow label="Languages" alignTop>
         <JobLanguagePicker
@@ -1250,7 +1156,7 @@ export function DraftShiftEditor({
         </div>
       </FormRow>
       <FormRow label="Select PRs" stacked last>
-        {maxPeople === 0 ? (
+        {maxNamedPrSelect === 0 ? (
           <p className="text-[11px] text-[var(--iz-muted)]">{prPickerHint}</p>
         ) : (
           <DraftPrPicker
@@ -1258,7 +1164,7 @@ export function DraftShiftEditor({
             onSelectedChange={(prIds) =>
               onChange({
                 prIds,
-                quantity: Math.min(Math.max(shift.quantity, prIds.length), maxPeople),
+                quantity: Math.max(shift.quantity, prIds.length),
                 langs: languagesForPrIds(prIds, agencyPRs),
                 otherLang: "",
               })
@@ -1266,7 +1172,7 @@ export function DraftShiftEditor({
             quantity={shift.quantity}
             poolSize={subscriptionPlan.prPoolSize}
             maxSelect={subscriptionPlan.prSelectMax}
-            dailyRemaining={dailyRemaining}
+            dailyRemaining={namedPrRemaining}
             poolHint={prPickerHint}
             referenceDate={shift.jobDate}
             outletName={outletWorkspace.outletName}

@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Clock, X } from "lucide-react";
-import { useRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { useEffect, useRef, useState, type ReactNode, type SelectHTMLAttributes } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /** Normalize HH:MM (or H:MM) for native `type="time"` inputs */
 export function normalizeTimeValue(v: string): string {
@@ -80,7 +81,71 @@ export function formatTimeLabel(hhmm: string): string {
   return `${hr}:${String(min).padStart(2, "0")} ${period}`;
 }
 
-/** Tap-to-open time picker — uses native OS clock UI */
+type TimePeriod = "AM" | "PM";
+
+type Time12Parts = {
+  hour12: number;
+  minute: number;
+  period: TimePeriod;
+};
+
+const HOURS_12 = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const;
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+const PERIODS: TimePeriod[] = ["AM", "PM"];
+
+function parseTime12(hhmm: string): Time12Parts {
+  const normalized = normalizeTimeValue(hhmm);
+  const [h24, minute] = normalized.split(":").map((x) => parseInt(x, 10));
+  const period: TimePeriod = h24 >= 12 ? "PM" : "AM";
+  const hour12 = h24 % 12 || 12;
+  return { hour12, minute, period };
+}
+
+function formatTime24(parts: Time12Parts): string {
+  let h24 = parts.hour12 % 12;
+  if (parts.period === "PM") h24 += 12;
+  return `${String(h24).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+}
+
+function TimePickerColumn<T extends string | number>({
+  items,
+  value,
+  onChange,
+  formatItem,
+}: {
+  items: readonly T[];
+  value: T;
+  onChange: (v: T) => void;
+  formatItem: (v: T) => string;
+}) {
+  const colRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const selected = colRef.current?.querySelector('[data-selected="true"]');
+    selected?.scrollIntoView({ block: "center" });
+  }, [value]);
+
+  return (
+    <div ref={colRef} className="iz-time-picker-col">
+      {items.map((item) => {
+        const selected = item === value;
+        return (
+          <button
+            key={String(item)}
+            type="button"
+            data-selected={selected ? "true" : undefined}
+            className={cn("iz-time-picker-col-btn", selected && "is-selected")}
+            onClick={() => onChange(item)}
+          >
+            {formatItem(item)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Tap-to-open time picker — dark themed scroll columns */
 export function IzTimeInput({
   value,
   onChange,
@@ -89,32 +154,26 @@ export function IzTimeInput({
   placeholder = "Tap to choose",
   disabledPlaceholder = "Pick date first",
   ...props
-}: Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onChange"> & {
+}: {
   value: string;
   onChange: (value: string) => void;
+  className?: string;
   showIcon?: boolean;
   placeholder?: string;
   disabledPlaceholder?: string;
+  disabled?: boolean;
+  "aria-label"?: string;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
   const hasValue = Boolean(value?.trim());
   const disabled = Boolean(props.disabled);
+  const [draft, setDraft] = useState<Time12Parts>(() => parseTime12(hasValue ? value : "12:00"));
 
-  const openPicker = () => {
-    if (disabled) return;
-    const el = inputRef.current;
-    if (!el) return;
-    try {
-      if (typeof el.showPicker === "function") {
-        el.showPicker();
-        return;
-      }
-    } catch {
-      /* showPicker blocked — fall through */
+  useEffect(() => {
+    if (open) {
+      setDraft(parseTime12(hasValue ? value : "12:00"));
     }
-    el.focus();
-    el.click();
-  };
+  }, [open, value, hasValue]);
 
   const label = disabled
     ? disabledPlaceholder
@@ -122,43 +181,67 @@ export function IzTimeInput({
       ? formatTimeLabel(normalizeTimeValue(value))
       : placeholder;
 
+  const applyDraft = (next: Time12Parts) => {
+    setDraft(next);
+    onChange(formatTime24(next));
+  };
+
   return (
-    <div className={cn("iz-time-picker", className)}>
-      <button
-        type="button"
-        className={cn("iz-time-picker-btn", hasValue && "has-value", disabled && "is-disabled")}
-        onClick={openPicker}
-        disabled={disabled}
-        aria-label={props["aria-label"] ?? "Choose time"}
-      >
-        {showIcon && <Clock className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />}
-        <span className={cn("iz-time-picker-label", !hasValue && !disabled && "iz-muted2")}>{label}</span>
-      </button>
-      {hasValue && !disabled && (
-        <button
-          type="button"
-          className="iz-time-picker-clear"
-          aria-label="Clear time"
-          onClick={(e) => {
-            e.stopPropagation();
-            onChange("");
-          }}
+    <Popover open={open} onOpenChange={(next) => !disabled && setOpen(next)}>
+      <div className={cn("iz-time-picker", className)}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={cn("iz-time-picker-btn", hasValue && "has-value", disabled && "is-disabled")}
+            disabled={disabled}
+            aria-label={props["aria-label"] ?? "Choose time"}
+          >
+            {showIcon && <Clock className="h-4 w-4 shrink-0 text-[var(--iz-muted2)]" />}
+            <span className={cn("iz-time-picker-label", !hasValue && !disabled && "iz-muted2")}>{label}</span>
+          </button>
+        </PopoverTrigger>
+        {hasValue && !disabled && (
+          <button
+            type="button"
+            className="iz-time-picker-clear"
+            aria-label="Clear time"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange("");
+              setOpen(false);
+            }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <PopoverContent
+          align="end"
+          sideOffset={6}
+          className="iz-time-picker-popover w-auto border-[var(--iz-line)] bg-[var(--iz-panel)] p-2 shadow-xl"
         >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      )}
-      <input
-        ref={inputRef}
-        type="time"
-        className="iz-time-picker-native"
-        tabIndex={-1}
-        aria-hidden
-        value={hasValue ? normalizeTimeValue(value) : ""}
-        onChange={(e) => onChange(e.target.value)}
-        step={60}
-        disabled={disabled}
-      />
-    </div>
+          <div className="iz-time-picker-columns">
+            <TimePickerColumn
+              items={HOURS_12}
+              value={draft.hour12}
+              onChange={(hour12) => applyDraft({ ...draft, hour12 })}
+              formatItem={(h) => String(h).padStart(2, "0")}
+            />
+            <TimePickerColumn
+              items={MINUTES}
+              value={draft.minute}
+              onChange={(minute) => applyDraft({ ...draft, minute })}
+              formatItem={(m) => String(m).padStart(2, "0")}
+            />
+            <TimePickerColumn
+              items={PERIODS}
+              value={draft.period}
+              onChange={(period) => applyDraft({ ...draft, period })}
+              formatItem={(p) => p}
+            />
+          </div>
+        </PopoverContent>
+      </div>
+    </Popover>
   );
 }
 

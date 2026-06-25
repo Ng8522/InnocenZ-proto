@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarIcon, ChevronDown } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { Calendar } from "@/components/ui/calendar";
@@ -34,7 +34,58 @@ const compactCalClassNames = {
 type RangeHighlight = {
   startIso: string;
   endIso: string;
+  /** User picked start and is choosing end — only start should read as anchored */
+  pickingEnd?: boolean;
 };
+
+function RangeSelectionLegend({
+  start,
+  end,
+  pickingEnd,
+}: {
+  start: Date;
+  end: Date | null;
+  pickingEnd: boolean;
+}) {
+  return (
+    <div className="iz-outlet-report-range-legend" aria-live="polite">
+      <div className="iz-outlet-report-range-legend-item is-start">
+        <span className="iz-outlet-report-range-legend-badge">S</span>
+        <div className="min-w-0">
+          <span className="iz-outlet-report-range-legend-label">Start</span>
+          <span className="iz-outlet-report-range-legend-value">{formatOutletDateLabel(start)}</span>
+        </div>
+      </div>
+      <span className="iz-outlet-report-range-legend-arrow" aria-hidden>
+        →
+      </span>
+      <div
+        className={cn(
+          "iz-outlet-report-range-legend-item is-end",
+          pickingEnd && "is-pending",
+        )}
+      >
+        <span className="iz-outlet-report-range-legend-badge">E</span>
+        <div className="min-w-0">
+          <span className="iz-outlet-report-range-legend-label">End</span>
+          <span className="iz-outlet-report-range-legend-value">
+            {end ? formatOutletDateLabel(end) : "Tap a day"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function dayBefore(a: Date, b: Date): boolean {
+  return startOfDay(a).getTime() < startOfDay(b).getTime();
+}
 
 export function OutletCompactRangeCalendar({
   rangeFrom,
@@ -96,14 +147,55 @@ export function OutletDateRangePopover({
   fieldLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [draftStart, setDraftStart] = useState<Date | null>(null);
+  const [awaitingEnd, setAwaitingEnd] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setDraftStart(from);
+      setAwaitingEnd(false);
+    }
+  }, [open, from, to]);
 
   const normalizeRange = (a: Date, b: Date) => {
-    const start = new Date(a);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(b);
-    end.setHours(0, 0, 0, 0);
+    const start = startOfDay(a);
+    const end = startOfDay(b);
     if (end < start) return { from: end, to: start };
     return { from: start, to: end };
+  };
+
+  const previewRange = useMemo((): RangeHighlight | undefined => {
+    if (!draftStart) return undefined;
+    if (awaitingEnd) {
+      const iso = isoKeyFromDate(draftStart);
+      return { startIso: iso, endIso: iso, pickingEnd: true };
+    }
+    const n = normalizeRange(draftStart, to);
+    return {
+      startIso: isoKeyFromDate(n.from),
+      endIso: isoKeyFromDate(n.to),
+      pickingEnd: false,
+    };
+  }, [awaitingEnd, draftStart, to]);
+
+  const legendStart = draftStart ?? from;
+  const legendEnd = awaitingEnd ? null : to;
+
+  const handleDaySelect = (day: Date) => {
+    if (disabled?.(day)) return;
+    if (!awaitingEnd) {
+      setDraftStart(day);
+      setAwaitingEnd(true);
+      return;
+    }
+    const start = draftStart ?? day;
+    if (dayBefore(day, start)) {
+      setDraftStart(day);
+      return;
+    }
+    const n = normalizeRange(start, day);
+    onRangeChange(n.from, n.to);
+    setOpen(false);
   };
 
   return (
@@ -126,26 +218,20 @@ export function OutletDateRangePopover({
         align="start"
         sideOffset={6}
         className="iz-outlet-report-cal-popover w-auto border-[var(--iz-line)] bg-[var(--iz-panel)] p-2"
+        data-range-step={awaitingEnd ? "end" : "start"}
       >
-        <p className="iz-tiny iz-muted2 mb-2 px-0.5">Tap start day, then end day</p>
-        <OutletCompactRangeCalendar
-          rangeFrom={from}
-          rangeTo={to}
-          defaultMonth={from}
+        <RangeSelectionLegend start={legendStart} end={legendEnd} pickingEnd={awaitingEnd} />
+        <p className="iz-tiny iz-muted2 mb-2 mt-2 px-0.5">
+          {awaitingEnd ? "Step 2 · tap your end date" : "Step 1 · tap your start date"}
+        </p>
+        <OutletCompactCalendar
+          selected={draftStart ?? from}
+          defaultMonth={draftStart ?? from}
           startMonth={startMonth}
           endMonth={endMonth}
           disabled={disabled}
-          onRangeSelect={(fromDay, toDay) => {
-            if (disabled?.(fromDay)) return;
-            if (!toDay) {
-              onRangeChange(fromDay, fromDay);
-              return;
-            }
-            if (disabled?.(toDay)) return;
-            const n = normalizeRange(fromDay, toDay);
-            onRangeChange(n.from, n.to);
-            setOpen(false);
-          }}
+          range={previewRange}
+          onSelect={handleDaySelect}
         />
       </PopoverContent>
     </Popover>
@@ -185,8 +271,11 @@ export function OutletCompactCalendar({
           ? {
               reportRangeStart: (date) => isoKeyFromDate(date) === range.startIso,
               reportRangeEnd: (date) =>
-                isoKeyFromDate(date) === range.endIso && range.endIso !== range.startIso,
+                !range.pickingEnd &&
+                isoKeyFromDate(date) === range.endIso &&
+                range.endIso !== range.startIso,
               reportRangeMiddle: (date) => {
+                if (range.pickingEnd) return false;
                 const iso = isoKeyFromDate(date);
                 return iso > range.startIso && iso < range.endIso;
               },

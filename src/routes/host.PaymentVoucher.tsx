@@ -623,7 +623,7 @@ function PvDetail({
             className="iz-btn iz-btn-primary w-full"
             onClick={() => setSignOpen(true)}
           >
-            Sign &amp; send to bank
+            Sign payment voucher
           </button>
         </div>
       )}

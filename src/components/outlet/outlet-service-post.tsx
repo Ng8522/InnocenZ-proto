@@ -1,17 +1,20 @@
 import { useMemo, useState } from "react";
 import { format, startOfToday } from "date-fns";
-import { Check, ChevronRight, Pencil, Plus, Sparkles, X } from "lucide-react";
+import { ChevronRight, Pencil, Plus, Sparkles, X } from "lucide-react";
 import { SpecialServiceFilters } from "@/components/agency/SpecialServiceFilters";
-import { IzCard, IzSectionLabel, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
+import { IzCard, IzSectionLabel, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import {
-  JobDatePicker,
+  JobDateRangePicker,
+  eachJobDateInRange,
   formatJobDate,
+  formatJobDateRange,
 } from "@/components/outlet/post-job-fields";
 import { SpecialServiceOrderCard } from "@/components/special-service/SpecialServiceOrderCard";
 import { useStore } from "@/lib/store";
 import { isoKeyFromDate } from "@/components/iz/HistDateCalendar";
+import { cn } from "@/lib/utils";
 import {
   EMPTY_SPECIAL_SERVICE_FILTERS,
   bookableServiceOffers,
@@ -27,13 +30,12 @@ import {
   pendingSpecialServicesForOutlet,
   specialServicesForOutlet,
 } from "@/lib/special-service-actions";
-import { cn } from "@/lib/utils";
 
 export type DraftServiceOrder = {
   id: string;
   jobDate: Date;
+  jobEndDate: Date;
   serviceType: string;
-  prId: string;
   time: string;
   amountIn: string;
   note: string;
@@ -48,8 +50,8 @@ export function newDraftService(
   return {
     id: `svc-draft-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     jobDate: partial?.jobDate ?? startOfToday(),
+    jobEndDate: partial?.jobEndDate ?? partial?.jobDate ?? startOfToday(),
     serviceType: partial?.serviceType ?? first?.id ?? "transportation",
-    prId: partial?.prId ?? "",
     time: partial?.time ?? "19:00",
     amountIn: partial?.amountIn ?? (first ? String(first.defaultRate) : ""),
     note: partial?.note ?? "",
@@ -84,60 +86,6 @@ function ServiceFormRow({
       <span className="shrink-0 text-xs text-[var(--iz-muted)]">{label}</span>
       <div className="ml-auto flex min-w-0 flex-1 justify-end">{children}</div>
     </div>
-  );
-}
-
-function ServicePrPicker({
-  selected,
-  onChange,
-}: {
-  selected: string;
-  onChange: (prId: string) => void;
-}) {
-  const prs = useStore((s) => s.prs);
-  const candidates = useMemo(() => [...prs].sort((a, b) => b.rating - a.rating), [prs]);
-
-  if (candidates.length === 0) {
-    return <p className="text-[11px] text-[var(--iz-muted)]">No PRs available.</p>;
-  }
-
-  return (
-    <IzHScroll className="-mx-1 flex gap-2 pb-1">
-      {candidates.map((p) => {
-        const on = selected === p.id;
-        return (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => onChange(p.id)}
-            className={cn(
-              "iz-card iz-card-flat w-[118px] shrink-0 snap-start !mb-0 p-2.5 text-left",
-              on && "ring-1 ring-[var(--iz-gold-d)]",
-            )}
-          >
-            <div className="flex h-16 items-center justify-center rounded-lg bg-[var(--iz-violet-ink)] text-3xl">
-              {p.avatar}
-            </div>
-            <div className="mt-1.5 truncate text-xs font-semibold text-[var(--iz-txt)]">{p.name}</div>
-            <div className="text-[10px] text-[var(--iz-gold)]">{p.rating}★</div>
-            <div
-              className={cn(
-                "mt-1.5 flex w-full items-center justify-center gap-0.5 rounded-full py-1 text-[10px] font-semibold",
-                on ? "bg-[var(--iz-green-bg)] text-[var(--iz-green)]" : "bg-[rgba(255,255,255,0.06)] text-[var(--iz-muted)]",
-              )}
-            >
-              {on ? (
-                <>
-                  <Check className="h-3 w-3" /> Selected
-                </>
-              ) : (
-                "Tap to select"
-              )}
-            </div>
-          </button>
-        );
-      })}
-    </IzHScroll>
   );
 }
 
@@ -182,9 +130,13 @@ function DraftServiceEditor({
           )}
         </div>
       </div>
-      <ServiceFormRow label="Date">
-        <JobDatePicker value={draft.jobDate} onChange={(jobDate) => onChange({ jobDate })} />
-      </ServiceFormRow>
+      <div className="border-b border-[var(--iz-line)] py-2.5">
+        <JobDateRangePicker
+          jobDate={draft.jobDate}
+          jobEndDate={draft.jobEndDate}
+          onChange={(patch) => onChange(patch)}
+        />
+      </div>
       <ServiceFormRow label="Service type" alignTop stacked>
         <IzHScroll className="flex w-full gap-1 pb-0.5">
           {offers.map((option) => (
@@ -232,16 +184,13 @@ function DraftServiceEditor({
           </p>
         )}
       </ServiceFormRow>
-      <ServiceFormRow label="Notes" stacked last={false}>
+      <ServiceFormRow label="Notes" stacked last>
         <textarea
           className="min-h-[72px] w-full rounded-xl border border-[var(--iz-line2)] bg-[rgba(255,255,255,0.03)] px-2.5 py-2 text-sm outline-none"
           placeholder="Pickup address, delivery items, outlet contact…"
           value={draft.note}
           onChange={(e) => onChange({ note: e.target.value })}
         />
-      </ServiceFormRow>
-      <ServiceFormRow label="Select PR" stacked last>
-        <ServicePrPicker selected={draft.prId} onChange={(prId) => onChange({ prId })} />
       </ServiceFormRow>
     </IzCard>
   );
@@ -250,14 +199,12 @@ function DraftServiceEditor({
 function DraftServiceSummary({
   draft,
   title,
-  prName,
   onEdit,
   onRemove,
   showRemove,
 }: {
   draft: DraftServiceOrder;
   title: string;
-  prName: string;
   onEdit: () => void;
   onRemove?: () => void;
   showRemove?: boolean;
@@ -284,10 +231,9 @@ function DraftServiceSummary({
         </div>
       </div>
       <div className="space-y-0 text-sm">
-        <SummaryLine label="Date" value={formatJobDate(draft.jobDate)} />
+        <SummaryLine label="Date" value={formatJobDateRange(draft.jobDate, draft.jobEndDate)} />
         <SummaryLine label="Service" value={specialServiceTypeLabel(draft.serviceType)} stacked />
         <SummaryLine label="Time" value={draft.time} />
-        <SummaryLine label="PR" value={prName || "—"} />
         <SummaryLine
           label="Amount in"
           value={draft.amountIn ? `RM ${Number(draft.amountIn).toLocaleString()}` : offer ? formatRM(offer.defaultRate) : "—"}
@@ -316,21 +262,17 @@ function SummaryLine({ label, value, stacked }: { label: string; value: string; 
 }
 
 export function OutletServicePostSection() {
-  const agencyPRs = useStore((s) => s.agencyPRs);
-  const prs = useStore((s) => s.prs);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const records = useStore((s) => s.specialServiceOrders);
   const submitOrder = useStore((s) => s.submitSpecialServiceOrder);
   const acceptByOutlet = useStore((s) => s.acceptSpecialServiceByOutlet);
   const declineByOutlet = useStore((s) => s.declineSpecialServiceByOutlet);
-  const toast = useStore((s) => s.toast);
 
   const outletName = outletWorkspace.outletName;
   const serviceOffers = useMemo(() => bookableServiceOffers("outlet"), []);
-  const defaultPrId = agencyPRs.find((p) => !p.detached)?.id ?? prs[0]?.id ?? "";
 
   const [composer, setComposer] = useState<DraftServiceOrder>(() =>
-    newDraftService({ prId: defaultPrId }, outletName, serviceOffers),
+    newDraftService(undefined, outletName, serviceOffers),
   );
   const [draftOrders, setDraftOrders] = useState<DraftServiceOrder[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -353,22 +295,17 @@ export function OutletServicePostSection() {
   );
 
   const sectionDate =
-    draftOrders.length > 0 ? formatJobDate(draftOrders[0].jobDate) : formatJobDate(composer.jobDate);
+    draftOrders.length > 0
+      ? formatJobDateRange(draftOrders[0].jobDate, draftOrders[0].jobEndDate)
+      : formatJobDateRange(composer.jobDate, composer.jobEndDate);
   const totalAgencyCost = draftOrders.reduce((sum, d) => {
     const offer = specialServiceOffer(d.serviceType);
     return sum + (offer?.defaultRate ?? 0);
   }, 0);
 
-  const prNameFor = (prId: string) =>
-    agencyPRs.find((p) => p.id === prId)?.name ?? prs.find((p) => p.id === prId)?.name ?? "—";
-
   const addDraft = () => {
-    if (!composer.prId) {
-      toast("Select a PR for this service", "warn");
-      return;
-    }
     setDraftOrders((cur) => [...cur, { ...composer, id: `svc-draft-${Date.now()}` }]);
-    setComposer(newDraftService({ prId: defaultPrId }, outletName, serviceOffers));
+    setComposer(newDraftService(undefined, outletName, serviceOffers));
     setEditingId(null);
   };
 
@@ -376,25 +313,26 @@ export function OutletServicePostSection() {
     if (draftOrders.length === 0) return;
     for (const d of draftOrders) {
       const offer = specialServiceOffer(d.serviceType);
-      if (!offer || !d.prId) continue;
-      const pr = agencyPRs.find((p) => p.id === d.prId) ?? prs.find((p) => p.id === d.prId);
+      if (!offer) continue;
       const amountIn = d.amountIn ? Number(d.amountIn) : offer.defaultRate;
-      submitOrder({
-        initiatedBy: "outlet",
-        raisedBy: outletName,
-        prId: d.prId,
-        prName: pr?.name ?? d.prId,
-        outlet: outletName,
-        serviceType: d.serviceType,
-        description: d.note.trim() || offer.summary,
-        amountIn: Number.isFinite(amountIn) ? amountIn : offer.defaultRate,
-        amountOut: offer.defaultRate,
-        time: d.time,
-        dateIso: isoKeyFromDate(d.jobDate),
-      });
+      for (const day of eachJobDateInRange(d.jobDate, d.jobEndDate)) {
+        submitOrder({
+          initiatedBy: "outlet",
+          raisedBy: outletName,
+          prId: "",
+          prName: "Agency assigns PR",
+          outlet: outletName,
+          serviceType: d.serviceType,
+          description: d.note.trim() || offer.summary,
+          amountIn: Number.isFinite(amountIn) ? amountIn : offer.defaultRate,
+          amountOut: offer.defaultRate,
+          time: d.time,
+          dateIso: isoKeyFromDate(day),
+        });
+      }
     }
     setDraftOrders([]);
-    setComposer(newDraftService({ prId: defaultPrId }, outletName, serviceOffers));
+    setComposer(newDraftService(undefined, outletName, serviceOffers));
     setEditingId(null);
   };
 
@@ -422,7 +360,8 @@ export function OutletServicePostSection() {
       <IzCard flat className="border-[rgba(159,122,234,.2)] bg-[linear-gradient(180deg,rgba(159,122,234,.04),transparent)]">
         <p className="iz-tiny iz-muted2 leading-relaxed">
           <Sparkles className="mr-1 inline h-3 w-3 text-[var(--iz-violet-l)]" />
-          Order agency add-ons for your venue — delivery, emergency cover, styling, and more.
+          Order agency add-ons for your venue — delivery, emergency cover, styling, and more. Agency
+          assigns PRs after approval.
         </p>
       </IzCard>
 
@@ -471,7 +410,6 @@ export function OutletServicePostSection() {
                   key={d.id}
                   draft={d}
                   title={`Service ${i + 1}`}
-                  prName={prNameFor(d.prId)}
                   onEdit={() => setEditingId(d.id)}
                   onRemove={() => setDraftOrders((cur) => cur.filter((s) => s.id !== d.id))}
                   showRemove

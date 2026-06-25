@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
-import type { ShiftRequest } from "@/lib/store";
 import { outletHomeShiftRequests } from "@/lib/agency-outlet-shifts";
 import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
 import { outletCan } from "@/lib/outlet-rbac";
@@ -9,7 +8,6 @@ import { IzCard, IzPill } from "@/components/iz/ui";
 import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
 import { OutletSealReview } from "@/components/outlet/OutletSealReview";
 import { OutletTodayOperationPanel } from "@/components/outlet/OutletTodayOperationPanel";
-import { DraftPrPicker } from "@/components/outlet/post-job-fields";
 import {
   SHIFT_DESTINATION_LABELS,
   formatOutletShiftDualMetric,
@@ -52,7 +50,6 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
     deleteShift,
     shiftApplicants,
     respondToApplicant,
-    requestOutletPrsForShift,
   } = useStore();
   const canLogSales = outletCan(outletSubRole, "logSales");
   const canConfirm = outletCan(outletSubRole, "confirmShift");
@@ -264,14 +261,6 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
             </div>
           )}
 
-          {variant === "future" && canStaff && s.status !== "sealed" && (
-            <FutureShiftPrRequest
-              shift={s}
-              pendingApplicants={outletRequests}
-              onRequest={requestOutletPrsForShift}
-            />
-          )}
-
           {canLogSales && s.status === "confirmed" && !hideLogSales && (
             <OutletShiftSalesPanel shiftId={s.id} compact collapsible />
           )}
@@ -371,64 +360,6 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
         }}
       />
     </>
-  );
-}
-
-function FutureShiftPrRequest({
-  shift,
-  pendingApplicants,
-  onRequest,
-}: {
-  shift: ShiftRequest;
-  pendingApplicants: { prId: string }[];
-  onRequest: (shiftId: string, prIds: string[]) => void;
-}) {
-  const [selected, setSelected] = useState<string[]>([]);
-  const excludePrIds = useMemo(
-    () => [...shift.prs, ...pendingApplicants.map((a) => a.prId)],
-    [shift.prs, pendingApplicants],
-  );
-  const remainingSlots = Math.max(
-    0,
-    outletShiftDemandSupplied(shift).openSlots - pendingApplicants.length,
-  );
-
-  if (remainingSlots === 0) {
-    return (
-      <p className="iz-tiny iz-muted2 mt-2.5 rounded-xl border border-dashed border-[var(--iz-line)] px-3 py-2.5 text-center">
-        All PR slots filled or pending agency approval.
-      </p>
-    );
-  }
-
-  return (
-    <div className="mt-2.5 border-t border-[var(--iz-line)] pt-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
-        Select PRs
-      </p>
-      <p className="mt-0.5 text-[10px] leading-snug text-[var(--iz-muted2)]">
-        Tap to choose PRs to request · agency approves before the PR is notified
-      </p>
-      <div className="mt-2">
-        <DraftPrPicker
-          selected={selected}
-          onSelectedChange={setSelected}
-          quantity={remainingSlots}
-          excludePrIds={excludePrIds}
-        />
-      </div>
-      <button
-        type="button"
-        disabled={selected.length === 0}
-        onClick={() => {
-          onRequest(shift.id, selected);
-          setSelected([]);
-        }}
-        className="iz-btn iz-btn-primary iz-btn-sm mt-2 w-full disabled:opacity-40"
-      >
-        Request selected PR{selected.length !== 1 ? "s" : ""}
-      </button>
-    </div>
   );
 }
 

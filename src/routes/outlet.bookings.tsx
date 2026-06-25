@@ -20,8 +20,10 @@ import {
 
   draftTierRatesFromWorkspace,
 
+  eachJobDateInRange,
   estimateDraftShiftCost,
   formatJobDate,
+  formatJobDateRange,
   isoFromJobDate,
   languagesForPrIds,
   newDraftShift,
@@ -32,6 +34,10 @@ import {
 } from "@/components/outlet/post-job-fields";
 
 import { outletCan } from "@/lib/outlet-rbac";
+import {
+  getOutletSubscriptionPlan,
+  outletPrHeadcountForDate,
+} from "@/lib/outlet-demo";
 
 import { cn } from "@/lib/utils";
 
@@ -91,29 +97,43 @@ function PostJobPage() {
 
 
 
-  const { createShifts, outletWorkspace, agencyPRs } = useStore();
+  const { createShifts, outletWorkspace, agencyPRs, shifts, outletOwner, toast } = useStore();
 
 
 
-  const prTierById = useMemo(
-
-    () => Object.fromEntries(agencyPRs.map((p) => [p.id, p.trainingLevel])),
-
-    [agencyPRs],
-
-  );
-
-
+  const subscriptionPlan = getOutletSubscriptionPlan(outletOwner.subscriptionPlanId);
+  const outletName = outletWorkspace.outletName;
 
   const [composer, setComposer] = useState<DraftShift>(() =>
-
     newDraftShift(undefined, outletWorkspace),
-
   );
 
   const [draftShifts, setDraftShifts] = useState<DraftShift[]>([]);
 
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
+
+  const headcountOnDate = (jobDate: Date, excludeShiftId?: string) => {
+    const iso = isoFromJobDate(jobDate);
+    const booked = outletPrHeadcountForDate(shifts, outletName, iso);
+    const fromDrafts = draftShifts
+      .filter((d) => d.id !== excludeShiftId)
+      .flatMap((d) =>
+        eachJobDateInRange(d.jobDate, d.jobEndDate).map((day) => ({ day, quantity: d.quantity })),
+      )
+      .filter(({ day }) => isoFromJobDate(day) === iso)
+      .reduce((sum, { quantity }) => sum + quantity, 0);
+    return booked + fromDrafts;
+  };
+
+  const composerHeadcountOnDate = useMemo(
+    () => headcountOnDate(composer.jobDate),
+    [composer.jobDate, shifts, draftShifts, outletName],
+  );
+
+  const prTierById = useMemo(
+    () => Object.fromEntries(agencyPRs.map((p) => [p.id, p.trainingLevel])),
+    [agencyPRs],
+  );
 
 
 
@@ -122,6 +142,8 @@ function PostJobPage() {
     const snapshot = newDraftShift({
 
       jobDate: composer.jobDate,
+
+      jobEndDate: composer.jobEndDate,
 
       event: composer.event,
 
@@ -197,7 +219,9 @@ function PostJobPage() {
 
   const sectionDate =
 
-    draftShifts.length > 0 ? formatJobDate(draftShifts[0].jobDate) : formatJobDate(composer.jobDate);
+    draftShifts.length > 0
+      ? formatJobDateRange(draftShifts[0].jobDate, draftShifts[0].jobEndDate)
+      : formatJobDateRange(composer.jobDate, composer.jobEndDate);
 
 
 
@@ -217,11 +241,39 @@ function PostJobPage() {
 
     if (draftShifts.length === 0) return;
 
+    const expandedShifts = draftShifts.flatMap((s) =>
+      eachJobDateInRange(s.jobDate, s.jobEndDate).map((jobDate) => ({ ...s, jobDate })),
+    );
+
+    const byDate = new Map<string, number>();
+    for (const s of expandedShifts) {
+      const shiftHeadcount = Math.max(s.quantity, s.prIds.length);
+      if (shiftHeadcount > subscriptionPlan.prSelectMax) {
+        toast(
+          `Shift exceeds your plan — max ${subscriptionPlan.prSelectMax} PRs per shift (${formatJobDate(s.jobDate)})`,
+          "warn",
+        );
+        return;
+      }
+      const iso = isoFromJobDate(s.jobDate);
+      byDate.set(iso, (byDate.get(iso) ?? 0) + shiftHeadcount);
+    }
+    for (const [iso, total] of byDate) {
+      const existing = outletPrHeadcountForDate(shifts, outletName, iso);
+      if (existing + total > subscriptionPlan.prPerDayMax) {
+        toast(
+          `Daily PR limit is ${subscriptionPlan.prPerDayMax} — ${existing} already booked on ${iso}, cannot add ${total} more`,
+          "warn",
+        );
+        return;
+      }
+    }
+
     createShifts(
 
-      draftShifts.map((s) => ({
+      expandedShifts.map((s) => ({
 
-        outletName: "Velvet 23",
+        outletName,
 
         date: formatJobDate(s.jobDate),
 
@@ -397,6 +449,8 @@ function PostJobPage() {
 
             title="Shift details"
 
+            headcountOnDate={composerHeadcountOnDate}
+
           />
 
 
@@ -456,6 +510,8 @@ function PostJobPage() {
                     title={`Shift ${i + 1}`}
 
                     onDone={() => setEditingShiftId(null)}
+
+                    headcountOnDate={headcountOnDate(s.jobDate, s.id)}
 
                   />
 

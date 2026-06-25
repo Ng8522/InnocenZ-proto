@@ -414,7 +414,14 @@ export interface OutletSubscriptionPlan {
   id: OutletSubscriptionPlanId;
   label: string;
   monthlyRm: number;
-  shiftLimit: number;
+  /** Max PR headcount bookable per calendar day */
+  prPerDayMax: number;
+  /** Lower bound of daily PR band (display) */
+  prPerDayMin?: number;
+  /** PRs shown in Post Job special-service PR picker */
+  prPoolSize: number;
+  /** Max PRs selectable per shift from the pool */
+  prSelectMax: number;
   capacityLabel: string;
   description: string;
 }
@@ -422,35 +429,46 @@ export interface OutletSubscriptionPlan {
 export const OUTLET_SUBSCRIPTION_PLANS: OutletSubscriptionPlan[] = [
   {
     id: "starter",
-    label: "Starter",
+    label: "Essential",
     monthlyRm: 499,
-    shiftLimit: 12,
-    capacityLabel: "Up to 12 shifts / mo",
-    description: "Single floor · core ops & reports",
+    prPerDayMax: 5,
+    prPoolSize: 10,
+    prSelectMax: 5,
+    capacityLabel: "5 PRs / day",
+    description: "Full InnocenZ service · choose 5 from 10 PRs per shift",
   },
   {
     id: "plus",
     label: "Plus",
-    monthlyRm: 799,
-    shiftLimit: 30,
-    capacityLabel: "Up to 30 shifts / mo",
-    description: "Growing venue · sales dashboard & history",
+    monthlyRm: 999,
+    prPerDayMin: 6,
+    prPerDayMax: 10,
+    prPoolSize: 20,
+    prSelectMax: 10,
+    capacityLabel: "6–10 PRs / day",
+    description: "Growing venue · choose 10 from 20 PRs per shift",
   },
   {
     id: "pro",
     label: "Pro",
-    monthlyRm: 1299,
-    shiftLimit: 60,
-    capacityLabel: "Up to 60 shifts / mo",
-    description: "Multi-event nights · workspace & tier rules",
+    monthlyRm: 1999,
+    prPerDayMin: 11,
+    prPerDayMax: 25,
+    prPoolSize: 50,
+    prSelectMax: 25,
+    capacityLabel: "11–25 PRs / day",
+    description: "Multi-event nights · choose 25 from 50 PRs per shift",
   },
   {
     id: "enterprise",
     label: "Enterprise",
-    monthlyRm: 1999,
-    shiftLimit: 9999,
-    capacityLabel: "Unlimited shifts",
-    description: "Multi-venue groups · priority support",
+    monthlyRm: 3999,
+    prPerDayMin: 26,
+    prPerDayMax: 100,
+    prPoolSize: 100,
+    prSelectMax: 100,
+    capacityLabel: "26+ PRs / day",
+    description: "Large venues · choose more than 26 PRs per shift",
   },
 ];
 
@@ -458,6 +476,44 @@ export function getOutletSubscriptionPlan(
   id?: OutletSubscriptionPlanId | null,
 ): OutletSubscriptionPlan {
   return OUTLET_SUBSCRIPTION_PLANS.find((p) => p.id === id) ?? OUTLET_SUBSCRIPTION_PLANS[1];
+}
+
+export function formatOutletPlanPrPickerRule(plan: OutletSubscriptionPlan): string {
+  if (plan.id === "enterprise") return "Choose more than 26 PRs";
+  return `Choose ${plan.prSelectMax} from ${plan.prPoolSize} PRs`;
+}
+
+function canonicalOutletName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/** Total PR headcount already booked for one outlet on a date */
+export function outletPrHeadcountForDate(
+  shifts: { outletName: string; dateIso?: string; quantity: number }[],
+  outletName: string,
+  dateIso: string,
+): number {
+  const canon = canonicalOutletName(outletName);
+  return shifts
+    .filter(
+      (s) => canonicalOutletName(s.outletName) === canon && (s.dateIso ?? "") === dateIso,
+    )
+    .reduce((sum, s) => sum + s.quantity, 0);
+}
+
+/** Peak daily PR headcount across all booked shift dates for an outlet */
+export function maxDailyOutletPrHeadcount(
+  shifts: { outletName: string; dateIso?: string; quantity: number }[],
+  outletName: string,
+): number {
+  const canon = canonicalOutletName(outletName);
+  const byDate = new Map<string, number>();
+  for (const s of shifts) {
+    if (canonicalOutletName(s.outletName) !== canon || !s.dateIso) continue;
+    byDate.set(s.dateIso, (byDate.get(s.dateIso) ?? 0) + s.quantity);
+  }
+  if (byDate.size === 0) return 0;
+  return Math.max(...byDate.values());
 }
 
 export interface OutletSubscriptionInvoice {
@@ -473,14 +529,14 @@ export const OUTLET_SUBSCRIPTION_BILLING: OutletSubscriptionInvoice[] = [
     id: "SUB-2026-0601",
     issueDate: "1 Jun 2026",
     detail: "Jun 2026 · Plus · InnocenZ Outlet SaaS",
-    amount: 799,
+    amount: 999,
     status: "SETTLED",
   },
   {
     id: "SUB-2026-0501",
     issueDate: "1 May 2026",
     detail: "May 2026 · Plus · InnocenZ Outlet SaaS",
-    amount: 799,
+    amount: 999,
     status: "SETTLED",
   },
 ];

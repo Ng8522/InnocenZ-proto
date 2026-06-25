@@ -110,7 +110,7 @@ export const VELVET_WEEKLY_NIGHTS: VelvetNightShift[] = [
 ];
 
 /** Prior week — History only (26 May – 1 Jun 2026). */
-const VELVET_PRIOR_WEEK_NIGHTS: VelvetNightShift[] = [
+export const VELVET_PRIOR_WEEK_NIGHTS: VelvetNightShift[] = [
   {
     dateIso: "2026-05-26",
     dateDisplay: "26 May 2026",
@@ -191,7 +191,7 @@ const VELVET_PRIOR_WEEK_NIGHTS: VelvetNightShift[] = [
 ];
 
 /** Two weeks back — lighter mid-month week (19–25 May 2026). */
-const VELVET_OLDER_WEEK_NIGHTS: VelvetNightShift[] = [
+export const VELVET_OLDER_WEEK_NIGHTS: VelvetNightShift[] = [
   {
     dateIso: "2026-05-19",
     dateDisplay: "19 May 2026",
@@ -353,10 +353,60 @@ export function buildVelvetWeekShiftHistory(): ShiftHistoryRow[] {
   return nightsToShiftHistory(VELVET_WEEKLY_NIGHTS, getPayrollWeekSundayIso());
 }
 
-export function getOutletWeeklyReport(outletName: string): OutletWeeklyReport | null {
-  if (outletName !== VELVET_OUTLET_NAME) return null;
+export interface OutletReportWeekOption {
+  weekSundayIso: string;
+  weekEndIso: string;
+  label: string;
+  nights: VelvetNightShift[];
+}
 
-  const days: OutletWeeklyDaySales[] = VELVET_WEEKLY_NIGHTS.map((night) => ({
+/** Demo weeks available on Reports — newest first */
+export const VELVET_REPORT_WEEK_OPTIONS: OutletReportWeekOption[] = [
+  {
+    weekSundayIso: "2026-06-01",
+    weekEndIso: "2026-06-08",
+    label: "2–8 Jun 2026",
+    nights: VELVET_WEEKLY_NIGHTS,
+  },
+  {
+    weekSundayIso: "2026-05-25",
+    weekEndIso: "2026-06-01",
+    label: "26 May – 1 Jun 2026",
+    nights: VELVET_PRIOR_WEEK_NIGHTS,
+  },
+  {
+    weekSundayIso: "2026-05-18",
+    weekEndIso: "2026-05-25",
+    label: "19–25 May 2026",
+    nights: VELVET_OLDER_WEEK_NIGHTS,
+  },
+];
+
+export const ALL_VELVET_NIGHTS: VelvetNightShift[] = [
+  ...VELVET_OLDER_WEEK_NIGHTS,
+  ...VELVET_PRIOR_WEEK_NIGHTS,
+  ...VELVET_WEEKLY_NIGHTS,
+].sort((a, b) => a.dateIso.localeCompare(b.dateIso));
+
+export function velvetReportDateBounds(): { minIso: string; maxIso: string } {
+  const first = ALL_VELVET_NIGHTS[0];
+  const last = ALL_VELVET_NIGHTS[ALL_VELVET_NIGHTS.length - 1];
+  return {
+    minIso: first?.dateIso ?? "2026-05-19",
+    maxIso: last?.dateIso ?? "2026-06-08",
+  };
+}
+
+function nightsInRange(startIso: string, endIso: string): VelvetNightShift[] {
+  return ALL_VELVET_NIGHTS.filter((n) => n.dateIso >= startIso && n.dateIso <= endIso);
+}
+
+function buildReportFromNights(
+  nights: VelvetNightShift[],
+  periodLabel: string,
+  priorNights: VelvetNightShift[] = [],
+): OutletWeeklyReport {
+  const days: OutletWeeklyDaySales[] = nights.map((night) => ({
     day: night.day,
     dateIso: night.dateIso,
     dateDisplay: night.dateDisplay,
@@ -367,8 +417,10 @@ export function getOutletWeeklyReport(outletName: string): OutletWeeklyReport | 
 
   const totalSales = days.reduce((a, d) => a + d.sales, 0);
   const totalCost = days.reduce((a, d) => a + d.manpowerCost, 0);
+  const margin = totalSales - totalCost;
+
   const prEarned = new Map<string, { name: string; earned: number }>();
-  for (const night of VELVET_WEEKLY_NIGHTS) {
+  for (const night of nights) {
     for (const pr of night.prs) {
       const earned = sealedShiftPayout(pr, demoTablesForShift(night, pr));
       const cur = prEarned.get(pr.prId) ?? { name: pr.prName, earned: 0 };
@@ -381,15 +433,69 @@ export function getOutletWeeklyReport(outletName: string): OutletWeeklyReport | 
     .sort((a, b) => b.earned - a.earned)
     .slice(0, 5);
 
+  const priorSales = priorNights.reduce((a, n) => a + n.sales, 0);
+  const priorCost = priorNights.reduce(
+    (a, n) => a + n.prs.reduce((s, pr) => s + pr.payout, 0),
+    0,
+  );
+  const priorMargin = priorSales - priorCost;
+  const wowGrowthPct =
+    priorMargin > 0 ? Math.round(((margin - priorMargin) / priorMargin) * 100) : margin > 0 ? 100 : 0;
+
+  const drinkUnits = nights.reduce((a, n) => a + n.prs.reduce((s, pr) => s + pr.drinks, 0), 0);
+
   return {
-    weekLabel: "2–8 Jun 2026",
+    weekLabel: periodLabel,
     days,
     totalSales,
     totalCost,
-    margin: totalSales - totalCost,
-    shifts: VELVET_WEEKLY_NIGHTS.length,
-    avgTicket: Math.round(totalSales / 272),
-    wowGrowthPct: 12,
+    margin,
+    shifts: nights.length,
+    avgTicket: drinkUnits > 0 ? Math.round(totalSales / drinkUnits) : 0,
+    wowGrowthPct,
     topPrs,
   };
+}
+
+export function getOutletReportForWeek(outletName: string, weekSundayIso: string): OutletWeeklyReport | null {
+  if (outletName !== VELVET_OUTLET_NAME) return null;
+  const idx = VELVET_REPORT_WEEK_OPTIONS.findIndex((w) => w.weekSundayIso === weekSundayIso);
+  const week = VELVET_REPORT_WEEK_OPTIONS[idx];
+  if (!week) return null;
+  const prior = idx >= 0 ? VELVET_REPORT_WEEK_OPTIONS[idx + 1]?.nights ?? [] : [];
+  return buildReportFromNights(week.nights, week.label, prior);
+}
+
+export function getOutletReportForDateRange(
+  outletName: string,
+  startIso: string,
+  endIso: string,
+): OutletWeeklyReport | null {
+  if (outletName !== VELVET_OUTLET_NAME) return null;
+  const nights = nightsInRange(startIso, endIso);
+  if (nights.length === 0) return null;
+
+  const spanDays =
+    Math.round(
+      (new Date(`${endIso}T12:00:00`).getTime() - new Date(`${startIso}T12:00:00`).getTime()) /
+        86400000,
+    ) + 1;
+  const priorEnd = addDaysToIso(startIso, -1);
+  const priorStart = addDaysToIso(startIso, -spanDays);
+  const priorNights = nightsInRange(priorStart, priorEnd);
+
+  const startLabel = nights[0]!.dateDisplay.replace(/ \d{4}$/, "");
+  const endLabel = nights[nights.length - 1]!.dateDisplay;
+  const periodLabel =
+    startIso === endIso ? nights[0]!.dateDisplay : `${startLabel} – ${endLabel}`;
+
+  return buildReportFromNights(nights, periodLabel, priorNights);
+}
+
+export function getOutletWeeklyReport(outletName: string): OutletWeeklyReport | null {
+  const current =
+    VELVET_REPORT_WEEK_OPTIONS[0] ??
+    VELVET_REPORT_WEEK_OPTIONS.find((w) => w.weekSundayIso === getPayrollWeekSundayIso());
+  if (!current) return null;
+  return getOutletReportForWeek(outletName, current.weekSundayIso);
 }

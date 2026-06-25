@@ -2,16 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useStore } from "@/lib/store";
 import {
+  formatOutletPlanPrPickerRule,
   getOutletSubscriptionPlan,
+  maxDailyOutletPrHeadcount,
   OUTLET_SUBSCRIPTION_BILLING,
   OUTLET_SUBSCRIPTION_PLANS,
+  outletPrHeadcountForDate,
   type OutletSubscriptionPlanId,
 } from "@/lib/outlet-demo";
 import { outletCan } from "@/lib/outlet-rbac";
-import { outletMatches, tonightShiftOutletName } from "@/lib/portal-sync";
+import { tonightShiftOutletName } from "@/lib/portal-sync";
+import { isoKeyFromDate } from "@/components/iz/HistDateCalendar";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { IzCard, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
-import { Calendar, CalendarDays, CreditCard, Receipt } from "lucide-react";
+import { Calendar, CreditCard, Receipt, Users } from "lucide-react";
 
 const RENEWAL_DATE = "15 Jul 2026";
 
@@ -32,8 +36,13 @@ function OutletSubscriptionPage() {
   const outletName = tonightShiftOutletName(shifts);
   const currentPlan = getOutletSubscriptionPlan(outletOwner.subscriptionPlanId);
 
-  const shiftsThisMonth = useMemo(
-    () => shifts.filter((s) => outletMatches(s.outletName, outletName)).length,
+  const todayIso = isoKeyFromDate(new Date());
+  const prsToday = useMemo(
+    () => outletPrHeadcountForDate(shifts, outletName, todayIso),
+    [shifts, outletName, todayIso],
+  );
+  const peakDailyPrs = useMemo(
+    () => maxDailyOutletPrHeadcount(shifts, outletName),
     [shifts, outletName],
   );
 
@@ -42,15 +51,18 @@ function OutletSubscriptionPage() {
   const selectPlan = (planId: OutletSubscriptionPlanId) => {
     if (!canEdit || planId === currentPlan.id) return;
     const next = getOutletSubscriptionPlan(planId);
-    if (shiftsThisMonth > next.shiftLimit) {
+    if (peakDailyPrs > next.prPerDayMax) {
       toast(
-        `You have ${shiftsThisMonth} shifts posted — reduce to ${next.shiftLimit} before downgrading to ${next.label}`,
+        `Peak day has ${peakDailyPrs} PRs booked — reduce to ${next.prPerDayMax}/day before downgrading to ${next.label}`,
         "warn",
       );
       return;
     }
     saveOutletOwner({ subscriptionPlanId: planId });
-    toast(`Switched to ${next.label} · ${formatRM(next.monthlyRm)}/mo · ${next.capacityLabel}`, "success");
+    toast(
+      `Switched to ${next.label} · ${formatRM(next.monthlyRm)}/mo · ${next.capacityLabel} · ${formatOutletPlanPrPickerRule(next)}`,
+      "success",
+    );
   };
 
   if (!outletCan(outletSubRole, "viewSettings")) {
@@ -82,13 +94,13 @@ function OutletSubscriptionPage() {
 
       <IzSectionLabel>Plans · monthly</IzSectionLabel>
       <p className="iz-tiny iz-muted2 -mt-1 mb-2">
-        Shift limit = max shifts you can post per month · {shiftsThisMonth} shift
-        {shiftsThisMonth === 1 ? "" : "s"} posted now
+        PR limit = max headcount per day on Post Job · {prsToday} PR{prsToday === 1 ? "" : "s"} booked
+        today · peak day {peakDailyPrs}
       </p>
       <div className="grid grid-cols-2 gap-2">
         {OUTLET_SUBSCRIPTION_PLANS.map((plan) => {
           const isCurrent = plan.id === currentPlan.id;
-          const atCapacity = shiftsThisMonth >= plan.shiftLimit;
+          const atCapacity = prsToday >= plan.prPerDayMax;
           return (
             <IzCard
               key={plan.id}
@@ -101,7 +113,7 @@ function OutletSubscriptionPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-sora text-sm font-bold">{plan.label}</p>
                     {isCurrent && <IzPill variant="green">Current</IzPill>}
-                    {atCapacity && !isCurrent && <IzPill variant="amber">At shift limit</IzPill>}
+                    {atCapacity && !isCurrent && <IzPill variant="amber">At daily limit</IzPill>}
                   </div>
                   <p className="mt-1 text-lg font-bold text-[var(--iz-gold-l)]">
                     {formatRM(plan.monthlyRm)}
@@ -110,19 +122,16 @@ function OutletSubscriptionPage() {
                 </div>
                 <div className="shrink-0 sm:text-right">
                   <div className="flex items-center gap-1.5 text-[var(--iz-txt)] sm:justify-end">
-                    <CalendarDays className="h-4 w-4 text-[var(--iz-gold)]" />
+                    <Users className="h-4 w-4 text-[var(--iz-gold)]" />
                     <span className="font-sora text-sm font-bold">{plan.capacityLabel}</span>
                   </div>
-                  <p className="iz-tiny iz-muted mt-0.5">per outlet</p>
+                  <p className="iz-tiny iz-muted mt-0.5">{formatOutletPlanPrPickerRule(plan)}</p>
                 </div>
               </div>
-              <p className="iz-tiny iz-muted mt-2">{plan.description}</p>
               {isCurrent ? (
                 <p className="iz-tiny iz-muted2 mt-2">
-                  Renewal {RENEWAL_DATE}
-                  {plan.id === "enterprise"
-                    ? ` · ${shiftsThisMonth} shifts posted`
-                    : ` · ${shiftsThisMonth} / ${plan.shiftLimit} shift slots used`}
+                  Renewal {RENEWAL_DATE} · {prsToday} / {plan.prPerDayMax} PRs today · pool of{" "}
+                  {plan.prPoolSize}
                 </p>
               ) : (
                 canEdit && (

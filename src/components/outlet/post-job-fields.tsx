@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { format, startOfToday, addDays } from "date-fns";
 import { Check, HelpCircle, Minus, Pencil, Plus, X } from "lucide-react";
 import { OutletDatePopoverChip, OutletDatePopoverField, OutletDateRangePopover } from "@/components/outlet/outlet-date-popover";
@@ -30,6 +30,7 @@ import {
   cloneDrinkMenu,
   DRESS_CODE_OPTIONS,
   drinkMenuPriceRange,
+  formatOutletPlanDailyHeadcountHint,
   formatOutletPlanPrPickerRule,
   getOutletSubscriptionPlan,
   SHIFT_DESTINATION_LABELS,
@@ -933,6 +934,7 @@ export function DraftShiftEditor({
   title,
   onDone,
   namedPrsOnDate = 0,
+  peopleRemaining,
 }: {
   shift: DraftShift;
   onChange: (patch: Partial<DraftShift>) => void;
@@ -942,6 +944,8 @@ export function DraftShiftEditor({
   onDone?: () => void;
   /** Named agency PRs already booked on this shift date (excludes current shift selection) */
   namedPrsOnDate?: number;
+  /** Max people needed allowed for this shift (subscription daily cap minus booked headcount) */
+  peopleRemaining?: number;
 }) {
   const agencyPRs = useStore((s) => s.agencyPRs);
   const outletOwner = useStore((s) => s.outletOwner);
@@ -957,6 +961,40 @@ export function DraftShiftEditor({
     namedPrRemaining === 0
       ? `${subscriptionPlan.label} plan · daily limit of ${subscriptionPlan.prPerDayMax} named PRs reached for this date`
       : `${subscriptionPlan.label} plan · ${formatOutletPlanPrPickerRule(subscriptionPlan)} · ${namedPrRemaining} named PR slot${namedPrRemaining === 1 ? "" : "s"} left today`;
+
+  const rangeDays = useMemo(
+    () => eachJobDateInRange(shift.jobDate, shift.jobEndDate),
+    [shift.jobDate, shift.jobEndDate],
+  );
+  const maxPeople =
+    peopleRemaining !== undefined
+      ? peopleRemaining
+      : subscriptionPlan.prPerDayMax;
+  const dateLabel =
+    rangeDays.length === 1
+      ? formatJobDate(shift.jobDate)
+      : formatJobDateRange(shift.jobDate, shift.jobEndDate);
+  const peopleNeededHint = formatOutletPlanDailyHeadcountHint(
+    subscriptionPlan,
+    maxPeople,
+    dateLabel,
+  );
+
+  useEffect(() => {
+    if (peopleRemaining === undefined) return;
+    const patches: Partial<DraftShift> = {};
+    if (peopleRemaining <= 0) {
+      if (shift.quantity !== 0) patches.quantity = 0;
+      if (shift.prIds.length > 0) patches.prIds = [];
+    } else if (shift.quantity > peopleRemaining) {
+      patches.quantity = peopleRemaining;
+      if (shift.prIds.length > peopleRemaining) {
+        patches.prIds = shift.prIds.slice(0, peopleRemaining);
+      }
+    }
+    if (Object.keys(patches).length > 0) onChange(patches);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clamp when plan/date capacity changes only
+  }, [peopleRemaining, shift.jobDate, shift.jobEndDate]);
 
   const languageOptions = useMemo(() => collectAgencyPrLanguages(agencyPRs), [agencyPRs]);
   const pickerOptions = useMemo(
@@ -1092,10 +1130,26 @@ export function DraftShiftEditor({
         <ShiftTimePicker value={shift.shiftTime} onChange={(shiftTime) => onChange({ shiftTime })} />
       </FormRow>
       <FormRow label="People needed">
-        <QuantityStepper
-          value={shift.quantity}
-          onChange={(quantity) => onChange({ quantity })}
-        />
+        <div className="flex flex-col items-end gap-1">
+          {maxPeople <= 0 ? (
+            <p className="text-[11px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
+          ) : (
+            <>
+              <QuantityStepper
+                value={shift.quantity}
+                min={1}
+                max={maxPeople}
+                onChange={(quantity) =>
+                  onChange({
+                    quantity,
+                    prIds: shift.prIds.slice(0, quantity),
+                  })
+                }
+              />
+              <p className="text-[10px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
+            </>
+          )}
+        </div>
       </FormRow>
       <FormRow label="Languages" alignTop>
         <JobLanguagePicker

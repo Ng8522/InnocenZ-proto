@@ -142,7 +142,7 @@ export function TierRatesFields({
 
   return (
     <div>
-      <div className="grid grid-cols-5 gap-1.5">
+      <div className="grid grid-cols-5 items-stretch gap-px">
         {OUTLET_PR_TIERS.map((tier) => {
           const on = activeTier === tier;
           const wage = tierRates[tier].wagePerHour;
@@ -155,7 +155,6 @@ export function TierRatesFields({
               wage={wage}
               salesTarget={salesTarget}
               active={on}
-              accent={on}
               multiplier={postJob ? mult : undefined}
               onClick={() => onActiveTierChange(tier)}
             />

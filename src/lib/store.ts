@@ -4234,7 +4234,10 @@ export const useStore = create<StoreState>()(
       outletWorkspace: demoSnapshot.outletWorkspace,
       outletSettings: demoSnapshot.outletSettings,
       outletOwner: demoSnapshot.outletOwner,
-      outletSubscriptionBilling: OUTLET_SUBSCRIPTION_BILLING.map((inv) => ({ ...inv })),
+      outletSubscriptionBilling: syncOutletSubscriptionBilling(
+        OUTLET_SUBSCRIPTION_BILLING.map((inv) => ({ ...inv })),
+        demoSnapshot.outletOwner.subscriptionPlanId,
+      ),
       outletFinanceHead: demoSnapshot.outletFinanceHead,
       outletOpsHead: demoSnapshot.outletOpsHead,
       shiftApplicants: demoSnapshot.shiftApplicants,

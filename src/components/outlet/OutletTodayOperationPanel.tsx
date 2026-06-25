@@ -184,17 +184,17 @@ export function OutletTodayOperationPanel({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <IzPill variant="green">{staffTonight.length} PRs</IzPill>
           {statusCounts.onDuty > 0 && (
-            <IzPill variant="green" className="!py-0.5 !text-[9px]">
+            <IzPill variant="green">
               {statusCounts.onDuty} on duty
             </IzPill>
           )}
           {statusCounts.enRoute > 0 && (
-            <IzPill variant="violet" className="!py-0.5 !text-[9px]">
+            <IzPill variant="violet">
               {statusCounts.enRoute} en route
             </IzPill>
           )}
           {statusCounts.booked > 0 && (
-            <IzPill variant="amber" className="!py-0.5 !text-[9px]">
+            <IzPill variant="amber">
               {statusCounts.booked} booked
             </IzPill>
           )}

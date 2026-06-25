@@ -475,12 +475,27 @@ export const OUTLET_SUBSCRIPTION_PLANS: OutletSubscriptionPlan[] = [
 export function getOutletSubscriptionPlan(
   id?: OutletSubscriptionPlanId | null,
 ): OutletSubscriptionPlan {
-  return OUTLET_SUBSCRIPTION_PLANS.find((p) => p.id === id) ?? OUTLET_SUBSCRIPTION_PLANS[1];
+  return (
+    OUTLET_SUBSCRIPTION_PLANS.find((p) => p.id === id) ??
+    OUTLET_SUBSCRIPTION_PLANS.find((p) => p.id === "pro")!
+  );
 }
 
 export function formatOutletPlanPrPickerRule(plan: OutletSubscriptionPlan): string {
   if (plan.id === "enterprise") return "Choose more than 26 PRs";
   return `Choose ${plan.prSelectMax} from ${plan.prPoolSize} PRs`;
+}
+
+export function formatOutletPlanDailyHeadcountHint(
+  plan: OutletSubscriptionPlan,
+  remaining: number,
+  dateLabel: string,
+): string {
+  if (remaining <= 0) {
+    return `${plan.label} plan · ${plan.prPerDayMax} PRs/day limit reached for ${dateLabel}`;
+  }
+  const band = plan.prPerDayMin ? `${plan.prPerDayMin}–${plan.prPerDayMax}` : String(plan.prPerDayMax);
+  return `${plan.label} plan · ${band} PRs/day · ${remaining} available on ${dateLabel}`;
 }
 
 function canonicalOutletName(name: string): string {
@@ -557,10 +572,10 @@ export interface OutletSubscriptionInvoice {
 export const OUTLET_SUBSCRIPTION_BILLING: OutletSubscriptionInvoice[] = [
   {
     id: "SUB-2026-0601",
-    issueDate: "1 Jun 2026",
-    detail: "Jun 2026 · Plus · InnocenZ Outlet SaaS",
-    planLabel: "Plus",
-    amount: 999,
+    issueDate: "25 Jun 2026",
+    detail: "Jun 2026 · Pro · InnocenZ Outlet SaaS",
+    planLabel: "Pro",
+    amount: 1999,
     status: "SETTLED",
   },
   {
@@ -689,7 +704,7 @@ export const DEFAULT_OUTLET_OWNER: OutletOwnerSettings = {
   otpChannel: "email",
   accountActivated: true,
   avatarPhoto: null,
-  subscriptionPlanId: "plus",
+  subscriptionPlanId: "pro",
 };
 
 export const DEFAULT_OUTLET_FINANCE_HEAD: OutletFinanceHead = {

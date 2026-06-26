@@ -40,7 +40,7 @@ function weekdayLabel(dateIso: string): string {
 }
 
 const chartConfig = {
-  earned: { label: "Outlet earned", color: "#d9b97a" },
+  earned: { label: "Outlet earned", color: "#b79ce8" },
   sales: { label: "Floor sales", color: "#7c6bff" },
   prCost: { label: "PR spend", color: "#f59e0b" },
 };

@@ -133,7 +133,7 @@ type RegisterDraft = {
   acceptTerms: boolean;
 };
 
-function demoPlaceholderImage(title: string, subtitle?: string, accent = "#d9b97a"): string {
+function demoPlaceholderImage(title: string, subtitle?: string, accent = "#b79ce8"): string {
   const sub = subtitle
     ? `<text x="160" y="228" text-anchor="middle" fill="#928699" font-family="Manrope,sans-serif" font-size="13">${subtitle}</text>`
     : "";

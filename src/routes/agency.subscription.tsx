@@ -4,12 +4,13 @@ import { useStore } from "@/lib/store";
 import {
   AGENCY_SUBSCRIPTION_PLANS,
   agencyActivePrCount,
-  agencyExpectedMonthlyPvFromPrCount,
-  agencyMonthlyPvCount,
+  agencyExpectedWeeklyPvFromPrCount,
+  agencyWeeklyPvCount,
   getAgencySubscriptionPlan,
-  resolveAgencySubscriptionPlanForMonthlyPv,
+  resolveAgencySubscriptionPlanForWeeklyPv,
   type AgencySubscriptionPlanId,
 } from "@/lib/agency-demo";
+import { getPreviousWeekSundayIso } from "@/lib/demo-clock";
 import { getAgencyManagedPvs } from "@/lib/agency-payroll";
 import { agencyCan } from "@/lib/agency-rbac";
 import { OutletSection } from "@/components/outlet/OutletSection";
@@ -35,11 +36,16 @@ function AgencySubscription() {
 
   const currentPlan = getAgencySubscriptionPlan(agencyOwner.subscriptionPlanId);
   const activePrCount = agencyActivePrCount(agencyPRs);
-  const expectedMonthlyPv = agencyExpectedMonthlyPvFromPrCount(activePrCount);
-  const rosterFitPlan = resolveAgencySubscriptionPlanForMonthlyPv(expectedMonthlyPv);
-  const issuedMonthlyPv = useMemo(
-    () => agencyMonthlyPvCount(getAgencyManagedPvs(prPaymentVouchers, agencyPRs), agencyPRs),
-    [prPaymentVouchers, agencyPRs],
+  const expectedWeeklyPv = agencyExpectedWeeklyPvFromPrCount(activePrCount);
+  const rosterFitPlan = resolveAgencySubscriptionPlanForWeeklyPv(expectedWeeklyPv);
+  const payrollWeekStartIso = getPreviousWeekSundayIso();
+  const issuedWeeklyPv = useMemo(
+    () =>
+      agencyWeeklyPvCount(
+        getAgencyManagedPvs(prPaymentVouchers, agencyPRs),
+        payrollWeekStartIso,
+      ),
+    [prPaymentVouchers, agencyPRs, payrollWeekStartIso],
   );
 
   useEffect(() => {
@@ -62,12 +68,12 @@ function AgencySubscription() {
     if (!canEdit || planId === currentPlan.id) return;
     const next = getAgencySubscriptionPlan(planId);
     if (next.renegotiate) {
-      toast("Contact InnocenZ admin to negotiate pricing for 201+ PV/mo", "info");
+      toast("Contact InnocenZ admin to negotiate pricing for 201+ PV/week", "info");
       return;
     }
-    if (expectedMonthlyPv > next.pvLimit) {
+    if (expectedWeeklyPv > next.pvLimit) {
       toast(
-        `Your roster needs ~${expectedMonthlyPv} PV/mo (${activePrCount} PRs × 1 PV/week) — choose a plan with at least ${expectedMonthlyPv} PV/mo before switching to ${next.label}`,
+        `Your roster needs ~${expectedWeeklyPv} PV/week (${activePrCount} active PRs × 1 PV/week) — choose a plan with at least ${expectedWeeklyPv} PV/week before switching to ${next.label}`,
         "warn",
       );
       return;
@@ -106,9 +112,9 @@ function AgencySubscription() {
 
       <IzSectionLabel>Plans · monthly</IzSectionLabel>
       <p className="iz-tiny iz-muted2 -mt-1 mb-2">
-        1 PV per active PR per week (~{expectedMonthlyPv} PV/mo) · {activePrCount} PR
-        {activePrCount === 1 ? "" : "s"} on roster · {issuedMonthlyPv} PV
-        {issuedMonthlyPv === 1 ? "" : "s"} issued this month
+        1 PV per active PR per week · {activePrCount} PR
+        {activePrCount === 1 ? "" : "s"} on roster · {issuedWeeklyPv} PV
+        {issuedWeeklyPv === 1 ? "" : "s"} issued last payroll week · plan allows {currentPlan.capacityLabel}
         {currentPlan.id !== rosterFitPlan.id ? (
           <>
             {" "}
@@ -157,8 +163,8 @@ function AgencySubscription() {
                 <p className="iz-tiny iz-muted2 mt-2">
                   Renewal {RENEWAL_DATE}
                   {plan.renegotiate
-                    ? ` · ~${expectedMonthlyPv} PV/mo from roster`
-                    : ` · ~${expectedMonthlyPv} / ${plan.capacityLabel} from roster`}
+                    ? ` · ~${expectedWeeklyPv} PV/week from roster`
+                    : ` · ~${expectedWeeklyPv} / ${plan.capacityLabel} from roster`}
                 </p>
               ) : (
                 canEdit && (

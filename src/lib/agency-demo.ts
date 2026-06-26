@@ -950,9 +950,9 @@ export interface AgencySubscriptionPlan {
   /** Monthly fee — null when price is negotiated with admin */
   monthlyRm: number | null;
   priceLabel?: string;
-  /** Max PVs/month on this plan (upper bound for ranged tiers) */
+  /** Max PVs/week on this plan (upper bound for ranged tiers) */
   pvLimit: number;
-  /** Shown on plan cards — e.g. "5 PV/M" */
+  /** Shown on plan cards — e.g. "5 PV/Week" */
   capacityLabel: string;
   description: string;
   /** Requires InnocenZ admin to quote pricing */
@@ -965,7 +965,7 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
     label: "Starter",
     monthlyRm: 499,
     pvLimit: 5,
-    capacityLabel: "5 PV/M",
+    capacityLabel: "5 PV/Week",
     description: "InnocenZ Agency · core portal access",
   },
   {
@@ -973,7 +973,7 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
     label: "Plus",
     monthlyRm: 999,
     pvLimit: 10,
-    capacityLabel: "10 PV/M",
+    capacityLabel: "10 PV/Week",
     description: "Growing roster · payroll & history",
   },
   {
@@ -981,7 +981,7 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
     label: "Growth",
     monthlyRm: 1999,
     pvLimit: 25,
-    capacityLabel: "25 PV/M",
+    capacityLabel: "25 PV/Week",
     description: "Expanded roster · payroll & reporting",
   },
   {
@@ -989,7 +989,7 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
     label: "Enterprise",
     monthlyRm: 3999,
     pvLimit: 100,
-    capacityLabel: "26–100 PV/M",
+    capacityLabel: "26–100 PV/Week",
     description: "Large roster · priority support",
   },
   {
@@ -997,7 +997,7 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
     label: "Scale",
     monthlyRm: 5999,
     pvLimit: 200,
-    capacityLabel: "101–200 PV/M",
+    capacityLabel: "101–200 PV/Week",
     description: "High volume · dedicated success",
   },
   {
@@ -1006,14 +1006,17 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
     monthlyRm: null,
     priceLabel: "Renegotiate Price",
     pvLimit: Number.POSITIVE_INFINITY,
-    capacityLabel: "201+ PV/M",
+    capacityLabel: "201+ PV/Week",
     description: "Enterprise volume · custom terms with InnocenZ admin",
     renegotiate: true,
   },
 ];
 
-/** Demo billing: 1 PV issued per active PR per payroll week (~4 weeks/month). */
-export const AGENCY_PVS_PER_PR_PER_MONTH = 4;
+/** Demo billing: 1 PV issued per active PR per payroll week. */
+export const AGENCY_PVS_PER_PR_PER_WEEK = 1;
+
+/** @deprecated use AGENCY_PVS_PER_PR_PER_WEEK */
+export const AGENCY_PVS_PER_PR_PER_MONTH = AGENCY_PVS_PER_PR_PER_WEEK;
 
 export function agencyActivePrCount(
   agencyPRs: Pick<AgencyManagedPR, "detached">[],
@@ -1021,26 +1024,40 @@ export function agencyActivePrCount(
   return agencyPRs.filter((p) => !p.detached).length;
 }
 
-export function agencyExpectedMonthlyPvFromPrCount(prCount: number): number {
-  return Math.max(0, prCount) * AGENCY_PVS_PER_PR_PER_MONTH;
+export function agencyExpectedWeeklyPvFromPrCount(prCount: number): number {
+  return Math.max(0, prCount) * AGENCY_PVS_PER_PR_PER_WEEK;
 }
 
-export function resolveAgencySubscriptionPlanForMonthlyPv(
-  monthlyPv: number,
+/** @deprecated use agencyExpectedWeeklyPvFromPrCount */
+export const agencyExpectedMonthlyPvFromPrCount = agencyExpectedWeeklyPvFromPrCount;
+
+export function resolveAgencySubscriptionPlanForWeeklyPv(
+  weeklyPv: number,
 ): AgencySubscriptionPlan {
   for (const plan of AGENCY_SUBSCRIPTION_PLANS) {
     if (plan.renegotiate) continue;
-    if (monthlyPv <= plan.pvLimit) return plan;
+    if (weeklyPv <= plan.pvLimit) return plan;
   }
   return getAgencySubscriptionPlan("renego");
 }
 
+/** @deprecated use resolveAgencySubscriptionPlanForWeeklyPv */
+export const resolveAgencySubscriptionPlanForMonthlyPv = resolveAgencySubscriptionPlanForWeeklyPv;
+
 export function resolveAgencySubscriptionPlanForRoster(
   agencyPRs: Pick<AgencyManagedPR, "detached">[],
 ): AgencySubscriptionPlan {
-  return resolveAgencySubscriptionPlanForMonthlyPv(
-    agencyExpectedMonthlyPvFromPrCount(agencyActivePrCount(agencyPRs)),
+  return resolveAgencySubscriptionPlanForWeeklyPv(
+    agencyExpectedWeeklyPvFromPrCount(agencyActivePrCount(agencyPRs)),
   );
+}
+
+export function agencySubscriptionAllowsWeeklyPv(
+  plan: AgencySubscriptionPlan,
+  weeklyPv: number,
+): boolean {
+  if (plan.renegotiate) return true;
+  return weeklyPv <= plan.pvLimit;
 }
 
 export function syncAgencyOwnerSubscriptionPlan(
@@ -1051,34 +1068,21 @@ export function syncAgencyOwnerSubscriptionPlan(
   return { ...owner, subscriptionPlanId: plan.id };
 }
 
+export function agencyWeeklyPvCount(
+  pvs: { weekStartIso?: string; issued: string }[],
+  weekStartIso: string,
+): number {
+  return pvs.filter((pv) => pv.weekStartIso === weekStartIso).length;
+}
+
+/** @deprecated use agencyWeeklyPvCount */
 export function agencyMonthlyPvCount(
-  pvs: { issued: string }[],
+  pvs: { weekStartIso?: string; issued: string }[],
   _agencyPRs: { id: string; name: string; ic?: string }[] = [],
   reference = new Date(),
 ): number {
-  const month = reference.getMonth();
-  const year = reference.getFullYear();
-  return pvs.filter((pv) => {
-    const m = pv.issued.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
-    if (!m) return false;
-    const months: Record<string, number> = {
-      jan: 0,
-      feb: 1,
-      mar: 2,
-      apr: 3,
-      may: 4,
-      jun: 5,
-      jul: 6,
-      aug: 7,
-      sep: 8,
-      oct: 9,
-      nov: 10,
-      dec: 11,
-    };
-    const mi = months[m[2].slice(0, 3).toLowerCase()];
-    if (mi == null) return false;
-    return mi === month && parseInt(m[3], 10) === year;
-  }).length;
+  void reference;
+  return pvs.filter((pv) => Boolean(pv.weekStartIso)).length;
 }
 
 export function getAgencySubscriptionPlan(id?: AgencySubscriptionPlanId | null): AgencySubscriptionPlan {

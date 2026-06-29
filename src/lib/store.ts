@@ -352,6 +352,20 @@ export interface Booking {
   checkedOutAt?: string;
 }
 
+export interface PrRegistrationInput {
+  displayName: string;
+  email: string;
+  mobile: string;
+  ic: string;
+  nationality: string;
+  idPhotoFront: string | null;
+  idPhotoBack: string | null;
+  profilePhoto: string | null;
+  portfolio: (string | null)[];
+  underAgency: boolean;
+  agencyId: string;
+}
+
 export interface PendingPR {
   id: string;
   name: string;
@@ -365,8 +379,10 @@ export interface PendingPR {
   race?: string;
   hasIcPhotos?: boolean;
   hasSelfie?: boolean;
+  /** @deprecated Use portfolioPhotos — kept for persisted demos */
   hasComcard3d?: boolean;
   portfolioCount?: number;
+  portfolioPhotos?: (string | null)[];
   submittedAt?: string;
   /** Agency roster id assigned when approved */
   targetPrId?: string;
@@ -710,6 +726,7 @@ interface StoreState {
   approvePendingPR: (id: string) => void;
   rejectPendingPR: (id: string, reason?: string) => void;
   invitePendingPR: (input: { name: string; ic: string; mobile: string; email: string }) => void;
+  submitPrRegistration: (input: PrRegistrationInput) => void;
   approveFreelancerPayroll: (id: string) => void;
   rejectFreelancerPayroll: (id: string) => void;
 
@@ -984,14 +1001,26 @@ function syncLedgerState(
 
 function mergePendingPRs(persisted: PendingPR[] | undefined, current: PendingPR[]): PendingPR[] {
   const seedIds = new Set(SEED_PENDING_PRS.map((s) => s.id));
-  const base = (persisted?.length ? persisted : current).filter(
-    (p) => seedIds.has(p.id) && !RETIRED_PENDING_PR_IDS.has(p.id),
-  );
+  const source = persisted?.length ? persisted : current;
+  const base = source.filter((p) => seedIds.has(p.id) && !RETIRED_PENDING_PR_IDS.has(p.id));
+  const userSignups = source.filter((p) => !seedIds.has(p.id) && p.status === "pending");
   const byId = new Map(base.map((p) => [p.id, p]));
   for (const seed of SEED_PENDING_PRS) {
     if (!byId.has(seed.id)) byId.set(seed.id, seed);
   }
-  return SEED_PENDING_PRS.map((seed) => byId.get(seed.id) ?? seed);
+  const seeds = SEED_PENDING_PRS.map((seed) => {
+    const p = byId.get(seed.id) ?? seed;
+    if (!p.portfolioPhotos?.some(Boolean) && seed.portfolioPhotos?.some(Boolean)) {
+      return {
+        ...p,
+        portfolioPhotos: seed.portfolioPhotos,
+        portfolioCount: seed.portfolioCount,
+      };
+    }
+    return p;
+  });
+  const dedupedExtras = userSignups.filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+  return [...seeds, ...dedupedExtras.filter((p) => !seedIds.has(p.id))];
 }
 
 function mergePendingFreelancerPayrolls(
@@ -4291,14 +4320,50 @@ export const useStore = create<StoreState>()(
               source: "owner-invite",
               hasIcPhotos: false,
               hasSelfie: false,
-              hasComcard3d: false,
               portfolioCount: 0,
+              portfolioPhotos: Array.from({ length: PORTFOLIO_SLOT_COUNT }, () => null),
               submittedAt,
             },
             ...st.pendingPRs,
           ],
         }));
         get().toast(`Invite sent to ${name} — awaiting profile completion`, "success");
+      },
+      submitPrRegistration: (input) => {
+        const id = `signup-${Date.now()}`;
+        const now = new Date();
+        const submittedAt = `${now.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })} · ${now.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}`;
+        const portfolioPhotos = [
+          ...input.portfolio,
+          ...Array(Math.max(0, PORTFOLIO_SLOT_COUNT - input.portfolio.length)).fill(null),
+        ].slice(0, PORTFOLIO_SLOT_COUNT) as (string | null)[];
+        const portfolioCount = portfolioPhotos.filter(Boolean).length;
+        set((st) => ({
+          pendingPRs: [
+            {
+              id,
+              name: input.displayName,
+              languages: input.nationality ? `EN · ${input.nationality}` : "Pending profile",
+              ic: input.ic,
+              mobile: input.mobile,
+              email: input.email,
+              hasIcPhotos: Boolean(input.idPhotoFront && input.idPhotoBack),
+              hasSelfie: Boolean(input.profilePhoto),
+              portfolioCount,
+              portfolioPhotos,
+              submittedAt,
+              source: "self-signup",
+              status: "pending",
+            },
+            ...st.pendingPRs,
+          ],
+          prPortfolio: portfolioPhotos,
+          prAvatarPhoto: input.profilePhoto ?? st.prAvatarPhoto,
+          prDisplayName: input.displayName,
+          prIcName: input.displayName,
+          prMobile: input.mobile,
+          prEmail: input.email,
+        }));
       },
       approveFreelancerPayroll: (id) => {
         const req = get().pendingFreelancerPayrolls.find((p) => p.id === id);

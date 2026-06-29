@@ -9,6 +9,8 @@ import { DEFAULT_TIED_AGENCY_ID } from "@/lib/pr-demo";
 import { IzCard, IzPill } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import { Building2, Camera, Check, Clock, Image, UserPlus, Users, X } from "lucide-react";
+import { publicAssetPath } from "@/lib/public-asset";
+import { portfolioFilledCount } from "@/components/pr/PortfolioGalleryPicker";
 
 type Tab = "signups" | "freelancer";
 
@@ -31,8 +33,7 @@ function SignupApprovalCard({
   race,
   hasIcPhotos,
   hasSelfie,
-  hasComcard3d,
-  portfolioCount,
+  portfolioPhotos,
   submittedAt,
   source,
   onApprove,
@@ -49,8 +50,7 @@ function SignupApprovalCard({
   race?: string;
   hasIcPhotos?: boolean;
   hasSelfie?: boolean;
-  hasComcard3d?: boolean;
-  portfolioCount?: number;
+  portfolioPhotos?: (string | null)[];
   submittedAt?: string;
   source?: "self-signup" | "owner-invite";
   onApprove: () => void;
@@ -58,18 +58,18 @@ function SignupApprovalCard({
 }) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const [preview, setPreview] = useState<"ic" | "selfie" | "comcard" | "portfolio" | null>(null);
+  const [preview, setPreview] = useState<"ic" | "selfie" | "gallery" | null>(null);
+  const galleryCount = portfolioFilledCount(portfolioPhotos ?? []);
+  const gallerySlots = (portfolioPhotos ?? []).filter(Boolean) as string[];
 
   const previewTitle =
     preview === "ic"
       ? "IC photos"
       : preview === "selfie"
         ? "Selfie verification"
-        : preview === "comcard"
-          ? "Comcard (3D)"
-          : preview === "portfolio"
-            ? "Portfolio"
-            : "";
+        : preview === "gallery"
+          ? "Portfolio gallery"
+          : "";
 
   return (
     <>
@@ -124,26 +124,23 @@ function SignupApprovalCard({
           </button>
           <button
             type="button"
-            disabled={!hasComcard3d}
-            onClick={() => hasComcard3d && setPreview("comcard")}
-            className={`rounded-xl border p-2 text-center transition-opacity ${hasComcard3d ? "cursor-pointer border-[rgba(167,139,250,.35)] bg-[var(--iz-violet-bg)] hover:opacity-90" : "cursor-default border-dashed border-[var(--iz-line2)] bg-[var(--iz-bg2)] opacity-70"}`}
+            disabled={galleryCount === 0}
+            onClick={() => galleryCount > 0 && setPreview("gallery")}
+            className={`rounded-xl border p-2 text-center transition-opacity ${galleryCount > 0 ? "cursor-pointer border-[rgba(167,139,250,.35)] bg-[var(--iz-violet-bg)] hover:opacity-90" : "cursor-default border-dashed border-[var(--iz-line2)] bg-[var(--iz-bg2)] opacity-70"}`}
           >
-            {hasComcard3d ? (
-              <IzPill variant="violet" className="!text-[9px]">3D 三维</IzPill>
+            {galleryCount > 0 ? (
+              <>
+                <Image className="mx-auto h-4 w-4 text-[var(--iz-violet-l)]" />
+                <p className="iz-tiny iz-muted2 mt-1">Gallery · {galleryCount}</p>
+              </>
             ) : (
-              <p className="iz-tiny iz-muted2">Comcard</p>
+              <>
+                <Camera className="mx-auto h-4 w-4 text-[var(--iz-muted)]" />
+                <p className="iz-tiny iz-muted2 mt-1">Gallery</p>
+              </>
             )}
           </button>
         </div>
-        {(portfolioCount ?? 0) > 0 && (
-          <button
-            type="button"
-            onClick={() => setPreview("portfolio")}
-            className="iz-tiny iz-muted mt-2 flex w-full items-center gap-1 text-left hover:text-[var(--iz-ink)]"
-          >
-            <Image className="h-3 w-3" /> Portfolio · {portfolioCount} photos — tap to preview
-          </button>
-        )}
 
         <div className="mt-3 flex gap-2">
           <button type="button" onClick={onApprove} className="iz-btn iz-btn-primary flex-1 !py-2 !text-xs">
@@ -187,17 +184,16 @@ function SignupApprovalCard({
               <div className="aspect-[3/4] max-w-[220px] mx-auto rounded-xl bg-gradient-to-br from-[var(--iz-violet-bg)] to-[var(--iz-bg3)]" />
             </div>
           )}
-          {preview === "comcard" && (
-            <div className="px-4 pb-4">
-              <div className="aspect-square max-w-[240px] mx-auto rounded-xl bg-gradient-to-br from-[var(--iz-violet-bg)] via-[var(--iz-bg2)] to-[var(--iz-gold-bg)] flex items-center justify-center">
-                <IzPill variant="violet">3D Comcard preview</IzPill>
-              </div>
-            </div>
-          )}
-          {preview === "portfolio" && (
+          {preview === "gallery" && (
             <div className="grid grid-cols-3 gap-2 px-4 pb-4">
-              {Array.from({ length: Math.min(portfolioCount ?? 0, 6) }).map((_, i) => (
-                <div key={i} className="aspect-square rounded-lg bg-gradient-to-br from-[var(--iz-bg3)] to-[var(--iz-line)]" />
+              {gallerySlots.map((src, i) => (
+                <div key={i} className="aspect-square overflow-hidden rounded-lg border border-[var(--iz-line)]">
+                  <img
+                    src={publicAssetPath(src)}
+                    alt={`Portfolio ${i + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -360,7 +356,7 @@ function AgencyPending() {
         <>
           <OutletSection
             title="New PR sign-ups"
-            hint="IC · selfie · comcard · portfolio"
+            hint="IC · selfie · gallery"
             className="!mt-4"
           >
           <div className="space-y-3">
@@ -383,8 +379,7 @@ function AgencyPending() {
                   race={p.race}
                   hasIcPhotos={p.hasIcPhotos}
                   hasSelfie={p.hasSelfie}
-                  hasComcard3d={p.hasComcard3d}
-                  portfolioCount={p.portfolioCount}
+                  portfolioPhotos={p.portfolioPhotos}
                   submittedAt={p.submittedAt}
                   source={p.source}
                   onApprove={() => approvePendingPR(p.id)}

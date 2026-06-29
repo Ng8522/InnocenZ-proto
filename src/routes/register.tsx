@@ -5,7 +5,9 @@ import { IzSheet } from "@/components/iz/Sheet";
 import { Toasts } from "@/components/Toasts";
 import { isValidDemoOtp } from "@/components/auth/OtpVerifySheet";
 import { useStore } from "@/lib/store";
-import { getPrAgencyById, PR_AGENCIES, DEFAULT_TIED_AGENCY_ID } from "@/lib/pr-demo";
+import { getPrAgencyById, PR_AGENCIES, DEFAULT_TIED_AGENCY_ID, PORTFOLIO_SLOT_COUNT, SEED_PR_PORTFOLIO_PATHS } from "@/lib/pr-demo";
+import { PortfolioGalleryPicker, portfolioFilledCount } from "@/components/pr/PortfolioGalleryPicker";
+import { publicAssetPath } from "@/lib/public-asset";
 import {
   ArrowLeft,
   ArrowRight,
@@ -32,7 +34,7 @@ const STEPS = [
   { id: 1, title: "Persona", subtitle: "Your details" },
   { id: 2, title: "Address", subtitle: "Where you live" },
   { id: 3, title: "Agency", subtitle: "Optional tie" },
-  { id: 4, title: "Verify", subtitle: "ID photos" },
+  { id: 4, title: "Verify", subtitle: "ID & gallery photos" },
   { id: 5, title: "Summary", subtitle: "Review & submit" },
   { id: 6, title: "OTP", subtitle: "Verify your mobile" },
 ] as const;
@@ -127,6 +129,7 @@ type RegisterDraft = {
   idPhotoFront: string | null;
   idPhotoBack: string | null;
   profilePhoto: string | null;
+  portfolio: (string | null)[];
   acceptPrivacy: boolean;
   acceptTruth: boolean;
   acceptAgencyShare: boolean;
@@ -191,6 +194,18 @@ function randomDemoPhoneNumber(): string {
   return prefix + suffix;
 }
 
+function buildEmptyPortfolio(): (string | null)[] {
+  return Array.from({ length: PORTFOLIO_SLOT_COUNT }, () => null);
+}
+
+function buildDemoPortfolio(): (string | null)[] {
+  const slots = buildEmptyPortfolio();
+  for (let i = 0; i < SEED_PR_PORTFOLIO_PATHS.length; i++) {
+    slots[i] = SEED_PR_PORTFOLIO_PATHS[i]!;
+  }
+  return slots;
+}
+
 function buildDemoRegisterDraft(): RegisterDraft {
   const dob = "1995-03-12";
   return {
@@ -214,6 +229,7 @@ function buildDemoRegisterDraft(): RegisterDraft {
     idPhotoFront: demoPlaceholderImage("ID — Front", "NRIC · demo"),
     idPhotoBack: demoPlaceholderImage("ID — Back", "NRIC · demo"),
     profilePhoto: demoPlaceholderImage("TCF", "Profile · demo", "#C99B4E"),
+    portfolio: buildDemoPortfolio(),
     acceptPrivacy: true,
     acceptTruth: true,
     acceptAgencyShare: true,
@@ -671,6 +687,7 @@ function RegistrationAcknowledgements({
 function RegisterPage() {
   const navigate = useNavigate();
   const toast = useStore((s) => s.toast);
+  const submitPrRegistration = useStore((s) => s.submitPrRegistration);
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [otp, setOtp] = useState("");
@@ -783,6 +800,10 @@ function RegisterPage() {
         toast("Upload front and back ID photos", "warn");
         return false;
       }
+      if (portfolioFilledCount(draft.portfolio) < 1) {
+        toast("Add at least one gallery photo", "warn");
+        return false;
+      }
       return true;
     }
     if (n === 5) {
@@ -837,6 +858,19 @@ function RegisterPage() {
       toast("Accept all acknowledgements and terms to continue", "warn");
       return;
     }
+    submitPrRegistration({
+      displayName,
+      email: draft.email,
+      mobile: fullPhone,
+      ic: draft.idNo,
+      nationality: draft.nationality,
+      idPhotoFront: draft.idPhotoFront,
+      idPhotoBack: draft.idPhotoBack,
+      profilePhoto: draft.profilePhoto,
+      portfolio: draft.portfolio,
+      underAgency: draft.underAgency === true,
+      agencyId: draft.agencyId,
+    });
     toast("Registration submitted — awaiting agency verification", "success");
     setSubmitted(true);
   };
@@ -870,6 +904,25 @@ function RegisterPage() {
                 Once verified, you will be notified by <b className="text-[var(--iz-txt)]">email</b>{" "}
                 or <b className="text-[var(--iz-txt)]">WhatsApp</b>.
               </p>
+              {portfolioFilledCount(draft.portfolio) > 0 && (
+                <div className="mt-5 w-full border-t border-[var(--iz-line)] pt-4 text-left">
+                  <p className="iz-tiny iz-muted mb-2">Your portfolio gallery</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {draft.portfolio.filter(Boolean).map((src, i) => (
+                      <div key={i} className="aspect-square overflow-hidden rounded-lg border border-[var(--iz-line)]">
+                        <img
+                          src={publicAssetPath(src!)}
+                          alt={`Gallery ${i + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="iz-tiny iz-muted2 mt-2">
+                    View and edit your gallery anytime in Profile after sign-in.
+                  </p>
+                </div>
+              )}
             </div>
             <button
               type="button"
@@ -1154,6 +1207,20 @@ function RegisterPage() {
                   onPick={(url) => patch({ idPhotoBack: url })}
                 />
               </div>
+
+              <div className="iz-reg-section-hd mt-4">
+                <Camera className="h-4 w-4 text-[var(--iz-gold-l)]" />
+                <span>Portfolio gallery</span>
+              </div>
+              <p className="iz-sm iz-muted -mt-1">
+                Add up to {PORTFOLIO_SLOT_COUNT} photos — agencies review your gallery during sign-up approval.
+              </p>
+              <PortfolioGalleryPicker
+                value={draft.portfolio}
+                onChange={(portfolio) => patch({ portfolio })}
+                onWarn={(message) => toast(message, "warn")}
+                className="iz-pr-account-hero__portfolio"
+              />
             </>
           )}
 

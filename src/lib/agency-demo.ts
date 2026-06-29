@@ -7,6 +7,7 @@ import {
   migrateDemoDateIso,
 } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { SEED_PR_PORTFOLIO_PATHS } from "@/lib/pr-demo";
 import { SEED_COMCARD_AGENCY_PRS } from "@/lib/agency-pr-comcards";
 import {
   buildSeedPrPortfolio,
@@ -825,6 +826,15 @@ export function collectAgencyPrLanguages(
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
+/** Demo portfolio for pending sign-up review */
+function seedPendingPortfolio(count: number): (string | null)[] {
+  const slots: (string | null)[] = Array.from({ length: 8 }, () => null);
+  for (let i = 0; i < Math.min(count, SEED_PR_PORTFOLIO_PATHS.length); i++) {
+    slots[i] = SEED_PR_PORTFOLIO_PATHS[i]!;
+  }
+  return slots;
+}
+
 /** New sign-ups awaiting owner approval — not yet on agency roster */
 export const SEED_PENDING_PRS: PendingPR[] = [
   {
@@ -841,8 +851,8 @@ export const SEED_PENDING_PRS: PendingPR[] = [
     race: "Malay",
     hasIcPhotos: true,
     hasSelfie: true,
-    hasComcard3d: true,
     portfolioCount: 4,
+    portfolioPhotos: seedPendingPortfolio(4),
     submittedAt: "9 Jun 2026 · 09:14",
     source: "self-signup",
     status: "pending",
@@ -861,8 +871,8 @@ export const SEED_PENDING_PRS: PendingPR[] = [
     race: "Malay",
     hasIcPhotos: true,
     hasSelfie: true,
-    hasComcard3d: true,
     portfolioCount: 5,
+    portfolioPhotos: seedPendingPortfolio(5),
     submittedAt: "8 Jun 2026 · 22:41",
     source: "self-signup",
     status: "pending",
@@ -880,6 +890,10 @@ export const RETIRED_PENDING_FREELANCER_PAYROLL_IDS = new Set(["fp-seed-jaya"]);
 export function pendingPRToManagedPR(p: PendingPR): AgencyManagedPR {
   const langs =
     p.languages === "Pending profile" ? ["English"] : parsePendingLanguages(p.languages);
+  const portfolioPhotos = p.portfolioPhotos?.some(Boolean)
+    ? p.portfolioPhotos
+    : undefined;
+  const galleryCount = portfolioPhotos?.filter(Boolean).length ?? p.portfolioCount ?? 0;
   return {
     id: p.targetPrId ?? `p-new-${p.id}`,
     name: p.name,
@@ -895,13 +909,14 @@ export function pendingPRToManagedPR(p: PendingPR): AgencyManagedPR {
     place: "KL",
     yearsExp: p.source === "owner-invite" ? 0 : 1,
     rating: 4.2,
-    trainingLevel: p.hasComcard3d ? "Tier II" : "Tier I",
+    trainingLevel: galleryCount >= 4 ? "Tier II" : "Tier I",
     totalPaid: 0,
     attendancePct: 0,
     checkIns: 0,
     checkOuts: 0,
     noShows: 0,
     kpiScore: 72,
+    ...(portfolioPhotos ? { portfolioPhotos } : {}),
   };
 }
 

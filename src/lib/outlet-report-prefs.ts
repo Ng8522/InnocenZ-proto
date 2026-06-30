@@ -11,6 +11,8 @@ export interface OutletReportPrefs {
   weekSundayIso: string;
   customStartIso: string;
   customEndIso: string;
+  /** Explicit nights selected in custom range (may be non-contiguous) */
+  customDateIsos?: string[];
   customPeriod: OutletReportPeriod;
 }
 
@@ -92,6 +94,7 @@ export function loadOutletReportPrefs(orgName: string): OutletReportPrefs {
       ),
       customStartIso,
       customEndIso,
+      customDateIsos: parsed.customDateIsos?.length ? [...parsed.customDateIsos].sort() : undefined,
       customPeriod,
     };
   } catch {

@@ -21,7 +21,9 @@ function readPkgVersion() {
 
 function readGitSha() {
   try {
-    return execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
+    const sha = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
+    const dirty = execSync("git status --porcelain", { encoding: "utf8" }).trim().length > 0;
+    return dirty ? `${sha}-dirty` : sha;
   } catch {
     return "local";
   }

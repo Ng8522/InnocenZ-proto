@@ -294,31 +294,6 @@ function OutletSettingsPage() {
         />
       </IzCard>
 
-      <IzSectionLabel>Login &amp; security</IzSectionLabel>
-      <IzCard>
-        <p className="iz-tiny iz-muted mb-3">
-          Update password anytime. Email and mobile changes require OTP verification.
-        </p>
-        <button
-          type="button"
-          className="iz-btn iz-btn-primary w-full"
-          onClick={() => setSecurityOpen(true)}
-        >
-          Security settings
-        </button>
-      </IzCard>
-
-      <SecuritySettingsSheets
-        open={securityOpen}
-        onClose={() => setSecurityOpen(false)}
-        sheetVariant="side"
-        email={outletOwner.email}
-        mobile={outletOwner.mobile}
-        canEdit={canEdit}
-        onUpdateEmail={(email) => saveOutletOwner({ email })}
-        onUpdateMobile={(mobile) => saveOutletOwner({ mobile })}
-      />
-
       <IzSectionLabel>Finance Head</IzSectionLabel>
       <IzCard className={editCardClass}>
         <p className="iz-tiny iz-muted mb-2">
@@ -382,6 +357,31 @@ function OutletSettingsPage() {
           onChange={(v) => saveOutletSettings({ notifyShiftUpdates: v })}
         />
       </IzCard>
+
+      <IzSectionLabel>Login &amp; security</IzSectionLabel>
+      <IzCard>
+        <p className="iz-tiny iz-muted mb-3">
+          Update password anytime. Email and mobile changes require OTP verification.
+        </p>
+        <button
+          type="button"
+          className="iz-btn iz-btn-primary w-full"
+          onClick={() => setSecurityOpen(true)}
+        >
+          Security settings
+        </button>
+      </IzCard>
+
+      <SecuritySettingsSheets
+        open={securityOpen}
+        onClose={() => setSecurityOpen(false)}
+        sheetVariant="side"
+        email={outletOwner.email}
+        mobile={outletOwner.mobile}
+        canEdit={canEdit}
+        onUpdateEmail={(email) => saveOutletOwner({ email })}
+        onUpdateMobile={(mobile) => saveOutletOwner({ mobile })}
+      />
 
       {canEdit && (
         <div className="iz-profile-actions mt-4">

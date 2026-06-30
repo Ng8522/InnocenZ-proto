@@ -1,12 +1,24 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { format, startOfToday, addDays } from "date-fns";
-import { Check, HelpCircle, Minus, Pencil, Plus, X } from "lucide-react";
+import { Check, Minus, Pencil, Plus, X } from "lucide-react";
 import { OutletDatePopoverChip, OutletDatePopoverField, OutletDateRangePopover, OutletMultiDatePopover } from "@/components/outlet/outlet-date-popover";
 import { PrComcardPickerThumb } from "@/components/pr/PortfolioComcardVisual";
 import { IzCard, IzSelect, IzTimeInput, normalizeTimeValue } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
-import { TierRatesFields } from "@/components/outlet/TierRatesFields";
-import { ShiftTierWagesStrip } from "@/components/outlet/ShiftTierWagesStrip";
+import { PostJobTierRatesEditor } from "@/components/outlet/PostJobTierRatesEditor";
+import {
+  basePayFromPayTierRows,
+  clonePostJobPayTierRow,
+  defaultPostJobPayTierRows,
+  estimatePayTierRowsLaborCost,
+  formatPayTierRowSummary,
+  payTierRowsFromLegacy,
+  syncPayTierRowsFromWorkspace,
+  syncTierRatesFromPayTierRows,
+  totalPrCountFromPayTierRows,
+  workspaceTierRatesSignature,
+  type PostJobPayTierRow,
+} from "@/lib/post-job-pay-tiers";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
@@ -14,9 +26,7 @@ import {
   cloneTierRates,
   collectAgencyPrLanguages,
   estimateShiftLaborCost,
-  getOutletRule,
   languagesFromPr,
-  normalizeOutletTierMultipliers,
   OUTLET_BASE_TIER,
   OUTLET_PR_TIERS,
   snapTierWage,
@@ -29,29 +39,23 @@ import type { OutletDrinkPrice, OutletWorkspaceSettings } from "@/lib/outlet-dem
 import {
   cloneDrinkMenu,
   DRESS_CODE_OPTIONS,
+  DRESS_CODE_OTHER_ID,
   drinkMenuPriceRange,
+  formatDressCodeLabel,
   formatOutletPlanDailyHeadcountHint,
+  isOtherDressCode,
   formatOutletPlanPrPickerRule,
   getOutletSubscriptionPlan,
-  SHIFT_DESTINATION_LABELS,
   SHIFT_EVENT_KIND_LABELS,
   SHIFT_SPECIAL_EVENT_OPTIONS,
   formatShiftDrinkPricingSummary,
   formatShiftEventTypeSummary,
+  isOtherSpecialEvent,
   type ShiftDestination,
   type ShiftEventKind,
   type ShiftSpecialEventType,
 } from "@/lib/outlet-demo";
 import { OutletDrinkMenuEditor } from "@/components/outlet/OutletDrinkMenuEditor";
-import {
-  buildOutletWeeklyTopPrRanks,
-  prWeeklyRankContext,
-  TOP_PR_RANK_STYLES,
-  type PrWeekTopRank,
-  weekLabelForSundayIso,
-  weekSundayIsoForDate,
-} from "@/lib/outlet-pr-weekly-ranks";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const DEFAULT_DRAFT_TIER_BASE: OutletTierRateSettings = {
   wagePerHour: 60,
@@ -67,6 +71,25 @@ export function draftTierRatesFromWorkspace(
   return cloneTierRates(ws.tierRates);
 }
 
+/** Sync post-job pay rows from saved workspace rates while keeping tier rows and PR counts. */
+export function applyWorkspaceRatesToDraftShift(
+  shift: Pick<DraftShift, "payTierRows" | "prIds">,
+  workspace: Pick<OutletWorkspaceSettings, "tierRates">,
+): Pick<DraftShift, "tierRates" | "payTierRows" | "payPerHour" | "quantity" | "prIds"> {
+  const tierRates = draftTierRatesFromWorkspace(workspace);
+  const payTierRows = syncPayTierRowsFromWorkspace(shift.payTierRows, tierRates);
+  const quantity = totalPrCountFromPayTierRows(payTierRows);
+  return {
+    tierRates: syncTierRatesFromPayTierRows(payTierRows, tierRates),
+    payTierRows,
+    payPerHour: basePayFromPayTierRows(payTierRows),
+    quantity,
+    prIds: shift.prIds.slice(0, quantity),
+  };
+}
+
+export { workspaceTierRatesSignature };
+
 export function languagesForPrIds(prIds: string[], agencyPRs: AgencyManagedPR[]): string[] {
   const set = new Set<string>();
   for (const id of prIds) {
@@ -78,11 +101,12 @@ export function languagesForPrIds(prIds: string[], agencyPRs: AgencyManagedPR[])
 
 export type DraftShift = {
   id: string;
-  jobDate: Date;
-  jobEndDate: Date;
+  selectedDateIsos: string[];
   event: string;
   eventKind: ShiftEventKind;
   specialEventType?: ShiftSpecialEventType;
+  /** Custom label when specialEventType is "other" */
+  customSpecialEventName?: string;
   /** Event-specific drink prices — only used when eventKind is special */
   eventDrinkMenu?: OutletDrinkPrice[];
   langs: string[];
@@ -93,7 +117,10 @@ export type DraftShift = {
   prIds: string[];
   payPerHour: number;
   tierRates: Record<OutletPrTier, OutletTierRateSettings>;
+  /** Pay rows configured for this shift (Tier 1–5 + Commission only) */
+  payTierRows: PostJobPayTierRow[];
   dressCode: string;
+  customDressCode?: string;
   destination: ShiftDestination;
 };
 
@@ -106,7 +133,6 @@ export function newDraftShift(
     : workspace?.tierRates
       ? cloneTierRates(workspace.tierRates)
       : buildDefaultTierRates(DEFAULT_DRAFT_TIER_BASE);
-  const basePay = tierRates[OUTLET_BASE_TIER].wagePerHour;
   const eventKind = partial?.eventKind ?? "normal";
   const workspaceDrinks = workspace?.drinkMenu ?? [];
   const eventDrinkMenu =
@@ -114,23 +140,36 @@ export function newDraftShift(
     (eventKind === "special" && workspaceDrinks.length > 0
       ? cloneDrinkMenu(workspaceDrinks)
       : undefined);
+  const defaultDateIso = isoFromJobDate(startOfToday());
+  const defaultQuantity = partial?.quantity ?? 6;
+  const legacyPayTierIds = (partial as { payTierIds?: OutletPrTier[] } | undefined)?.payTierIds;
+  const payTierRows = partial?.payTierRows?.length
+    ? partial.payTierRows.map(clonePostJobPayTierRow)
+    : legacyPayTierIds?.length
+      ? payTierRowsFromLegacy(legacyPayTierIds, tierRates, defaultQuantity)
+      : defaultPostJobPayTierRows(tierRates, defaultQuantity);
+  const quantity = partial?.quantity ?? totalPrCountFromPayTierRows(payTierRows);
   return {
     id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    jobDate: partial?.jobDate ?? startOfToday(),
-    jobEndDate: partial?.jobEndDate ?? partial?.jobDate ?? startOfToday(),
+    selectedDateIsos: partial?.selectedDateIsos?.length
+      ? sortJobDateIsos(partial.selectedDateIsos)
+      : [defaultDateIso],
     event: partial?.event ?? "Private VIP - Hennessy Launch",
     eventKind,
     specialEventType: partial?.specialEventType ?? "vip",
+    customSpecialEventName: partial?.customSpecialEventName ?? "",
     eventDrinkMenu,
     langs: partial?.langs ? [...partial.langs] : [],
     otherLang: partial?.otherLang ?? "",
     starTiers: partial?.starTiers ? [...partial.starTiers] : [4, 5],
     shiftTime: partial?.shiftTime ?? "22:00 - 04:00",
-    quantity: partial?.quantity ?? 6,
+    quantity,
     prIds: partial?.prIds ? [...partial.prIds] : [],
-    tierRates,
-    payPerHour: snapPayPerHour(partial?.payPerHour ?? basePay),
+    tierRates: syncTierRatesFromPayTierRows(payTierRows, tierRates),
+    payPerHour: snapPayPerHour(partial?.payPerHour ?? basePayFromPayTierRows(payTierRows)),
+    payTierRows,
     dressCode: partial?.dressCode ?? DRESS_CODE_OPTIONS[0],
+    customDressCode: partial?.customDressCode ?? "",
     destination: partial?.destination ?? "both",
   };
 }
@@ -173,9 +212,12 @@ export function patchDraftTierRates(
 }
 
 export function estimateDraftShiftCost(
-  shift: Pick<DraftShift, "tierRates" | "quantity" | "shiftTime" | "prIds">,
+  shift: Pick<DraftShift, "payTierRows" | "tierRates" | "quantity" | "shiftTime" | "prIds">,
   prTierById?: Record<string, string | undefined>,
 ): number {
+  if (shift.payTierRows?.length) {
+    return estimatePayTierRowsLaborCost(shift.payTierRows, shift.shiftTime);
+  }
   const p = parseShiftTime(shift.shiftTime);
   const start = p.startH * 60 + p.startM;
   let end = p.endH * 60 + p.endM;
@@ -262,16 +304,28 @@ export function jobSpanMatchesSelection(from: Date, span: JobDateSpan, selectedI
   return expected.every((iso, index) => iso === sorted[index]);
 }
 
+export function jobDateFromIso(iso: string): Date {
+  return new Date(iso + "T12:00:00");
+}
+
+export function eachJobDateFromIsos(isos: string[]): Date[] {
+  return sortJobDateIsos(isos).map(jobDateFromIso);
+}
+
+export function primaryJobDateFromIsos(isos: string[]): Date {
+  const sorted = sortJobDateIsos(isos);
+  return sorted.length > 0 ? jobDateFromIso(sorted[0]) : startOfToday();
+}
+
 export function formatJobDates(isos: string[]): string {
   const sorted = sortJobDateIsos(isos);
   if (sorted.length === 0) return "Pick dates";
   if (sorted.length === 1) {
-    const day = new Date(sorted[0] + "T12:00:00");
-    return formatJobDate(day);
+    return formatJobDate(jobDateFromIso(sorted[0]));
   }
   if (sorted.length <= 3) {
     return sorted
-      .map((iso) => format(new Date(iso + "T12:00:00"), "d MMM"))
+      .map((iso) => format(jobDateFromIso(iso), "d MMM"))
       .join(", ");
   }
   return `${sorted.length} dates`;
@@ -682,8 +736,6 @@ export function DraftPrPicker({
   maxSelect,
   dailyRemaining,
   poolHint,
-  referenceDate,
-  outletName,
 }: {
   selected: string[];
   onSelectedChange: (prIds: string[]) => void;
@@ -697,23 +749,9 @@ export function DraftPrPicker({
   /** Remaining PR slots today (subscription daily cap) */
   dailyRemaining?: number;
   poolHint?: string;
-  /** Shift night — used to highlight top 1–3 earners for that week */
-  referenceDate?: Date;
-  outletName?: string;
 }) {
   const prs = useStore((s) => s.prs);
-  const outletWorkspace = useStore((s) => s.outletWorkspace);
   const toast = useStore((s) => s.toast);
-
-  const resolvedOutlet = outletName ?? outletWorkspace.outletName;
-  const referenceDateIso = referenceDate ? isoFromJobDate(referenceDate) : undefined;
-  const shiftWeekSun = referenceDateIso ? weekSundayIsoForDate(referenceDateIso) : undefined;
-  const shiftWeekLabel = shiftWeekSun ? weekLabelForSundayIso(shiftWeekSun) : undefined;
-
-  const weeklyRanks = useMemo(
-    () => buildOutletWeeklyTopPrRanks(resolvedOutlet),
-    [resolvedOutlet],
-  );
 
   const blocked = useMemo(() => new Set(excludePrIds ?? []), [excludePrIds]);
   const selectCap = useMemo(() => {
@@ -724,18 +762,11 @@ export function DraftPrPicker({
   }, [maxSelect, quantity, dailyRemaining]);
 
   const candidates = useMemo(() => {
-    const sorted = [...prs].filter((p) => !blocked.has(p.id)).sort((a, b) => {
-      if (shiftWeekSun) {
-        const rankA =
-          weeklyRanks.get(a.id)?.find((r) => r.weekSundayIso === shiftWeekSun)?.rank ?? 99;
-        const rankB =
-          weeklyRanks.get(b.id)?.find((r) => r.weekSundayIso === shiftWeekSun)?.rank ?? 99;
-        if (rankA !== rankB) return rankA - rankB;
-      }
-      return b.rating - a.rating;
-    });
+    const sorted = [...prs]
+      .filter((p) => !blocked.has(p.id))
+      .sort((a, b) => b.rating - a.rating);
     return poolSize !== undefined ? sorted.slice(0, poolSize) : sorted;
-  }, [prs, blocked, poolSize, weeklyRanks, shiftWeekSun]);
+  }, [prs, blocked, poolSize]);
 
   const toggle = (prId: string) => {
     const has = selected.includes(prId);
@@ -754,62 +785,21 @@ export function DraftPrPicker({
   };
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <div className="w-full min-w-0">
-        {poolHint && (
-          <p className="mb-2 text-[10px] leading-snug text-[var(--iz-muted2)]">{poolHint}</p>
-        )}
-        {shiftWeekLabel && (
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className="text-[10px] text-[var(--iz-muted)]">Top earners · {shiftWeekLabel}</span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[var(--iz-line)] text-[var(--iz-muted)]"
-                  aria-label="Top PR rank legend"
-                >
-                  <HelpCircle className="h-3 w-3" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[220px] text-xs leading-snug">
-                <p className="font-semibold text-[var(--iz-txt)]">Weekly top PRs</p>
-                <p className="mt-1 text-[var(--iz-muted2)]">
-                  #1–#3 = highest outlet payouts that week. Badges on cards match the shift week (
-                  {shiftWeekLabel}). Tap ? on a card to see other weeks they ranked top 3.
-                </p>
-              </TooltipContent>
-            </Tooltip>
-            <span className="flex items-center gap-1.5 text-[9px] text-[var(--iz-muted2)]">
-              {([1, 2, 3] as const).map((n) => (
-                <span
-                  key={n}
-                  className={cn(
-                    "inline-flex h-4 min-w-[1.1rem] items-center justify-center rounded px-1 font-bold",
-                    TOP_PR_RANK_STYLES[n],
-                  )}
-                >
-                  #{n}
-                </span>
-              ))}
-            </span>
-          </div>
-        )}
-        <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-[10px] text-[var(--iz-muted)]">
-          {selected.length}/{selectCap} selected
-          {poolSize !== undefined && (
-            <span className="text-[var(--iz-muted2)]">
-              {" "}
-              · pool of {poolSize ?? candidates.length}
-            </span>
-          )}
-        </span>
+    <div className="w-full min-w-0">
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <p className="min-w-0 text-[10px] leading-snug text-[var(--iz-muted2)]">
+          {poolHint && <span>{poolHint}</span>}
+          {poolHint && " · "}
+          <span className="text-[var(--iz-muted)]">
+            {selected.length}/{selectCap} selected
+            {poolSize !== undefined && ` · pool of ${poolSize ?? candidates.length}`}
+          </span>
+        </p>
         {selected.length > 0 && (
           <button
             type="button"
             onClick={() => onSelectedChange([])}
-            className="text-[10px] font-semibold text-[var(--iz-gold)]"
+            className="shrink-0 text-[10px] font-semibold text-[var(--iz-gold)]"
           >
             Clear all
           </button>
@@ -822,33 +812,9 @@ export function DraftPrPicker({
           {candidates.map((p) => {
             const on = selected.includes(p.id);
             const full = !on && selected.length >= selectCap;
-            const rankCtx = referenceDateIso
-              ? prWeeklyRankContext(p.id, referenceDateIso, weeklyRanks)
-              : { shiftWeek: undefined, otherWeeks: [] as PrWeekTopRank[] };
-            const otherWeeksTooltip =
-              rankCtx.otherWeeks.length > 0
-                ? `Also top ${rankCtx.otherWeeks.map((w) => `#${w.rank} · ${w.weekLabel}`).join(" · ")}`
-                : undefined;
 
             return (
               <div key={p.id} className="relative w-[140px] shrink-0 snap-start">
-                {otherWeeksTooltip && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="absolute left-1 top-1 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[var(--iz-muted)] hover:text-[var(--iz-txt)]"
-                        aria-label={otherWeeksTooltip}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <HelpCircle className="h-3 w-3" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[220px] text-xs">
-                      {otherWeeksTooltip}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
                 <button
                   type="button"
                   onClick={() => toggle(p.id)}
@@ -857,48 +823,36 @@ export function DraftPrPicker({
                     "relative iz-card iz-card-flat w-full !mb-0 p-2.5 text-left transition-opacity",
                     full && "opacity-40",
                     on && "ring-1 ring-[var(--iz-gold-d)]",
-                    rankCtx.shiftWeek?.rank === 1 && !on && "ring-1 ring-[var(--iz-gold)]/40",
                   )}
                 >
-                  {rankCtx.shiftWeek && (
-                    <span
-                      className={cn(
-                        "absolute right-1.5 top-1.5 z-10 flex h-5 min-w-[1.25rem] items-center justify-center rounded-md px-1 text-[9px] font-extrabold shadow-sm",
-                        TOP_PR_RANK_STYLES[rankCtx.shiftWeek.rank],
-                      )}
-                    >
-                      #{rankCtx.shiftWeek.rank}
-                    </span>
-                  )}
-                <PrComcardPickerThumb
-                  comcardImageUrl={p.comcardImageUrl}
-                  avatar={p.avatar}
-                  name={p.name}
-                />
-                <div className="mt-1.5 truncate text-xs font-semibold text-[var(--iz-txt)]">{p.name}</div>
-                <div className="text-[10px] text-[var(--iz-gold)]">{p.rating}★</div>
-                <div
-                  className={cn(
-                    "mt-1.5 flex w-full items-center justify-center gap-0.5 rounded-full py-1 text-[10px] font-semibold",
-                    on ? "bg-[var(--iz-green-bg)] text-[var(--iz-green)]" : "bg-[rgba(255,255,255,0.06)] text-[var(--iz-muted)]",
-                  )}
-                >
-                  {on ? (
-                    <>
-                      <Check className="h-3 w-3" /> Selected
-                    </>
-                  ) : (
-                    "Tap to add"
-                  )}
-                </div>
-              </button>
+                  <PrComcardPickerThumb
+                    comcardImageUrl={p.comcardImageUrl}
+                    avatar={p.avatar}
+                    name={p.name}
+                  />
+                  <div className="mt-1.5 truncate text-xs font-semibold text-[var(--iz-txt)]">{p.name}</div>
+                  <div className="text-[10px] text-[var(--iz-gold)]">{p.rating}★</div>
+                  <div
+                    className={cn(
+                      "mt-1.5 flex w-full items-center justify-center gap-0.5 rounded-full py-1 text-[10px] font-semibold",
+                      on ? "bg-[var(--iz-green-bg)] text-[var(--iz-green)]" : "bg-[rgba(255,255,255,0.06)] text-[var(--iz-muted)]",
+                    )}
+                  >
+                    {on ? (
+                      <>
+                        <Check className="h-3 w-3" /> Selected
+                      </>
+                    ) : (
+                      "Add to cart"
+                    )}
+                  </div>
+                </button>
               </div>
             );
           })}
         </IzHScroll>
       )}
-      </div>
-    </TooltipProvider>
+    </div>
   );
 }
 
@@ -995,15 +949,19 @@ export function DraftShiftSummary({
           )}
         </div>
       </div>
-      <SummaryLine label="Date" value={formatJobDateRange(shift.jobDate, shift.jobEndDate)} />
+      <SummaryLine label="Date" value={formatJobDates(shift.selectedDateIsos)} />
       <SummaryLine
         label="Event type"
-        value={formatShiftEventTypeSummary(shift.eventKind, shift.specialEventType)}
+        value={formatShiftEventTypeSummary(
+          shift.eventKind,
+          shift.specialEventType,
+          shift.customSpecialEventName,
+        )}
       />
       <DraftDrinkPricingSummary shift={shift} />
       <SummaryLine label="Event" value={shift.event} stacked />
       <SummaryLine label="Time" value={shift.shiftTime} />
-      <SummaryLine label="People needed" value={String(shift.quantity)} />
+      <SummaryLine label="People needed" value={String(totalPrCountFromPayTierRows(shift.payTierRows))} />
       <SummaryLine
         label="PRs"
         value={`${shift.prIds.length}/${shift.quantity} · ${formatDraftPrNames(shift.prIds, prs)}`}
@@ -1011,11 +969,19 @@ export function DraftShiftSummary({
       />
       <SummaryLine label="Languages" value={buildLanguagesLabel(shift.langs, shift.otherLang) || "—"} />
       <div className="border-b border-[var(--iz-line)] py-2.5 last:border-0">
-        <span className="text-xs text-[var(--iz-muted)]">Pay & sales targets by tier</span>
-        <ShiftTierWagesStrip tierRates={shift.tierRates} compact />
+        <span className="text-xs text-[var(--iz-muted)]">Pay by PR tier</span>
+        <div className="mt-1.5 space-y-1">
+          {(shift.payTierRows ?? []).map((row) => (
+            <p key={row.id} className="text-[11px] leading-snug text-[var(--iz-txt)]">
+              {formatPayTierRowSummary(row)}
+            </p>
+          ))}
+        </div>
       </div>
-      <SummaryLine label="Dress code" value={shift.dressCode} />
-      <SummaryLine label="Post to" value={SHIFT_DESTINATION_LABELS[shift.destination]} />
+      <SummaryLine
+        label="Dress code"
+        value={formatDressCodeLabel(shift.dressCode, shift.customDressCode)}
+      />
     </IzCard>
   );
 }
@@ -1044,8 +1010,8 @@ export function DraftShiftEditor({
   const agencyPRs = useStore((s) => s.agencyPRs);
   const outletOwner = useStore((s) => s.outletOwner);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
-  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
-  const [activeTier, setActiveTier] = useState<OutletPrTier>(OUTLET_BASE_TIER);
+  const workspaceRatesKey = workspaceTierRatesSignature(outletWorkspace.tierRates);
+  const prevWorkspaceRatesKey = useRef(workspaceRatesKey);
 
   const subscriptionPlan = getOutletSubscriptionPlan(outletOwner.subscriptionPlanId);
   const namedPrRemaining = Math.max(0, subscriptionPlan.prPerDayMax - namedPrsOnDate);
@@ -1056,18 +1022,11 @@ export function DraftShiftEditor({
       ? `${subscriptionPlan.label} plan · daily limit of ${subscriptionPlan.prPerDayMax} named PRs reached for this date`
       : `${subscriptionPlan.label} plan · ${formatOutletPlanPrPickerRule(subscriptionPlan)} · ${namedPrRemaining} named PR slot${namedPrRemaining === 1 ? "" : "s"} left today`;
 
-  const rangeDays = useMemo(
-    () => eachJobDateInRange(shift.jobDate, shift.jobEndDate),
-    [shift.jobDate, shift.jobEndDate],
-  );
   const maxPeople =
     peopleRemaining !== undefined
       ? peopleRemaining
       : subscriptionPlan.prPerDayMax;
-  const dateLabel =
-    rangeDays.length === 1
-      ? formatJobDate(shift.jobDate)
-      : formatJobDateRange(shift.jobDate, shift.jobEndDate);
+  const dateLabel = formatJobDates(shift.selectedDateIsos);
   const peopleNeededHint = formatOutletPlanDailyHeadcountHint(
     subscriptionPlan,
     maxPeople,
@@ -1080,15 +1039,40 @@ export function DraftShiftEditor({
     if (peopleRemaining <= 0) {
       if (shift.quantity !== 0) patches.quantity = 0;
       if (shift.prIds.length > 0) patches.prIds = [];
+      if (shift.payTierRows.some((row) => row.prCount > 0)) {
+        patches.payTierRows = shift.payTierRows.map((row) => ({ ...row, prCount: 0 }));
+      }
     } else if (shift.quantity > peopleRemaining) {
       patches.quantity = peopleRemaining;
       if (shift.prIds.length > peopleRemaining) {
         patches.prIds = shift.prIds.slice(0, peopleRemaining);
       }
+      const total = totalPrCountFromPayTierRows(shift.payTierRows);
+      if (total > peopleRemaining) {
+        let remaining = peopleRemaining;
+        patches.payTierRows = shift.payTierRows.map((row, index) => {
+          if (remaining <= 0) return { ...row, prCount: 0 };
+          if (index === shift.payTierRows.length - 1) {
+            const prCount = remaining;
+            remaining = 0;
+            return { ...row, prCount };
+          }
+          const prCount = Math.min(row.prCount, Math.max(1, remaining - (shift.payTierRows.length - index - 1)));
+          remaining -= prCount;
+          return { ...row, prCount };
+        });
+      }
     }
     if (Object.keys(patches).length > 0) onChange(patches);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- clamp when plan/date capacity changes only
-  }, [peopleRemaining, shift.jobDate, shift.jobEndDate]);
+  }, [peopleRemaining, shift.selectedDateIsos]);
+
+  useEffect(() => {
+    if (prevWorkspaceRatesKey.current === workspaceRatesKey) return;
+    prevWorkspaceRatesKey.current = workspaceRatesKey;
+    onChange(applyWorkspaceRatesToDraftShift(shift, outletWorkspace));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when workspace tier rates are saved
+  }, [workspaceRatesKey]);
 
   const languageOptions = useMemo(() => collectAgencyPrLanguages(agencyPRs), [agencyPRs]);
   const pickerOptions = useMemo(
@@ -1101,19 +1085,15 @@ export function DraftShiftEditor({
     return shift.prIds.length > 0 ? pickerOptions : [];
   }, [shift.langs, pickerOptions, shift.prIds.length]);
 
-  const tierMultipliers = useMemo(
-    () =>
-      normalizeOutletTierMultipliers(
-        getOutletRule(outletWorkspace.outletName, outletCommissionRules).tierMultipliers,
-      ),
-    [outletCommissionRules, outletWorkspace.outletName],
-  );
-
-  const patchTier = (tier: OutletPrTier, tierPatch: Partial<OutletTierRateSettings>) => {
-    const tierRates = patchDraftTierRates(shift.tierRates, tier, tierPatch, { tierMultipliers });
+  const updatePayTierRows = (rows: PostJobPayTierRow[]) => {
+    const tierRates = syncTierRatesFromPayTierRows(rows, shift.tierRates);
+    const quantity = totalPrCountFromPayTierRows(rows);
     onChange({
+      payTierRows: rows,
       tierRates,
-      payPerHour: tierRates[OUTLET_BASE_TIER].wagePerHour,
+      quantity,
+      payPerHour: basePayFromPayTierRows(rows),
+      prIds: shift.prIds.slice(0, quantity),
     });
   };
 
@@ -1139,13 +1119,15 @@ export function DraftShiftEditor({
           )}
         </div>
       </div>
-      <div className="border-b border-[var(--iz-line)] py-2.5">
-        <JobDateRangePicker
-          jobDate={shift.jobDate}
-          jobEndDate={shift.jobEndDate}
-          onChange={(patch) => onChange(patch)}
-        />
-      </div>
+      <FormRow label="Date" stacked>
+        <div className="iz-job-posting-control">
+          <JobMultiDatePicker
+            embedded
+            selectedDateIsos={shift.selectedDateIsos}
+            onChange={(selectedDateIsos) => onChange({ selectedDateIsos })}
+          />
+        </div>
+      </FormRow>
       <FormRow label="Event type" alignTop>
         <div className="flex w-full min-w-0 flex-col items-end gap-2">
           <div className="flex flex-nowrap justify-end gap-1">
@@ -1157,6 +1139,10 @@ export function DraftShiftEditor({
                   onChange({
                     eventKind: kind,
                     specialEventType: kind === "special" ? shift.specialEventType ?? "vip" : undefined,
+                    customSpecialEventName:
+                      kind === "special" && isOtherSpecialEvent(shift.specialEventType)
+                        ? shift.customSpecialEventName ?? ""
+                        : "",
                     eventDrinkMenu:
                       kind === "special"
                         ? shift.eventDrinkMenu ?? cloneDrinkMenu(outletWorkspace.drinkMenu ?? [])
@@ -1175,7 +1161,14 @@ export function DraftShiftEditor({
                 <button
                   key={option.id}
                   type="button"
-                  onClick={() => onChange({ specialEventType: option.id })}
+                  onClick={() =>
+                    onChange({
+                      specialEventType: option.id,
+                      customSpecialEventName: isOtherSpecialEvent(option.id)
+                        ? shift.customSpecialEventName ?? ""
+                        : "",
+                    })
+                  }
                   className={`iz-pill shrink-0 whitespace-nowrap !text-[10px] ${
                     shift.specialEventType === option.id ? "iz-pill-gold" : "iz-pill-ink"
                   }`}
@@ -1184,6 +1177,16 @@ export function DraftShiftEditor({
                 </button>
               ))}
             </IzHScroll>
+          )}
+          {shift.eventKind === "special" && isOtherSpecialEvent(shift.specialEventType) && (
+            <input
+              type="text"
+              className="iz-job-posting-control iz-job-posting-input w-full min-w-0 text-sm"
+              placeholder="Name your event type"
+              aria-label="Custom special event type"
+              value={shift.customSpecialEventName ?? ""}
+              onChange={(e) => onChange({ customSpecialEventName: e.target.value })}
+            />
           )}
         </div>
       </FormRow>
@@ -1209,7 +1212,7 @@ export function DraftShiftEditor({
           </div>
         ) : (
           <p className="text-right text-sm text-[var(--iz-txt)]">
-            From Workspace
+            Follow Workspace
             {(() => {
               const range = drinkMenuPriceRange(outletWorkspace.drinkMenu ?? []);
               return ` · RM ${range.min}–${range.max}`;
@@ -1223,28 +1226,6 @@ export function DraftShiftEditor({
       <FormRow label="Time" alignTop>
         <ShiftTimePicker value={shift.shiftTime} onChange={(shiftTime) => onChange({ shiftTime })} />
       </FormRow>
-      <FormRow label="People needed">
-        <div className="flex flex-col items-end gap-1">
-          {maxPeople <= 0 ? (
-            <p className="text-[11px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
-          ) : (
-            <>
-              <QuantityStepper
-                value={shift.quantity}
-                min={1}
-                max={maxPeople}
-                onChange={(quantity) =>
-                  onChange({
-                    quantity,
-                    prIds: shift.prIds.slice(0, quantity),
-                  })
-                }
-              />
-              <p className="text-[10px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
-            </>
-          )}
-        </div>
-      </FormRow>
       <FormRow label="Languages" alignTop>
         <JobLanguagePicker
           options={pickerOptions}
@@ -1255,55 +1236,68 @@ export function DraftShiftEditor({
       <FormRow label="Pay by PR tier" stacked alignTop last={false}>
         <div className="w-full min-w-0">
           <p className="mb-2 text-[10px] text-[var(--iz-muted)]">
-            Base pay scales by tier multiplier · optional sales target per tier · commission % from Workspace
+            Tier 1–5 have base salary · Commission only has higher drinks & tips · set PR count per row · tap highlighted cells to edit
           </p>
-          <TierRatesFields
-            tierRates={shift.tierRates}
-            activeTier={activeTier}
-            onActiveTierChange={setActiveTier}
-            onPatchTier={patchTier}
-            postJob
-            tierMultipliers={tierMultipliers}
+          {maxPeople <= 0 ? (
+            <p className="mb-2 text-[11px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
+          ) : (
+            <p className="mb-2 text-[10px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
+          )}
+          <PostJobTierRatesEditor
+            rows={shift.payTierRows}
+            workspaceTierRates={outletWorkspace.tierRates}
+            onChange={updatePayTierRows}
           />
           <button
             type="button"
-            className="iz-chip mt-2.5 w-full text-[11px]"
-            onClick={() =>
+            className="iz-chip mt-2 w-full text-[11px]"
+            onClick={() => {
+              const wsRates = draftTierRatesFromWorkspace(outletWorkspace);
+              const payTierRows = defaultPostJobPayTierRows(wsRates, Math.max(1, shift.quantity || 6));
               onChange({
-                tierRates: draftTierRatesFromWorkspace(outletWorkspace),
-                payPerHour: outletWorkspace.tierRates[OUTLET_BASE_TIER].wagePerHour,
-              })
-            }
+                tierRates: syncTierRatesFromPayTierRows(payTierRows, wsRates),
+                payTierRows,
+                quantity: totalPrCountFromPayTierRows(payTierRows),
+                payPerHour: basePayFromPayTierRows(payTierRows),
+                prIds: shift.prIds.slice(0, totalPrCountFromPayTierRows(payTierRows)),
+              });
+            }}
           >
             Reset to workspace rates
           </button>
         </div>
       </FormRow>
-      <FormRow label="Dress code">
-        <IzSelect
-          value={shift.dressCode}
-          onChange={(e) => onChange({ dressCode: e.target.value })}
-          className="max-w-[168px] text-right text-sm"
-        >
-          {DRESS_CODE_OPTIONS.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </IzSelect>
-      </FormRow>
-      <FormRow label="Post to">
-        <div className="flex flex-wrap justify-end gap-1">
-          {(Object.keys(SHIFT_DESTINATION_LABELS) as ShiftDestination[]).map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onChange({ destination: key })}
-              className={`iz-pill !text-[10px] ${shift.destination === key ? "iz-pill-violet" : "iz-pill-ink"}`}
-            >
-              {SHIFT_DESTINATION_LABELS[key]}
-            </button>
-          ))}
+      <FormRow label="Dress code" stacked alignTop>
+        <div className="flex w-full min-w-0 flex-col items-end gap-2">
+          <IzSelect
+            block
+            value={isOtherDressCode(shift.dressCode) ? DRESS_CODE_OTHER_ID : shift.dressCode}
+            onChange={(e) => {
+              const next = e.target.value;
+              onChange({
+                dressCode: next,
+                customDressCode: isOtherDressCode(next) ? shift.customDressCode ?? "" : "",
+              });
+            }}
+            className="!text-sm"
+          >
+            {DRESS_CODE_OPTIONS.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+            <option value={DRESS_CODE_OTHER_ID}>Other</option>
+          </IzSelect>
+          {isOtherDressCode(shift.dressCode) && (
+            <input
+              type="text"
+              className="iz-job-posting-control iz-job-posting-input w-full min-w-0 text-sm"
+              placeholder="Name dress code"
+              aria-label="Custom dress code"
+              value={shift.customDressCode ?? ""}
+              onChange={(e) => onChange({ customDressCode: e.target.value })}
+            />
+          )}
         </div>
       </FormRow>
       <FormRow label="Select PRs" stacked last>
@@ -1325,8 +1319,6 @@ export function DraftShiftEditor({
             maxSelect={subscriptionPlan.prSelectMax}
             dailyRemaining={namedPrRemaining}
             poolHint={prPickerHint}
-            referenceDate={shift.jobDate}
-            outletName={outletWorkspace.outletName}
           />
         )}
       </FormRow>

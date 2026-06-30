@@ -203,6 +203,7 @@ import {
   type OutletSubscriptionInvoice,
   type OutletSubscriptionPlanId,
 } from "@/lib/outlet-demo";
+import type { PostJobPayTierRow } from "@/lib/post-job-pay-tiers";
 import { buildDemoStoreReset, buildPrDemoReset, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
 import {
   SEED_SPECIAL_SERVICES,
@@ -294,6 +295,8 @@ export interface ShiftRequest {
   event: string;
   eventKind?: ShiftEventKind;
   specialEventType?: string;
+  /** Custom label when specialEventType is "other" */
+  customSpecialEventName?: string;
   /** Per-event drink prices — only for special events; normal events use workspace menu */
   eventDrinkMenu?: OutletDrinkPrice[];
   preferredRating: number;
@@ -317,6 +320,8 @@ export interface ShiftRequest {
   payPerHour: number;
   /** Per-shift wage & commission by PR training tier */
   tierRates?: Record<OutletPrTier, OutletTierRateSettings>;
+  /** Outlet-configured pay rows (Tier 1–5 + Commission only) */
+  payTierRows?: PostJobPayTierRow[];
   dressCode?: string;
   destination?: ShiftDestination;
   preferredStarTiers?: number[];

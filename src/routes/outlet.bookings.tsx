@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { startOfToday } from "date-fns";
 
 import { useStore } from "@/lib/store";
 
@@ -16,29 +17,41 @@ import {
 
   DraftShiftSummary,
 
+  applyWorkspaceRatesToDraftShift,
+
   buildLanguagesLabel,
 
   draftTierRatesFromWorkspace,
 
-  eachJobDateInRange,
+  eachJobDateFromIsos,
   estimateDraftShiftCost,
   formatJobDate,
-  formatJobDateRange,
+  formatJobDates,
   isoFromJobDate,
   languagesForPrIds,
   newDraftShift,
   starTierToMinRating,
 
+  workspaceTierRatesSignature,
+
   type DraftShift,
 
 } from "@/components/outlet/post-job-fields";
-
-import { outletCan } from "@/lib/outlet-rbac";
+import {
+  basePayFromPayTierRows,
+  clonePostJobPayTierRow,
+  defaultPostJobPayTierRows,
+  totalPrCountFromPayTierRows,
+} from "@/lib/post-job-pay-tiers";
 import {
   getOutletSubscriptionPlan,
+  isOtherDressCode,
+  isOtherSpecialEvent,
   outletNamedPrCountForDate,
   outletPrHeadcountForDate,
+  resolveDressCode,
 } from "@/lib/outlet-demo";
+import { outletCan } from "@/lib/outlet-rbac";
 
 import { cn } from "@/lib/utils";
 
@@ -113,13 +126,26 @@ function PostJobPage() {
 
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
 
+  const workspaceRatesKey = workspaceTierRatesSignature(outletWorkspace.tierRates);
+  const prevWorkspaceRatesKey = useRef(workspaceRatesKey);
+
+  useEffect(() => {
+    if (prevWorkspaceRatesKey.current === workspaceRatesKey) return;
+    prevWorkspaceRatesKey.current = workspaceRatesKey;
+    setComposer((c) => ({ ...c, ...applyWorkspaceRatesToDraftShift(c, outletWorkspace) }));
+    setDraftShifts((cur) =>
+      cur.map((s) => ({ ...s, ...applyWorkspaceRatesToDraftShift(s, outletWorkspace) })),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync post-job drafts when workspace rates are saved
+  }, [workspaceRatesKey]);
+
   const namedPrsOnDate = (jobDate: Date, excludeShiftId?: string) => {
     const iso = isoFromJobDate(jobDate);
     const booked = outletNamedPrCountForDate(shifts, outletName, iso);
     const fromDrafts = draftShifts
       .filter((d) => d.id !== excludeShiftId)
       .flatMap((d) =>
-        eachJobDateInRange(d.jobDate, d.jobEndDate).map((day) => ({ day, prIds: d.prIds })),
+        eachJobDateFromIsos(d.selectedDateIsos).map((day) => ({ day, prIds: d.prIds })),
       )
       .filter(({ day }) => isoFromJobDate(day) === iso)
       .reduce((sum, { prIds }) => sum + prIds.length, 0);
@@ -132,7 +158,7 @@ function PostJobPage() {
     const fromDrafts = draftShifts
       .filter((d) => d.id !== excludeShiftId)
       .flatMap((d) =>
-        eachJobDateInRange(d.jobDate, d.jobEndDate).map((day) => ({ day, quantity: d.quantity })),
+        eachJobDateFromIsos(d.selectedDateIsos).map((day) => ({ day, quantity: d.quantity })),
       )
       .filter(({ day }) => isoFromJobDate(day) === iso)
       .reduce((sum, { quantity }) => sum + quantity, 0);
@@ -140,7 +166,7 @@ function PostJobPage() {
   };
 
   const peopleRemainingForShift = (shift: DraftShift, excludeShiftId?: string) => {
-    const days = eachJobDateInRange(shift.jobDate, shift.jobEndDate);
+    const days = eachJobDateFromIsos(shift.selectedDateIsos);
     if (days.length === 0) return subscriptionPlan.prPerDayMax;
     return Math.min(
       ...days.map((day) =>
@@ -149,9 +175,15 @@ function PostJobPage() {
     );
   };
 
+  const namedPrsOnDateForShift = (shift: DraftShift, excludeShiftId?: string) => {
+    const days = eachJobDateFromIsos(shift.selectedDateIsos);
+    if (days.length === 0) return namedPrsOnDate(startOfToday(), excludeShiftId);
+    return Math.max(...days.map((day) => namedPrsOnDate(day, excludeShiftId)));
+  };
+
   const composerNamedPrsOnDate = useMemo(
-    () => namedPrsOnDate(composer.jobDate),
-    [composer.jobDate, shifts, draftShifts, outletName],
+    () => namedPrsOnDateForShift(composer),
+    [composer.selectedDateIsos, shifts, draftShifts, outletName],
   );
 
   const composerPeopleRemaining = useMemo(
@@ -173,21 +205,40 @@ function PostJobPage() {
       return;
     }
 
+    if (totalPrCountFromPayTierRows(composer.payTierRows) <= 0) {
+      toast("Set PR count per tier before adding a shift", "warn");
+      return;
+    }
+
     if (composer.quantity <= 0) {
       toast("Set people needed before adding a shift", "warn");
       return;
     }
 
-    const snapshot = newDraftShift({
-      jobDate: composer.jobDate,
+    if (
+      composer.eventKind === "special" &&
+      isOtherSpecialEvent(composer.specialEventType) &&
+      !composer.customSpecialEventName?.trim()
+    ) {
+      toast("Name your special event type", "warn");
+      return;
+    }
 
-      jobEndDate: composer.jobEndDate,
+    if (isOtherDressCode(composer.dressCode) && !composer.customDressCode?.trim()) {
+      toast("Name your dress code", "warn");
+      return;
+    }
+
+    const snapshot = newDraftShift({
+      selectedDateIsos: [...composer.selectedDateIsos],
 
       event: composer.event,
 
       eventKind: composer.eventKind,
 
       specialEventType: composer.specialEventType,
+
+      customSpecialEventName: composer.customSpecialEventName?.trim() || undefined,
 
       eventDrinkMenu:
 
@@ -213,7 +264,11 @@ function PostJobPage() {
 
       tierRates: composer.tierRates,
 
+      payTierRows: [...composer.payTierRows],
+
       dressCode: composer.dressCode,
+
+      customDressCode: composer.customDressCode?.trim() || undefined,
 
       destination: composer.destination,
 
@@ -221,14 +276,14 @@ function PostJobPage() {
 
     setDraftShifts((cur) => [...cur, snapshot]);
 
+    const resetPayTierRows = defaultPostJobPayTierRows(outletWorkspace.tierRates, 6);
     setComposer((c) => ({
-
       ...c,
-
       tierRates: draftTierRatesFromWorkspace(outletWorkspace),
-
       payPerHour: outletWorkspace.tierRates["Tier I"].wagePerHour,
-
+      payTierRows: resetPayTierRows,
+      quantity: totalPrCountFromPayTierRows(resetPayTierRows),
+      prIds: [],
     }));
 
     setEditingShiftId(null);
@@ -256,10 +311,9 @@ function PostJobPage() {
 
 
   const sectionDate =
-
     draftShifts.length > 0
-      ? formatJobDateRange(draftShifts[0].jobDate, draftShifts[0].jobEndDate)
-      : formatJobDateRange(composer.jobDate, composer.jobEndDate);
+      ? formatJobDates(draftShifts[0].selectedDateIsos)
+      : formatJobDates(composer.selectedDateIsos);
 
 
 
@@ -279,8 +333,23 @@ function PostJobPage() {
 
     if (draftShifts.length === 0) return;
 
+    for (const s of draftShifts) {
+      if (
+        s.eventKind === "special" &&
+        isOtherSpecialEvent(s.specialEventType) &&
+        !s.customSpecialEventName?.trim()
+      ) {
+        toast("Name your special event type before posting", "warn");
+        return;
+      }
+      if (isOtherDressCode(s.dressCode) && !s.customDressCode?.trim()) {
+        toast("Name your dress code before posting", "warn");
+        return;
+      }
+    }
+
     const expandedShifts = draftShifts.flatMap((s) =>
-      eachJobDateInRange(s.jobDate, s.jobEndDate).map((jobDate) => ({ ...s, jobDate })),
+      eachJobDateFromIsos(s.selectedDateIsos).map((jobDate) => ({ ...s, jobDate })),
     );
 
     const byDate = new Map<string, number>();
@@ -339,7 +408,7 @@ function PostJobPage() {
 
         shift: s.shiftTime,
 
-        quantity: s.quantity,
+        quantity: totalPrCountFromPayTierRows(s.payTierRows),
 
         languages: buildLanguagesLabel(
           s.langs.length > 0 ? s.langs : languagesForPrIds(s.prIds, agencyPRs),
@@ -352,6 +421,11 @@ function PostJobPage() {
 
         specialEventType: s.eventKind === "special" ? s.specialEventType : undefined,
 
+        customSpecialEventName:
+          s.eventKind === "special" && isOtherSpecialEvent(s.specialEventType)
+            ? s.customSpecialEventName?.trim() || undefined
+            : undefined,
+
         eventDrinkMenu:
           s.eventKind === "special" ? s.eventDrinkMenu?.map((d) => ({ ...d })) : undefined,
 
@@ -363,11 +437,13 @@ function PostJobPage() {
 
         liveSales: 0,
 
-        payPerHour: s.tierRates["Tier I"].wagePerHour,
+        payPerHour: basePayFromPayTierRows(s.payTierRows),
 
         tierRates: s.tierRates,
 
-        dressCode: s.dressCode,
+        payTierRows: s.payTierRows.map(clonePostJobPayTierRow),
+
+        dressCode: resolveDressCode(s.dressCode, s.customDressCode),
 
         destination: s.destination,
 
@@ -465,7 +541,7 @@ function PostJobPage() {
 
           >
 
-            <Plus className="h-3.5 w-3.5" /> Shifts
+            PR Shift
 
           </button>
 
@@ -571,7 +647,7 @@ function PostJobPage() {
 
                     onDone={() => setEditingShiftId(null)}
 
-                    namedPrsOnDate={namedPrsOnDate(s.jobDate, s.id)}
+                    namedPrsOnDate={namedPrsOnDateForShift(s, s.id)}
 
                     peopleRemaining={peopleRemainingForShift(s, s.id)}
 

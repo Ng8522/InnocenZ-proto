@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { IzCard } from "@/components/iz/ui";
 import { OutletSection } from "@/components/outlet/OutletSection";
-import { TierRatesFields } from "@/components/outlet/TierRatesFields";
+import { WorkspaceTierRatesEditor } from "@/components/outlet/WorkspaceTierRatesEditor";
 import { useStore } from "@/lib/store";
 import { outletCan } from "@/lib/outlet-rbac";
 import { OutletDrinkMenuEditor } from "@/components/outlet/OutletDrinkMenuEditor";
@@ -95,7 +95,6 @@ function OutletWorkspacePage() {
   const { outletWorkspace, saveOutletWorkspace } = useStore();
   const canEdit = outletCan(outletSubRole, "manageWorkspace");
   const [draft, setDraft] = useState(outletWorkspace);
-  const [activeTier, setActiveTier] = useState<OutletPrTier>(OUTLET_BASE_TIER);
 
   useEffect(() => {
     setDraft(outletWorkspace);
@@ -130,8 +129,7 @@ function OutletWorkspacePage() {
     });
   };
   const drinkRange = drinkMenuPriceRange(draft.drinkMenu ?? []);
-  const activeRates = draft.tierRates[activeTier];
-  const tierHint = `${activeRates.drinkPct}% drink · ${activeRates.tipPct}% tip · ${formatTierWageRange(draft.tierRates)} · synced to agency`;
+  const tierHint = `${formatTierWageRange(draft.tierRates)} · synced to post job & agency`;
 
   return (
     <div className="iz-screen">
@@ -147,17 +145,14 @@ function OutletWorkspacePage() {
 
       <OutletSection
         title="Rates by PR tier"
-        hint={`${activeTier} · ${tierHint}`}
+        hint={tierHint}
         className="!mt-4"
       >
         <IzCard className="!py-3">
-          <TierRatesFields
+          <WorkspaceTierRatesEditor
             tierRates={draft.tierRates}
-            activeTier={activeTier}
-            onActiveTierChange={setActiveTier}
             onPatchTier={patchTier}
             readOnly={!canEdit}
-            hideTablePct
           />
         </IzCard>
       </OutletSection>

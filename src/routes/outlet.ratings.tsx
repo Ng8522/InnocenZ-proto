@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
-import { OutletBookings } from "@/components/outlet/OutletBookings";
+import { OutletOperationsCalendar } from "@/components/outlet/OutletOperationsCalendar";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { outletCan } from "@/lib/outlet-rbac";
 import { Star } from "lucide-react";
 
 export const Route = createFileRoute("/outlet/ratings")({
-  component: FutureOperationsPage,
+  component: CalendarPage,
 });
 
-function FutureOperationsPage() {
+function CalendarPage() {
   const outletSubRole = useStore((s) => s.outletSubRole);
   const ratings = useStore((s) => s.ratings);
   const canView = outletCan(outletSubRole, "ratePrs") || outletCan(outletSubRole, "viewLiveDashboard");
@@ -18,7 +18,7 @@ function FutureOperationsPage() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Future Operations</h2>
+          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Calendar page</h2>
         </header>
         <p className="iz-tiny iz-muted mt-4 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
           Your role cannot access upcoming shifts.
@@ -32,13 +32,13 @@ function FutureOperationsPage() {
       <header className="pt-1">
         <p className="iz-tiny iz-muted2 uppercase tracking-widest">Upcoming</p>
         <h2 className="font-sora mt-0.5 text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
-          Future Operations
+          Calendar page
         </h2>
-        <p className="iz-tiny iz-muted2 mt-0.5">Tap a shift to expand</p>
+        <p className="iz-tiny iz-muted2 mt-0.5">Click a shift to view details</p>
       </header>
 
       <div className="mt-2.5">
-        <OutletBookings variant="future" />
+        <OutletOperationsCalendar />
       </div>
 
       {ratings.length > 0 && (

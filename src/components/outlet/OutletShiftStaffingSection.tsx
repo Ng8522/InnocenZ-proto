@@ -1,0 +1,122 @@
+import { IzPill } from "@/components/iz/ui";
+import {
+  agencyNameForShift,
+  buildShiftStaffRows,
+  shiftDemandBreakdown,
+  shiftStaffingSummary,
+  type ShiftStaffRow,
+} from "@/lib/outlet-shift-staffing";
+import { resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
+import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import { useStore, type ShiftRequest } from "@/lib/store";
+import { cn } from "@/lib/utils";
+
+function StaffRow({ row }: { row: ShiftStaffRow }) {
+  return (
+    <div className="iz-outlet-staff-row">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-sm font-semibold text-[var(--iz-txt)]">{row.name}</span>
+          {row.tier && (
+            <span className="iz-outlet-staff-tag iz-outlet-staff-tag--tier">{row.tier}</span>
+          )}
+          {row.rating != null && (
+            <span className="text-[10px] text-[var(--iz-gold)]">{row.rating}★</span>
+          )}
+        </div>
+        <p className="iz-tiny iz-muted2 mt-0.5">
+          {row.shiftTime} · {row.agencyLabel}
+        </p>
+      </div>
+      <span
+        className={cn(
+          "iz-outlet-staff-tag shrink-0",
+          row.statusLabel === "Booked" && "iz-outlet-staff-tag--booked",
+          row.statusLabel === "Applied" && "iz-outlet-staff-tag--applied",
+          row.statusLabel === "Accepted" && "iz-outlet-staff-tag--accepted",
+          row.statusLabel === "Pending agency" && "iz-outlet-staff-tag--pending",
+          row.statusLabel === "Declined" && "iz-outlet-staff-tag--declined",
+        )}
+      >
+        {row.statusLabel}
+      </span>
+    </div>
+  );
+}
+
+export function OutletShiftStaffingSection({ shift }: { shift: ShiftRequest }) {
+  const agencyRoster = useStore((s) => s.agencyRoster);
+  const agencyPRs = useStore((s) => s.agencyPRs);
+  const shiftApplicants = useStore((s) => s.shiftApplicants);
+
+  const dateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso, DEFAULT_ROSTER_DATE_ISO);
+  const agencyName = agencyNameForShift(shift, agencyRoster, dateIso);
+  const demandRows = shiftDemandBreakdown(shift, agencyName);
+  const { demand, supplied, pendingCount } = shiftStaffingSummary(shift, shiftApplicants);
+  const { booked, applicants } = buildShiftStaffRows({
+    shift,
+    dateIso,
+    agencyPRs,
+    agencyRoster,
+    shiftApplicants,
+    agencyName,
+  });
+
+  return (
+    <div className="iz-outlet-staffing-section">
+      <div className="iz-outlet-staffing-block">
+        <div className="flex items-center justify-between gap-2">
+          <p className="iz-outlet-staffing-heading">Demand · {demand} PR needed</p>
+          <IzPill variant="amber" className="!py-0.5 !text-[9px]">
+            {supplied}/{demand} supplied
+          </IzPill>
+        </div>
+        <div className="mt-2 space-y-1.5">
+          {demandRows.map((row) => (
+            <div key={row.source} className="iz-outlet-demand-row">
+              <span className="iz-outlet-staff-tag shrink-0 iz-outlet-staff-tag--agency">
+                Agency
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-[var(--iz-txt)]">{row.source}</p>
+                <p className="iz-tiny iz-muted2">{row.slots} slots posted</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="iz-outlet-staffing-block">
+        <p className="iz-outlet-staffing-heading">
+          PRs on shift · {booked.length} booked
+          {pendingCount > 0 ? ` · ${pendingCount} applied` : ""}
+        </p>
+        {booked.length === 0 ? (
+          <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-3 py-4 text-center">
+            No PRs booked yet — {pendingCount > 0 ? `${pendingCount} waiting review` : "open for applications"}
+          </p>
+        ) : (
+          <div className="mt-2 space-y-1.5">
+            {booked.map((row) => (
+              <StaffRow key={row.id} row={row} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {applicants.length > 0 && (
+        <div className="iz-outlet-staffing-block">
+          <p className="iz-outlet-staffing-heading">Applicants · {applicants.length}</p>
+          <p className="iz-tiny iz-muted2 mt-0.5">
+            PRs who applied for this event — review before confirming shift.
+          </p>
+          <div className="mt-2 space-y-1.5">
+            {applicants.map((row) => (
+              <StaffRow key={`${row.id}-${row.statusLabel}`} row={row} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

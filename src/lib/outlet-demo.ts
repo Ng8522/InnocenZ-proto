@@ -31,6 +31,27 @@ export const DRESS_CODE_OPTIONS = [
   "Formal gown",
 ] as const;
 
+export const DRESS_CODE_OTHER_ID = "Other";
+
+export function isOtherDressCode(code: string | undefined): boolean {
+  return code === DRESS_CODE_OTHER_ID;
+}
+
+export function formatDressCodeLabel(dressCode: string, customDressCode?: string): string {
+  if (isOtherDressCode(dressCode)) {
+    const name = customDressCode?.trim();
+    return name || DRESS_CODE_OTHER_ID;
+  }
+  return dressCode;
+}
+
+export function resolveDressCode(dressCode: string, customDressCode?: string): string {
+  if (isOtherDressCode(dressCode)) {
+    return customDressCode?.trim() || DRESS_CODE_OTHER_ID;
+  }
+  return dressCode;
+}
+
 export type ShiftEventKind = "normal" | "special";
 
 export const SHIFT_EVENT_KIND_LABELS: Record<ShiftEventKind, string> = {
@@ -39,26 +60,38 @@ export const SHIFT_EVENT_KIND_LABELS: Record<ShiftEventKind, string> = {
 };
 
 /** Sub-types when posting a special-event shift */
+export const SHIFT_SPECIAL_EVENT_OTHER_ID = "other";
+
 export const SHIFT_SPECIAL_EVENT_OPTIONS = [
   { id: "vip", label: "VIP" },
   { id: "launch", label: "Product launch" },
   { id: "private_table", label: "Private table buyout" },
   { id: "brand_activation", label: "Brand activation" },
   { id: "corporate", label: "Corporate" },
+  { id: "other", label: "Other" },
 ] as const;
 
 export type ShiftSpecialEventType = (typeof SHIFT_SPECIAL_EVENT_OPTIONS)[number]["id"];
 
-export function shiftSpecialEventLabel(type: string | undefined): string {
+export function isOtherSpecialEvent(type: string | undefined): boolean {
+  return type === SHIFT_SPECIAL_EVENT_OTHER_ID;
+}
+
+export function shiftSpecialEventLabel(type: string | undefined, customName?: string): string {
+  if (isOtherSpecialEvent(type)) {
+    const name = customName?.trim();
+    return name || "Other";
+  }
   return SHIFT_SPECIAL_EVENT_OPTIONS.find((o) => o.id === type)?.label ?? type ?? "";
 }
 
 export function formatShiftEventTypeSummary(
   eventKind: ShiftEventKind,
   specialEventType?: string,
+  customSpecialEventName?: string,
 ): string {
   if (eventKind === "normal") return SHIFT_EVENT_KIND_LABELS.normal;
-  const sub = shiftSpecialEventLabel(specialEventType);
+  const sub = shiftSpecialEventLabel(specialEventType, customSpecialEventName);
   return sub ? `${SHIFT_EVENT_KIND_LABELS.special} · ${sub}` : SHIFT_EVENT_KIND_LABELS.special;
 }
 
@@ -408,7 +441,13 @@ export interface OutletOwnerSettings {
   subscriptionPlanId?: OutletSubscriptionPlanId;
 }
 
-export type OutletSubscriptionPlanId = "starter" | "plus" | "pro" | "enterprise";
+export type OutletSubscriptionPlanId =
+  | "starter"
+  | "plus"
+  | "pro"
+  | "enterprise"
+  | "scale"
+  | "premier";
 
 export interface OutletSubscriptionPlan {
   id: OutletSubscriptionPlanId;
@@ -430,7 +469,7 @@ export const OUTLET_SUBSCRIPTION_PLANS: OutletSubscriptionPlan[] = [
   {
     id: "starter",
     label: "Essential",
-    monthlyRm: 499,
+    monthlyRm: 999,
     prPerDayMax: 5,
     prPoolSize: 10,
     prSelectMax: 5,
@@ -440,7 +479,7 @@ export const OUTLET_SUBSCRIPTION_PLANS: OutletSubscriptionPlan[] = [
   {
     id: "plus",
     label: "Plus",
-    monthlyRm: 999,
+    monthlyRm: 1699,
     prPerDayMin: 6,
     prPerDayMax: 10,
     prPoolSize: 20,
@@ -451,7 +490,7 @@ export const OUTLET_SUBSCRIPTION_PLANS: OutletSubscriptionPlan[] = [
   {
     id: "pro",
     label: "Pro",
-    monthlyRm: 1999,
+    monthlyRm: 2999,
     prPerDayMin: 11,
     prPerDayMax: 25,
     prPoolSize: 50,
@@ -464,11 +503,33 @@ export const OUTLET_SUBSCRIPTION_PLANS: OutletSubscriptionPlan[] = [
     label: "Enterprise",
     monthlyRm: 3999,
     prPerDayMin: 26,
-    prPerDayMax: 100,
+    prPerDayMax: 50,
     prPoolSize: 100,
+    prSelectMax: 50,
+    capacityLabel: "26–50 PRs / day",
+    description: "Large venues · choose 50 from 100 PRs per shift",
+  },
+  {
+    id: "scale",
+    label: "Scale",
+    monthlyRm: 6999,
+    prPerDayMin: 51,
+    prPerDayMax: 100,
+    prPoolSize: 200,
     prSelectMax: 100,
-    capacityLabel: "26+ PRs / day",
-    description: "Large venues · choose more than 26 PRs per shift",
+    capacityLabel: "51–100 PRs / day",
+    description: "High-volume nights · choose 100 from 200 PRs per shift",
+  },
+  {
+    id: "premier",
+    label: "Premier",
+    monthlyRm: 9999,
+    prPerDayMin: 101,
+    prPerDayMax: 999,
+    prPoolSize: 400,
+    prSelectMax: 200,
+    capacityLabel: "101+ PRs / day",
+    description: "Flagship venues · choose more than 100 PRs per shift",
   },
 ];
 
@@ -482,7 +543,7 @@ export function getOutletSubscriptionPlan(
 }
 
 export function formatOutletPlanPrPickerRule(plan: OutletSubscriptionPlan): string {
-  if (plan.id === "enterprise") return "Choose more than 26 PRs";
+  if (plan.id === "premier") return "Choose more than 100 PRs";
   return `Choose ${plan.prSelectMax} from ${plan.prPoolSize} PRs`;
 }
 
@@ -575,7 +636,7 @@ export const OUTLET_SUBSCRIPTION_BILLING: OutletSubscriptionInvoice[] = [
     issueDate: "25 Jun 2026",
     detail: "Jun 2026 · Pro · InnocenZ Outlet SaaS",
     planLabel: "Pro",
-    amount: 1999,
+    amount: 2999,
     status: "SETTLED",
   },
   {
@@ -583,7 +644,7 @@ export const OUTLET_SUBSCRIPTION_BILLING: OutletSubscriptionInvoice[] = [
     issueDate: "1 May 2026",
     detail: "May 2026 · Plus · InnocenZ Outlet SaaS",
     planLabel: "Plus",
-    amount: 999,
+    amount: 1699,
     status: "SETTLED",
   },
 ];
@@ -609,16 +670,22 @@ export function normalizeOutletSubscriptionInvoice(
   inv: OutletSubscriptionInvoice & { planLabel?: string },
 ): OutletSubscriptionInvoice {
   if (inv.planLabel) return inv;
+  if (inv.detail.includes("Premier")) {
+    return { ...inv, planLabel: "Premier", amount: 9999 };
+  }
+  if (inv.detail.includes("Scale")) {
+    return { ...inv, planLabel: "Scale", amount: 6999 };
+  }
   if (inv.detail.includes("Enterprise")) {
     return { ...inv, planLabel: "Enterprise", amount: 3999 };
   }
   if (inv.detail.includes("Pro")) {
-    return { ...inv, planLabel: "Pro", amount: 1999 };
+    return { ...inv, planLabel: "Pro", amount: 2999 };
   }
   if (inv.detail.includes("Essential")) {
-    return { ...inv, planLabel: "Essential", amount: 499 };
+    return { ...inv, planLabel: "Essential", amount: 999 };
   }
-  return { ...inv, planLabel: "Plus", amount: inv.amount || 999 };
+  return { ...inv, planLabel: "Plus", amount: inv.amount || 1699 };
 }
 
 /** Ensure billing reflects the active plan (e.g. after upgrade from persisted Plus history). */

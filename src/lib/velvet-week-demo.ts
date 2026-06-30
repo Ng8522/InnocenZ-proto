@@ -8,7 +8,7 @@ import { SHIFT_SEALED_BASE_WAGE } from "@/lib/pr-weekly-payment";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 
 export const VELVET_OUTLET_NAME = "Velvet 23";
-const VELVET_AGENCY = "Atlas Agency";
+export const VELVET_AGENCY = "Atlas Agency";
 
 interface VelvetPrNight {
   prId: string;
@@ -441,7 +441,14 @@ export function velvetReportDateBounds(): { minIso: string; maxIso: string } {
 }
 
 function nightsInRange(startIso: string, endIso: string): VelvetNightShift[] {
-  return ALL_VELVET_NIGHTS.filter((n) => n.dateIso >= startIso && n.dateIso <= endIso);
+  return mappedVelvetReportNights().filter((n) => n.dateIso >= startIso && n.dateIso <= endIso);
+}
+
+/** Payroll-calendar nights for all demo report weeks (Sun–Sat mapped). */
+export function mappedVelvetReportNights(): VelvetNightShift[] {
+  return getVelvetReportWeekOptions().flatMap((week) =>
+    mapNightsToPayrollWeek(week.weekSundayIso, week.nights),
+  );
 }
 
 /** Future nights are not sealed yet — keep the week grid but zero earnings. */
@@ -548,6 +555,37 @@ export function getOutletReportForDateRange(
   const endLabel = nights[nights.length - 1]!.dateDisplay;
   const periodLabel =
     startIso === endIso ? nights[0]!.dateDisplay : `${startLabel} – ${endLabel}`;
+
+  return buildReportFromNights(nights, periodLabel, priorNights);
+}
+
+export function getOutletReportForDates(
+  outletName: string,
+  dateIsos: string[],
+): OutletWeeklyReport | null {
+  if (outletName !== VELVET_OUTLET_NAME || dateIsos.length === 0) return null;
+  const sorted = [...dateIsos].sort();
+  const isoSet = new Set(sorted);
+  const nights = mappedVelvetReportNights()
+    .filter((n) => isoSet.has(n.dateIso))
+    .sort((a, b) => a.dateIso.localeCompare(b.dateIso));
+  if (nights.length === 0) return null;
+
+  const startIso = sorted[0]!;
+  const endIso = sorted[sorted.length - 1]!;
+  const spanDays =
+    Math.round(
+      (new Date(`${endIso}T12:00:00`).getTime() - new Date(`${startIso}T12:00:00`).getTime()) /
+        86400000,
+    ) + 1;
+  const priorEnd = addDaysToIso(startIso, -1);
+  const priorStart = addDaysToIso(startIso, -spanDays);
+  const priorNights = nightsInRange(priorStart, priorEnd);
+
+  const periodLabel =
+    sorted.length === 1
+      ? nights[0]!.dateDisplay
+      : `${nights[0]!.dateDisplay.replace(/ \d{4}$/, "")} – ${nights[nights.length - 1]!.dateDisplay.replace(/^.* /, "")} · ${sorted.length} nights`;
 
   return buildReportFromNights(nights, periodLabel, priorNights);
 }

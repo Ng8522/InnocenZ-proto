@@ -138,12 +138,15 @@ export function TierRatePill({
 
 export function ShiftTierWagesStrip({
   tierRates,
+  tiers,
   compact = true,
 }: {
   tierRates: Record<OutletPrTier, OutletTierRateSettings>;
+  tiers?: OutletPrTier[];
   compact?: boolean;
 }) {
-  const hasSalesTargets = OUTLET_PR_TIERS.some((t) => (tierRates[t].targetSalesRm ?? 0) > 0);
+  const visibleTiers = tiers?.length ? tiers : OUTLET_PR_TIERS;
+  const hasSalesTargets = visibleTiers.some((t) => (tierRates[t].targetSalesRm ?? 0) > 0);
 
   return (
     <div className={compact ? "mt-1.5" : "mt-2"}>
@@ -155,8 +158,14 @@ export function ShiftTierWagesStrip({
       >
         {hasSalesTargets ? "Target pay & sales by tier" : "Target pay / hr by tier"}
       </p>
-      <div className={cn("grid grid-cols-5 items-stretch gap-px", compact ? "" : "gap-0.5")}>
-        {OUTLET_PR_TIERS.map((tier) => (
+      <div
+        className={cn(
+          "grid items-stretch gap-px",
+          compact ? "" : "gap-0.5",
+        )}
+        style={{ gridTemplateColumns: `repeat(${visibleTiers.length}, minmax(0, 1fr))` }}
+      >
+        {visibleTiers.map((tier) => (
           <TierRatePill
             key={tier}
             tier={tier}

@@ -261,31 +261,6 @@ function AgencyProfile() {
         />
       </IzCard>
 
-      <IzSectionLabel>Login &amp; security</IzSectionLabel>
-      <IzCard>
-        <p className="iz-tiny iz-muted mb-3">
-          Update password anytime. Email and mobile changes require OTP verification.
-        </p>
-        <button
-          type="button"
-          className="iz-btn iz-btn-primary w-full"
-          onClick={() => setSecurityOpen(true)}
-        >
-          Security settings
-        </button>
-      </IzCard>
-
-      <SecuritySettingsSheets
-        open={securityOpen}
-        onClose={() => setSecurityOpen(false)}
-        sheetVariant="side"
-        email={agencyOwner.email}
-        mobile={agencyOwner.mobile}
-        canEdit={canEdit}
-        onUpdateEmail={(email) => saveAgencyOwner({ email })}
-        onUpdateMobile={(mobile) => saveAgencyOwner({ mobile })}
-      />
-
       <IzSectionLabel>Finance Head · dual-sign PV</IzSectionLabel>
       <IzCard className={editCardClass}>
         <p className="iz-tiny iz-muted mb-2">
@@ -333,6 +308,31 @@ function AgencyProfile() {
           </IzCard>
         </>
       )}
+
+      <IzSectionLabel>Login &amp; security</IzSectionLabel>
+      <IzCard>
+        <p className="iz-tiny iz-muted mb-3">
+          Update password anytime. Email and mobile changes require OTP verification.
+        </p>
+        <button
+          type="button"
+          className="iz-btn iz-btn-primary w-full"
+          onClick={() => setSecurityOpen(true)}
+        >
+          Security settings
+        </button>
+      </IzCard>
+
+      <SecuritySettingsSheets
+        open={securityOpen}
+        onClose={() => setSecurityOpen(false)}
+        sheetVariant="side"
+        email={agencyOwner.email}
+        mobile={agencyOwner.mobile}
+        canEdit={canEdit}
+        onUpdateEmail={(email) => saveAgencyOwner({ email })}
+        onUpdateMobile={(mobile) => saveAgencyOwner({ mobile })}
+      />
 
       {canEdit && (
         <div className="iz-profile-actions mt-4">

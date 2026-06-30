@@ -32,6 +32,8 @@ export type AgencyOutletAvailableShift = {
   destination?: ShiftDestination;
   eventKind?: ShiftEventKind;
   specialEventType?: string;
+  /** Custom label when specialEventType is "other" */
+  customSpecialEventName?: string;
   /** Legacy tied-offer flag — prefer eventKind / specialEventType */
   vip?: boolean;
   briefing?: string;
@@ -122,13 +124,18 @@ function outletDefaultTierRates(outlet: string, ctx: TierRatesContext) {
 }
 
 function postedShiftEventFields(
-  shift: Pick<ShiftRequest, "eventKind" | "specialEventType">,
-): Pick<AgencyOutletAvailableShift, "eventKind" | "specialEventType" | "vip"> {
+  shift: Pick<ShiftRequest, "eventKind" | "specialEventType" | "customSpecialEventName">,
+): Pick<AgencyOutletAvailableShift, "eventKind" | "specialEventType" | "customSpecialEventName" | "vip"> {
   const eventKind = shift.eventKind ?? "normal";
   const specialEventType = eventKind === "special" ? shift.specialEventType : undefined;
+  const customSpecialEventName =
+    eventKind === "special" && specialEventType === "other"
+      ? shift.customSpecialEventName?.trim() || undefined
+      : undefined;
   return {
     eventKind,
     specialEventType,
+    customSpecialEventName,
     vip: eventKind === "special" && specialEventType === "vip",
   };
 }
@@ -576,10 +583,17 @@ export function shiftDestinationLabel(destination?: ShiftDestination) {
 }
 
 export function outletShiftEventTypeLabel(
-  shift: Pick<AgencyOutletAvailableShift, "eventKind" | "specialEventType" | "vip">,
+  shift: Pick<
+    AgencyOutletAvailableShift,
+    "eventKind" | "specialEventType" | "customSpecialEventName" | "vip"
+  >,
 ): string {
   if (shift.eventKind === "special") {
-    return formatShiftEventTypeSummary("special", shift.specialEventType);
+    return formatShiftEventTypeSummary(
+      "special",
+      shift.specialEventType,
+      shift.customSpecialEventName,
+    );
   }
   if (shift.vip) return formatShiftEventTypeSummary("special", "vip");
   return formatShiftEventTypeSummary("normal");

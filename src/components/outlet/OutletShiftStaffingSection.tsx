@@ -1,4 +1,4 @@
-import { IzPill } from "@/components/iz/ui";
+import { IzPill, TierBadge, TrafficPill } from "@/components/iz/ui";
 import {
   agencyNameForShift,
   buildShiftStaffRows,
@@ -10,6 +10,8 @@ import { resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { useStore, type ShiftRequest } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { trafficLevelForRatio } from "@/lib/traffic-status";
+import { ClipboardList, UserCheck, Users } from "lucide-react";
 
 function StaffRow({ row }: { row: ShiftStaffRow }) {
   return (
@@ -17,9 +19,7 @@ function StaffRow({ row }: { row: ShiftStaffRow }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm font-semibold text-[var(--iz-txt)]">{row.name}</span>
-          {row.tier && (
-            <span className="iz-outlet-staff-tag iz-outlet-staff-tag--tier">{row.tier}</span>
-          )}
+          {row.tier && <TierBadge tier={row.tier} />}
           {row.rating != null && (
             <span className="text-[10px] text-[var(--iz-gold)]">{row.rating}★</span>
           )}
@@ -66,10 +66,16 @@ export function OutletShiftStaffingSection({ shift }: { shift: ShiftRequest }) {
     <div className="iz-outlet-staffing-section">
       <div className="iz-outlet-staffing-block">
         <div className="flex items-center justify-between gap-2">
-          <p className="iz-outlet-staffing-heading">Demand · {demand} PR needed</p>
-          <IzPill variant="amber" className="!py-0.5 !text-[9px]">
+          <p className="iz-outlet-staffing-heading flex items-center gap-1.5">
+            <ClipboardList className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />
+            Demand · {demand} PR needed
+          </p>
+          <TrafficPill
+            level={trafficLevelForRatio(supplied, demand)}
+            className="!py-0.5 !text-[9px]"
+          >
             {supplied}/{demand} supplied
-          </IzPill>
+          </TrafficPill>
         </div>
         <div className="mt-2 space-y-1.5">
           {demandRows.map((row) => (
@@ -87,7 +93,8 @@ export function OutletShiftStaffingSection({ shift }: { shift: ShiftRequest }) {
       </div>
 
       <div className="iz-outlet-staffing-block">
-        <p className="iz-outlet-staffing-heading">
+        <p className="iz-outlet-staffing-heading flex items-center gap-1.5">
+          <Users className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />
           PRs on shift · {booked.length} booked
           {pendingCount > 0 ? ` · ${pendingCount} applied` : ""}
         </p>
@@ -106,7 +113,10 @@ export function OutletShiftStaffingSection({ shift }: { shift: ShiftRequest }) {
 
       {applicants.length > 0 && (
         <div className="iz-outlet-staffing-block">
-          <p className="iz-outlet-staffing-heading">Applicants · {applicants.length}</p>
+          <p className="iz-outlet-staffing-heading flex items-center gap-1.5">
+            <UserCheck className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />
+            Applicants · {applicants.length}
+          </p>
           <p className="iz-tiny iz-muted2 mt-0.5">
             PRs who applied for this event — review before confirming shift.
           </p>

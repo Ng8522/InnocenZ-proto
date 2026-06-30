@@ -17,11 +17,12 @@ import {
 } from "@/components/agency/Comcard3dPreview";
 import { OutletPrShiftHistorySheet } from "@/components/iz/ShiftHistoryLog";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzPill } from "@/components/iz/ui";
+import { IzPill, TierBadge } from "@/components/iz/ui";
 import {
   workforceStatusLabel,
   workforceStatusVariant,
 } from "@/components/portal/LiveWorkforceTable";
+import { OutletFormCard } from "@/components/outlet/outlet-portal-ui";
 import { Star } from "lucide-react";
 
 type FloorDisplayStatus = "on-duty" | "en-route" | "scheduled" | "out";
@@ -176,9 +177,19 @@ export function OutletTodayOperationPanel({
   if (!canRate) return null;
 
   return (
-    <>
-      {postSealRatePrompt && (
-        <div className="mb-2.5 flex items-center justify-between gap-2 rounded-xl border border-[rgba(232,194,122,.3)] bg-[rgba(232,194,122,.06)] px-3 py-2">
+    <OutletFormCard className={cn("!mb-0", className)}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="iz-tiny iz-muted2 uppercase tracking-widest">Today operation</p>
+          <p className="font-sora mt-0.5 text-sm font-bold text-[var(--iz-txt)] truncate">
+            {shift.event}
+          </p>
+          <p className="iz-tiny iz-muted mt-0.5">{shift.shift}</p>
+        </div>
+      </div>
+
+      {postSealRatePrompt && canRate && (
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-[rgba(232,194,122,.3)] bg-[rgba(232,194,122,.06)] px-3 py-2">
           <p className="text-xs font-semibold">
             Rate {postSealRatePrompt.prIds.length} PR
             {postSealRatePrompt.prIds.length !== 1 ? "s" : ""} · 24h
@@ -291,9 +302,7 @@ export function OutletTodayOperationPanel({
             <Comcard3dPreviewVisual pr={comcardPreviewPr} showName={false} compact />
             <div className="iz-outlet-comcard-sheet__pills">
               {comcardPreviewProfile?.trainingLevel && (
-                <IzPill variant="ink" className="!py-0.5 !text-[9px]">
-                  {comcardPreviewProfile.trainingLevel}
-                </IzPill>
+                <TierBadge tier={comcardPreviewProfile.trainingLevel} />
               )}
               {comcardPreviewProfile?.rating != null && (
                 <IzPill variant="gold" className="!py-0.5 !text-[9px]">
@@ -424,6 +433,6 @@ export function OutletTodayOperationPanel({
           </div>
         </IzSheet>
       )}
-    </>
+    </OutletFormCard>
   );
 }

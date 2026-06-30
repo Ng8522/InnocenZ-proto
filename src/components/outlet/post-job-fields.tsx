@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+﻿import { useMemo, useState, useEffect, useRef } from "react";
 import { format, startOfToday, addDays } from "date-fns";
 import { Check, Minus, Pencil, Plus, X } from "lucide-react";
 import { OutletDatePopoverChip, OutletDatePopoverField, OutletDateRangePopover, OutletMultiDatePopover } from "@/components/outlet/outlet-date-popover";
@@ -7,9 +7,16 @@ import { IzCard, IzSelect, IzTimeInput, normalizeTimeValue } from "@/components/
 import { IzHScroll } from "@/components/iz/HScroll";
 import { PostJobTierRatesEditor } from "@/components/outlet/PostJobTierRatesEditor";
 import {
+  PostJobEditableInputShell,
+  PostJobLockedValue,
+  PostJobShiftCardHeader,
+  PostJobShiftField,
+  PostJobTierSectionHeader,
+} from "@/components/outlet/post-job-shift-ui";
+import { JobPostingMicroLabel } from "@/components/special-service/job-posting-ui";
+import {
   basePayFromPayTierRows,
   clonePostJobPayTierRow,
-  defaultPostJobPayTierRows,
   estimatePayTierRowsLaborCost,
   formatPayTierRowSummary,
   payTierRowsFromLegacy,
@@ -20,6 +27,9 @@ import {
   totalPrCountFromPayTierRows,
   workspaceTierRatesSignature,
   type PostJobPayTierRow,
+  type PostJobPayTierId,
+  isCommissionOnlyPayTier,
+  newPostJobPayTierRow,
 } from "@/lib/post-job-pay-tiers";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -182,6 +192,32 @@ export type DraftShift = {
   destination: ShiftDestination;
 };
 
+const COMPOSER_TIER_IDS: PostJobPayTierId[] = ["tier_1", "tier_2", "tier_3", "tier_4", "tier_5"];
+
+function distributePrCounts(total: number, slots: number): number[] {
+  const result = Array(slots).fill(0);
+  if (total <= 0) return result;
+  if (total >= slots) {
+    const base = Math.floor(total / slots);
+    const extra = total % slots;
+    for (let i = 0; i < slots; i++) result[i] = base + (i < extra ? 1 : 0);
+    return result;
+  }
+  for (let i = 0; i < total; i++) result[i] = 1;
+  return result;
+}
+
+/** Five tier columns (I–V) with PR counts spread across — Post Job composer default. */
+export function defaultComposerPayTierRows(
+  workspaceTierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  totalQuantity = 6,
+): PostJobPayTierRow[] {
+  const counts = distributePrCounts(totalQuantity, COMPOSER_TIER_IDS.length);
+  return COMPOSER_TIER_IDS.map((payTierId, index) =>
+    newPostJobPayTierRow({ payTierId, prCount: counts[index]! }, workspaceTierRates),
+  );
+}
+
 export function newDraftShift(
   partial?: Partial<Omit<DraftShift, "id">>,
   workspace?: Pick<OutletWorkspaceSettings, "tierRates" | "drinkMenu">,
@@ -205,7 +241,7 @@ export function newDraftShift(
     ? partial.payTierRows.map(clonePostJobPayTierRow)
     : legacyPayTierIds?.length
       ? payTierRowsFromLegacy(legacyPayTierIds, tierRates, defaultQuantity)
-      : defaultPostJobPayTierRows(tierRates, defaultQuantity);
+      : defaultComposerPayTierRows(tierRates, defaultQuantity);
   const quantity = partial?.quantity ?? totalPrCountFromPayTierRows(payTierRows);
   return {
     id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -474,7 +510,7 @@ export function JobEventInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full min-w-0 bg-transparent text-right text-sm leading-snug outline-none placeholder:text-[var(--iz-muted2)]"
+      className="w-full min-w-0 bg-transparent text-left text-sm font-semibold leading-snug text-[var(--iz-txt)] outline-none"
     />
   );
 }
@@ -653,10 +689,12 @@ export function JobLanguagePicker({
   options,
   selected,
   onSelectedChange,
+  variant = "default",
 }: {
   options: string[];
   selected: string[];
   onSelectedChange: (langs: string[]) => void;
+  variant?: "default" | "postJob";
 }) {
   const toggle = (lang: string) => {
     onSelectedChange(selected.includes(lang) ? selected.filter((l) => l !== lang) : [...selected, lang]);
@@ -664,9 +702,29 @@ export function JobLanguagePicker({
 
   if (options.length === 0) {
     return (
-      <p className="text-[11px] text-[var(--iz-muted)] text-right">
+      <p className="text-[11px] text-[var(--iz-muted)]">
         Select PRs below to pull languages from their profiles.
       </p>
+    );
+  }
+
+  if (variant === "postJob") {
+    return (
+      <div className="flex w-full flex-wrap gap-1.5">
+        {options.map((l) => (
+          <button
+            key={l}
+            type="button"
+            onClick={() => toggle(l)}
+            className={cn(
+              "iz-job-posting-type-pill",
+              selected.includes(l) && "is-active",
+            )}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
     );
   }
 
@@ -742,15 +800,62 @@ function partsFromHm(hhmm: string): { h: number; m: number } {
 export function ShiftTimePicker({
   value,
   onChange,
+  layout = "stacked",
 }: {
   value: string;
   onChange: (v: string) => void;
+  layout?: "stacked" | "grid";
 }) {
   const parts = useMemo(() => parseShiftTime(value), [value]);
 
+  const startField = (
+    <div className="iz-job-posting-control">
+      <IzTimeInput
+        value={hmFromParts(parts.startH, parts.startM)}
+        onChange={(v) => {
+          if (!v) return;
+          const { h, m } = partsFromHm(v);
+          onChange(formatShiftTime({ ...parts, startH: h, startM: m }));
+        }}
+        className="iz-job-composer-slot w-full min-w-0"
+        aria-label="Start time"
+      />
+    </div>
+  );
+
+  const endField = (
+    <div className="iz-job-posting-control">
+      <IzTimeInput
+        value={hmFromParts(parts.endH, parts.endM)}
+        onChange={(v) => {
+          if (!v) return;
+          const { h, m } = partsFromHm(v);
+          onChange(formatShiftTime({ ...parts, endH: h, endM: m }));
+        }}
+        className="iz-job-composer-slot w-full min-w-0"
+        aria-label="End time"
+      />
+    </div>
+  );
+
+  if (layout === "grid") {
+    return (
+      <div className="grid w-full grid-cols-2 gap-2.5">
+        <label className="flex min-w-0 flex-col gap-1">
+          <JobPostingMicroLabel>Start</JobPostingMicroLabel>
+          {startField}
+        </label>
+        <label className="flex min-w-0 flex-col gap-1">
+          <JobPostingMicroLabel>End</JobPostingMicroLabel>
+          {endField}
+        </label>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex w-full flex-wrap items-center justify-end gap-x-4 gap-y-2">
-      <div className="flex items-center gap-2">
+    <div className="flex w-full flex-col items-end gap-2">
+      <div className="flex items-center justify-end gap-2">
         <span className="w-8 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
           Start
         </span>
@@ -765,7 +870,7 @@ export function ShiftTimePicker({
           aria-label="Start time"
         />
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-end gap-2">
         <span className="w-8 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
           End
         </span>
@@ -842,45 +947,40 @@ export function DraftPrPicker({
   };
 
   return (
-    <div className="w-full min-w-0">
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <p className="min-w-0 text-[10px] leading-snug text-[var(--iz-muted2)]">
-          {poolHint && <span>{poolHint}</span>}
-          {poolHint && " · "}
-          <span className="text-[var(--iz-muted)]">
-            {selected.length}/{selectCap} selected
-            {poolSize !== undefined && ` · pool of ${poolSize ?? candidates.length}`}
-          </span>
-        </p>
-        {selected.length > 0 && (
+    <div className="iz-post-job-pr-section w-full min-w-0">
+      <div className="iz-post-job-pr-toolbar">
+        <span className="iz-post-job-pr-badge">
+          {selected.length}/{selectCap} selected
+        </span>
+        {selected.length > 0 ? (
           <button
             type="button"
             onClick={() => onSelectedChange([])}
-            className="shrink-0 text-[10px] font-semibold text-[var(--iz-gold)]"
+            className="iz-post-job-pr-clear text-[10px] font-semibold text-[var(--iz-gold)]"
           >
             Clear all
           </button>
+        ) : (
+          <span className="iz-post-job-pr-clear" aria-hidden />
         )}
       </div>
+      {poolHint && <p className="iz-post-job-pr-hint mb-2">{poolHint}</p>}
       {candidates.length === 0 ? (
         <p className="text-[11px] text-[var(--iz-muted)]">No PRs available to select.</p>
       ) : (
-        <IzHScroll className="-mx-4 flex gap-2 pb-1 pl-2 pr-4">
-          {candidates.map((p) => {
-            const on = selected.includes(p.id);
-            const full = !on && selected.length >= selectCap;
+        <div className="iz-post-job-pr-scroll">
+          <div className="iz-post-job-pr-scroll-inner">
+            {candidates.map((p) => {
+              const on = selected.includes(p.id);
+              const full = !on && selected.length >= selectCap;
 
-            return (
-              <div key={p.id} className="relative w-[140px] shrink-0 snap-start">
+              return (
                 <button
+                  key={p.id}
                   type="button"
                   onClick={() => toggle(p.id)}
                   disabled={full}
-                  className={cn(
-                    "relative iz-card iz-card-flat w-full !mb-0 p-2.5 text-left transition-opacity",
-                    full && "opacity-40",
-                    on && "ring-1 ring-[var(--iz-gold-d)]",
-                  )}
+                  className={cn("iz-post-job-pr-card", on && "is-selected", full && "opacity-40")}
                 >
                   <PrComcardPickerThumb
                     comcardImageUrl={p.comcardImageUrl}
@@ -888,7 +988,7 @@ export function DraftPrPicker({
                     name={p.name}
                   />
                   <div className="mt-1.5 truncate text-xs font-semibold text-[var(--iz-txt)]">{p.name}</div>
-                  <div className="text-[10px] text-[var(--iz-gold)]">{p.rating}★</div>
+                  <div className="text-[10px] text-[var(--iz-violet-l)]">{p.rating}★</div>
                   <div
                     className={cn(
                       "mt-1.5 flex w-full items-center justify-center gap-0.5 rounded-full py-1 text-[10px] font-semibold",
@@ -900,14 +1000,14 @@ export function DraftPrPicker({
                         <Check className="h-3 w-3" /> Selected
                       </>
                     ) : (
-                      "Add to cart"
+                      "Tap to add"
                     )}
                   </div>
                 </button>
-              </div>
-            );
-          })}
-        </IzHScroll>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1018,7 +1118,7 @@ export function DraftShiftSummary({
       <DraftDrinkPricingSummary shift={shift} />
       <SummaryLine label="Event" value={shift.event} stacked />
       <SummaryLine label="Time" value={shift.shiftTime} />
-      <SummaryLine label="People needed" value={String(totalPrCountFromPayTierRows(shift.payTierRows))} />
+      <SummaryLine label="People needed" value={String(shift.quantity)} />
       <SummaryLine
         label="PRs"
         value={`${shift.prIds.length}/${shift.quantity} · ${formatDraftPrNames(shift.prIds, prs)}`}
@@ -1050,6 +1150,8 @@ export function DraftShiftEditor({
   showRemove,
   title,
   onDone,
+  shiftIndex,
+  shiftTotal,
   namedPrsOnDate = 0,
   peopleRemaining,
 }: {
@@ -1059,6 +1161,8 @@ export function DraftShiftEditor({
   showRemove?: boolean;
   title: string;
   onDone?: () => void;
+  shiftIndex?: number;
+  shiftTotal?: number;
   /** Named agency PRs already booked on this shift date (excludes current shift selection) */
   namedPrsOnDate?: number;
   /** Max people needed allowed for this shift (subscription daily cap minus booked headcount) */
@@ -1069,6 +1173,24 @@ export function DraftShiftEditor({
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const workspaceRatesKey = workspaceTierRatesSignature(outletWorkspace.tierRates);
   const prevWorkspaceRatesKey = useRef(workspaceRatesKey);
+  const didExpandTierColumns = useRef(false);
+
+  useEffect(() => {
+    if (didExpandTierColumns.current) return;
+    const onlyRow = shift.payTierRows.length === 1 ? shift.payTierRows[0] : null;
+    if (!onlyRow || isCommissionOnlyPayTier(onlyRow.payTierId)) return;
+    didExpandTierColumns.current = true;
+    const total = Math.max(1, shift.quantity || totalPrCountFromPayTierRows(shift.payTierRows));
+    const payTierRows = defaultComposerPayTierRows(outletWorkspace.tierRates, total);
+    onChange({
+      payTierRows,
+      tierRates: syncTierRatesFromPayTierRows(payTierRows, shift.tierRates),
+      quantity: total,
+      payPerHour: basePayFromPayTierRows(payTierRows),
+      prIds: shift.prIds.slice(0, total),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time expand single-tier composer to I–V columns
+  }, []);
 
   const subscriptionPlan = getOutletSubscriptionPlan(outletOwner.subscriptionPlanId);
   const namedPrRemaining = Math.max(0, subscriptionPlan.prPerDayMax - namedPrsOnDate);
@@ -1166,40 +1288,52 @@ export function DraftShiftEditor({
     });
   };
 
+  const planHintParts = peopleNeededHint.split(" · ");
+  const planHintLead = planHintParts.slice(0, -1).join(" · ");
+  const planHintTail = planHintParts[planHintParts.length - 1] ?? "";
+
   return (
-    <IzCard className="!mb-0">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-[var(--iz-muted)]">{title}</span>
-        <div className="flex items-center gap-1.5">
-          {onDone && (
-            <button type="button" onClick={onDone} className="iz-chip px-2 py-1 text-[11px] font-semibold text-[var(--iz-gold)]">
-              Done
-            </button>
-          )}
-          {showRemove && onRemove && (
-            <button
-              type="button"
-              onClick={onRemove}
-              className="iz-chip flex h-6 w-6 items-center justify-center !p-0 text-[var(--iz-muted)]"
-              aria-label={`Remove ${title}`}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-      <FormRow label="Date" stacked>
-        <div className="iz-job-posting-control">
-          <JobMultiDatePicker
-            embedded
-            selectedDateIsos={shift.selectedDateIsos}
-            onChange={(selectedDateIsos) => onChange({ selectedDateIsos })}
-          />
-        </div>
-      </FormRow>
-      <FormRow label="Event type" alignTop>
-        <div className="flex w-full min-w-0 flex-col items-end gap-2">
-          <div className="flex flex-nowrap justify-end gap-1">
+    <div className="iz-job-posting-form-card !mb-0">
+      <PostJobShiftCardHeader
+        title={title}
+        shiftIndex={shiftIndex}
+        shiftTotal={shiftTotal}
+        trailing={
+          (onDone || (showRemove && onRemove)) ? (
+            <div className="flex items-center gap-1.5">
+              {onDone && (
+                <button type="button" onClick={onDone} className="iz-chip px-2 py-1 text-[11px] font-semibold text-[var(--iz-gold)]">
+                  Done
+                </button>
+              )}
+              {showRemove && onRemove && (
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  className="iz-chip flex h-6 w-6 items-center justify-center !p-0 text-[var(--iz-muted)]"
+                  aria-label={`Remove ${title}`}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ) : undefined
+        }
+      />
+
+      <div className="mt-3 space-y-3">
+        <PostJobShiftField label="Date">
+          <div className="iz-job-posting-control">
+            <JobMultiDatePicker
+              embedded
+              selectedDateIsos={shift.selectedDateIsos}
+              onChange={(selectedDateIsos) => onChange({ selectedDateIsos })}
+            />
+          </div>
+        </PostJobShiftField>
+
+        <PostJobShiftField label="Event type" layout="stack">
+          <div className="iz-post-job-event-type-grid">
             {(Object.keys(SHIFT_EVENT_KIND_LABELS) as ShiftEventKind[]).map((kind) => (
               <button
                 key={kind}
@@ -1226,199 +1360,231 @@ export function DraftShiftEditor({
                     ),
                   });
                 }}
-                className={`iz-pill !text-[10px] ${shift.eventKind === kind ? "iz-pill-violet" : "iz-pill-ink"}`}
+                className={cn(
+                  "iz-post-job-event-type-pill",
+                  shift.eventKind === kind && "is-active",
+                )}
               >
                 {SHIFT_EVENT_KIND_LABELS[kind]}
               </button>
             ))}
           </div>
           {shift.eventKind === "special" && (
-            <IzHScroll className="flex w-full justify-end gap-1 pb-0.5">
-              {SHIFT_SPECIAL_EVENT_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() =>
-                    onChange({
-                      specialEventType: option.id,
-                      customSpecialEventName: isOtherSpecialEvent(option.id)
-                        ? shift.customSpecialEventName ?? ""
-                        : "",
-                      event: resolveDraftEventOnPresetChange(
-                        shift.event,
-                        "special",
-                        option.id,
-                      ),
-                    })
-                  }
-                  className={`iz-pill shrink-0 whitespace-nowrap !text-[10px] ${
-                    shift.specialEventType === option.id ? "iz-pill-gold" : "iz-pill-ink"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </IzHScroll>
+            <>
+              <IzHScroll className="mt-2 flex w-full gap-1 pb-0.5">
+                {SHIFT_SPECIAL_EVENT_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        specialEventType: option.id,
+                        customSpecialEventName: isOtherSpecialEvent(option.id)
+                          ? shift.customSpecialEventName ?? ""
+                          : "",
+                        event: resolveDraftEventOnPresetChange(
+                          shift.event,
+                          "special",
+                          option.id,
+                        ),
+                      })
+                    }
+                    className={cn(
+                      "iz-job-posting-type-pill shrink-0 whitespace-nowrap",
+                      shift.specialEventType === option.id && "is-active",
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </IzHScroll>
+              {isOtherSpecialEvent(shift.specialEventType) && (
+                <input
+                  type="text"
+                  className="iz-job-posting-control iz-job-posting-input mt-2 block w-full min-w-0"
+                  placeholder="Name your event type"
+                  aria-label="Custom special event type"
+                  value={shift.customSpecialEventName ?? ""}
+                  onChange={(e) => onChange({ customSpecialEventName: e.target.value })}
+                />
+              )}
+            </>
           )}
-          {shift.eventKind === "special" && isOtherSpecialEvent(shift.specialEventType) && (
-            <input
-              type="text"
-              className="iz-job-posting-control iz-job-posting-input w-full min-w-0 text-sm"
-              placeholder="Name your event type"
-              aria-label="Custom special event type"
-              value={shift.customSpecialEventName ?? ""}
-              onChange={(e) => onChange({ customSpecialEventName: e.target.value })}
-            />
+        </PostJobShiftField>
+
+        <PostJobShiftField label="Drink prices">
+          {shift.eventKind === "special" ? (
+            <div className="w-full min-w-0">
+              <p className="mb-2 text-[10px] text-[var(--iz-muted)]">
+                Set drink prices for this special event. Normal events always use Workspace prices.
+              </p>
+              <OutletDrinkMenuEditor
+                drinks={shift.eventDrinkMenu ?? []}
+                onChange={(eventDrinkMenu) => onChange({ eventDrinkMenu })}
+              />
+              <button
+                type="button"
+                className="iz-chip mt-2 w-full text-[11px]"
+                onClick={() =>
+                  onChange({ eventDrinkMenu: cloneDrinkMenu(outletWorkspace.drinkMenu ?? []) })
+                }
+              >
+                Reset to workspace prices
+              </button>
+            </div>
+          ) : (
+            <div className="iz-job-posting-control">
+              <PostJobLockedValue>
+                Follow Workspace
+                {(() => {
+                  const range = drinkMenuPriceRange(outletWorkspace.drinkMenu ?? []);
+                  return ` · RM ${range.min}–${range.max}`;
+                })()}
+              </PostJobLockedValue>
+            </div>
           )}
-        </div>
-      </FormRow>
-      <FormRow label="Drink prices" stacked alignTop>
-        {shift.eventKind === "special" ? (
-          <div className="w-full min-w-0">
-            <p className="mb-2 text-[10px] text-[var(--iz-muted)]">
-              Set drink prices for this special event. Normal events always use Workspace prices.
-            </p>
-            <OutletDrinkMenuEditor
-              drinks={shift.eventDrinkMenu ?? []}
-              onChange={(eventDrinkMenu) => onChange({ eventDrinkMenu })}
+        </PostJobShiftField>
+
+        <PostJobShiftField label="Event name">
+          <PostJobEditableInputShell>
+            <JobEventInput
+              value={shift.event}
+              onChange={(event) => onChange({ event })}
+              placeholder={draftEventPlaceholder(shift.eventKind ?? "normal", shift.specialEventType)}
             />
-            <button
-              type="button"
-              className="iz-chip mt-2 w-full text-[11px]"
-              onClick={() =>
-                onChange({ eventDrinkMenu: cloneDrinkMenu(outletWorkspace.drinkMenu ?? []) })
-              }
-            >
-              Reset to workspace prices
-            </button>
+          </PostJobEditableInputShell>
+        </PostJobShiftField>
+
+        <PostJobShiftField label="Time">
+          <ShiftTimePicker value={shift.shiftTime} onChange={(shiftTime) => onChange({ shiftTime })} layout="grid" />
+        </PostJobShiftField>
+
+        <PostJobShiftField label="People needed">
+          <div className="flex w-full flex-col gap-1">
+            <QuantityStepper
+              value={shift.quantity}
+              onChange={updatePeopleNeeded}
+              min={maxPeople > 0 ? 1 : 0}
+              max={maxPeople > 0 ? maxPeople : 0}
+              suffix="PRs"
+            />
+            <p className="text-[10px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
           </div>
-        ) : (
-          <p className="text-right text-sm text-[var(--iz-txt)]">
-            Follow Workspace
-            {(() => {
-              const range = drinkMenuPriceRange(outletWorkspace.drinkMenu ?? []);
-              return ` · RM ${range.min}–${range.max}`;
-            })()}
-          </p>
-        )}
-      </FormRow>
-      <FormRow label="Event" stacked>
-        <JobEventInput
-          value={shift.event}
-          onChange={(event) => onChange({ event })}
-          placeholder={draftEventPlaceholder(shift.eventKind ?? "normal", shift.specialEventType)}
-        />
-      </FormRow>
-      <FormRow label="Time" alignTop>
-        <ShiftTimePicker value={shift.shiftTime} onChange={(shiftTime) => onChange({ shiftTime })} />
-      </FormRow>
-      <FormRow label="People needed" alignTop>
-        <div className="flex flex-col items-end gap-1">
-          <QuantityStepper
-            value={shift.quantity}
-            onChange={updatePeopleNeeded}
-            min={maxPeople > 0 ? 1 : 0}
-            max={maxPeople > 0 ? maxPeople : 0}
-            suffix="PRs"
+        </PostJobShiftField>
+
+        <PostJobShiftField label="Languages">
+          <JobLanguagePicker
+            variant="postJob"
+            options={pickerOptions}
+            selected={pickerSelected}
+            onSelectedChange={(langs) => onChange({ langs, otherLang: "" })}
           />
-          <p className="text-[10px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
+        </PostJobShiftField>
+
+        <div className="iz-post-job-tier-section border-t border-[var(--iz-line)] pt-4">
+          <PostJobTierSectionHeader />
+          <div className="mt-3">
+            {maxPeople <= 0 ? (
+              <p className="mb-2 text-[11px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
+            ) : null}
+            <PostJobTierRatesEditor
+              rows={shift.payTierRows}
+              workspaceTierRates={outletWorkspace.tierRates}
+              commissionOnlyRates={outletWorkspace.commissionOnlyRates}
+              maxPrTotal={shift.quantity}
+              onChange={updatePayTierRows}
+              planHint={
+                maxPeople > 0 ? (
+                  <>
+                    {planHintLead ? `${planHintLead} · ` : ""}
+                    <span className="text-[var(--iz-green)] font-semibold">{planHintTail}</span>
+                  </>
+                ) : undefined
+              }
+            />
+            <div className="iz-post-job-tier-footer">
+              <button
+                type="button"
+                className="iz-chip col-span-2 w-full text-[11px]"
+                onClick={() => {
+                  const wsRates = draftTierRatesFromWorkspace(outletWorkspace);
+                  const payTierRows = defaultComposerPayTierRows(
+                    wsRates,
+                    Math.max(1, shift.quantity || 6),
+                  );
+                  onChange({
+                    tierRates: syncTierRatesFromPayTierRows(payTierRows, wsRates),
+                    payTierRows,
+                    payPerHour: basePayFromPayTierRows(payTierRows),
+                    prIds: shift.prIds.slice(0, shift.quantity),
+                  });
+                }}
+              >
+                Reset to workspace rates
+              </button>
+            </div>
+          </div>
         </div>
-      </FormRow>
-      <FormRow label="Languages" stacked alignTop>
-        <JobLanguagePicker
-          options={pickerOptions}
-          selected={pickerSelected}
-          onSelectedChange={(langs) => onChange({ langs, otherLang: "" })}
-        />
-      </FormRow>
-      <FormRow label="Pay by PR tier" stacked alignTop last={false}>
-        <div className="w-full min-w-0">
-          <p className="mb-2 text-[10px] text-[var(--iz-muted)]">
-            Tier 1–5 have pay per shift · Commission only has higher drinks & tips · set PR count per row · tap highlighted cells to edit
-          </p>
-          <PostJobTierRatesEditor
-            rows={shift.payTierRows}
-            workspaceTierRates={outletWorkspace.tierRates}
-            commissionOnlyRates={outletWorkspace.commissionOnlyRates}
-            maxPrTotal={shift.quantity}
-            onChange={updatePayTierRows}
-          />
-          <button
-            type="button"
-            className="iz-chip mt-2 w-full text-[11px]"
-            onClick={() => {
-              const wsRates = draftTierRatesFromWorkspace(outletWorkspace);
-              const payTierRows = defaultPostJobPayTierRows(
-                wsRates,
-                Math.max(1, shift.quantity || 6),
-              );
-              onChange({
-                tierRates: syncTierRatesFromPayTierRows(payTierRows, wsRates),
-                payTierRows,
-                payPerHour: basePayFromPayTierRows(payTierRows),
-                prIds: shift.prIds.slice(0, shift.quantity),
-              });
-            }}
-          >
-            Reset to workspace rates
-          </button>
-        </div>
-      </FormRow>
-      <FormRow label="Dress code" stacked alignTop>
-        <div className="flex w-full min-w-0 flex-col items-end gap-2">
-          <IzSelect
-            block
-            value={isOtherDressCode(shift.dressCode) ? DRESS_CODE_OTHER_ID : shift.dressCode}
-            onChange={(e) => {
-              const next = e.target.value;
-              onChange({
-                dressCode: next,
-                customDressCode: isOtherDressCode(next) ? shift.customDressCode ?? "" : "",
-              });
-            }}
-            className="!text-sm"
-          >
-            {DRESS_CODE_OPTIONS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-            <option value={DRESS_CODE_OTHER_ID}>Other</option>
-          </IzSelect>
-          {isOtherDressCode(shift.dressCode) && (
-            <input
-              type="text"
-              className="iz-job-posting-control iz-job-posting-input w-full min-w-0 text-sm"
-              placeholder="Name dress code"
-              aria-label="Custom dress code"
-              value={shift.customDressCode ?? ""}
-              onChange={(e) => onChange({ customDressCode: e.target.value })}
+
+        <PostJobShiftField label="Dress code">
+          <div className="flex w-full min-w-0 flex-col gap-2">
+            <div className="iz-job-posting-control">
+              <IzSelect
+                block
+                value={isOtherDressCode(shift.dressCode) ? DRESS_CODE_OTHER_ID : shift.dressCode}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  onChange({
+                    dressCode: next,
+                    customDressCode: isOtherDressCode(next) ? shift.customDressCode ?? "" : "",
+                  });
+                }}
+                className="!border-0 !bg-transparent !text-sm !font-semibold !text-[var(--iz-txt)] !shadow-none"
+              >
+                {DRESS_CODE_OPTIONS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+                <option value={DRESS_CODE_OTHER_ID}>Other</option>
+              </IzSelect>
+            </div>
+            {isOtherDressCode(shift.dressCode) && (
+              <input
+                type="text"
+                className="iz-job-posting-control iz-job-posting-input w-full min-w-0 text-sm"
+                placeholder="Name dress code"
+                aria-label="Custom dress code"
+                value={shift.customDressCode ?? ""}
+                onChange={(e) => onChange({ customDressCode: e.target.value })}
+              />
+            )}
+          </div>
+        </PostJobShiftField>
+
+        <PostJobShiftField label="Select PRs" className="!mb-0 iz-post-job-pr-field" layout="stack">
+          {maxNamedPrSelect === 0 ? (
+            <p className="text-[11px] text-[var(--iz-muted)]">{prPickerHint}</p>
+          ) : (
+            <DraftPrPicker
+              selected={shift.prIds}
+              onSelectedChange={(prIds) =>
+                onChange({
+                  prIds,
+                  quantity: Math.max(shift.quantity, prIds.length),
+                  langs: languagesForPrIds(prIds, agencyPRs),
+                  otherLang: "",
+                })
+              }
+              quantity={shift.quantity}
+              poolSize={subscriptionPlan.prPoolSize}
+              maxSelect={subscriptionPlan.prSelectMax}
+              dailyRemaining={namedPrRemaining}
+              poolHint={prPickerHint}
             />
           )}
-        </div>
-      </FormRow>
-      <FormRow label="Select PRs" stacked last>
-        {maxNamedPrSelect === 0 ? (
-          <p className="text-[11px] text-[var(--iz-muted)]">{prPickerHint}</p>
-        ) : (
-          <DraftPrPicker
-            selected={shift.prIds}
-            onSelectedChange={(prIds) =>
-              onChange({
-                prIds,
-                quantity: Math.max(shift.quantity, prIds.length),
-                langs: languagesForPrIds(prIds, agencyPRs),
-                otherLang: "",
-              })
-            }
-            quantity={shift.quantity}
-            poolSize={subscriptionPlan.prPoolSize}
-            maxSelect={subscriptionPlan.prSelectMax}
-            dailyRemaining={namedPrRemaining}
-            poolHint={prPickerHint}
-          />
-        )}
-      </FormRow>
-    </IzCard>
+        </PostJobShiftField>
+      </div>
+    </div>
   );
 }

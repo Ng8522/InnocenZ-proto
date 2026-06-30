@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
+import { OutletPrHistoryCard } from "@/components/outlet/outlet-history-ui";
 import {
   aggregateShiftHistoryByPr,
   aggregateShiftHistoryByVenue,
@@ -107,6 +108,16 @@ export function ShiftHistoryLog({
     [filtered, portal],
   );
 
+  const rankedPrRollups = useMemo(
+    () =>
+      portal === "outlet"
+        ? [...prRollups].sort((a, b) => b.totalPayout - a.totalPayout)
+        : prRollups,
+    [prRollups, portal],
+  );
+
+  const topPrPayout = rankedPrRollups[0]?.totalPayout ?? 0;
+
   const venueRollups = useMemo(
     () => (agencyByVenue ? aggregateShiftHistoryByVenue(filtered, "agency") : []),
     [filtered, agencyByVenue],
@@ -170,7 +181,12 @@ export function ShiftHistoryLog({
 
   const agencyName = rows[0]?.agencyName ?? "Atlas Agency";
 
-  const shellClass = embedded ? "mt-2" : "iz-screen";
+  const shellClass = embedded
+    ? portal === "outlet"
+      ? "iz-outlet-hist-log"
+      : "mt-2"
+    : "iz-screen";
+  const outletPortal = portal === "outlet" && !agencyByVenue;
 
   return (
     <div className={shellClass}>
@@ -188,8 +204,10 @@ export function ShiftHistoryLog({
         <p className="iz-tiny iz-muted mt-1">{subtitleOverride}</p>
       )}
 
-      <p className="iz-txn-filter-heading mt-4">Filter by</p>
-      <div className="iz-txn-filters">
+      <p className={outletPortal ? "iz-outlet-hist-filter-heading" : "iz-txn-filter-heading mt-4"}>
+        Filter by
+      </p>
+      <div className={outletPortal ? "iz-outlet-hist-filters" : "iz-txn-filters"}>
         <HistSelectField
           label={primaryLabel}
           value={nameFilter}
@@ -233,12 +251,16 @@ export function ShiftHistoryLog({
         />
       </div>
 
-      <div className="iz-between mt-4">
-        <div className="iz-sect-label !mb-0">Transaction log</div>
-        <span className="iz-tiny iz-muted2">{logCountLabel}</span>
+      <div className={outletPortal ? "iz-outlet-hist-log-head" : "iz-between mt-4"}>
+        <div className={outletPortal ? "iz-outlet-hist-section-label" : "iz-sect-label !mb-0"}>
+          Transaction log
+        </div>
+        <span className={outletPortal ? "iz-outlet-hist-log-count" : "iz-tiny iz-muted2"}>
+          {logCountLabel}
+        </span>
       </div>
 
-      <div className="mt-2.5 space-y-2.5">
+      <div className={outletPortal ? "iz-outlet-hist-grid" : "mt-2.5 space-y-2.5"}>
         {agencyByVenue ? (
           venueRollups.length === 0 ? (
             <IzCard className="text-center">
@@ -253,10 +275,20 @@ export function ShiftHistoryLog({
               />
             ))
           )
-        ) : prRollups.length === 0 ? (
+        ) : rankedPrRollups.length === 0 ? (
           <IzCard className="text-center">
             <p className="iz-sm iz-muted">No records match these filters</p>
           </IzCard>
+        ) : outletPortal ? (
+          rankedPrRollups.map((rollup, index) => (
+            <OutletPrHistoryCard
+              key={rollup.prId}
+              rollup={rollup}
+              rank={index + 1}
+              topPayout={topPrPayout}
+              onTap={showPrDetail ? () => openPrDetail(rollup.prId) : undefined}
+            />
+          ))
         ) : (
           prRollups.map((rollup) => (
             <PrHistoryCard

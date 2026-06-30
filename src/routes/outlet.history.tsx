@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { ShiftHistoryLog } from "@/components/iz/ShiftHistoryLog";
-import { shiftHistoryForOutlet, tonightShiftOutletName } from "@/lib/portal-sync";
+import { OutletPage, OutletPageHeader } from "@/components/outlet/outlet-portal-ui";
+import { shiftHistoryForOutlet } from "@/lib/portal-sync";
 import { useStore } from "@/lib/store";
 
 export const Route = createFileRoute("/outlet/history")({
@@ -10,31 +11,26 @@ export const Route = createFileRoute("/outlet/history")({
 
 function OutletHistory() {
   const shiftHistory = useStore((s) => s.shiftHistory) ?? [];
-  const shifts = useStore((s) => s.shifts) ?? [];
-  const outletName = tonightShiftOutletName(shifts);
+  const outletName = useStore((s) => s.outletWorkspace.outletName);
   const rows = useMemo(
     () => shiftHistoryForOutlet(shiftHistory, outletName),
     [shiftHistory, outletName],
   );
-  const subtitle = useMemo(() => {
-    if (rows.length === 0) return undefined;
+  const summaryHint = useMemo(() => {
+    if (rows.length === 0) return "No shift history yet — completed shifts will appear here.";
     const sorted = [...rows].sort((a, b) => a.dateIso.localeCompare(b.dateIso));
     const oldest = sorted[0]?.dateDisplay;
     const newest = sorted[sorted.length - 1]?.dateDisplay;
     const totalPayout = rows.reduce((a, r) => a + r.totalPayout, 0);
-    const range = oldest && newest && oldest !== newest ? `${oldest} – ${newest}` : oldest ?? newest;
+    const range =
+      oldest && newest && oldest !== newest ? `${oldest} – ${newest}` : oldest ?? newest;
     return `${rows.length} PR shifts · ${range} · RM ${totalPayout.toLocaleString()} paid out`;
   }, [rows]);
 
   return (
-    <ShiftHistoryLog
-      portal="outlet"
-      rows={rows}
-      subtitle={
-        subtitle
-          ? `${subtitle} · Tap a PR for shift-by-shift history`
-          : "Tap a PR for shift-by-shift history"
-      }
-    />
+    <OutletPage>
+      <OutletPageHeader eyebrow={outletName} title="History" hint={summaryHint} />
+      <ShiftHistoryLog portal="outlet" rows={rows} embedded />
+    </OutletPage>
   );
 }

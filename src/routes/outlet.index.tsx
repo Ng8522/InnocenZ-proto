@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { OutletBookings } from "@/components/outlet/OutletBookings";
 import { OutletReconciliationBanner } from "@/components/outlet/OutletReconciliationBanner";
+import { OutletPage, OutletPageHeader, OutletPageLegend } from "@/components/outlet/outlet-portal-ui";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 
 export const Route = createFileRoute("/outlet/")({
@@ -14,26 +15,24 @@ function OutletHome() {
   const { date, time } = nowAgencyDateTime();
 
   return (
-    <div className="iz-screen iz-portal-page">
+    <OutletPage>
       {isFinance && (
-        <p className="iz-tiny iz-muted mb-3 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
+        <p className="iz-tiny iz-muted rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
           Read-only overview
         </p>
       )}
 
-      <header className="pt-1">
-        <p className="iz-tiny iz-muted2 uppercase tracking-widest">Today</p>
-        <p className="font-sora mt-0.5 text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
-          {date} · {time}
-        </p>
-        <p className="iz-tiny iz-muted2 mt-0.5">Live shift · tap to expand</p>
-      </header>
+      <OutletPageHeader
+        eyebrow="Today"
+        title={`${date} · ${time}`}
+        hint="Live shift · tap card to expand details and actions"
+      />
 
-      <div className="mt-2.5">
-        <OutletBookings />
-      </div>
+      <OutletPageLegend />
+
+      <OutletBookings />
 
       <OutletReconciliationBanner />
-    </div>
+    </OutletPage>
   );
 }

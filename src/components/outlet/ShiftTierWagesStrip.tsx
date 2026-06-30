@@ -1,3 +1,4 @@
+import { OutletTierIcon } from "@/components/outlet/outlet-portal-ui";
 import {
   OUTLET_BASE_TIER,
   OUTLET_PR_TIERS,
@@ -94,9 +95,10 @@ export function TierRatePill({
       )}
     >
       <div className="flex h-[18px] shrink-0 flex-col items-center justify-start leading-none">
+        <OutletTierIcon tier={tier} className="!h-[18px] !w-[18px]" />
         <span
           className={cn(
-            "text-[9px] font-bold leading-none",
+            "mt-0.5 text-[8px] font-bold leading-none",
             selected ? "text-[var(--iz-gold-l)]" : "text-[var(--iz-txt)]",
           )}
         >

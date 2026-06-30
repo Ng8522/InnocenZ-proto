@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
+import { OutletPage, OutletPageHeader } from "@/components/outlet/outlet-portal-ui";
 import { OutletOperationsCalendar } from "@/components/outlet/OutletOperationsCalendar";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { outletCan } from "@/lib/outlet-rbac";
@@ -11,6 +12,7 @@ export const Route = createFileRoute("/outlet/ratings")({
 
 function CalendarPage() {
   const outletSubRole = useStore((s) => s.outletSubRole);
+  const outletName = useStore((s) => s.outletWorkspace.outletName);
   const ratings = useStore((s) => s.ratings);
   const canView = outletCan(outletSubRole, "ratePrs") || outletCan(outletSubRole, "viewLiveDashboard");
 
@@ -28,18 +30,14 @@ function CalendarPage() {
   }
 
   return (
-    <div className="iz-screen">
-      <header className="pt-1">
-        <p className="iz-tiny iz-muted2 uppercase tracking-widest">Upcoming</p>
-        <h2 className="font-sora mt-0.5 text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
-          Calendar page
-        </h2>
-        <p className="iz-tiny iz-muted2 mt-0.5">Click a shift to view details</p>
-      </header>
+    <OutletPage>
+      <OutletPageHeader
+        eyebrow={outletName}
+        title="Calendar"
+        hint="Upcoming shifts — click a day to view details."
+      />
 
-      <div className="mt-2.5">
-        <OutletOperationsCalendar />
-      </div>
+      <OutletOperationsCalendar />
 
       {ratings.length > 0 && (
         <OutletSection
@@ -69,6 +67,6 @@ function CalendarPage() {
           </div>
         </OutletSection>
       )}
-    </div>
+    </OutletPage>
   );
 }

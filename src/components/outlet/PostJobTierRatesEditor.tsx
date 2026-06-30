@@ -7,8 +7,11 @@ import {
   newPostJobPayTierRow,
   POST_JOB_PAY_TIER_OPTIONS,
   postJobPayTierLabel,
+  totalPrCountFromPayTierRows,
   type PostJobPayTierId,
   type PostJobPayTierRow,
+  clampPayTierRowsToMax,
+  type CommissionOnlyRateSettings,
 } from "@/lib/post-job-pay-tiers";
 import { cn } from "@/lib/utils";
 import {
@@ -30,23 +33,31 @@ import {
 export function PostJobTierRatesEditor({
   rows,
   workspaceTierRates,
+  commissionOnlyRates,
+  maxPrTotal,
   onChange,
 }: {
   rows: PostJobPayTierRow[];
   workspaceTierRates: Record<OutletPrTier, OutletTierRateSettings>;
+  commissionOnlyRates?: CommissionOnlyRateSettings;
+  /** Max total PRs across all tier rows (people needed). */
+  maxPrTotal?: number;
   onChange: (rows: PostJobPayTierRow[]) => void;
 }) {
   const usedTierIds = new Set(rows.map((row) => row.payTierId));
   const unusedTierIds = POST_JOB_PAY_TIER_OPTIONS.filter((o) => !usedTierIds.has(o.id)).map(
     (o) => o.id,
   );
+  const allocatedTotal = totalPrCountFromPayTierRows(rows);
 
   const patchRow = (id: string, patch: Partial<PostJobPayTierRow>) => {
-    onChange(
-      rows.map((row) =>
-        row.id === id ? applyPayTierRowChange(row, patch, workspaceTierRates) : row,
-      ),
+    let nextRows = rows.map((row) =>
+      row.id === id ? applyPayTierRowChange(row, patch, workspaceTierRates, commissionOnlyRates) : row,
     );
+    if (maxPrTotal != null && patch.prCount != null) {
+      nextRows = clampPayTierRowsToMax(nextRows, maxPrTotal, id);
+    }
+    onChange(nextRows);
   };
 
   const changeRowTier = (id: string, payTierId: PostJobPayTierId) => {
@@ -62,7 +73,14 @@ export function PostJobTierRatesEditor({
   const addRow = () => {
     const nextId = unusedTierIds[0];
     if (!nextId) return;
-    onChange([...rows, newPostJobPayTierRow({ payTierId: nextId }, workspaceTierRates)]);
+    const remaining =
+      maxPrTotal != null ? Math.max(0, maxPrTotal - totalPrCountFromPayTierRows(rows)) : 1;
+    const initialPrCount =
+      maxPrTotal != null ? (remaining > 0 ? Math.min(1, remaining) : 0) : 1;
+    onChange([
+      ...rows,
+      newPostJobPayTierRow({ payTierId: nextId, prCount: initialPrCount }, workspaceTierRates, commissionOnlyRates),
+    ]);
   };
 
   const showDeleteColumn = rows.length > 1;
@@ -70,6 +88,11 @@ export function PostJobTierRatesEditor({
 
   return (
     <div className="space-y-2">
+      {maxPrTotal != null && maxPrTotal > 0 && (
+        <p className="text-[10px] text-[var(--iz-muted)]">
+          {allocatedTotal} of {maxPrTotal} PR{maxPrTotal === 1 ? "" : "s"} allocated across tiers
+        </p>
+      )}
       <div className="-mx-1 overflow-x-auto pb-1">
         <div className="min-w-[680px] px-1">
           <div className="overflow-hidden rounded-xl border border-[var(--iz-line)]">
@@ -81,7 +104,7 @@ export function PostJobTierRatesEditor({
               )}
             >
               <div className={tierTableHeadCell(undefined, true)}>Tier</div>
-              <div className={tierTableHeadCell(undefined, true)}>Base salary</div>
+              <div className={tierTableHeadCell(undefined, true)}>Pay per shift</div>
               <div className={tierTableHeadCell(undefined, true)}>Target sales</div>
               <div className={tierTableHeadCell(undefined, true)}>Drinks & tips</div>
               <div className={tierTableHeadCell(undefined, true)}>PRs</div>
@@ -92,6 +115,11 @@ export function PostJobTierRatesEditor({
               const rowOptions = POST_JOB_PAY_TIER_OPTIONS.filter(
                 (o) => o.id === row.payTierId || !usedTierIds.has(o.id),
               );
+              const allocatedOthers = rows
+                .filter((r) => r.id !== row.id)
+                .reduce((sum, r) => sum + r.prCount, 0);
+              const rowMax =
+                maxPrTotal != null ? Math.max(0, maxPrTotal - allocatedOthers) : undefined;
 
               return (
                 <div
@@ -123,12 +151,12 @@ export function PostJobTierRatesEditor({
                   {commissionOnly ? (
                     <div
                       className={tierTableReadonlyCell()}
-                      title="Commission only — no base salary"
+                      title="Commission only — no shift pay"
                     >
-                      <span className="text-xs font-medium">No base pay</span>
+                      <span className="text-xs font-medium">No shift pay</span>
                     </div>
                   ) : (
-                    <div className={tierTableEditableCell()} title="Tap to edit base salary">
+                    <div className={tierTableEditableCell()} title="Tap to edit pay per shift">
                       <div className={fieldShell(undefined, true)}>
                         <span className="text-[11px] font-semibold text-[var(--iz-muted)]">RM</span>
                         <TierPayInput
@@ -172,6 +200,8 @@ export function PostJobTierRatesEditor({
                     <TierCountInput
                       value={row.prCount}
                       onChange={(prCount) => patchRow(row.id, { prCount })}
+                      max={rowMax}
+                      disabled={maxPrTotal === 0}
                     />
                   </div>
                   {showDeleteColumn && (

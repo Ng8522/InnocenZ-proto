@@ -408,7 +408,7 @@ function PostJobPage() {
 
         shift: s.shiftTime,
 
-        quantity: totalPrCountFromPayTierRows(s.payTierRows),
+        quantity: s.quantity,
 
         languages: buildLanguagesLabel(
           s.langs.length > 0 ? s.langs : languagesForPrIds(s.prIds, agencyPRs),

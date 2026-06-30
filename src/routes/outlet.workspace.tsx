@@ -109,6 +109,12 @@ function OutletWorkspacePage() {
         ...d.tierRates,
         [tier]: { ...d.tierRates[tier], ...patch },
       };
+      if (patch.otAfterHours != null) {
+        nextTierRates = { ...nextTierRates };
+        for (const t of OUTLET_PR_TIERS) {
+          nextTierRates[t] = { ...nextTierRates[t], otAfterHours: patch.otAfterHours };
+        }
+      }
       if (tier === OUTLET_BASE_TIER && patch.wagePerHour != null) {
         const rebuilt = buildDefaultTierRates(nextTierRates[OUTLET_BASE_TIER]);
         nextTierRates = { ...nextTierRates };
@@ -128,8 +134,13 @@ function OutletWorkspacePage() {
       };
     });
   };
+  const patchCommissionOnly = (patch: Partial<typeof draft.commissionOnlyRates>) =>
+    setDraft((d) => ({
+      ...d,
+      commissionOnlyRates: { ...d.commissionOnlyRates, ...patch },
+    }));
   const drinkRange = drinkMenuPriceRange(draft.drinkMenu ?? []);
-  const tierHint = `${formatTierWageRange(draft.tierRates)} · synced to post job & agency`;
+  const tierHint = `${formatTierWageRange(draft.tierRates)} · paid on shift completion · synced to post job & agency`;
 
   return (
     <div className="iz-screen">
@@ -151,7 +162,9 @@ function OutletWorkspacePage() {
         <IzCard className="!py-3">
           <WorkspaceTierRatesEditor
             tierRates={draft.tierRates}
+            commissionOnlyRates={draft.commissionOnlyRates}
             onPatchTier={patchTier}
+            onPatchCommissionOnly={patchCommissionOnly}
             readOnly={!canEdit}
           />
         </IzCard>

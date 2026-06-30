@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useStore, type ShiftRequest } from "@/lib/store";
 import { outletCan } from "@/lib/outlet-rbac";
 import { IzPill } from "@/components/iz/ui";
 import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
 import { OutletSealReview } from "@/components/outlet/OutletSealReview";
 import { OutletCutLossActions } from "@/components/outlet/OutletCutLossActions";
-import { ShiftTierWagesStrip } from "@/components/outlet/ShiftTierWagesStrip";
+import { WorkspaceTierRatesEditor } from "@/components/outlet/WorkspaceTierRatesEditor";
 import {
   SHIFT_DESTINATION_LABELS,
   formatOutletShiftDualMetric,
@@ -23,6 +23,9 @@ import {
   shiftDrinkMenuDetailLines,
 } from "@/lib/outlet-demo";
 import { outletShiftDisplayLiveSales } from "@/lib/outlet-financial-sync";
+import { resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
+import { shiftTierStaffingByPayTier } from "@/lib/post-job-pay-tiers";
+import { getLiveTodayIso } from "@/lib/demo-clock";
 import { Check, CheckCircle2, Clock, Lock, PlayCircle, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -72,6 +75,9 @@ export function OutletShiftDetailPanel({
   const [sealOpen, setSealOpen] = useState(false);
 
   const showApplicantActions = variant !== "future";
+  const todayIso = getLiveTodayIso();
+  const shiftDateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso, todayIso);
+  const showCutlost = variant === "home" || shiftDateIso === todayIso;
   const applicants = shiftApplicants.filter((a) => a.shiftId === shift.id && a.status === "pending");
   const outletRequests = applicants.filter((a) => a.source === "outlet_request");
   const freelancerApplicants = applicants.filter((a) => a.source !== "outlet_request");
@@ -93,6 +99,17 @@ export function OutletShiftDetailPanel({
   const cutLoss = outletShiftCutLoss(targetCost, actualCost);
   const { demand: staffingDemand, supplied } = outletShiftDemandSupplied(shift);
   const adjustmentsLabel = outletShiftCutLossAdjustmentsLabel(shift);
+  const tierStaffingByPayTier = useMemo(
+    () =>
+      shiftTierStaffingByPayTier({
+        payTierRows: shift.payTierRows,
+        quantity: shift.quantity,
+        tierRates,
+        bookedPrIds: shift.prs,
+        agencyPRs,
+      }),
+    [shift.payTierRows, shift.quantity, shift.prs, tierRates, agencyPRs],
+  );
 
   return (
     <>
@@ -128,7 +145,12 @@ export function OutletShiftDetailPanel({
           </p>
         )}
 
-        <div className="mt-2.5 grid grid-cols-4 gap-1.5 text-center text-[10px]">
+        <div
+          className={cn(
+            "mt-2.5 grid gap-1.5 text-center text-[10px]",
+            showCutlost ? "grid-cols-4" : "grid-cols-3",
+          )}
+        >
           <Metric label="Demand/Supplied" value={`${staffingDemand}/${supplied}`} />
           <Metric
             label="Target Cost/ Actual Cost"
@@ -140,7 +162,9 @@ export function OutletShiftDetailPanel({
             value={formatOutletShiftDualMetric(targetSales, displaySales)}
             green
           />
-          <Metric label="Cutlost" value={formatOutletShiftMetricAmount(cutLoss)} red={cutLoss > 0} />
+          {showCutlost && (
+            <Metric label="Cutlost" value={formatOutletShiftMetricAmount(cutLoss)} red={cutLoss > 0} />
+          )}
         </div>
         {adjustmentsLabel && (
           <p className="iz-tiny iz-muted2 -mt-1 text-center">
@@ -148,11 +172,20 @@ export function OutletShiftDetailPanel({
           </p>
         )}
 
-        {canStaff && shift.status === "confirmed" && showApplicantActions && (
+        {canStaff && shift.status === "confirmed" && showCutlost && (
           <OutletCutLossActions shift={shift} />
         )}
 
-        <ShiftTierWagesStrip tierRates={tierRates} compact />
+        <div className="mt-2.5">
+          <WorkspaceTierRatesEditor
+            tierRates={tierRates}
+            commissionOnlyRates={outletWorkspace.commissionOnlyRates}
+            onPatchTier={() => {}}
+            onPatchCommissionOnly={() => {}}
+            readOnly
+            tierStaffingByPayTier={tierStaffingByPayTier}
+          />
+        </div>
 
         {canStaff && visibleApplicants.length > 0 && shift.status !== "sealed" && (
           <div className="mt-2.5 space-y-1.5 rounded-xl bg-white/[0.02] p-2">

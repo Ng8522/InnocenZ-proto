@@ -11,7 +11,20 @@ import { addDaysToIso, migrateDemoDateIso, migrateDemoYmd } from "@/lib/demo-clo
 import { resolveOutletTierRates } from "@/lib/outlet-agency-sync";
 import { PR_AGENCY_TIED_OFFERS, type AgencyTiedOffer } from "@/lib/pr-features";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
-import { SHIFT_DESTINATION_LABELS, formatShiftEventTypeSummary, outletShiftDemandSupplied, type ShiftDestination, type ShiftEventKind, type OutletWorkspaceSettings } from "@/lib/outlet-demo";
+import {
+  SHIFT_DESTINATION_LABELS,
+  ensureShiftSalesTargets,
+  formatShiftEventTypeSummary,
+  outletShiftDemandSupplied,
+  type ShiftDestination,
+  type ShiftEventKind,
+  type OutletWorkspaceSettings,
+} from "@/lib/outlet-demo";
+import {
+  allocateDiversePayTierSplit,
+  payTierRowsFromSplit,
+  type PostJobPayTierRow,
+} from "@/lib/post-job-pay-tiers";
 import type { ShiftRequest } from "@/lib/store";
 
 export type OutletShiftSource = "posted" | "tied-offer" | "assignment-pending";
@@ -38,6 +51,12 @@ export type AgencyOutletAvailableShift = {
   vip?: boolean;
   briefing?: string;
   tierRates: Record<OutletPrTier, OutletTierRateSettings>;
+  /** Posted headcount — used when payTierRows is absent */
+  quantity: number;
+  /** Outlet-configured tier × PR count rows */
+  payTierRows?: PostJobPayTierRow[];
+  /** Posted shift id when this row mirrors an outlet job board post */
+  linkedShiftId?: string;
 };
 
 export type AgencyOutletSummary = {
@@ -123,6 +142,53 @@ function outletDefaultTierRates(outlet: string, ctx: TierRatesContext) {
   return resolveOutletTierRates(outlet, ctx.commissionRules, ctx.workspace);
 }
 
+function normalizeShiftTime(time: string) {
+  return time.replace(/\s+/g, " ").trim();
+}
+
+/** Match tied offers to outlet-posted shifts so tier pay + sales targets stay in sync. */
+function findMatchingOutletShift(
+  outlet: string,
+  dateIso: string,
+  shiftTime: string,
+  posted: ShiftRequest[],
+  todayIso: string,
+): ShiftRequest | undefined {
+  const normTime = normalizeShiftTime(shiftTime);
+  return posted.find((s) => {
+    if (s.outletName !== outlet) return false;
+    if (s.status === "sealed" || s.status === "draft") return false;
+    const sIso = s.dateIso ?? resolveOutletShiftDateIso(s.date, s.date, todayIso);
+    if (sIso !== dateIso) return false;
+    return normalizeShiftTime(s.shift) === normTime;
+  });
+}
+
+function resolveAgencyPayTierRows(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  quantity: number,
+  existing?: PostJobPayTierRow[],
+  idPrefix?: string,
+): PostJobPayTierRow[] | undefined {
+  if (existing?.length) return existing;
+  if (quantity <= 0) return undefined;
+  return payTierRowsFromSplit(tierRates, allocateDiversePayTierSplit(quantity), idPrefix);
+}
+
+function resolveAgencyShiftTierRates(
+  match: ShiftRequest | undefined,
+  outlet: string,
+  ctx: TierRatesContext,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  if (match?.tierRates) {
+    if (match.id) {
+      return ensureShiftSalesTargets({ id: match.id, tierRates: match.tierRates }).tierRates;
+    }
+    return match.tierRates;
+  }
+  return outletDefaultTierRates(outlet, ctx);
+}
+
 function postedShiftEventFields(
   shift: Pick<ShiftRequest, "eventKind" | "specialEventType" | "customSpecialEventName">,
 ): Pick<AgencyOutletAvailableShift, "eventKind" | "specialEventType" | "customSpecialEventName" | "vip"> {
@@ -162,6 +228,7 @@ function shiftsFromPosted(
     )
     .map((s) => {
       const { demand, supplied, openSlots } = outletShiftDemandSupplied(s);
+      const tierRates = s.tierRates ?? outletDefaultTierRates(outlet, ctx);
       return {
         id: `posted-${s.id}`,
         source: "posted" as const,
@@ -176,7 +243,9 @@ function shiftsFromPosted(
         payEstimate: s.estimatedCost,
         languages: s.languages,
         destination: s.destination,
-        tierRates: s.tierRates ?? outletDefaultTierRates(outlet, ctx),
+        tierRates,
+        quantity: s.quantity,
+        payTierRows: resolveAgencyPayTierRows(tierRates, s.quantity, s.payTierRows, s.id),
         ...postedShiftEventFields(s),
       };
     })
@@ -188,6 +257,7 @@ function shiftsFromTied(
   tied: AgencyTiedOffer[],
   ctx: TierRatesContext,
   todayIso: string,
+  posted: ShiftRequest[],
 ): AgencyOutletAvailableShift[] {
   return tied
     .filter((o) => o.outlet === outlet)
@@ -196,6 +266,9 @@ function shiftsFromTied(
       const dateIso = ymdToIso(dateYmd);
       const demandSlots = tiedOfferHeadcount(o);
       const suppliedSlots = tiedOfferSupplied(o);
+      const match = findMatchingOutletShift(outlet, dateIso, o.time, posted, todayIso);
+      const tierRates = resolveAgencyShiftTierRates(match, outlet, ctx);
+      const quantity = match?.quantity ?? demandSlots;
       return {
         id: `tied-${o.id}`,
         source: "tied-offer" as const,
@@ -207,11 +280,19 @@ function shiftsFromTied(
         demandSlots,
         suppliedSlots,
         openSlots: Math.max(0, demandSlots - suppliedSlots),
-        payEstimate: o.base + o.comm,
+        payEstimate: match?.estimatedCost ?? o.base + o.comm,
         ...tiedOfferEventFields(o.vip),
         destination: "agency" as const,
         briefing: o.briefing,
-        tierRates: outletDefaultTierRates(outlet, ctx),
+        tierRates,
+        quantity,
+        payTierRows: resolveAgencyPayTierRows(
+          tierRates,
+          quantity,
+          match?.payTierRows,
+          `tied-${o.id}`,
+        ),
+        linkedShiftId: match?.id,
       };
     })
     .filter((shift) => isUpcomingOutletShift(shift, todayIso));
@@ -228,6 +309,7 @@ function shiftsFromRoster(
     .map((s) => {
       const demandSlots = rosterEventDemand(s);
       const suppliedSlots = rosterEventSupplied(s);
+      const tierRates = outletDefaultTierRates(outlet, ctx);
       return {
       id: `roster-${s.id}`,
       source: "assignment-pending" as const,
@@ -240,7 +322,9 @@ function shiftsFromRoster(
       suppliedSlots,
       openSlots: Math.max(0, demandSlots - suppliedSlots),
       payEstimate: s.estPayout ?? 350,
-      tierRates: outletDefaultTierRates(outlet, ctx),
+      tierRates,
+      quantity: demandSlots,
+      payTierRows: resolveAgencyPayTierRows(tierRates, demandSlots, undefined, `roster-${s.id}`),
     };
     })
     .filter((shift) => isUpcomingOutletShift(shift, todayIso));
@@ -268,7 +352,7 @@ export function buildAgencyOutletSummaries(input: {
     const rule = getOutletRule(outlet, commissionRules.length ? commissionRules : undefined);
     const shifts = [
       ...shiftsFromPosted(outlet, input.shifts, tierCtx, todayIso),
-      ...shiftsFromTied(outlet, tied, tierCtx, todayIso),
+      ...shiftsFromTied(outlet, tied, tierCtx, todayIso, input.shifts),
       ...shiftsFromRoster(outlet, input.roster, tierCtx, todayIso),
     ].filter((shift) => isUpcomingOutletShift(shift, todayIso));
     const scheduledTonight = input.roster.filter(
@@ -690,7 +774,14 @@ export function buildPlanningWeekOutletShiftMap(
       todayIso,
       weekSet,
     );
-    const tiedShifts = shiftsFromTiedForWeek(outlet, tied, tierCtx, todayIso, weekSet);
+    const tiedShifts = shiftsFromTiedForWeek(
+      outlet,
+      tied,
+      tierCtx,
+      todayIso,
+      weekSet,
+      input.shifts,
+    );
     for (const shift of [...posted, ...tiedShifts]) {
       if (shift.openSlots <= 0) continue;
       const dateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso, todayIso);
@@ -756,6 +847,7 @@ function shiftsFromPostedForWeek(
     .map((s) => {
       const { demand, supplied, openSlots } = outletShiftDemandSupplied(s);
       const dateIso = s.dateIso ?? resolveOutletShiftDateIso(s.date, s.date, todayIso);
+      const tierRates = s.tierRates ?? outletDefaultTierRates(outlet, ctx);
       return {
         id: `posted-${s.id}`,
         source: "posted" as const,
@@ -770,7 +862,9 @@ function shiftsFromPostedForWeek(
         payEstimate: s.estimatedCost,
         languages: s.languages,
         destination: s.destination,
-        tierRates: s.tierRates ?? outletDefaultTierRates(outlet, ctx),
+        tierRates,
+        quantity: s.quantity,
+        payTierRows: resolveAgencyPayTierRows(tierRates, s.quantity, s.payTierRows, s.id),
         ...postedShiftEventFields(s),
       };
     })
@@ -783,6 +877,7 @@ function shiftsFromTiedForWeek(
   ctx: TierRatesContext,
   todayIso: string,
   weekDays: Set<string>,
+  posted: ShiftRequest[],
 ): AgencyOutletAvailableShift[] {
   return tied
     .filter((o) => o.outlet === outlet)
@@ -791,6 +886,9 @@ function shiftsFromTiedForWeek(
       const dateIso = ymdToIso(dateYmd);
       const demandSlots = tiedOfferHeadcount(o);
       const suppliedSlots = tiedOfferSupplied(o);
+      const match = findMatchingOutletShift(outlet, dateIso, o.time, posted, todayIso);
+      const tierRates = resolveAgencyShiftTierRates(match, outlet, ctx);
+      const quantity = match?.quantity ?? demandSlots;
       return {
         id: `tied-${o.id}`,
         source: "tied-offer" as const,
@@ -802,11 +900,19 @@ function shiftsFromTiedForWeek(
         demandSlots,
         suppliedSlots,
         openSlots: Math.max(0, demandSlots - suppliedSlots),
-        payEstimate: o.base + o.comm,
+        payEstimate: match?.estimatedCost ?? o.base + o.comm,
         ...tiedOfferEventFields(o.vip),
         destination: "agency" as const,
         briefing: o.briefing,
-        tierRates: outletDefaultTierRates(outlet, ctx),
+        tierRates,
+        quantity,
+        payTierRows: resolveAgencyPayTierRows(
+          tierRates,
+          quantity,
+          match?.payTierRows,
+          `tied-${o.id}`,
+        ),
+        linkedShiftId: match?.id,
       };
     })
     .filter((s) => weekDays.has(s.dateIso));

@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { snapTierWage } from "@/lib/agency-demo";
 import { cn } from "@/lib/utils";
 
+/** Display tier table money — comma thousands from 1,000 upward. */
+export function formatTierTableNumber(n: number): string {
+  return n >= 1000 ? n.toLocaleString("en-MY") : String(n);
+}
+
 export function TierMoneyInput({
   value,
   onChange,
@@ -13,10 +18,10 @@ export function TierMoneyInput({
   placeholder?: string;
   disabled?: boolean;
 }) {
-  const [text, setText] = useState(value != null && value > 0 ? String(value) : "");
+  const [text, setText] = useState(value != null && value > 0 ? formatTierTableNumber(value) : "");
 
   useEffect(() => {
-    setText(value != null && value > 0 ? String(value) : "");
+    setText(value != null && value > 0 ? formatTierTableNumber(value) : "");
   }, [value]);
 
   const commit = () => {
@@ -28,8 +33,9 @@ export function TierMoneyInput({
     }
     const n = parseFloat(trimmed.replace(/,/g, ""));
     if (!Number.isNaN(n) && n >= 0) {
-      onChange(Math.round(n));
-      setText(String(Math.round(n)));
+      const rounded = Math.round(n);
+      onChange(rounded);
+      setText(formatTierTableNumber(rounded));
     } else {
       setText("");
       onChange(undefined);
@@ -59,10 +65,10 @@ export function TierPayInput({
   onChange: (n: number) => void;
   disabled?: boolean;
 }) {
-  const [text, setText] = useState(String(value));
+  const [text, setText] = useState(formatTierTableNumber(value));
 
   useEffect(() => {
-    setText(String(value));
+    setText(formatTierTableNumber(value));
   }, [value]);
 
   const commit = () => {
@@ -70,10 +76,10 @@ export function TierPayInput({
     const n = parseFloat(text.replace(/,/g, ""));
     if (!Number.isNaN(n) && n >= 0) {
       const snapped = snapTierWage(n);
-      setText(String(snapped));
+      setText(formatTierTableNumber(snapped));
       onChange(snapped);
     } else {
-      setText(String(value));
+      setText(formatTierTableNumber(value));
     }
   };
 
@@ -134,10 +140,12 @@ export function TierCountInput({
   value,
   onChange,
   disabled,
+  max,
 }: {
   value: number;
   onChange: (n: number) => void;
   disabled?: boolean;
+  max?: number;
 }) {
   const [text, setText] = useState(String(value));
 
@@ -145,15 +153,25 @@ export function TierCountInput({
     setText(String(value));
   }, [value]);
 
-  const commit = () => {
+  const applyCount = (raw: string, commitEmpty = false) => {
     if (disabled) return;
-    const n = parseInt(text, 10);
-    if (!Number.isNaN(n) && n >= 1) {
-      setText(String(n));
-      onChange(n);
-    } else {
-      setText(String(value));
+    const trimmed = raw.replace(/\D/g, "");
+    if (trimmed === "") {
+      if (commitEmpty) {
+        setText(String(value));
+      } else {
+        setText("");
+      }
+      return;
     }
+    const n = parseInt(trimmed, 10);
+    if (Number.isNaN(n) || n < 0) {
+      setText(String(value));
+      return;
+    }
+    const capped = max !== undefined ? Math.min(max, n) : n;
+    setText(String(capped));
+    if (capped !== value) onChange(capped);
   };
 
   return (
@@ -162,8 +180,8 @@ export function TierCountInput({
       inputMode="numeric"
       value={text}
       disabled={disabled}
-      onChange={(e) => !disabled && setText(e.target.value.replace(/\D/g, ""))}
-      onBlur={commit}
+      onChange={(e) => applyCount(e.target.value)}
+      onBlur={() => applyCount(text, true)}
       className="min-w-0 flex-1 bg-transparent text-center text-sm font-semibold tabular-nums outline-none disabled:cursor-not-allowed disabled:opacity-50 cursor-text"
     />
   );
@@ -173,10 +191,13 @@ export function TierHoursInput({
   value,
   onChange,
   disabled,
+  compact,
 }: {
   value: number;
   onChange: (n: number) => void;
   disabled?: boolean;
+  /** Fixed width for centered table cells (OT after column). */
+  compact?: boolean;
 }) {
   const [text, setText] = useState(String(value));
 
@@ -204,7 +225,10 @@ export function TierHoursInput({
       disabled={disabled}
       onChange={(e) => !disabled && setText(e.target.value.replace(/[^\d.]/g, ""))}
       onBlur={commit}
-      className="min-w-0 flex-1 bg-transparent text-center text-sm font-semibold tabular-nums outline-none disabled:cursor-not-allowed disabled:opacity-50 cursor-text"
+      className={cn(
+        "min-w-0 bg-transparent text-center text-sm font-semibold tabular-nums outline-none disabled:cursor-not-allowed disabled:opacity-50 cursor-text",
+        compact ? "w-8" : "flex-1",
+      )}
     />
   );
 }
@@ -220,9 +244,15 @@ export function fieldShell(className?: string, flat?: boolean) {
 
 export const TIER_TABLE_GRID_BASE = "grid items-stretch";
 export const TIER_TABLE_GRID_COLS =
-  "grid-cols-[minmax(7.5rem,1.15fr)_minmax(5.5rem,0.9fr)_minmax(5.5rem,0.9fr)_minmax(7.5rem,1.1fr)_minmax(3.5rem,0.55fr)]";
+  "grid-cols-[minmax(7.5rem,1.15fr)_minmax(5.5rem,0.9fr)_minmax(5.5rem,0.9fr)_minmax(7.5rem,1.1fr)_minmax(4.5rem,0.7fr)]";
+export const TIER_TABLE_GRID_COLS_RATES_ONLY =
+  "grid-cols-[minmax(7.5rem,1.15fr)_minmax(5.5rem,0.9fr)_minmax(7.5rem,1.1fr)_minmax(4.5rem,0.7fr)]";
+export const TIER_TABLE_GRID_COLS_WITH_STAFFING =
+  "grid-cols-[minmax(7.5rem,1.15fr)_minmax(5.5rem,0.9fr)_minmax(5.5rem,0.9fr)_minmax(7.5rem,1.1fr)_minmax(3.25rem,0.55fr)_minmax(3.25rem,0.55fr)]";
+export const TIER_TABLE_GRID_COLS_WITH_STAFFING_RATES_ONLY =
+  "grid-cols-[minmax(7.5rem,1.15fr)_minmax(5.5rem,0.9fr)_minmax(7.5rem,1.1fr)_minmax(3.25rem,0.55fr)_minmax(3.25rem,0.55fr)]";
 export const TIER_TABLE_GRID_COLS_WITH_ACTION =
-  "grid-cols-[minmax(7.5rem,1.15fr)_minmax(5.5rem,0.9fr)_minmax(5.5rem,0.9fr)_minmax(7.5rem,1.1fr)_minmax(3.5rem,0.55fr)_2.5rem]";
+  "grid-cols-[minmax(7.5rem,1.15fr)_minmax(5.5rem,0.9fr)_minmax(5.5rem,0.9fr)_minmax(7.5rem,1.1fr)_minmax(4.5rem,0.7fr)_2.5rem]";
 
 export function tierTableCell(className?: string) {
   return cn(

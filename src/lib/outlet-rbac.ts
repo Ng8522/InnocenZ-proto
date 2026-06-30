@@ -80,7 +80,7 @@ export function outletCan(role: OutletSubRole | null | undefined, permission: Pe
 export type OutletNavItem = { to: string; label: string; icon: LucideIcon; permission: Permission };
 
 const ALL_NAV: OutletNavItem[] = [
-  { to: "/outlet", label: "Home", icon: Home, permission: "viewLiveDashboard" },
+  { to: "/outlet", label: "Today", icon: Home, permission: "viewLiveDashboard" },
   { to: "/outlet/bookings", label: "Post Job", icon: Plus, permission: "postJob" },
   { to: "/outlet/ratings", label: "Calendar page", icon: Zap, permission: "viewLiveDashboard" },
   { to: "/outlet/history", label: "History", icon: History, permission: "viewHistory" },

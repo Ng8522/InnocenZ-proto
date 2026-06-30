@@ -14,6 +14,13 @@ import {
 } from "@/lib/agency-demo";
 import { DEFAULT_PER_DRINK_RM, DEFAULT_PER_TABLE_RM } from "@/lib/outlet-financial-sync";
 import { outletMatches } from "@/lib/portal-sync";
+import {
+  defaultCommissionOnlyRateSettings,
+  estimatePayTierRowsLaborCost,
+  resolveShiftPayTierRows,
+  type CommissionOnlyRateSettings,
+  type PostJobPayTierRow,
+} from "@/lib/post-job-pay-tiers";
 
 export type ShiftDestination = "agency" | "marketplace" | "both";
 
@@ -217,16 +224,39 @@ export function normalizeOutletWorkspace(
   };
   const tierRates = normalizeTierRates(workspaceBaseRates(merged), ws?.tierRates);
   const baseTier = tierRates[OUTLET_BASE_TIER];
+  const migratedTierRates = (() => {
+    if (merged.outletName === "Velvet 23" && baseTier.wagePerHour === 50) {
+      return normalizeTierRates({ ...baseTier, wagePerHour: 500 }, undefined);
+    }
+    const t2 = tierRates["Tier II"]?.wagePerHour;
+    if (baseTier.wagePerHour === 500 && t2 === 540) {
+      return normalizeTierRates(baseTier, undefined);
+    }
+    return tierRates;
+  })();
+  const migratedBaseTier = migratedTierRates[OUTLET_BASE_TIER];
+  const legacyCommissionOnly =
+    ws?.commissionOnlyRates?.drinkPct === 14 && ws?.commissionOnlyRates?.tipPct === 28;
+  const commissionOnlyRates = legacyCommissionOnly
+    ? defaultCommissionOnlyRateSettings()
+    : {
+        ...defaultCommissionOnlyRateSettings(),
+        ...ws?.commissionOnlyRates,
+      };
+  if (commissionOnlyRates.targetSalesRm == null || commissionOnlyRates.targetSalesRm <= 0) {
+    commissionOnlyRates.targetSalesRm = defaultCommissionOnlyRateSettings().targetSalesRm;
+  }
   return {
     ...merged,
     drinkMenu,
     perDrinkRm: ws?.perDrinkRm ?? averageDrinkPrice(drinkMenu),
-    tierRates,
-    basePayPerHour: baseTier.wagePerHour,
-    drinkPct: baseTier.drinkPct,
-    tipPct: baseTier.tipPct,
-    tablePct: baseTier.tablePct,
-    otAfterHours: baseTier.otAfterHours,
+    tierRates: migratedTierRates,
+    commissionOnlyRates,
+    basePayPerHour: migratedBaseTier.wagePerHour,
+    drinkPct: migratedBaseTier.drinkPct,
+    tipPct: migratedBaseTier.tipPct,
+    tablePct: migratedBaseTier.tablePct,
+    otAfterHours: migratedBaseTier.otAfterHours ?? merged.otAfterHours ?? 6,
   };
 }
 
@@ -234,15 +264,29 @@ export function resolveShiftTierRates(
   shift: { tierRates?: Record<OutletPrTier, OutletTierRateSettings>; payPerHour: number },
   workspace: Pick<OutletWorkspaceSettings, "tierRates">,
 ): Record<OutletPrTier, OutletTierRateSettings> {
-  if (shift.tierRates) return shift.tierRates;
-  const baseTier = workspace.tierRates[OUTLET_BASE_TIER];
-  return buildDefaultTierRates({
-    wagePerHour: shift.payPerHour,
-    drinkPct: baseTier.drinkPct,
-    tipPct: baseTier.tipPct,
-    tablePct: baseTier.tablePct,
-    otAfterHours: baseTier.otAfterHours,
-  });
+  if (!shift.tierRates) {
+    const baseTier = workspace.tierRates[OUTLET_BASE_TIER];
+    return buildDefaultTierRates({
+      wagePerHour: shift.payPerHour,
+      drinkPct: baseTier.drinkPct,
+      tipPct: baseTier.tipPct,
+      tablePct: baseTier.tablePct,
+      otAfterHours: baseTier.otAfterHours,
+    });
+  }
+  const wsBase = workspace.tierRates[OUTLET_BASE_TIER].wagePerHour;
+  const shiftBase = shift.tierRates[OUTLET_BASE_TIER].wagePerHour;
+  if (wsBase >= 500 && shiftBase <= 80) {
+    const out = cloneTierRates(workspace.tierRates);
+    for (const tier of OUTLET_PR_TIERS) {
+      const shiftTier = shift.tierRates[tier];
+      if (shiftTier?.targetSalesRm != null) {
+        out[tier] = { ...out[tier], targetSalesRm: shiftTier.targetSalesRm };
+      }
+    }
+    return out;
+  }
+  return shift.tierRates;
 }
 
 export function patchShiftTierWages(
@@ -411,6 +455,8 @@ export interface OutletWorkspaceSettings {
   otAfterHours: number;
   /** Wage & commission per PR training tier */
   tierRates: Record<OutletPrTier, OutletTierRateSettings>;
+  /** Commission-only tier defaults (no shift pay) — synced to post job */
+  commissionOnlyRates: CommissionOnlyRateSettings;
   /** Legacy average — derived from drinkMenu on save */
   perDrinkRm: number;
   perTableRm: number;
@@ -746,6 +792,7 @@ export const DEFAULT_OUTLET_WORKSPACE: OutletWorkspaceSettings = {
   tablePct: velvetRule.tablePct,
   otAfterHours: velvetRule.otAfterHours,
   tierRates: normalizeTierRates(velvetTierBase, velvetRule.tierRates),
+  commissionOnlyRates: defaultCommissionOnlyRateSettings(),
   perDrinkRm: DEFAULT_PER_DRINK_RM,
   perTableRm: DEFAULT_PER_TABLE_RM,
   drinkMenu: DEFAULT_OUTLET_DRINK_MENU.map((d) => ({ ...d })),
@@ -847,28 +894,29 @@ export function outletShiftActualLaborCost(
   });
 }
 
-/** Planned labor for effective demand — scales from on-shift wages when partially staffed. */
+/** Planned labor for full demand — uses pay tier rows when posted. */
 export function outletShiftTargetLaborCost(
-  shift: OutletCutLossShiftSlice & { shift: string; prs?: string[] },
+  shift: OutletCutLossShiftSlice & {
+    shift: string;
+    prs?: string[];
+    payTierRows?: PostJobPayTierRow[];
+  },
   tierRates: Record<OutletPrTier, OutletTierRateSettings>,
-  prTierById: Record<string, string | undefined>,
+  _prTierById?: Record<string, string | undefined>,
 ): number {
   const demand = outletShiftEffectiveDemand(shift);
   if (demand <= 0) return 0;
-  const supplied = outletShiftSuppliedCount(shift);
-  const actual = outletShiftActualLaborCost(
-    { shift: shift.shift, prs: shift.prs ?? [] },
-    tierRates,
-    prTierById,
-  );
-  if (supplied > 0) {
-    return Math.round((actual * demand) / supplied);
+
+  if (shift.payTierRows?.length) {
+    const rows = resolveShiftPayTierRows({
+      payTierRows: shift.payTierRows,
+      quantity: demand,
+      tierRates,
+    });
+    return estimatePayTierRowsLaborCost(rows, tierRates);
   }
-  return estimateShiftLaborCost({
-    tierRates,
-    hours: shiftHoursFromLabel(shift.shift),
-    quantity: demand,
-  });
+
+  return estimateShiftLaborCost({ tierRates, quantity: demand });
 }
 
 export function outletShiftPlannedLaborPerSlot(
@@ -898,7 +946,7 @@ export function outletShiftLaborCostForPrIds(
 }
 
 /** Share of (target labor cost − actual labor cost) counted as cutlost. */
-export const OUTLET_CUTLOSS_COST_SHARE = 0.4;
+export const OUTLET_CUTLOSS_COST_SHARE = 0.3;
 
 export function outletShiftCutLoss(targetCost: number, actualCost: number): number {
   return Math.max(0, Math.round((targetCost - actualCost) * OUTLET_CUTLOSS_COST_SHARE));

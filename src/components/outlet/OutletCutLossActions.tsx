@@ -15,7 +15,8 @@ import {
   outletUnfilledDemandSlots,
   resolveShiftTierRates,
 } from "@/lib/outlet-demo";
-import { Check, ChevronDown, TrendingDown, UserMinus, Users } from "lucide-react";
+import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
+import { Check, ChevronDown, Clock, TrendingDown, UserMinus, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function formatRm(amount: number): string {
@@ -37,7 +38,8 @@ export function OutletCutLossActions({
 }) {
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const agencyPRs = useStore((s) => s.agencyPRs);
-  const { releaseOutletPrsEarly, cutOutletUnfilledDemand } = useStore();
+  const pendingCutlostRequests = useStore((s) => s.pendingCutlostRequests);
+  const requestOutletCutlostReduction = useStore((s) => s.requestOutletCutlostReduction);
 
   const tierRates = resolveShiftTierRates(shift, outletWorkspace);
   const prTierById = Object.fromEntries(agencyPRs.map((pr) => [pr.id, pr.trainingLevel]));
@@ -52,6 +54,11 @@ export function OutletCutLossActions({
   const unfilled = outletUnfilledDemandSlots(shift);
   const adjustments = outletShiftCutLossAdjustmentsLabel(shift);
   const perSlotLabor = outletShiftPlannedLaborPerSlot(shift, tierRates, prTierById);
+
+  const pendingRequest = useMemo(
+    () => pendingCutlostRequests.find((r) => r.shiftId === shift.id && r.status === "pending"),
+    [pendingCutlostRequests, shift.id],
+  );
 
   const releasablePrs = useMemo(
     () =>
@@ -83,16 +90,16 @@ export function OutletCutLossActions({
   const canReleaseTwo = releasablePrs.length >= 2 && releaseTwoSavings > 0;
   const canCutUnfilled = unfilled > 0 && cutAllSavings > 0;
   const hasActions = canReleaseTwo || canCutUnfilled || releasablePrs.length > 0;
+  const actionsLocked = Boolean(pendingRequest);
 
-  if (!hasActions && cutLoss <= 0) return null;
+  if (!hasActions && cutLoss <= 0 && !pendingRequest) return null;
 
   const togglePick = (id: string) => {
     setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   };
 
-  const confirmRelease = () => {
-    if (!picked.length) return;
-    releaseOutletPrsEarly(shift.id, picked);
+  const submitRelease = (prIds: string[]) => {
+    requestOutletCutlostReduction(shift.id, { kind: "release_prs", prIds });
     setPicked([]);
     setReleaseOpen(false);
   };
@@ -120,6 +127,11 @@ export function OutletCutLossActions({
             {formatRm(cutLoss)}
           </IzPill>
         )}
+        {pendingRequest && (
+          <IzPill variant="amber" className="shrink-0 !py-0.5 !text-[11px]">
+            Pending agency
+          </IzPill>
+        )}
         <ChevronDown
           className={cn("ml-auto h-4 w-4 shrink-0 text-[var(--iz-muted)]", open && "rotate-180")}
         />
@@ -130,8 +142,16 @@ export function OutletCutLossActions({
           <p className="text-xs leading-snug text-[var(--iz-muted2)]">
             Cutlost is {Math.round(OUTLET_CUTLOSS_COST_SHARE * 100)}% of planned labor minus wages
             for PRs on shift ({formatRm(targetLabor)} − {formatRm(actualLabor)} ={" "}
-            {formatRm(laborGap)} gap).
+            {formatRm(laborGap)} gap). Reductions need agency approval before they apply.
           </p>
+
+          {pendingRequest && (
+            <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-[rgba(244,183,64,.28)] bg-[rgba(244,183,64,.08)] px-2.5 py-2 text-xs text-[var(--iz-amber)]">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              Awaiting agency · {cutlostRequestTitle(pendingRequest)} · ~
+              {formatRm(pendingRequest.estimatedSavings)} savings
+            </p>
+          )}
 
           {adjustments && (
             <p className="mt-1 text-xs text-[var(--iz-muted2)]">Already applied · {adjustments}</p>
@@ -144,7 +164,8 @@ export function OutletCutLossActions({
                 title="Release 2 PRs early"
                 detail={`~${formatRm(releaseTwoLabor)} less target & actual labor · 2 PRs checked out`}
                 savingsLabel={formatCutLossSavings(releaseTwoSavings, cutLoss)}
-                onClick={() => releaseOutletPrsEarly(shift.id, releaseTwoIds)}
+                disabled={actionsLocked}
+                onClick={() => submitRelease(releaseTwoIds)}
               />
             )}
 
@@ -153,6 +174,7 @@ export function OutletCutLossActions({
                 icon={Users}
                 title="Choose PRs to release"
                 detail={`${releasablePrs.length} on shift · pick who goes home early`}
+                disabled={actionsLocked}
                 onClick={() => {
                   setPicked([]);
                   setReleaseOpen(true);
@@ -166,7 +188,10 @@ export function OutletCutLossActions({
                 title={unfilled === 1 ? "Cut 1 open slot" : `Cut ${unfilled} open slots`}
                 detail={`~${formatRm(cutSlotsLabor)} off planned labor only · ${unfilled} unfilled slot${unfilled === 1 ? "" : "s"}`}
                 savingsLabel={formatCutLossSavings(cutAllSavings, cutLoss)}
-                onClick={() => cutOutletUnfilledDemand(shift.id, unfilled)}
+                disabled={actionsLocked}
+                onClick={() =>
+                  requestOutletCutlostReduction(shift.id, { kind: "cut_slots", slots: unfilled })
+                }
               />
             )}
           </div>
@@ -176,8 +201,8 @@ export function OutletCutLossActions({
       <IzSheet open={releaseOpen} onClose={() => setReleaseOpen(false)}>
         <div className="iz-cardttl">Release PRs early</div>
         <p className="iz-tiny iz-muted mt-1">
-          Selected PRs are checked out on the roster. Target and actual labor both drop by their
-          shift wages.
+          Selected PRs are sent to your agency for approval. Once approved, they are checked out
+          and target and actual labor both drop by their shift wages.
         </p>
         <div className="mt-3 space-y-1.5">
           {releasablePrs.map((pr) => {
@@ -219,9 +244,9 @@ export function OutletCutLossActions({
           type="button"
           className="iz-btn iz-btn-primary mt-3 w-full"
           disabled={!picked.length}
-          onClick={confirmRelease}
+          onClick={() => submitRelease(picked)}
         >
-          Release {picked.length || ""} PR{picked.length === 1 ? "" : "s"}
+          Request agency approval
         </button>
         <button
           type="button"
@@ -240,19 +265,27 @@ function ActionRow({
   title,
   detail,
   savingsLabel,
+  disabled,
   onClick,
 }: {
   icon: typeof UserMinus;
   title: string;
   detail: string;
   savingsLabel?: string | null;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
-      className="flex w-full items-center gap-2.5 rounded-lg border border-[var(--iz-line)] bg-[var(--iz-bg)] px-2.5 py-1.5 text-left transition-colors hover:border-[var(--iz-gold-d)]"
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-lg border border-[var(--iz-line)] bg-[var(--iz-bg)] px-2.5 py-1.5 text-left transition-colors",
+        disabled
+          ? "cursor-not-allowed opacity-50"
+          : "hover:border-[var(--iz-gold-d)]",
+      )}
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
         <Icon className="h-4 w-4 text-[var(--iz-gold)]" />

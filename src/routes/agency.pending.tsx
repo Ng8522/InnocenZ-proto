@@ -2,22 +2,23 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
-import type { PendingFreelancerPayroll } from "@/lib/store";
+import type { PendingCutlostRequest } from "@/lib/outlet-cutlost-requests";
+import { cutlostRequestDetail, cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { DEFAULT_TIED_AGENCY_ID } from "@/lib/pr-demo";
 import { IzCard, IzPill } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
-import { Building2, Camera, Check, Clock, Image, UserPlus, Users, X } from "lucide-react";
+import { Camera, Check, Clock, Image, TrendingDown, UserMinus, UserPlus, X } from "lucide-react";
 import { publicAssetPath } from "@/lib/public-asset";
 import { portfolioFilledCount } from "@/components/pr/PortfolioGalleryPicker";
 
-type Tab = "signups" | "freelancer";
+type Tab = "signups" | "cutlost";
 
 export const Route = createFileRoute("/agency/pending")({
   component: AgencyPending,
   validateSearch: (search: Record<string, unknown>): { tab?: Tab } => ({
-    tab: search.tab === "freelancer" ? "freelancer" : undefined,
+    tab:
+      search.tab === "cutlost" || search.tab === "freelancer" ? "cutlost" : undefined,
   }),
 });
 
@@ -241,46 +242,96 @@ function SignupApprovalCard({
   );
 }
 
-function FreelancerPayrollCard({
+function CutlostRequestCard({
   req,
   onApprove,
   onReject,
 }: {
-  req: PendingFreelancerPayroll;
+  req: PendingCutlostRequest;
   onApprove: () => void;
-  onReject: () => void;
+  onReject: (reason: string) => void;
 }) {
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const Icon = req.kind === "release_prs" ? UserMinus : TrendingDown;
+
   return (
-    <IzCard className="border-[rgba(159,122,234,.35)] bg-[linear-gradient(180deg,rgba(159,122,234,.06),transparent)]">
-      <div className="iz-between items-start gap-2">
-        <div>
-          <div className="font-sora font-bold">{req.prName}</div>
-          <div className="mt-1 iz-tiny iz-muted">{req.languages}</div>
+    <>
+      <IzCard className="border-[rgba(244,183,64,.28)] bg-[linear-gradient(180deg,rgba(244,183,64,.06),transparent)]">
+        <div className="iz-between items-start gap-2">
+          <div>
+            <div className="font-sora font-bold">{req.outletName}</div>
+            <div className="mt-1 iz-tiny iz-muted line-clamp-2">{req.shiftEvent}</div>
+          </div>
+          <IzPill variant="amber">Cutlost</IzPill>
         </div>
-        <IzPill variant="violet">Freelancer</IzPill>
-      </div>
-      <div className="mt-2 flex items-center gap-1.5 rounded-[10px] border border-[rgba(159,122,234,.25)] bg-[rgba(0,0,0,.2)] px-2.5 py-2">
-        <Building2 className="h-3.5 w-3.5 shrink-0 text-[var(--iz-violet)]" />
-        <div className="min-w-0">
-          <p className="iz-tiny iz-muted2">Requested payroll via</p>
-          <p className="iz-sm font-bold text-[var(--iz-violet)]">{req.agencyName}</p>
+        <div className="mt-2 flex items-center gap-1.5 rounded-[10px] border border-[rgba(244,183,64,.22)] bg-[rgba(0,0,0,.2)] px-2.5 py-2">
+          <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold)]" />
+          <div className="min-w-0">
+            <p className="iz-sm font-bold text-[var(--iz-txt)]">{cutlostRequestTitle(req)}</p>
+            <p className="iz-tiny iz-muted2 mt-0.5">{cutlostRequestDetail(req)}</p>
+          </div>
         </div>
-      </div>
-      <p className="iz-tiny iz-muted2 mt-2">IC {req.ic}</p>
-      <p className="iz-tiny iz-muted2">PR can detach any time after approval</p>
-      <p className="iz-tiny mt-2 flex items-center gap-1 text-[var(--iz-amber)]">
-        <Clock className="h-3 w-3" />
-        Selected {req.requestedAt}
-      </p>
-      <div className="mt-3 flex gap-2">
-        <button type="button" onClick={onApprove} className="iz-btn iz-btn-primary flex-1 !py-2 !text-xs">
-          Approve payroll
-        </button>
-        <button type="button" onClick={onReject} className="iz-btn iz-btn-soft flex-1 !py-2 !text-xs">
-          Decline
-        </button>
-      </div>
-    </IzCard>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <IzPill variant="ink">{req.dateLabel}</IzPill>
+          <IzPill variant="ink">{req.shiftLabel}</IzPill>
+          <IzPill variant="red">Cutlost RM {Math.round(req.cutlostBefore).toLocaleString("en-MY")}</IzPill>
+          <IzPill variant="green">Saves ~RM {Math.round(req.estimatedSavings).toLocaleString("en-MY")}</IzPill>
+        </div>
+        <p className="iz-tiny mt-2 flex items-center gap-1 text-[var(--iz-amber)]">
+          <Clock className="h-3 w-3" />
+          Requested {req.requestedAt}
+        </p>
+        <div className="mt-3 flex gap-2">
+          <button type="button" onClick={onApprove} className="iz-btn iz-btn-primary flex-1 !py-2 !text-xs">
+            Approve
+          </button>
+          <button type="button" onClick={() => setRejectOpen(true)} className="iz-btn iz-btn-soft flex-1 !py-2 !text-xs">
+            Decline
+          </button>
+        </div>
+      </IzCard>
+
+      {rejectOpen && (
+        <IzSheet open onClose={() => setRejectOpen(false)}>
+          <div className="iz-sheet-head">
+            <div>
+              <button
+                type="button"
+                className="iz-chip mb-2 !px-2 !py-1 !text-[10px]"
+                onClick={() => setRejectOpen(false)}
+              >
+                ← Back
+              </button>
+              <h3>Decline cutlost request</h3>
+            </div>
+            <button type="button" className="iz-sheet-close" onClick={() => setRejectOpen(false)} aria-label="Close">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="iz-tiny iz-muted mb-2">
+            {req.outletName} · {cutlostRequestTitle(req)}
+          </p>
+          <textarea
+            className="iz-field-input min-h-[80px] !text-sm"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason for declining…"
+          />
+          <button
+            type="button"
+            className="iz-btn iz-btn-primary mt-3 w-full"
+            disabled={!reason.trim()}
+            onClick={() => {
+              onReject(reason.trim());
+              setRejectOpen(false);
+            }}
+          >
+            Confirm decline
+          </button>
+        </IzSheet>
+      )}
+    </>
   );
 }
 
@@ -288,11 +339,11 @@ function AgencyPending() {
   const { tab: tabFromSearch } = Route.useSearch();
   const {
     pendingPRs,
-    pendingFreelancerPayrolls,
+    pendingCutlostRequests,
     approvePendingPR,
     rejectPendingPR,
-    approveFreelancerPayroll,
-    rejectFreelancerPayroll,
+    approveCutlostRequest,
+    rejectCutlostRequest,
     invitePendingPR,
     agencySubRole,
   } = useStore();
@@ -306,9 +357,7 @@ function AgencyPending() {
   }, [tabFromSearch]);
 
   const signups = pendingPRs.filter((p) => p.status === "pending");
-  const freelancers = pendingFreelancerPayrolls.filter(
-    (p) => p.agencyId === DEFAULT_TIED_AGENCY_ID && p.status === "pending",
-  );
+  const cutlostRequests = pendingCutlostRequests.filter((r) => r.status === "pending");
 
   if (!agencyCan(agencySubRole, "approvePrSignups")) {
     return (
@@ -345,10 +394,10 @@ function AgencyPending() {
         </button>
         <button
           type="button"
-          className={`flex-1 rounded-full border py-2 text-xs font-semibold ${tab === "freelancer" ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
-          onClick={() => setTab("freelancer")}
+          className={`flex-1 rounded-full border py-2 text-xs font-semibold ${tab === "cutlost" ? "border-[var(--iz-gold)] bg-[rgba(232,194,122,.12)] text-[var(--iz-gold-l)]" : "border-[var(--iz-line)] text-[var(--iz-muted)]"}`}
+          onClick={() => setTab("cutlost")}
         >
-          Freelancer payroll ({freelancers.length})
+          Cutlost requests ({cutlostRequests.length})
         </button>
       </div>
 
@@ -393,22 +442,22 @@ function AgencyPending() {
       ) : (
         <>
           <OutletSection
-            title="Freelancer payroll"
-            hint="Freelancers who chose your agency"
+            title="Outlet cutlost requests"
+            hint="Review labor cuts before they apply"
             className="!mt-4"
           >
           <div className="space-y-3">
-            {freelancers.length === 0 ? (
+            {cutlostRequests.length === 0 ? (
               <IzCard flat className="text-center border-dashed border-[var(--iz-line2)]">
-                <p className="iz-sm iz-muted">No freelancer payroll requests</p>
+                <p className="iz-sm iz-muted">No outlet cutlost requests</p>
               </IzCard>
             ) : (
-              freelancers.map((p) => (
-                <FreelancerPayrollCard
-                  key={p.id}
-                  req={p}
-                  onApprove={() => approveFreelancerPayroll(p.id)}
-                  onReject={() => rejectFreelancerPayroll(p.id)}
+              cutlostRequests.map((req) => (
+                <CutlostRequestCard
+                  key={req.id}
+                  req={req}
+                  onApprove={() => approveCutlostRequest(req.id)}
+                  onReject={(reason) => rejectCutlostRequest(req.id, reason)}
                 />
               ))
             )}

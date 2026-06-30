@@ -86,6 +86,7 @@ import {
   normalizeTierRates,
   OUTLET_BASE_TIER,
   OUTLET_PR_TIERS,
+  migrateLegacyOutletCommissionRules,
   migrateCommissionRuleToTierIBase,
   migrateTierMultipliersToTierIBase,
   buildDefaultTierRates,
@@ -195,6 +196,8 @@ import {
   outletShiftEffectiveDemand,
   outletShiftPlannedLaborPerSlot,
   outletUnfilledDemandSlots,
+  outletShiftCutLossForShift,
+  outletShiftCutLossSavings,
   OUTLET_SUBSCRIPTION_BILLING,
   outletSubscriptionInvoiceForPlan,
   syncOutletSubscriptionBilling,
@@ -203,8 +206,10 @@ import {
   type OutletSubscriptionInvoice,
   type OutletSubscriptionPlanId,
 } from "@/lib/outlet-demo";
+import type { PendingCutlostRequest } from "@/lib/outlet-cutlost-requests";
+import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import type { PostJobPayTierRow } from "@/lib/post-job-pay-tiers";
-import { buildDemoStoreReset, buildPrDemoReset, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
+import { buildDemoStoreReset, buildPrDemoReset, mergeDemoHennessyRosterFloor, mergeDemoRosterAssignmentSlots, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
 import {
   SEED_SPECIAL_SERVICES,
   mergeSpecialServiceOrders,
@@ -731,6 +736,7 @@ interface StoreState {
   paymentCardLast4: string;
   pendingPRs: PendingPR[];
   pendingFreelancerPayrolls: PendingFreelancerPayroll[];
+  pendingCutlostRequests: PendingCutlostRequest[];
 
   approvePendingPR: (id: string) => void;
   rejectPendingPR: (id: string, reason?: string) => void;
@@ -738,6 +744,12 @@ interface StoreState {
   submitPrRegistration: (input: PrRegistrationInput) => void;
   approveFreelancerPayroll: (id: string) => void;
   rejectFreelancerPayroll: (id: string) => void;
+  requestOutletCutlostReduction: (
+    shiftId: string,
+    payload: { kind: "release_prs"; prIds: string[] } | { kind: "cut_slots"; slots: number },
+  ) => void;
+  approveCutlostRequest: (id: string) => void;
+  rejectCutlostRequest: (id: string, reason?: string) => void;
 
   createShift: (s: Omit<ShiftRequest, "id" | "status" | "filled" | "prs">) => string;
   createShifts: (
@@ -800,7 +812,12 @@ function mergeAgencyPRs(
   for (const seed of SEED_AGENCY_PRS) {
     if (!byId.has(seed.id)) byId.set(seed.id, seed);
   }
-  return sortAgencyPrsByName(SEED_AGENCY_PRS.map((seed) => byId.get(seed.id) ?? seed));
+  return sortAgencyPrsByName(
+    SEED_AGENCY_PRS.map((seed) => {
+      const p = byId.get(seed.id) ?? seed;
+      return { ...p, trainingLevel: seed.trainingLevel };
+    }),
+  );
 }
 
 function normalizeAgencyPrs(list: AgencyManagedPR[]): AgencyManagedPR[] {
@@ -4335,6 +4352,7 @@ export const useStore = create<StoreState>()(
       paymentCardLast4: demoSnapshot.paymentCardLast4,
       pendingPRs: demoSnapshot.pendingPRs,
       pendingFreelancerPayrolls: demoSnapshot.pendingFreelancerPayrolls,
+      pendingCutlostRequests: demoSnapshot.pendingCutlostRequests ?? [],
 
       approvePendingPR: (id) => {
         const pending = get().pendingPRs.find((p) => p.id === id);
@@ -4989,6 +5007,121 @@ export const useStore = create<StoreState>()(
           "success",
         );
       },
+      requestOutletCutlostReduction: (shiftId, payload) => {
+        const st = get();
+        const shift = st.shifts.find((sh) => sh.id === shiftId);
+        if (!shift || shift.status === "sealed") return;
+
+        const pendingForShift = st.pendingCutlostRequests.some(
+          (r) => r.shiftId === shiftId && r.status === "pending",
+        );
+        if (pendingForShift) {
+          get().toast("A cutlost request is already awaiting agency approval", "warn");
+          return;
+        }
+
+        const tierRates = resolveShiftTierRates(shift, st.outletWorkspace);
+        const prTierById = Object.fromEntries(st.agencyPRs.map((p) => [p.id, p.trainingLevel]));
+        const cutlostBefore = outletShiftCutLossForShift(shift, tierRates, prTierById);
+
+        let estimatedSavings = 0;
+        let releasedPrIds: string[] | undefined;
+        let releasedPrNames: string[] | undefined;
+        let slotsCut: number | undefined;
+
+        if (payload.kind === "release_prs") {
+          const alreadyReleased = new Set(shift.releasedEarlyPrIds ?? []);
+          const valid = payload.prIds.filter((id) => shift.prs.includes(id) && !alreadyReleased.has(id));
+          if (!valid.length) {
+            get().toast("No PRs available to release", "warn");
+            return;
+          }
+          releasedPrIds = valid;
+          releasedPrNames = valid.map((id) => st.agencyPRs.find((p) => p.id === id)?.name ?? id);
+          estimatedSavings = outletShiftCutLossSavings(shift, tierRates, prTierById, {
+            releasedEarlyPrIds: [...(shift.releasedEarlyPrIds ?? []), ...valid],
+          });
+        } else {
+          const unfilled = outletUnfilledDemandSlots(shift);
+          const cut = Math.min(payload.slots, unfilled);
+          if (cut <= 0) {
+            get().toast("No open demand slots to cut", "warn");
+            return;
+          }
+          slotsCut = cut;
+          estimatedSavings = outletShiftCutLossSavings(shift, tierRates, prTierById, {
+            demandCut: (shift.demandCut ?? 0) + cut,
+          });
+        }
+
+        if (estimatedSavings <= 0) {
+          get().toast("This option would not reduce cutlost", "warn");
+          return;
+        }
+
+        const requestedAt = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const req: PendingCutlostRequest = {
+          id: `cutlost-${Date.now()}`,
+          shiftId,
+          outletName: shift.outletName,
+          shiftEvent: shift.event,
+          shiftLabel: shift.shift,
+          dateLabel: shift.date,
+          kind: payload.kind,
+          status: "pending",
+          releasedPrIds,
+          releasedPrNames,
+          slotsCut,
+          estimatedSavings,
+          cutlostBefore,
+          requestedAt,
+        };
+
+        set({ pendingCutlostRequests: [req, ...st.pendingCutlostRequests] });
+        get().pushNotify({
+          type: "shift_edit",
+          outlet: shift.outletName,
+          detail: `Cutlost request · ${cutlostRequestTitle(req)}`,
+        });
+        get().toast("Sent to agency for approval", "info");
+      },
+      approveCutlostRequest: (id) => {
+        const st = get();
+        const req = st.pendingCutlostRequests.find((r) => r.id === id);
+        if (!req || req.status !== "pending") return;
+
+        if (req.kind === "release_prs" && req.releasedPrIds?.length) {
+          get().releaseOutletPrsEarly(req.shiftId, req.releasedPrIds);
+        } else if (req.kind === "cut_slots" && req.slotsCut) {
+          get().cutOutletUnfilledDemand(req.shiftId, req.slotsCut);
+        }
+
+        set({
+          pendingCutlostRequests: st.pendingCutlostRequests.map((r) =>
+            r.id === id ? { ...r, status: "approved" as const } : r,
+          ),
+        });
+        get().toast(`${req.outletName} cutlost request approved`, "success");
+      },
+      rejectCutlostRequest: (id, reason) => {
+        set((st) => ({
+          pendingCutlostRequests: st.pendingCutlostRequests.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  status: "rejected" as const,
+                  declineReason: reason?.trim() || "Declined by agency",
+                }
+              : r,
+          ),
+        }));
+        get().toast("Cutlost request declined", "info");
+      },
       easeOutletSalesTarget: (shiftId, reducePct) => {
         const shift = get().shifts.find((sh) => sh.id === shiftId);
         if (!shift || shift.status === "sealed" || reducePct <= 0) return;
@@ -5269,6 +5402,7 @@ export const useStore = create<StoreState>()(
           ratings: s.ratings,
           pendingPRs: s.pendingPRs,
           pendingFreelancerPayrolls: s.pendingFreelancerPayrolls,
+          pendingCutlostRequests: s.pendingCutlostRequests,
           prSessionByRole,
           shiftAccepted: s.shiftAccepted,
           pendingApproval: s.pendingApproval,
@@ -5614,6 +5748,7 @@ export const useStore = create<StoreState>()(
             p?.pendingFreelancerPayrolls,
             current.pendingFreelancerPayrolls,
           ),
+          pendingCutlostRequests: p?.pendingCutlostRequests ?? current.pendingCutlostRequests,
           agencyPRs: mergedAgencyPRs,
           specialServiceOrders: mergeSpecialServiceOrders(
             p?.specialServiceOrders,
@@ -5622,7 +5757,13 @@ export const useStore = create<StoreState>()(
           ),
           prs: marketplacePrsFromAgency(mergedAgencyPRs),
           agencyRoster: rosterWithTiedPrAttendance(
-            mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
+            mergeDemoHennessyRosterFloor(
+              mergeDemoRosterAssignmentSlots(
+                mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
+                demoSnapshot.agencyRoster,
+              ),
+              demoSnapshot.agencyRoster,
+            ),
             {
               prSubRole: p?.prSubRole ?? current.prSubRole,
               checkedIn: p?.checkedIn ?? current.checkedIn,
@@ -5635,11 +5776,13 @@ export const useStore = create<StoreState>()(
           outletCommissionRules: (() => {
             const ws = normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace);
             const legacyMult = p?.scalingTierMultipliers ?? current.scalingTierMultipliers;
-            const rules = ensureOutletRuleTierMultipliers(
-              p?.outletCommissionRules?.length
-                ? p.outletCommissionRules
-                : current.outletCommissionRules,
-              legacyMult,
+            const rules = migrateLegacyOutletCommissionRules(
+              ensureOutletRuleTierMultipliers(
+                p?.outletCommissionRules?.length
+                  ? p.outletCommissionRules
+                  : current.outletCommissionRules,
+                legacyMult,
+              ),
             );
             return syncCommissionRulesFromWorkspace(ws, rules);
           })(),

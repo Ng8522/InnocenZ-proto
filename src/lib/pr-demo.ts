@@ -416,7 +416,7 @@ export interface PrActiveShiftSession {
   date: [number, number, number];
   shiftTime: string;
   baseWages: number;
-  /** Outlet hourly rate at check-in (RM/hr) */
+  /** Outlet flat shift pay at check-in (RM/shift; legacy field: wagePerHour) */
   wagePerHour?: number;
   /** Scheduled shift length from roster label */
   shiftHours?: number;

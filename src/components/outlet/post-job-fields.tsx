@@ -13,6 +13,8 @@ import {
   estimatePayTierRowsLaborCost,
   formatPayTierRowSummary,
   payTierRowsFromLegacy,
+  adjustPayTierRowsToTotal,
+  clampPayTierRowsToMax,
   syncPayTierRowsFromWorkspace,
   syncTierRatesFromPayTierRows,
   totalPrCountFromPayTierRows,
@@ -65,6 +67,60 @@ const DEFAULT_DRAFT_TIER_BASE: OutletTierRateSettings = {
   otAfterHours: 6,
 };
 
+const DRAFT_NORMAL_EVENT_DEFAULT = "Friday lounge";
+const DRAFT_NORMAL_EVENT_PLACEHOLDER = "e.g. Friday lounge, ladies night";
+
+const DRAFT_SPECIAL_EVENT_DEFAULTS: Record<ShiftSpecialEventType, string> = {
+  vip: "Private VIP — Hennessy Launch",
+  launch: "Champagne product launch",
+  private_table: "Private table buyout",
+  brand_activation: "Brand night activation",
+  corporate: "Corporate table event",
+  other: "",
+};
+
+const DRAFT_SPECIAL_EVENT_PLACEHOLDERS: Record<ShiftSpecialEventType, string> = {
+  vip: "e.g. Private VIP — Hennessy Launch",
+  launch: "e.g. Champagne product launch",
+  private_table: "e.g. Private table buyout",
+  brand_activation: "e.g. Brand night activation",
+  corporate: "e.g. Corporate table event",
+  other: "Name your special event",
+};
+
+const DRAFT_EVENT_PRESETS = new Set([
+  DRAFT_NORMAL_EVENT_DEFAULT,
+  "Private VIP - Hennessy Launch",
+  ...Object.values(DRAFT_SPECIAL_EVENT_DEFAULTS).filter(Boolean),
+]);
+
+export function defaultDraftEventName(
+  eventKind: ShiftEventKind,
+  specialEventType?: string,
+): string {
+  if (eventKind === "normal") return DRAFT_NORMAL_EVENT_DEFAULT;
+  const type = (specialEventType ?? "vip") as ShiftSpecialEventType;
+  return DRAFT_SPECIAL_EVENT_DEFAULTS[type] ?? "Special event";
+}
+
+export function draftEventPlaceholder(
+  eventKind: ShiftEventKind,
+  specialEventType?: string,
+): string {
+  if (eventKind === "normal") return DRAFT_NORMAL_EVENT_PLACEHOLDER;
+  const type = (specialEventType ?? "vip") as ShiftSpecialEventType;
+  return DRAFT_SPECIAL_EVENT_PLACEHOLDERS[type] ?? "Name your special event";
+}
+
+function resolveDraftEventOnPresetChange(
+  current: string,
+  eventKind: ShiftEventKind,
+  specialEventType?: string,
+): string {
+  if (!DRAFT_EVENT_PRESETS.has(current.trim())) return current;
+  return defaultDraftEventName(eventKind, specialEventType);
+}
+
 export function draftTierRatesFromWorkspace(
   ws: Pick<OutletWorkspaceSettings, "tierRates">,
 ): Record<OutletPrTier, OutletTierRateSettings> {
@@ -73,18 +129,20 @@ export function draftTierRatesFromWorkspace(
 
 /** Sync post-job pay rows from saved workspace rates while keeping tier rows and PR counts. */
 export function applyWorkspaceRatesToDraftShift(
-  shift: Pick<DraftShift, "payTierRows" | "prIds">,
+  shift: Pick<DraftShift, "payTierRows" | "prIds" | "quantity">,
   workspace: Pick<OutletWorkspaceSettings, "tierRates">,
 ): Pick<DraftShift, "tierRates" | "payTierRows" | "payPerHour" | "quantity" | "prIds"> {
   const tierRates = draftTierRatesFromWorkspace(workspace);
-  const payTierRows = syncPayTierRowsFromWorkspace(shift.payTierRows, tierRates);
-  const quantity = totalPrCountFromPayTierRows(payTierRows);
+  const payTierRows = clampPayTierRowsToMax(
+    syncPayTierRowsFromWorkspace(shift.payTierRows, tierRates),
+    shift.quantity,
+  );
   return {
     tierRates: syncTierRatesFromPayTierRows(payTierRows, tierRates),
     payTierRows,
     payPerHour: basePayFromPayTierRows(payTierRows),
-    quantity,
-    prIds: shift.prIds.slice(0, quantity),
+    quantity: shift.quantity,
+    prIds: shift.prIds.slice(0, shift.quantity),
   };
 }
 
@@ -154,7 +212,7 @@ export function newDraftShift(
     selectedDateIsos: partial?.selectedDateIsos?.length
       ? sortJobDateIsos(partial.selectedDateIsos)
       : [defaultDateIso],
-    event: partial?.event ?? "Private VIP - Hennessy Launch",
+    event: partial?.event ?? defaultDraftEventName(eventKind, partial?.specialEventType ?? "vip"),
     eventKind,
     specialEventType: partial?.specialEventType ?? "vip",
     customSpecialEventName: partial?.customSpecialEventName ?? "",
@@ -195,16 +253,12 @@ export function patchDraftTierRates(
         next[t] = {
           ...next[t],
           wagePerHour: tierWageFromMultiplier(base.wagePerHour, mults[t]),
-          drinkPct: base.drinkPct,
-          tipPct: base.tipPct,
-          tablePct: base.tablePct,
-          otAfterHours: base.otAfterHours,
         };
       }
     } else {
       const rebuilt = buildDefaultTierRates(base);
       for (const t of OUTLET_PR_TIERS) {
-        next[t] = { ...rebuilt[t], targetSalesRm: next[t].targetSalesRm };
+        next[t] = { ...next[t], wagePerHour: rebuilt[t].wagePerHour };
       }
     }
   }
@@ -216,7 +270,7 @@ export function estimateDraftShiftCost(
   prTierById?: Record<string, string | undefined>,
 ): number {
   if (shift.payTierRows?.length) {
-    return estimatePayTierRowsLaborCost(shift.payTierRows, shift.shiftTime);
+    return estimatePayTierRowsLaborCost(shift.payTierRows, shift.tierRates);
   }
   const p = parseShiftTime(shift.shiftTime);
   const start = p.startH * 60 + p.startM;
@@ -409,15 +463,18 @@ const plainInputClass =
 export function JobEventInput({
   value,
   onChange,
+  placeholder,
 }: {
   value: string;
   onChange: (v: string) => void;
+  placeholder?: string;
 }) {
   return (
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full min-w-0 bg-transparent text-right text-sm leading-snug outline-none"
+      placeholder={placeholder}
+      className="w-full min-w-0 bg-transparent text-right text-sm leading-snug outline-none placeholder:text-[var(--iz-muted2)]"
     />
   );
 }
@@ -614,14 +671,14 @@ export function JobLanguagePicker({
   }
 
   return (
-    <div className="flex w-full max-w-[220px] flex-col items-end gap-2">
-      <div className="flex flex-wrap justify-end gap-1.5">
+    <div className="w-full min-w-0">
+      <div className="iz-job-posting-type-grid justify-end">
         {options.map((l) => (
           <button
             key={l}
             type="button"
             onClick={() => toggle(l)}
-            className={`iz-pill ${selected.includes(l) ? "iz-pill-violet" : "iz-pill-ink"} !text-[11px]`}
+            className={cn("iz-job-posting-type-pill", selected.includes(l) && "is-active")}
           >
             {l}
           </button>
@@ -692,8 +749,8 @@ export function ShiftTimePicker({
   const parts = useMemo(() => parseShiftTime(value), [value]);
 
   return (
-    <div className="flex w-full flex-col items-end gap-2">
-      <div className="flex items-center justify-end gap-2">
+    <div className="flex w-full flex-wrap items-center justify-end gap-x-4 gap-y-2">
+      <div className="flex items-center gap-2">
         <span className="w-8 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
           Start
         </span>
@@ -708,7 +765,7 @@ export function ShiftTimePicker({
           aria-label="Start time"
         />
       </div>
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center gap-2">
         <span className="w-8 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
           End
         </span>
@@ -1086,14 +1143,26 @@ export function DraftShiftEditor({
   }, [shift.langs, pickerOptions, shift.prIds.length]);
 
   const updatePayTierRows = (rows: PostJobPayTierRow[]) => {
-    const tierRates = syncTierRatesFromPayTierRows(rows, shift.tierRates);
-    const quantity = totalPrCountFromPayTierRows(rows);
+    const payTierRows = clampPayTierRowsToMax(rows, shift.quantity);
+    const tierRates = syncTierRatesFromPayTierRows(payTierRows, shift.tierRates);
     onChange({
-      payTierRows: rows,
+      payTierRows,
       tierRates,
-      quantity,
-      payPerHour: basePayFromPayTierRows(rows),
-      prIds: shift.prIds.slice(0, quantity),
+      payPerHour: basePayFromPayTierRows(payTierRows),
+      prIds: shift.prIds.slice(0, shift.quantity),
+    });
+  };
+
+  const updatePeopleNeeded = (quantity: number) => {
+    const capped = maxPeople > 0 ? Math.min(Math.max(0, quantity), maxPeople) : 0;
+    const payTierRows = adjustPayTierRowsToTotal(shift.payTierRows, capped);
+    const tierRates = syncTierRatesFromPayTierRows(payTierRows, shift.tierRates);
+    onChange({
+      quantity: capped,
+      payTierRows,
+      tierRates,
+      payPerHour: basePayFromPayTierRows(payTierRows),
+      prIds: shift.prIds.slice(0, capped),
     });
   };
 
@@ -1135,20 +1204,28 @@ export function DraftShiftEditor({
               <button
                 key={kind}
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  const nextKind = kind;
+                  const nextSpecialType =
+                    nextKind === "special" ? shift.specialEventType ?? "vip" : undefined;
                   onChange({
-                    eventKind: kind,
-                    specialEventType: kind === "special" ? shift.specialEventType ?? "vip" : undefined,
+                    eventKind: nextKind,
+                    specialEventType: nextKind === "special" ? shift.specialEventType ?? "vip" : undefined,
                     customSpecialEventName:
-                      kind === "special" && isOtherSpecialEvent(shift.specialEventType)
+                      nextKind === "special" && isOtherSpecialEvent(shift.specialEventType)
                         ? shift.customSpecialEventName ?? ""
                         : "",
                     eventDrinkMenu:
-                      kind === "special"
+                      nextKind === "special"
                         ? shift.eventDrinkMenu ?? cloneDrinkMenu(outletWorkspace.drinkMenu ?? [])
                         : undefined,
-                  })
-                }
+                    event: resolveDraftEventOnPresetChange(
+                      shift.event,
+                      nextKind,
+                      nextSpecialType,
+                    ),
+                  });
+                }}
                 className={`iz-pill !text-[10px] ${shift.eventKind === kind ? "iz-pill-violet" : "iz-pill-ink"}`}
               >
                 {SHIFT_EVENT_KIND_LABELS[kind]}
@@ -1167,6 +1244,11 @@ export function DraftShiftEditor({
                       customSpecialEventName: isOtherSpecialEvent(option.id)
                         ? shift.customSpecialEventName ?? ""
                         : "",
+                      event: resolveDraftEventOnPresetChange(
+                        shift.event,
+                        "special",
+                        option.id,
+                      ),
                     })
                   }
                   className={`iz-pill shrink-0 whitespace-nowrap !text-[10px] ${
@@ -1221,12 +1303,28 @@ export function DraftShiftEditor({
         )}
       </FormRow>
       <FormRow label="Event" stacked>
-        <JobEventInput value={shift.event} onChange={(event) => onChange({ event })} />
+        <JobEventInput
+          value={shift.event}
+          onChange={(event) => onChange({ event })}
+          placeholder={draftEventPlaceholder(shift.eventKind ?? "normal", shift.specialEventType)}
+        />
       </FormRow>
       <FormRow label="Time" alignTop>
         <ShiftTimePicker value={shift.shiftTime} onChange={(shiftTime) => onChange({ shiftTime })} />
       </FormRow>
-      <FormRow label="Languages" alignTop>
+      <FormRow label="People needed" alignTop>
+        <div className="flex flex-col items-end gap-1">
+          <QuantityStepper
+            value={shift.quantity}
+            onChange={updatePeopleNeeded}
+            min={maxPeople > 0 ? 1 : 0}
+            max={maxPeople > 0 ? maxPeople : 0}
+            suffix="PRs"
+          />
+          <p className="text-[10px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
+        </div>
+      </FormRow>
+      <FormRow label="Languages" stacked alignTop>
         <JobLanguagePicker
           options={pickerOptions}
           selected={pickerSelected}
@@ -1236,16 +1334,13 @@ export function DraftShiftEditor({
       <FormRow label="Pay by PR tier" stacked alignTop last={false}>
         <div className="w-full min-w-0">
           <p className="mb-2 text-[10px] text-[var(--iz-muted)]">
-            Tier 1–5 have base salary · Commission only has higher drinks & tips · set PR count per row · tap highlighted cells to edit
+            Tier 1–5 have pay per shift · Commission only has higher drinks & tips · set PR count per row · tap highlighted cells to edit
           </p>
-          {maxPeople <= 0 ? (
-            <p className="mb-2 text-[11px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
-          ) : (
-            <p className="mb-2 text-[10px] text-[var(--iz-muted)]">{peopleNeededHint}</p>
-          )}
           <PostJobTierRatesEditor
             rows={shift.payTierRows}
             workspaceTierRates={outletWorkspace.tierRates}
+            commissionOnlyRates={outletWorkspace.commissionOnlyRates}
+            maxPrTotal={shift.quantity}
             onChange={updatePayTierRows}
           />
           <button
@@ -1253,13 +1348,15 @@ export function DraftShiftEditor({
             className="iz-chip mt-2 w-full text-[11px]"
             onClick={() => {
               const wsRates = draftTierRatesFromWorkspace(outletWorkspace);
-              const payTierRows = defaultPostJobPayTierRows(wsRates, Math.max(1, shift.quantity || 6));
+              const payTierRows = defaultPostJobPayTierRows(
+                wsRates,
+                Math.max(1, shift.quantity || 6),
+              );
               onChange({
                 tierRates: syncTierRatesFromPayTierRows(payTierRows, wsRates),
                 payTierRows,
-                quantity: totalPrCountFromPayTierRows(payTierRows),
                 payPerHour: basePayFromPayTierRows(payTierRows),
-                prIds: shift.prIds.slice(0, totalPrCountFromPayTierRows(payTierRows)),
+                prIds: shift.prIds.slice(0, shift.quantity),
               });
             }}
           >

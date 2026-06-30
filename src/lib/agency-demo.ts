@@ -4,6 +4,7 @@ import type { PendingFreelancerPayroll, PendingPR } from "@/lib/store";
 import { buildDemoESignatureDataUrl } from "@/lib/finance-head-stamp";
 import {
   addDaysToIso,
+  isoOnWeekday,
   migrateDemoDateIso,
 } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
@@ -40,6 +41,7 @@ export type OutletPrTier = (typeof OUTLET_PR_TIERS)[number];
 export const OUTLET_BASE_TIER: OutletPrTier = "Tier I";
 
 export interface OutletTierRateSettings {
+  /** Flat pay per completed shift (legacy field name: wagePerHour). */
   wagePerHour: number;
   drinkPct: number;
   tipPct: number;
@@ -51,11 +53,27 @@ export interface OutletTierRateSettings {
 
 const TIER_WAGE_MULTIPLIERS: Record<OutletPrTier, number> = {
   "Tier I": 1,
-  "Tier II": 1.08,
-  "Tier III": 1.18,
-  "Tier IV": 1.29,
-  "Tier V": 1.59,
+  "Tier II": 1.2,
+  "Tier III": 1.4,
+  "Tier IV": 1.65,
+  "Tier V": 2,
 };
+
+/** Higher tiers earn stepped drinks & tips commission above the Tier I base. */
+const TIER_DRINK_PCT_STEP = 1;
+const TIER_TIP_PCT_STEP = 1;
+
+function defaultCommissionForTier(
+  base: OutletTierRateSettings,
+  tier: OutletPrTier,
+): Pick<OutletTierRateSettings, "drinkPct" | "tipPct"> {
+  const tierIndex = OUTLET_PR_TIERS.indexOf(tier);
+  const step = Math.max(0, tierIndex);
+  return {
+    drinkPct: Math.min(100, base.drinkPct + step * TIER_DRINK_PCT_STEP),
+    tipPct: Math.min(100, base.tipPct + step * TIER_TIP_PCT_STEP),
+  };
+}
 
 export function defaultTierWageMultipliers(): Record<OutletPrTier, number> {
   return { ...TIER_WAGE_MULTIPLIERS };
@@ -63,7 +81,7 @@ export function defaultTierWageMultipliers(): Record<OutletPrTier, number> {
 
 export const TIER_WAGE_STEP = 5;
 export const TIER_WAGE_MIN = 40;
-export const TIER_WAGE_MAX = 120;
+export const TIER_WAGE_MAX = 1000;
 
 export function snapTierWage(value: number): number {
   const snapped = Math.round(value / TIER_WAGE_STEP) * TIER_WAGE_STEP;
@@ -102,15 +120,36 @@ function snapTierRatesWages(
 
 export function buildDefaultTierRates(base: OutletTierRateSettings): Record<OutletPrTier, OutletTierRateSettings> {
   const baseWage = snapTierWage(base.wagePerHour);
+  const otAfterHours = base.otAfterHours ?? 6;
   const out = {} as Record<OutletPrTier, OutletTierRateSettings>;
   for (const tier of OUTLET_PR_TIERS) {
+    const commission = defaultCommissionForTier(base, tier);
     out[tier] = {
       wagePerHour: tierWageFromMultiplier(baseWage, TIER_WAGE_MULTIPLIERS[tier]),
-      drinkPct: base.drinkPct,
-      tipPct: base.tipPct,
+      drinkPct: commission.drinkPct,
+      tipPct: commission.tipPct,
       tablePct: base.tablePct,
-      otAfterHours: base.otAfterHours,
+      otAfterHours,
     };
+  }
+  return out;
+}
+
+/** Spread flat legacy commission rows into per-tier defaults when every tier still matches Tier I. */
+export function ensureDistinctTierCommissions(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  const base = tierRates[OUTLET_BASE_TIER];
+  const allSameDrink = OUTLET_PR_TIERS.every((tier) => tierRates[tier].drinkPct === base.drinkPct);
+  const allSameTip = OUTLET_PR_TIERS.every((tier) => tierRates[tier].tipPct === base.tipPct);
+  if (!allSameDrink && !allSameTip) return tierRates;
+
+  const rebuilt = buildDefaultTierRates(base);
+  const out = cloneTierRates(tierRates);
+  for (const tier of OUTLET_PR_TIERS) {
+    out[tier] = { ...out[tier] };
+    if (allSameDrink) out[tier].drinkPct = rebuilt[tier].drinkPct;
+    if (allSameTip) out[tier].tipPct = rebuilt[tier].tipPct;
   }
   return out;
 }
@@ -160,6 +199,39 @@ export function getTierWageFromRates(
   return snapTierWage(wage);
 }
 
+export function formatTierShiftPay(amount: number): string {
+  return `RM ${amount.toLocaleString("en-MY")}/shift`;
+}
+
+/** Flat shift pay on completion, plus OT premium beyond `otAfterHours`. */
+export function calcShiftWagesFromRule(
+  rule: Pick<OutletTierRateSettings, "wagePerHour" | "otAfterHours">,
+  hoursWorked: number,
+  shiftCompleted = true,
+): { shiftPay: number; otSupplement: number; wages: number } {
+  if (!shiftCompleted) {
+    return { shiftPay: 0, otSupplement: 0, wages: 0 };
+  }
+  const shiftPay = rule.wagePerHour;
+  const otHours = Math.max(0, hoursWorked - rule.otAfterHours);
+  const otHourly = rule.otAfterHours > 0 ? shiftPay / rule.otAfterHours : 0;
+  const otSupplement = Math.round(otHours * otHourly * 1.5 * 100) / 100;
+  const wages = Math.round((shiftPay + otSupplement) * 100) / 100;
+  return { shiftPay, otSupplement, wages };
+}
+
+export function formatShiftWagesDetail(
+  rule: Pick<OutletTierRateSettings, "wagePerHour" | "otAfterHours">,
+  hoursWorked: number,
+  overtimeMinutes = 0,
+): string {
+  const { shiftPay, otSupplement } = calcShiftWagesFromRule(rule, hoursWorked, true);
+  if (overtimeMinutes > 0 && otSupplement > 0) {
+    return `${formatTierShiftPay(shiftPay)} + OT ${overtimeMinutes}m`;
+  }
+  return `${formatTierShiftPay(shiftPay)} · paid on shift completion`;
+}
+
 export function averageTierWage(tierRates: Record<OutletPrTier, OutletTierRateSettings>): number {
   const wages = OUTLET_PR_TIERS.map((t) => tierRates[t].wagePerHour);
   return Math.round(wages.reduce((a, b) => a + b, 0) / wages.length);
@@ -167,29 +239,30 @@ export function averageTierWage(tierRates: Record<OutletPrTier, OutletTierRateSe
 
 export function estimateShiftLaborCost(opts: {
   tierRates: Record<OutletPrTier, OutletTierRateSettings>;
-  hours: number;
+  /** @deprecated Per-shift pay — hours are ignored. */
+  hours?: number;
   quantity: number;
   prIds?: string[];
   prTierById?: Record<string, string | undefined>;
 }): number {
-  const { tierRates, hours, quantity, prIds, prTierById } = opts;
+  const { tierRates, quantity, prIds, prTierById } = opts;
   if (prIds?.length) {
     return Math.round(
       prIds.reduce((sum, id) => {
         const tier = (prTierById?.[id] ?? OUTLET_BASE_TIER) as OutletPrTier;
-        return sum + getTierWageFromRates(tierRates, tier) * hours;
+        return sum + getTierWageFromRates(tierRates, tier);
       }, 0),
     );
   }
-  return Math.round(averageTierWage(tierRates) * quantity * hours);
+  return Math.round(averageTierWage(tierRates) * quantity);
 }
 
 export function formatTierWageRange(tierRates: Record<OutletPrTier, OutletTierRateSettings>): string {
   const wages = OUTLET_PR_TIERS.map((t) => tierRates[t].wagePerHour);
   const min = Math.min(...wages);
   const max = Math.max(...wages);
-  if (min === max) return `RM ${min}/hr`;
-  return `RM ${min}–${max}/hr`;
+  if (min === max) return formatTierShiftPay(min);
+  return `RM ${min.toLocaleString("en-MY")}–${max.toLocaleString("en-MY")}/shift`;
 }
 
 export function formatTierSalesTargets(
@@ -201,8 +274,8 @@ export function formatTierSalesTargets(
   if (targets.length === 0) return null;
   const min = Math.min(...targets);
   const max = Math.max(...targets);
-  if (min === max) return `RM ${min.toLocaleString()} sales target`;
-  return `RM ${min.toLocaleString()}–${max.toLocaleString()} sales targets`;
+  if (min === max) return `RM ${min.toLocaleString("en-MY")} sales target`;
+  return `RM ${min.toLocaleString("en-MY")}–${max.toLocaleString("en-MY")} sales targets`;
 }
 
 export function normalizeTierRates(
@@ -219,18 +292,20 @@ export function normalizeTierRates(
         ...defaults[tier],
         ...partial[tier],
         wagePerHour: snapTierWage(partial[tier].wagePerHour ?? defaults[tier].wagePerHour),
+        otAfterHours:
+          partial[tier].otAfterHours ?? defaults[tier].otAfterHours ?? snappedBase.otAfterHours ?? 6,
       };
     }
   }
-  return ensureAscendingTierWages(snapTierRatesWages(out));
+  return ensureDistinctTierCommissions(ensureAscendingTierWages(snapTierRatesWages(out)));
 }
 
 const DEFAULT_TIER_MULTIPLIERS: Record<OutletPrTier, number> = {
   "Tier I": 1,
-  "Tier II": 1.08,
-  "Tier III": 1.18,
-  "Tier IV": 1.29,
-  "Tier V": 1.59,
+  "Tier II": 1.2,
+  "Tier III": 1.4,
+  "Tier IV": 1.65,
+  "Tier V": 2,
 };
 
 export function usesLegacyTierIIIBaseMultipliers(
@@ -358,21 +433,41 @@ function commissionRuleSeed(
   };
 }
 
+export const OUTLET_STANDARD_SHIFT_PAY = 500;
+
 export const OUTLET_COMMISSION_RULES: OutletCommissionRule[] = [
   commissionRuleSeed({
     outlet: "Velvet 23",
-    wagePerHour: 50,
+    wagePerHour: OUTLET_STANDARD_SHIFT_PAY,
     drinkPct: 8,
     tipPct: 15,
     tablePct: 10,
     otAfterHours: 6,
     platformPct: 5,
   }),
-  commissionRuleSeed({ outlet: "Mermate", wagePerHour: 45, drinkPct: 10, tipPct: 12, tablePct: 8, otAfterHours: 6, platformPct: 5 }),
-  commissionRuleSeed({ outlet: "Bear Lounge", wagePerHour: 50, drinkPct: 9, tipPct: 14, tablePct: 10, otAfterHours: 5, platformPct: 5 }),
-  commissionRuleSeed({ outlet: "Onyx KL", wagePerHour: 55, drinkPct: 7, tipPct: 16, tablePct: 12, otAfterHours: 6, platformPct: 5 }),
-  commissionRuleSeed({ outlet: "Urban Soul", wagePerHour: 45, drinkPct: 11, tipPct: 10, tablePct: 8, otAfterHours: 6, platformPct: 5 }),
+  commissionRuleSeed({ outlet: "Mermate", wagePerHour: OUTLET_STANDARD_SHIFT_PAY, drinkPct: 10, tipPct: 12, tablePct: 8, otAfterHours: 6, platformPct: 5 }),
+  commissionRuleSeed({ outlet: "Bear Lounge", wagePerHour: OUTLET_STANDARD_SHIFT_PAY, drinkPct: 9, tipPct: 14, tablePct: 10, otAfterHours: 5, platformPct: 5 }),
+  commissionRuleSeed({ outlet: "Onyx KL", wagePerHour: OUTLET_STANDARD_SHIFT_PAY, drinkPct: 7, tipPct: 16, tablePct: 12, otAfterHours: 6, platformPct: 5 }),
+  commissionRuleSeed({ outlet: "Urban Soul", wagePerHour: OUTLET_STANDARD_SHIFT_PAY, drinkPct: 11, tipPct: 10, tablePct: 8, otAfterHours: 6, platformPct: 5 }),
 ];
+
+/** Bump legacy per-shift pay (≤80) to the current standard and rebuild tier rates. */
+export function migrateLegacyOutletCommissionRules(
+  rules: OutletCommissionRule[],
+): OutletCommissionRule[] {
+  return rules.map((rule) => {
+    if (rule.wagePerHour >= OUTLET_STANDARD_SHIFT_PAY) return rule;
+    return commissionRuleSeed({
+      outlet: rule.outlet,
+      wagePerHour: OUTLET_STANDARD_SHIFT_PAY,
+      drinkPct: rule.drinkPct,
+      tipPct: rule.tipPct,
+      tablePct: rule.tablePct,
+      otAfterHours: rule.otAfterHours,
+      platformPct: rule.platformPct,
+    });
+  });
+}
 
 export function getOutletRule(
   outlet: string,
@@ -399,14 +494,14 @@ export function calcShiftPayout(
   rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
 ) {
   const rule = getEffectiveOutletRule(input.outlet, input.prTier, rules, input.shiftTierRates);
-  const baseHours = Math.min(input.hoursWorked, rule.otAfterHours);
-  const otHours = Math.max(0, input.hoursWorked - rule.otAfterHours);
-  const wages = baseHours * rule.wagePerHour + otHours * rule.wagePerHour * 1.5;
+  const { shiftPay, otSupplement, wages } = calcShiftWagesFromRule(rule, input.hoursWorked, true);
   const drinkCommission = (input.drinkSales * rule.drinkPct) / 100;
   const tipCommission = (input.tips * rule.tipPct) / 100;
   const tableCommission = (input.tableSales * rule.tablePct) / 100;
   return {
-    wages: Math.round(wages * 100) / 100,
+    shiftPay,
+    otSupplement,
+    wages,
     drinkCommission: Math.round(drinkCommission * 100) / 100,
     tipCommission: Math.round(tipCommission * 100) / 100,
     tableCommission: Math.round(tableCommission * 100) / 100,
@@ -582,14 +677,14 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     prId: "p1",
     prName: "Vicky",
     outlet: "Mermate",
-    dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
+    dateIso: isoOnWeekday(DEFAULT_ROSTER_DATE_ISO, 5),
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
     shiftEnd: "04:00",
     status: "assignment-pending",
     agencyAssignment: {
       agencyName: "Atlas Agency",
-      agencyNote: "You are needed at Mermate Friday — lounge relaunch coverage",
+      agencyNote: "You are needed at Mermate — Friday lounge relaunch coverage",
       assignedAt: "18 Jun 2026 · 11:36",
       assignedAtMs: Date.now() - 12 * 60 * 1000,
       eventDemand: 16,
@@ -650,14 +745,14 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     prId: "pr-comcard-sarah",
     prName: "Sarah",
     outlet: "Urban Soul",
-    dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
+    dateIso: isoOnWeekday(DEFAULT_ROSTER_DATE_ISO, 5),
     shift: "20:00 — 01:00",
     shiftStart: "20:00",
     shiftEnd: "01:00",
     status: "assignment-pending",
     agencyAssignment: {
       agencyName: "Atlas Agency",
-      agencyNote: "Urban Soul Friday party — floor PR needed",
+      agencyNote: "Urban Soul — Friday party floor PR needed",
       assignedAt: "18 Jun 2026 · 16:22",
       assignedAtMs: Date.now() - 25 * 60 * 1000,
       eventDemand: 18,

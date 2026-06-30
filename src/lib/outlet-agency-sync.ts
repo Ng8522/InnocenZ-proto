@@ -1,11 +1,12 @@
 import {
+  OUTLET_BASE_TIER,
+  OUTLET_PR_TIERS,
   buildDefaultTierRates,
   cloneTierRates,
   deriveTierMultipliersFromRates,
   getOutletRule,
   migrateCommissionRuleToTierIBase,
   normalizeTierRates,
-  OUTLET_BASE_TIER,
   type OutletCommissionRule,
   type OutletPrTier,
   type OutletTierRateSettings,
@@ -57,10 +58,17 @@ function tierBaseFromRule(rule: OutletCommissionRule): OutletTierRateSettings {
 export function resolveOutletTierRates(
   outlet: string,
   rules: OutletCommissionRule[],
-  workspace?: Pick<OutletWorkspaceSettings, "outletName" | "tierRates">,
+  workspace?: Pick<OutletWorkspaceSettings, "outletName" | "tierRates" | "otAfterHours">,
 ): Record<OutletPrTier, OutletTierRateSettings> {
   if (workspace && outletMatches(outlet, workspace.outletName) && workspace.tierRates) {
-    return cloneTierRates(workspace.tierRates);
+    const baseTier = workspace.tierRates[OUTLET_BASE_TIER];
+    return normalizeTierRates(
+      {
+        ...baseTier,
+        otAfterHours: baseTier.otAfterHours ?? workspace.otAfterHours ?? 6,
+      },
+      workspace.tierRates,
+    );
   }
   const rule = migrateCommissionRuleToTierIBase(getOutletRule(outlet, rules));
   const tierBase = tierBaseFromRule(rule);

@@ -30,7 +30,6 @@ function comcardPr(
     place: "KL",
     yearsExp: 2,
     rating: 4.6,
-    trainingLevel: "Tier III",
     totalPaid: 7200,
     attendancePct: 94,
     checkIns: 18,
@@ -56,7 +55,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 24,
     height: 162,
     weight: 47,
-  }),
+  }, { trainingLevel: "Tier II" }),
   comcardPr("veron", {
     id: "pr-comcard-veron",
     name: "Veron",
@@ -67,7 +66,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 25,
     height: 166,
     weight: 50,
-  }),
+  }, { trainingLevel: "Tier II" }),
   comcardPr("yvon", {
     id: "pr-comcard-yvon",
     name: "Yvon",
@@ -78,7 +77,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 26,
     height: 168,
     weight: 52,
-  }),
+  }, { trainingLevel: "Tier I" }),
   comcardPr("xiao-bao", {
     id: "pr-comcard-xiao-bao",
     name: "Xiao Bao",
@@ -89,7 +88,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 23,
     height: 164,
     weight: 50,
-  }),
+  }, { trainingLevel: "Tier V" }),
   comcardPr("alice", {
     id: "pr-comcard-alice",
     name: "Alice",
@@ -100,7 +99,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 27,
     height: 165,
     weight: 48,
-  }),
+  }, { trainingLevel: "Tier I" }),
   comcardPr("charlotte", {
     id: "pr-comcard-charlotte",
     name: "Charlotte",
@@ -111,7 +110,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 24,
     height: 165,
     weight: 45,
-  }),
+  }, { trainingLevel: "Tier II" }),
   comcardPr("angie", {
     id: "pr-comcard-angie",
     name: "Angie",
@@ -122,7 +121,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 26,
     height: 168,
     weight: 54,
-  }),
+  }, { trainingLevel: "Tier I" }),
   comcardPr("victoria", {
     id: "pr-comcard-victoria",
     name: "Victoria",
@@ -133,7 +132,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 28,
     height: 155,
     weight: 48,
-  }),
+  }, { trainingLevel: "Tier V" }),
   comcardPr("moon", {
     id: "pr-comcard-moon",
     name: "Moon",
@@ -144,7 +143,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 23,
     height: 160,
     weight: 43,
-  }),
+  }, { trainingLevel: "Tier I" }),
   comcardPr("sarah", {
     id: "pr-comcard-sarah",
     name: "Sarah",
@@ -155,7 +154,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 25,
     height: 170,
     weight: 59,
-  }),
+  }, { trainingLevel: "Tier III" }),
   comcardPr("ava", {
     id: "pr-comcard-ava",
     name: "Ava",
@@ -166,7 +165,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 23,
     height: 164,
     weight: 48,
-  }),
+  }, { trainingLevel: "Tier I" }),
   comcardPr("zoe", {
     id: "pr-comcard-zoe",
     name: "Zoe",
@@ -177,7 +176,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 21,
     height: 159,
     weight: 49,
-  }),
+  }, { trainingLevel: "Tier II" }),
   comcardPr("karyan", {
     id: "pr-comcard-karyan",
     name: "KarYan",
@@ -188,7 +187,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 24,
     height: 156,
     weight: 44,
-  }),
+  }, { trainingLevel: "Tier III" }),
   comcardPr("winnie", {
     id: "pr-comcard-winnie",
     name: "Winnie",
@@ -199,7 +198,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 24,
     height: 160,
     weight: 46,
-  }),
+  }, { trainingLevel: "Tier IV" }),
   comcardPr("hazel", {
     id: "pr-comcard-hazel",
     name: "Hazel",
@@ -210,7 +209,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 25,
     height: 168,
     weight: 47,
-  }),
+  }, { trainingLevel: "Tier IV" }),
   comcardPr("grace", {
     id: "pr-comcard-grace",
     name: "Grace",
@@ -221,7 +220,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 24,
     height: 155,
     weight: 52,
-  }),
+  }, { trainingLevel: "Tier IV" }),
   comcardPr("jes", {
     id: "pr-comcard-jes",
     name: "Jes",
@@ -232,7 +231,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 24,
     height: 160,
     weight: 50,
-  }),
+  }, { trainingLevel: "Tier III" }),
   comcardPr("wei-qi", {
     id: "pr-comcard-wei-qi",
     name: "Wei Qi",
@@ -243,7 +242,7 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 22,
     height: 163,
     weight: 46,
-  }),
+  }, { trainingLevel: "Tier II" }),
   comcardPr("gin", {
     id: "pr-comcard-gin",
     name: "Gin",
@@ -254,5 +253,5 @@ export const SEED_COMCARD_AGENCY_PRS: AgencyManagedPR[] = [
     age: 24,
     height: 158,
     weight: 46,
-  }),
+  }, { trainingLevel: "Tier IV" }),
 ];

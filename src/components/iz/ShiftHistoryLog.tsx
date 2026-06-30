@@ -21,6 +21,8 @@ import { IzCard, formatRM } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import type { ReactNode } from "react";
 import { Calendar as CalendarIcon, ChevronDown, ChevronRight, X } from "lucide-react";
+import { useStore } from "@/lib/store";
+import { shiftHistoryForOutlet } from "@/lib/portal-sync";
 
 type Portal = "agency" | "outlet";
 type AgencyGroupBy = "pr" | "venue";
@@ -534,6 +536,105 @@ function ShiftHistoryShiftCard({
         </div>
       </div>
     </IzCard>
+  );
+}
+
+/** Outlet portal — shift-by-shift history for one PR at the current outlet. */
+export function OutletPrShiftHistorySheet({
+  open,
+  onClose,
+  prId,
+  prName,
+  outletName,
+  agencyName,
+}: {
+  open: boolean;
+  onClose: () => void;
+  prId: string;
+  prName: string;
+  outletName: string;
+  agencyName?: string;
+}) {
+  const shiftHistory = useStore((s) => s.shiftHistory) ?? [];
+  const rows = useMemo(
+    () =>
+      sortShiftHistoryDesc(
+        shiftHistoryForOutlet(shiftHistory, outletName).filter((r) => r.prId === prId),
+      ),
+    [shiftHistory, outletName, prId],
+  );
+  const totals = useMemo(
+    () => ({
+      totalPayout: rows.reduce((a, r) => a + r.totalPayout, 0),
+      totalDrinks: rows.reduce((a, r) => a + r.totalDrinks, 0),
+      totalTips: rows.reduce((a, r) => a + r.totalTips, 0),
+    }),
+    [rows],
+  );
+  const agencyLabel = useMemo(() => {
+    if (agencyName) return agencyName;
+    const names = [...new Set(rows.map((r) => r.agencyName))].filter(Boolean);
+    return names.length === 1 ? names[0] : names.join(" · ");
+  }, [rows, agencyName]);
+
+  return (
+    <IzSheet open={open} wide onClose={onClose}>
+      <div className="iz-sheet-head">
+        <div>
+          <button
+            type="button"
+            className="iz-chip mb-2 !px-2 !py-1 !text-[10px]"
+            onClick={onClose}
+          >
+            ← Back
+          </button>
+          <p className="iz-tiny iz-muted2 uppercase">Shift log · {prName}</p>
+          <h3>{outletName}</h3>
+        </div>
+        <button type="button" className="iz-sheet-close" onClick={onClose} aria-label="Close">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {rows.length === 0 ? (
+        <IzCard className="text-center">
+          <p className="iz-sm iz-muted">
+            No shift history yet for {prName} at {outletName}
+          </p>
+        </IzCard>
+      ) : (
+        <>
+          <IzCard flat className="!mb-3">
+            <p className="iz-tiny iz-muted">
+              {rows.length} shift{rows.length !== 1 ? "s" : ""} at {outletName} · {prName}
+              {agencyLabel ? ` · ${agencyLabel}` : ""}
+            </p>
+            <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet mt-2">
+              <div className="iz-txn-metric earned">
+                <div className="label">Total earned</div>
+                <div className="value iz-ledger">{formatRM(totals.totalPayout)}</div>
+              </div>
+              <div className="iz-txn-metric">
+                <div className="label">Total drinks</div>
+                <div className="value">{totals.totalDrinks}</div>
+              </div>
+              <div className="iz-txn-metric">
+                <div className="label">Total tips</div>
+                <div className="value iz-ledger">{formatRM(totals.totalTips)}</div>
+              </div>
+            </div>
+          </IzCard>
+
+          <div className="space-y-2">
+            {rows.map((shift) => (
+              <ShiftHistoryShiftCard key={shift.id} row={shift} portal="outlet" />
+            ))}
+          </div>
+
+          <p className="iz-tiny iz-muted2 mt-3 text-center">Outlet view · PR ↔ outlet shift history</p>
+        </>
+      )}
+    </IzSheet>
   );
 }
 

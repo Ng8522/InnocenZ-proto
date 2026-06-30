@@ -9,6 +9,7 @@ import {
   recomputeSpecialServiceStatus,
   specialServiceOffer,
   adminServiceCostForOrder,
+  isOthersService,
 } from "@/lib/special-service-demo";
 
 export type SubmitSpecialServiceInput = {
@@ -18,6 +19,7 @@ export type SubmitSpecialServiceInput = {
   prName: string;
   outlet: string;
   serviceType: string;
+  customServiceName?: string;
   description: string;
   amountIn: number;
   amountOut: number;
@@ -74,6 +76,9 @@ export function buildSpecialServiceOrder(
     dateIso,
     time: input.time,
     serviceType: input.serviceType,
+    customServiceName: isOthersService(input.serviceType)
+      ? input.customServiceName?.trim() || undefined
+      : undefined,
     description: input.description.trim() || offer?.summary || input.serviceType,
     amountIn: input.amountIn,
     amountOut: input.amountOut,

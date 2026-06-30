@@ -5,6 +5,7 @@ import {
   specialServiceStatusLabel,
   specialServiceStatusVariant,
   specialServiceTypeLabel,
+  specialServiceRecordTypeLabel,
   isLeaveAgencyService,
   type SpecialServiceRecord,
 } from "@/lib/special-service-demo";
@@ -41,7 +42,7 @@ export function SpecialServiceOrderCard({
         </div>
         <p className="mt-1 font-sora text-sm font-semibold text-[var(--iz-txt)]">{row.prName}</p>
         <p className="iz-tiny iz-muted mt-0.5">
-          {specialServiceTypeLabel(row.serviceType)} · {row.outlet} · {row.date} · {row.time}
+          {specialServiceRecordTypeLabel(row)} · {row.outlet} · {row.date} · {row.time}
         </p>
         <p className="iz-tiny iz-muted2 mt-1 line-clamp-2">{row.description}</p>
         {!isLeaveAgencyService(row.serviceType) ? (

@@ -18,6 +18,7 @@ import {
   type AgencyRosterSlot,
 } from "@/lib/agency-demo";
 import { syncAgencyPayrollReceiptScans, syncAgencyPayrollShiftHistory } from "@/lib/agency-payroll";
+import { SEED_SPECIAL_SERVICES } from "@/lib/special-service-demo";
 import {
   DEFAULT_OUTLET_SETTINGS,
   DEFAULT_OUTLET_WORKSPACE,
@@ -805,6 +806,7 @@ export function buildDemoStoreReset() {
     postSealRatePrompt: null,
     pendingPRs: SEED_PENDING_PRS.map((p) => ({ ...p })),
     pendingFreelancerPayrolls: SEED_PENDING_FREELANCER_PAYROLLS.map((p) => ({ ...p })),
+    specialServiceOrders: SEED_SPECIAL_SERVICES.map((r) => ({ ...r })),
     ...prDemo,
   };
 }

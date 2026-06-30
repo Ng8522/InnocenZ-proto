@@ -22,6 +22,7 @@ import {
   specialServiceOffer,
   specialServiceRemarkHint,
   specialServiceTypeLabel,
+  isOthersService,
   type AgencySpecialServiceOffer,
 } from "@/lib/special-service-demo";
 import {
@@ -34,6 +35,7 @@ export type DraftServiceOrder = {
   jobDate: Date;
   jobEndDate: Date;
   serviceType: string;
+  customServiceName: string;
   time: string;
   amountIn: string;
   note: string;
@@ -50,6 +52,7 @@ export function newDraftService(
     jobDate: partial?.jobDate ?? startOfToday(),
     jobEndDate: partial?.jobEndDate ?? partial?.jobDate ?? startOfToday(),
     serviceType: partial?.serviceType ?? first?.id ?? "transportation",
+    customServiceName: partial?.customServiceName ?? "",
     time: partial?.time ?? "19:00",
     amountIn: partial?.amountIn ?? (first ? String(first.defaultRate) : ""),
     note: partial?.note ?? "",
@@ -145,6 +148,7 @@ function DraftServiceEditor({
                 onChange({
                   serviceType: option.id,
                   amountIn: String(option.defaultRate),
+                  customServiceName: isOthersService(option.id) ? draft.customServiceName : "",
                 })
               }
               className={cn(
@@ -157,6 +161,16 @@ function DraftServiceEditor({
           ))}
         </div>
         {offer && <p className="mt-2 text-[10px] leading-snug text-[var(--iz-muted2)]">{offer.summary}</p>}
+        {isOthersService(draft.serviceType) && (
+          <input
+            type="text"
+            className="mt-2 w-full rounded-xl border border-[var(--iz-line2)] bg-[rgba(255,255,255,0.03)] px-2.5 py-1.5 text-sm outline-none"
+            placeholder="Name your service"
+            aria-label="Custom service name"
+            value={draft.customServiceName}
+            onChange={(e) => onChange({ customServiceName: e.target.value })}
+          />
+        )}
       </ServiceFormRow>
       <ServiceFormRow label="Time">
         <IzTimeInput
@@ -230,7 +244,11 @@ function DraftServiceSummary({
       </div>
       <div className="space-y-0 text-sm">
         <SummaryLine label="Date" value={formatJobDateRange(draft.jobDate, draft.jobEndDate)} />
-        <SummaryLine label="Service" value={specialServiceTypeLabel(draft.serviceType)} stacked />
+        <SummaryLine
+          label="Service"
+          value={specialServiceTypeLabel(draft.serviceType, draft.customServiceName)}
+          stacked
+        />
         <SummaryLine label="Time" value={draft.time} />
         <SummaryLine
           label="Amount in"
@@ -319,6 +337,7 @@ export function OutletServicePostSection() {
           prName: "Agency assigns PR",
           outlet: outletName,
           serviceType: d.serviceType,
+          customServiceName: isOthersService(d.serviceType) ? d.customServiceName.trim() : undefined,
           description: d.note.trim() || offer.summary,
           amountIn: Number.isFinite(amountIn) ? amountIn : offer.defaultRate,
           amountOut: offer.defaultRate,

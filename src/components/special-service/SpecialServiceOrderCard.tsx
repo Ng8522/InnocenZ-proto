@@ -1,4 +1,5 @@
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
+import { cn } from "@/lib/utils";
 import {
   specialServiceInitiatorLabel,
   specialServiceStatusLabel,
@@ -17,12 +18,14 @@ export function SpecialServiceOrderCard({
   onAccept,
 }: {
   row: SpecialServiceRecord;
-  role: "agency" | "outlet" | "pr";
+  role: "agency" | "outlet" | "pr" | "admin";
   onApprove?: (id: string) => void;
   onDecline?: (id: string) => void;
   onAccept?: (id: string) => void;
 }) {
   const actionable = isSpecialServiceActionable(row, role);
+  const approveLabel = role === "admin" ? "Accept" : "Approve";
+  const declineLabel = role === "admin" ? "Reject" : "Decline";
 
   return (
     <IzCard flat className="iz-between items-start gap-3">
@@ -43,10 +46,15 @@ export function SpecialServiceOrderCard({
         <p className="iz-tiny iz-muted2 mt-1 line-clamp-2">{row.description}</p>
         {!isLeaveAgencyService(row.serviceType) ? (
           <p className="iz-tiny iz-muted2 mt-1">
-            In {formatRM(row.amountIn)} · Out {formatRM(row.amountOut)} · Raised by {row.raisedBy}
+            In {formatRM(row.amountIn)}
+            {row.amountOut > 0 ? ` · Out ${formatRM(row.amountOut)}` : " · Cost pending admin"}
+            {" · "}Raised by {row.raisedBy}
           </p>
         ) : (
           <p className="iz-tiny iz-muted2 mt-1">Support ticket · Raised by {row.raisedBy}</p>
+        )}
+        {row.approvedAt && row.initiatedBy === "agency" && row.adminAccepted === "accepted" && (
+          <p className="iz-tiny text-[var(--iz-green)] mt-0.5">Accepted {row.approvedAt}</p>
         )}
         {row.approvedAt && row.initiatedBy !== "agency" && (
           <p className="iz-tiny text-[var(--iz-green)] mt-0.5">Agency approved {row.approvedAt}</p>
@@ -60,7 +68,7 @@ export function SpecialServiceOrderCard({
           <>
             <div className="iz-tiny iz-muted2">Out</div>
             <div className="iz-ledger font-sora text-base font-bold text-[var(--iz-gold-l)]">
-              {formatRM(row.amountOut)}
+              {row.amountOut > 0 ? formatRM(row.amountOut) : "TBC"}
             </div>
             {row.amountIn > 0 && (
               <p className="iz-tiny mt-1 text-[var(--iz-green)]">In {formatRM(row.amountIn)}</p>
@@ -71,21 +79,24 @@ export function SpecialServiceOrderCard({
             Support
           </IzPill>
         )}
-        {actionable && role === "agency" && onApprove && onDecline && (
+        {actionable && (role === "agency" || role === "admin") && onApprove && onDecline && (
           <div className="mt-2 flex flex-col gap-1">
             <button
               type="button"
-              className="iz-btn iz-btn-soft !py-1 !text-[10px]"
+              className={cn(
+                "iz-btn !py-1 !text-[10px]",
+                role === "admin" ? "iz-btn-primary" : "iz-btn-soft",
+              )}
               onClick={() => onApprove(row.id)}
             >
-              Approve
+              {approveLabel}
             </button>
             <button
               type="button"
               className="iz-btn !py-1 !text-[10px]"
               onClick={() => onDecline(row.id)}
             >
-              Decline
+              {declineLabel}
             </button>
           </div>
         )}

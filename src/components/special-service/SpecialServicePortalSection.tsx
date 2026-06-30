@@ -14,8 +14,6 @@ import { isWithinOneYearTie } from "@/lib/pr-features";
 import {
   bookableServiceOffers,
   EMPTY_SPECIAL_SERVICE_FILTERS,
-  collectSpecialServiceAmountInOptions,
-  collectSpecialServiceAmountOutOptions,
   collectSpecialServiceDateIsos,
   filterSpecialServiceRecords,
   isLeaveAgencyService,
@@ -78,8 +76,6 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
   });
 
   const bookingDateIsos = useMemo(() => collectSpecialServiceDateIsos(scopedRecords), [scopedRecords]);
-  const amountInOptions = useMemo(() => collectSpecialServiceAmountInOptions(scopedRecords), [scopedRecords]);
-  const amountOutOptions = useMemo(() => collectSpecialServiceAmountOutOptions(scopedRecords), [scopedRecords]);
 
   const filtered = useMemo(
     () => filterSpecialServiceRecords(scopedRecords, bookingFilters),
@@ -215,8 +211,6 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
           filters={bookingFilters}
           onChange={(patch) => setBookingFilters((prev) => ({ ...prev, ...patch }))}
           bookingDateIsos={bookingDateIsos}
-          amountInOptions={amountInOptions}
-          amountOutOptions={amountOutOptions}
           resultCount={filtered.length}
           totalCount={scopedRecords.length}
           serviceOffers={serviceOffers}

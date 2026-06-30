@@ -117,7 +117,7 @@ import {
   isWeekPvIssued,
   type WeeklyDisputeTarget,
 } from "@/lib/pr-weekly-payment";
-import { mergeAgencyCollections, syncAgencyPayrollReceiptScans, syncAgencyPayrollShiftHistory } from "@/lib/agency-payroll";
+import { mergeAgencyCollections, syncAgencyPayrollReceiptScans, syncAgencyPayrollShiftHistory, getAgencyManagedPvs } from "@/lib/agency-payroll";
 import { getFreePrsWithDistances } from "@/lib/roster-availability";
 import {
   buildPlanningWeekOutletShiftMap,
@@ -163,7 +163,7 @@ import {
   outletRequestRosterSlotFromApplicant,
 } from "@/lib/portal-sync";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
-import { migrateDemoDateIso } from "@/lib/demo-clock";
+import { migrateDemoDateIso, getPreviousWeekSundayIso } from "@/lib/demo-clock";
 import {
   buildAvailabilityOpsNotifications,
   canTogglePrDayAvailability,
@@ -214,8 +214,10 @@ import {
   acceptSpecialServiceByOutlet,
   acceptSpecialServiceByPr,
   approveSpecialServiceByAgency,
+  approveSpecialServiceByAdmin,
   buildSpecialServiceOrder,
   declineSpecialServiceByAgency,
+  declineSpecialServiceByAdmin,
   declineSpecialServiceByOutlet,
   declineSpecialServiceByPr,
   type SubmitSpecialServiceInput,
@@ -682,6 +684,8 @@ interface StoreState {
   submitSpecialServiceOrder: (input: SubmitSpecialServiceInput) => string;
   approveSpecialServiceByAgency: (orderId: string) => void;
   declineSpecialServiceByAgency: (orderId: string, reason?: string) => void;
+  approveSpecialServiceByAdmin: (orderId: string) => void;
+  declineSpecialServiceByAdmin: (orderId: string, reason?: string) => void;
   acceptSpecialServiceByPr: (orderId: string) => void;
   declineSpecialServiceByPr: (orderId: string, reason?: string) => void;
   acceptSpecialServiceByOutlet: (orderId: string) => void;
@@ -2669,9 +2673,17 @@ export const useStore = create<StoreState>()(
         }
         const fh = financeHeadStampFromProfile(get().agencyFinanceHead);
         const pv = buildPvFromShiftHistoryRow(row, pr, fh);
-        set((st) => ({
-          prPaymentVouchers: [pv, ...(st.prPaymentVouchers ?? SEED_PR_PVS)],
-        }));
+        set((st) => {
+          const nextPvs = [pv, ...(st.prPaymentVouchers ?? SEED_PR_PVS)];
+          return {
+            prPaymentVouchers: nextPvs,
+            agencyOwner: syncAgencyOwnerSubscriptionPlan(
+              st.agencyOwner,
+              getAgencyManagedPvs(nextPvs, st.agencyPRs),
+              getPreviousWeekSundayIso(),
+            ),
+          };
+        });
         get().pushNotify({
           type: "pv_sent",
           pvId: pv.id,
@@ -3823,7 +3835,6 @@ export const useStore = create<StoreState>()(
           );
           return {
             agencyPRs: nextAgencyPRs,
-            agencyOwner: syncAgencyOwnerSubscriptionPlan(st.agencyOwner, nextAgencyPRs),
           };
         });
         get().toast(`${pr.name} detached from agency roster`, "info");
@@ -3920,10 +3931,9 @@ export const useStore = create<StoreState>()(
             prId: order.prId,
             prName: order.prName,
             outlet: order.outlet,
-            notifyPr: order.prAcceptance === "pending",
-            notifyOutlet: order.outletAcceptance === "pending",
+            notifyAgency: true,
           });
-          get().toast(`${serviceLabel} booked — awaiting confirmation`, "info");
+          get().toast(`${serviceLabel} submitted — InnocenZ admin will review`, "info");
         } else {
           get().pushNotify({
             type: "special_service_requested",
@@ -4011,6 +4021,52 @@ export const useStore = create<StoreState>()(
           notifyOutlet: order.initiatedBy === "outlet",
         });
         get().toast("Job posting request declined", "warn");
+      },
+
+      approveSpecialServiceByAdmin: (orderId) => {
+        const st = get();
+        const current = st.specialServiceOrders.find((r) => r.id === orderId);
+        if (!current || current.adminAccepted !== "pending") return;
+        const order = approveSpecialServiceByAdmin(current);
+        set({
+          specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
+        });
+        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        get().pushNotify({
+          type: "special_service_update",
+          orderId,
+          serviceLabel,
+          status: "accepted",
+          prId: order.prId,
+          prName: order.prName,
+          outlet: order.outlet,
+          by: "admin",
+          notifyAgency: true,
+        });
+        get().toast(`${serviceLabel} accepted`, "success");
+      },
+
+      declineSpecialServiceByAdmin: (orderId, reason) => {
+        const st = get();
+        const current = st.specialServiceOrders.find((r) => r.id === orderId);
+        if (!current || current.adminAccepted !== "pending") return;
+        const order = declineSpecialServiceByAdmin(current, reason);
+        set({
+          specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
+        });
+        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        get().pushNotify({
+          type: "special_service_update",
+          orderId,
+          serviceLabel,
+          status: "declined",
+          prId: order.prId,
+          prName: order.prName,
+          outlet: order.outlet,
+          by: "admin",
+          notifyAgency: true,
+        });
+        get().toast(`${serviceLabel} rejected`, "warn");
       },
 
       acceptSpecialServiceByPr: (orderId) => {
@@ -4288,7 +4344,6 @@ export const useStore = create<StoreState>()(
             ),
             agencyPRs: nextAgencyPRs,
             prs: marketplacePrsFromAgency(nextAgencyPRs),
-            agencyOwner: syncAgencyOwnerSubscriptionPlan(st.agencyOwner, nextAgencyPRs),
           };
         });
         get().toast(`${pending.name} approved — added to roster & marketplace`, "success");
@@ -5557,7 +5612,7 @@ export const useStore = create<StoreState>()(
           agencyPRs: mergedAgencyPRs,
           specialServiceOrders: mergeSpecialServiceOrders(
             p?.specialServiceOrders,
-            current.specialServiceOrders,
+            SEED_SPECIAL_SERVICES,
             mergedAgencyPRs,
           ),
           prs: marketplacePrsFromAgency(mergedAgencyPRs),
@@ -5646,7 +5701,8 @@ export const useStore = create<StoreState>()(
           ),
           agencyOwner: syncAgencyOwnerSubscriptionPlan(
             { ...DEFAULT_AGENCY_OWNER, ...current.agencyOwner, ...p?.agencyOwner },
-            mergedAgencyPRs,
+            getAgencyManagedPvs(mergedPvs, mergedAgencyPRs),
+            getPreviousWeekSundayIso(),
           ),
           paymentCardLast4: p?.paymentCardLast4 ?? current.paymentCardLast4 ?? "4242",
           postSealRatePrompt: p?.postSealRatePrompt ?? null,

@@ -15,10 +15,12 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as OutletRouteImport } from './routes/outlet'
 import { Route as HostRouteImport } from './routes/host'
 import { Route as AgencyRouteImport } from './routes/agency'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutletIndexRouteImport } from './routes/outlet.index'
 import { Route as HostIndexRouteImport } from './routes/host.index'
 import { Route as AgencyIndexRouteImport } from './routes/agency.index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as OutletWorkspaceRouteImport } from './routes/outlet.workspace'
 import { Route as OutletSubscriptionRouteImport } from './routes/outlet.subscription'
 import { Route as OutletSpecialServiceRouteImport } from './routes/outlet.special-service'
@@ -47,6 +49,7 @@ import { Route as AgencyPendingRouteImport } from './routes/agency.pending'
 import { Route as AgencyOutletsRouteImport } from './routes/agency.outlets'
 import { Route as AgencyLiveRouteImport } from './routes/agency.live'
 import { Route as AgencyHistoryRouteImport } from './routes/agency.history'
+import { Route as AdminJobsRouteImport } from './routes/admin.jobs'
 
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
@@ -78,6 +81,11 @@ const AgencyRoute = AgencyRouteImport.update({
   path: '/agency',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -97,6 +105,11 @@ const AgencyIndexRoute = AgencyIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AgencyRoute,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
 } as any)
 const OutletWorkspaceRoute = OutletWorkspaceRouteImport.update({
   id: '/workspace',
@@ -238,15 +251,22 @@ const AgencyHistoryRoute = AgencyHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => AgencyRoute,
 } as any)
+const AdminJobsRoute = AdminJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/agency': typeof AgencyRouteWithChildren
   '/host': typeof HostRouteWithChildren
   '/outlet': typeof OutletRouteWithChildren
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
+  '/admin/jobs': typeof AdminJobsRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
   '/agency/outlets': typeof AgencyOutletsRoute
@@ -275,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/outlet/special-service': typeof OutletSpecialServiceRoute
   '/outlet/subscription': typeof OutletSubscriptionRoute
   '/outlet/workspace': typeof OutletWorkspaceRoute
+  '/admin/': typeof AdminIndexRoute
   '/agency/': typeof AgencyIndexRoute
   '/host/': typeof HostIndexRoute
   '/outlet/': typeof OutletIndexRoute
@@ -284,6 +305,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
+  '/admin/jobs': typeof AdminJobsRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
   '/agency/outlets': typeof AgencyOutletsRoute
@@ -312,6 +334,7 @@ export interface FileRoutesByTo {
   '/outlet/special-service': typeof OutletSpecialServiceRoute
   '/outlet/subscription': typeof OutletSubscriptionRoute
   '/outlet/workspace': typeof OutletWorkspaceRoute
+  '/admin': typeof AdminIndexRoute
   '/agency': typeof AgencyIndexRoute
   '/host': typeof HostIndexRoute
   '/outlet': typeof OutletIndexRoute
@@ -319,12 +342,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/agency': typeof AgencyRouteWithChildren
   '/host': typeof HostRouteWithChildren
   '/outlet': typeof OutletRouteWithChildren
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
+  '/admin/jobs': typeof AdminJobsRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
   '/agency/outlets': typeof AgencyOutletsRoute
@@ -353,6 +378,7 @@ export interface FileRoutesById {
   '/outlet/special-service': typeof OutletSpecialServiceRoute
   '/outlet/subscription': typeof OutletSubscriptionRoute
   '/outlet/workspace': typeof OutletWorkspaceRoute
+  '/admin/': typeof AdminIndexRoute
   '/agency/': typeof AgencyIndexRoute
   '/host/': typeof HostIndexRoute
   '/outlet/': typeof OutletIndexRoute
@@ -361,12 +387,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/agency'
     | '/host'
     | '/outlet'
     | '/register'
     | '/reset-password'
     | '/signin'
+    | '/admin/jobs'
     | '/agency/history'
     | '/agency/live'
     | '/agency/outlets'
@@ -395,6 +423,7 @@ export interface FileRouteTypes {
     | '/outlet/special-service'
     | '/outlet/subscription'
     | '/outlet/workspace'
+    | '/admin/'
     | '/agency/'
     | '/host/'
     | '/outlet/'
@@ -404,6 +433,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/signin'
+    | '/admin/jobs'
     | '/agency/history'
     | '/agency/live'
     | '/agency/outlets'
@@ -432,18 +462,21 @@ export interface FileRouteTypes {
     | '/outlet/special-service'
     | '/outlet/subscription'
     | '/outlet/workspace'
+    | '/admin'
     | '/agency'
     | '/host'
     | '/outlet'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/agency'
     | '/host'
     | '/outlet'
     | '/register'
     | '/reset-password'
     | '/signin'
+    | '/admin/jobs'
     | '/agency/history'
     | '/agency/live'
     | '/agency/outlets'
@@ -472,6 +505,7 @@ export interface FileRouteTypes {
     | '/outlet/special-service'
     | '/outlet/subscription'
     | '/outlet/workspace'
+    | '/admin/'
     | '/agency/'
     | '/host/'
     | '/outlet/'
@@ -479,6 +513,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
   AgencyRoute: typeof AgencyRouteWithChildren
   HostRoute: typeof HostRouteWithChildren
   OutletRoute: typeof OutletRouteWithChildren
@@ -531,6 +566,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgencyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -558,6 +600,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/agency/'
       preLoaderRoute: typeof AgencyIndexRouteImport
       parentRoute: typeof AgencyRoute
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/outlet/workspace': {
       id: '/outlet/workspace'
@@ -755,8 +804,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgencyHistoryRouteImport
       parentRoute: typeof AgencyRoute
     }
+    '/admin/jobs': {
+      id: '/admin/jobs'
+      path: '/jobs'
+      fullPath: '/admin/jobs'
+      preLoaderRoute: typeof AdminJobsRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
+
+interface AdminRouteChildren {
+  AdminJobsRoute: typeof AdminJobsRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminJobsRoute: AdminJobsRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface AgencyRouteChildren {
   AgencyHistoryRoute: typeof AgencyHistoryRoute
@@ -848,6 +916,7 @@ const OutletRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
   AgencyRoute: AgencyRouteWithChildren,
   HostRoute: HostRouteWithChildren,
   OutletRoute: OutletRouteWithChildren,

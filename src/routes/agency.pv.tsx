@@ -47,7 +47,7 @@ import {
 import { PvSummaryView } from "@/components/iz/PvSummaryView";
 import { downloadPvBreakdownCsv, downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { buildAgencyPayee } from "@/lib/pv-template";
-import { nowAgencyDateTime, getAgencySubscriptionPlan, agencySubscriptionAllowsWeeklyPv } from "@/lib/agency-demo";
+import { nowAgencyDateTime, agencySubscriptionBillingForWeeklyPv } from "@/lib/agency-demo";
 import type { AgencyManagedPR } from "@/lib/agency-demo";
 import { agencyCan, AGENCY_SUB_ROLE_LABELS } from "@/lib/agency-rbac";
 import {
@@ -133,7 +133,6 @@ function AgencyPV() {
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
   const agencyPRs = useStore((s) => s.agencyPRs);
-  const agencyOwner = useStore((s) => s.agencyOwner);
   const agencySubRole = useStore((s) => s.agencySubRole);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [payrollWeekTab, setPayrollWeekTab] = useState<PayrollWeekTab>("last_week");
@@ -218,8 +217,6 @@ function AgencyPV() {
   const activeWeekBounds =
     payrollWeekTab === "last_last_week" ? lastLastWeekBounds : lastWeekBounds;
 
-  const subscriptionPlan = getAgencySubscriptionPlan(agencyOwner.subscriptionPlanId);
-
   const activeWeekStats = useMemo(() => {
     const signed = weekTabPvs.filter((p) => p.status === "SIGNED");
     const prCount = new Set(weekTabPvs.map((p) => resolvePvPrName(p, agencyPRs))).size;
@@ -232,6 +229,11 @@ function AgencyPV() {
       signedTotal: Math.round(signed.reduce((sum, p) => sum + getPvNetTotal(p), 0) * 100) / 100,
     };
   }, [weekTabPvs, agencyPRs]);
+
+  const activeWeekBilling = useMemo(
+    () => agencySubscriptionBillingForWeeklyPv(activeWeekStats.pvCount),
+    [activeWeekStats.pvCount],
+  );
 
   const activeWeekReceiptScans = useMemo(() => {
     const linked = new Map<string, PrReceiptScan>();
@@ -361,9 +363,10 @@ function AgencyPV() {
           ? `${lastWeekBounds.cycle} · pending PR review or dispute`
           : `${lastLastWeekBounds.cycle} · signed · ready to pay`}
         {" · "}
-        {activeWeekStats.pvCount} / {subscriptionPlan.capacityLabel} this week
-        {!agencySubscriptionAllowsWeeklyPv(subscriptionPlan, activeWeekStats.pvCount) && (
-          <span className="text-[var(--iz-amber)]"> · over plan limit</span>
+        {activeWeekStats.pvCount} PV{activeWeekStats.pvCount === 1 ? "" : "s"} ·{" "}
+        {activeWeekBilling.plan.label} · {activeWeekBilling.priceLabel}
+        {activeWeekBilling.plan.renegotiate && (
+          <span className="text-[var(--iz-amber)]"> · contact admin for custom pricing</span>
         )}
       </p>
 

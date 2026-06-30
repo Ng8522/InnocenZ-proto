@@ -106,11 +106,11 @@ export type PushEvent =
       type: "special_service_update";
       orderId: string;
       serviceLabel: string;
-      status: "accepted" | "declined" | "confirmed";
+      status: "accepted" | "declined" | "confirmed" | "rejected";
       prId?: string;
       prName: string;
       outlet: string;
-      by: "agency" | "outlet" | "pr";
+      by: "agency" | "outlet" | "pr" | "admin";
       notifyAgency?: boolean;
       notifyPr?: boolean;
       notifyOutlet?: boolean;

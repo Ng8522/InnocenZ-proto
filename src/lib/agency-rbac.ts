@@ -69,7 +69,7 @@ const ALL_NAV: AgencyNavItem[] = [
   { to: "/agency/roster", label: "Roster", icon: Calendar, permission: "viewWorkforce" },
   { to: "/agency/pending", label: "Approvals", icon: UserCheck, permission: "approvePrSignups" },
   { to: "/agency/pv", label: "Payroll", icon: FileText, permission: "viewPv" },
-  { to: "/agency/special-service", label: "Available Services", icon: Sparkles, permission: "viewPv" },
+  { to: "/agency/special-service", label: "Job Posting", icon: Sparkles, permission: "viewPv" },
   { to: "/agency/history", label: "History", icon: History, permission: "viewHistory" },
 ];
 

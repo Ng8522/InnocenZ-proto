@@ -7,7 +7,6 @@ import type { AgencyManagedPR, AgencyRosterSlot } from "@/lib/agency-demo";
 import {
   buildGpsTrackingRows,
   gpsMapBounds,
-  mapsDirectionsUrl,
   mapsUrlForCoord,
   OUTLET_GPS,
   uniqueOutletPins,
@@ -126,119 +125,90 @@ export function AgencyGpsPanel({
         />
 
         <div className="border-t border-[var(--iz-line)] bg-[var(--iz-panel)] px-3 py-2.5">
-          <div className="space-y-3">
-            {groupedByOutlet.map(([outlet, outletRows]) => (
-              <div key={outlet}>
-                {groupedByOutlet.length > 1 && (
-                  <button
-                    type="button"
-                    className={cn(
-                      "iz-tiny iz-muted mb-1.5 w-full rounded-lg px-1 py-0.5 text-left font-semibold uppercase tracking-wide transition-colors",
-                      outletFilter === outlet
-                        ? "text-[var(--iz-gold-l)]"
-                        : "hover:text-[var(--iz-txt)]",
-                    )}
-                    onClick={() => toggleOutletFilter(outlet)}
-                  >
-                    {outlet} · {outletRows.length} PR{outletRows.length === 1 ? "" : "s"}
-                  </button>
-                )}
-                <div className="space-y-2">
-                  {outletRows.map((row) => {
-                    const isSelected = row.slotId === selectedId;
-                    return (
-                      <button
-                        key={row.slotId}
-                        type="button"
-                        onClick={() => setSelectedId(isSelected ? null : row.slotId)}
-                        className={cn(
-                          "flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors",
-                          isSelected
-                            ? "border-[#1a73e8] bg-[rgba(26,115,232,.08)]"
-                            : "border-[var(--iz-line)] bg-white/[0.02] hover:bg-white/[0.04]",
-                        )}
-                      >
-                        <span
+          <div className="space-y-4">
+            {groupedByOutlet.map(([outlet, outletRows]) => {
+              const pin = outletPins.find((p) => p.outlet === outlet) ?? {
+                outlet,
+                coord: OUTLET_GPS[outlet] ?? OUTLET_GPS["Velvet 23"],
+              };
+              return (
+                <div key={outlet}>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      className={cn(
+                        "font-sora text-sm font-bold transition-colors",
+                        outletFilter === outlet
+                          ? "text-[var(--iz-gold-l)]"
+                          : "text-[var(--iz-txt)] hover:text-[var(--iz-gold-l)]",
+                      )}
+                      onClick={() => toggleOutletFilter(outlet)}
+                    >
+                      {outlet}
+                    </button>
+                    <a
+                      href={mapsUrlForCoord(pin.coord)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="iz-tiny inline-flex shrink-0 items-center gap-1 text-[#1a73e8]"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Maps
+                    </a>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {outletRows.map((row) => {
+                      const isSelected = row.slotId === selectedId;
+                      return (
+                        <button
+                          key={row.slotId}
+                          type="button"
+                          onClick={() => setSelectedId(isSelected ? null : row.slotId)}
                           className={cn(
-                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                            row.inRange
-                              ? "bg-[#34A853] text-white"
-                              : "bg-[#4285F4] text-white",
+                            "flex min-w-0 flex-col gap-1 rounded-xl border px-2 py-2 text-left transition-colors",
+                            isSelected
+                              ? "border-[#1a73e8] bg-[rgba(26,115,232,.08)]"
+                              : "border-[var(--iz-line)] bg-white/[0.02] hover:bg-white/[0.04]",
                           )}
                         >
-                          {row.prName.trim()[0]}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate font-sora text-sm font-bold">{row.prName}</span>
-                            <IzPill variant="green" className="!py-0.5 !text-[9px]">
-                              On duty
-                            </IzPill>
+                          <div className="flex min-w-0 items-start gap-1.5">
+                            <span
+                              className={cn(
+                                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
+                                row.inRange
+                                  ? "bg-[#34A853] text-white"
+                                  : "bg-[#4285F4] text-white",
+                              )}
+                            >
+                              {row.prName.trim()[0]}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex min-w-0 flex-wrap items-center gap-1">
+                                <span className="truncate font-sora text-[11px] font-bold leading-tight">
+                                  {row.prName}
+                                </span>
+                                <IzPill variant="green" className="!px-1.5 !py-0.5 !text-[11px] !font-bold">
+                                  On duty
+                                </IzPill>
+                              </div>
+                              <p className="iz-tiny iz-muted truncate leading-tight">
+                                {row.meters} m
+                                {row.gpsFallback
+                                  ? " · Fallback"
+                                  : row.inRange
+                                    ? " · In geofence"
+                                    : " · Outside"}
+                              </p>
+                            </div>
                           </div>
-                          <p className="iz-tiny iz-muted truncate">
-                            {row.meters} m
-                            {row.gpsFallback
-                              ? " · Maps fallback"
-                              : row.inRange
-                                ? " · In geofence"
-                                : " · Outside geofence"}
-                          </p>
-                        </div>
-                        <a
-                          href={mapsDirectionsUrl(row.prCoord, row.outletCoord)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="iz-chip shrink-0 !border-[#dadce0] !bg-white !px-2.5 !py-1 !text-[10px] !text-[#1a73e8]"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="h-3 w-3" /> Directions
-                        </a>
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-
-          {outletOptions.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-              {(outletFilter ? outletOptions.filter((o) => o === outletFilter) : outletOptions).map(
-                (outlet) => {
-                  const pin = outletPins.find((p) => p.outlet === outlet) ?? {
-                    outlet,
-                    coord: OUTLET_GPS[outlet] ?? OUTLET_GPS["Velvet 23"],
-                  };
-                  return (
-                    <span key={outlet} className="inline-flex items-center gap-2">
-                      <button
-                        type="button"
-                        className={cn(
-                          "iz-tiny font-semibold transition-colors",
-                          outletFilter === outlet
-                            ? "text-[var(--iz-gold-l)]"
-                            : "text-[var(--iz-muted)] hover:text-[var(--iz-txt)]",
-                        )}
-                        onClick={() => toggleOutletFilter(outlet)}
-                      >
-                        {outlet}
-                      </button>
-                      <a
-                        href={mapsUrlForCoord(pin.coord)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="iz-tiny inline-flex items-center gap-1 text-[#1a73e8]"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Maps
-                      </a>
-                    </span>
-                  );
-                },
-              )}
-            </div>
-          )}
         </div>
       </IzCard>
     </OutletSection>

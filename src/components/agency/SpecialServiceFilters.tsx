@@ -1,51 +1,62 @@
 import { RosterPlanningDatePicker } from "@/components/agency/RosterPlanningDatePicker";
-import { IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
+import { IzSelect } from "@/components/iz/ui";
 import {
   EMPTY_SPECIAL_SERVICE_FILTERS,
   specialServiceFiltersActive,
   type AgencySpecialServiceOffer,
   type SpecialServiceFilterState,
 } from "@/lib/special-service-demo";
+import { cn } from "@/lib/utils";
 import { RotateCcw } from "lucide-react";
 
 export function SpecialServiceFilters({
   filters,
   onChange,
   bookingDateIsos,
-  amountInOptions,
-  amountOutOptions,
   resultCount,
   totalCount,
   serviceOffers,
   compact = false,
+  agencyStatuses = false,
+  jobPostingLayout = false,
 }: {
   filters: SpecialServiceFilterState;
   onChange: (patch: Partial<SpecialServiceFilterState>) => void;
   bookingDateIsos: string[];
-  amountInOptions: number[];
-  amountOutOptions: number[];
   resultCount: number;
   totalCount: number;
   serviceOffers: AgencySpecialServiceOffer[];
   /** Narrow phone layout (PR host portal) */
   compact?: boolean;
+  /** Agency job postings — admin review statuses only */
+  agencyStatuses?: boolean;
+  /** Inline filters under job postings list (no filter card header) */
+  jobPostingLayout?: boolean;
 }) {
   const active = specialServiceFiltersActive(filters);
 
   return (
-    <div className={`iz-special-service-filters${compact ? " iz-special-service-filters--compact" : ""}`}>
-      <div className="iz-special-service-filters-head">
-        <span className="iz-tiny font-semibold uppercase tracking-wider text-[var(--iz-muted)]">
-          Filter bookings
-        </span>
-        <span className="iz-tiny iz-muted">
-          {resultCount} of {totalCount}
-        </span>
-      </div>
+    <div
+      className={cn(
+        "iz-special-service-filters",
+        compact && "iz-special-service-filters--compact",
+        jobPostingLayout && "iz-special-service-filters--job-posting",
+      )}
+    >
+      {!jobPostingLayout && (
+        <div className="iz-special-service-filters-head">
+          <span className="iz-tiny font-semibold uppercase tracking-wider text-[var(--iz-muted)]">
+            Filter bookings
+          </span>
+          <span className="iz-tiny iz-muted">
+            {resultCount} of {totalCount}
+          </span>
+        </div>
+      )}
 
       <div className="iz-special-service-filters-grid">
-        <label className="iz-special-service-filter-field">
-          <span className="iz-roster-filter-label">Date</span>
+        <label className={cn("iz-special-service-filter-field", jobPostingLayout && "iz-special-service-filter-field--bare")}>
+          {!jobPostingLayout && <span className="iz-roster-filter-label">Date</span>}
           <RosterPlanningDatePicker
             value={filters.date}
             onChange={(date) => onChange({ date })}
@@ -57,19 +68,10 @@ export function SpecialServiceFilters({
           />
         </label>
 
-        <label className="iz-special-service-filter-field">
-          <span className="iz-roster-filter-label">{compact ? "From" : "Time from"}</span>
-          <IzTimeInput
-            value={filters.time}
-            onChange={(time) => onChange({ time })}
-            showIcon={false}
-            className="iz-special-service-filter-control"
-            aria-label="Filter from time"
-          />
-        </label>
-
-        <label className="iz-special-service-filter-field">
-          <span className="iz-roster-filter-label">{compact ? "Service" : "Service type"}</span>
+        <label className={cn("iz-special-service-filter-field", jobPostingLayout && "iz-special-service-filter-field--bare")}>
+          {!jobPostingLayout && (
+            <span className="iz-roster-filter-label">{compact ? "Service" : "Service type"}</span>
+          )}
           <IzSelect
             block
             className="iz-special-service-filter-control"
@@ -85,42 +87,8 @@ export function SpecialServiceFilters({
           </IzSelect>
         </label>
 
-        <label className="iz-special-service-filter-field">
-          <span className="iz-roster-filter-label">{compact ? "Amt in" : "Amount in (min)"}</span>
-          <IzSelect
-            block
-            className="iz-special-service-filter-control"
-            value={filters.amountInMin}
-            onChange={(e) => onChange({ amountInMin: e.target.value })}
-          >
-            <option value="">{compact ? "Any" : "Any amount in"}</option>
-            {amountInOptions.map((amount) => (
-              <option key={amount} value={String(amount)}>
-                {formatRM(amount)}+
-              </option>
-            ))}
-          </IzSelect>
-        </label>
-
-        <label className="iz-special-service-filter-field">
-          <span className="iz-roster-filter-label">{compact ? "Amt out" : "Amount out (min)"}</span>
-          <IzSelect
-            block
-            className="iz-special-service-filter-control"
-            value={filters.amountOutMin}
-            onChange={(e) => onChange({ amountOutMin: e.target.value })}
-          >
-            <option value="">{compact ? "Any" : "Any amount out"}</option>
-            {amountOutOptions.map((amount) => (
-              <option key={amount} value={String(amount)}>
-                {formatRM(amount)}+
-              </option>
-            ))}
-          </IzSelect>
-        </label>
-
-        <label className="iz-special-service-filter-field">
-          <span className="iz-roster-filter-label">Status</span>
+        <label className={cn("iz-special-service-filter-field", jobPostingLayout && "iz-special-service-filter-field--bare")}>
+          {!jobPostingLayout && <span className="iz-roster-filter-label">Status</span>}
           <IzSelect
             block
             className="iz-special-service-filter-control"
@@ -130,13 +98,26 @@ export function SpecialServiceFilters({
             }
           >
             <option value="all">{compact ? "All" : "All statuses"}</option>
-            <option value="pending_agency">Pending agency</option>
-            <option value="pending_pr">Awaiting PR</option>
-            <option value="pending_outlet">Awaiting outlet</option>
-            <option value="pending_both">Awaiting PR & outlet</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="declined">Declined</option>
-            <option value="paid">Paid</option>
+            {agencyStatuses ? (
+              <>
+                <option value="pending_admin">Pending review</option>
+                <option value="accepted">Accepted</option>
+                <option value="rejected">Rejected</option>
+              </>
+            ) : (
+              <>
+                <option value="pending_admin">Pending review</option>
+                <option value="accepted">Accepted</option>
+                <option value="rejected">Rejected</option>
+                <option value="pending_agency">Pending agency</option>
+                <option value="pending_pr">Awaiting PR</option>
+                <option value="pending_outlet">Awaiting outlet</option>
+                <option value="pending_both">Awaiting PR & outlet</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="declined">Declined</option>
+                <option value="paid">Paid</option>
+              </>
+            )}
           </IzSelect>
         </label>
       </div>

@@ -8,6 +8,7 @@ import {
   type SpecialServiceStatus,
   recomputeSpecialServiceStatus,
   specialServiceOffer,
+  adminServiceCostForOrder,
 } from "@/lib/special-service-demo";
 
 export type SubmitSpecialServiceInput = {
@@ -47,23 +48,19 @@ export function buildSpecialServiceOrder(
 ): SpecialServiceRecord {
   const dateIso = input.dateIso ?? DEFAULT_ROSTER_DATE_ISO;
   const offer = specialServiceOffer(input.serviceType);
-  const hasOutlet = isRealOutlet(input.outlet);
-  const hasPr = Boolean(input.prId);
 
+  let adminAccepted: PartyAcceptance = "n/a";
   let agencyAccepted: PartyAcceptance = "pending";
   let prAcceptance: PartyAcceptance = "n/a";
   let outletAcceptance: PartyAcceptance = "n/a";
 
   if (input.initiatedBy === "agency") {
+    adminAccepted = "pending";
     agencyAccepted = "accepted";
-    if (hasPr) prAcceptance = "pending";
-    if (hasOutlet) outletAcceptance = "pending";
   } else if (input.initiatedBy === "outlet") {
-    agencyAccepted = "pending";
     outletAcceptance = "accepted";
     prAcceptance = "n/a";
   } else {
-    agencyAccepted = "pending";
     prAcceptance = "accepted";
     outletAcceptance = "n/a";
   }
@@ -82,14 +79,37 @@ export function buildSpecialServiceOrder(
     amountOut: input.amountOut,
     initiatedBy: input.initiatedBy,
     raisedBy: input.raisedBy,
+    adminAccepted,
     agencyAccepted,
     prAcceptance,
     outletAcceptance,
-    status: "pending_agency",
-    approvedAt: input.initiatedBy === "agency" ? stampNow() : undefined,
+    status: input.initiatedBy === "agency" ? "pending_admin" : "pending_agency",
   };
 
   return withStatus(base);
+}
+
+export function approveSpecialServiceByAdmin(record: SpecialServiceRecord): SpecialServiceRecord {
+  if (record.initiatedBy !== "agency" || record.adminAccepted !== "pending") return record;
+  return withStatus({
+    ...record,
+    adminAccepted: "accepted",
+    amountOut: adminServiceCostForOrder(record),
+    approvedAt: stampNow(),
+  });
+}
+
+export function declineSpecialServiceByAdmin(
+  record: SpecialServiceRecord,
+  reason?: string,
+): SpecialServiceRecord {
+  if (record.initiatedBy !== "agency" || record.adminAccepted !== "pending") return record;
+  return withStatus({
+    ...record,
+    adminAccepted: "declined",
+    declinedBy: "admin",
+    declineReason: reason?.trim() || "Rejected by InnocenZ admin",
+  });
 }
 
 export function approveSpecialServiceByAgency(record: SpecialServiceRecord): SpecialServiceRecord {
@@ -209,15 +229,28 @@ export function pendingSpecialServicesForOutlet(
 }
 
 export function pendingSpecialServicesForAgency(records: SpecialServiceRecord[]): SpecialServiceRecord[] {
-  return records.filter((r) => r.agencyAccepted === "pending");
+  return records.filter((r) => r.agencyAccepted === "pending" && r.initiatedBy !== "agency");
+}
+
+export function pendingSpecialServicesForAdmin(records: SpecialServiceRecord[]): SpecialServiceRecord[] {
+  return records.filter((r) => r.initiatedBy === "agency" && r.adminAccepted === "pending");
+}
+
+export function agencyPostedSpecialServices(records: SpecialServiceRecord[]): SpecialServiceRecord[] {
+  return records.filter((r) => r.initiatedBy === "agency");
 }
 
 export function isSpecialServiceActionable(
   record: SpecialServiceRecord,
-  role: "agency" | "outlet" | "pr",
+  role: "agency" | "outlet" | "pr" | "admin",
 ): boolean {
-  if (record.status === "declined" || record.status === "paid") return false;
-  if (role === "agency") return record.agencyAccepted === "pending";
+  if (record.status === "declined" || record.status === "rejected" || record.status === "paid") {
+    return false;
+  }
+  if (role === "admin") {
+    return record.initiatedBy === "agency" && record.adminAccepted === "pending";
+  }
+  if (role === "agency") return record.agencyAccepted === "pending" && record.initiatedBy !== "agency";
   if (role === "pr") return record.prAcceptance === "pending";
   return record.outletAcceptance === "pending";
 }

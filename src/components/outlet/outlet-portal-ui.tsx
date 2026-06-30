@@ -1,0 +1,331 @@
+import type { ComponentType, ReactNode } from "react";
+import { Award, Check, Crown, Lock, Medal, Pencil, Star, X, type LucideIcon } from "lucide-react";
+import { JobPostingMicroLabel } from "@/components/special-service/job-posting-ui";
+import { TrafficPill } from "@/components/iz/ui";
+import { formatOutletShiftMetricAmount } from "@/lib/outlet-demo";
+import { trafficLevelForRatio, type TrafficLevel } from "@/lib/traffic-status";
+import { cn } from "@/lib/utils";
+
+const TIER_ICONS = [Star, Medal, Award, Award, Crown] as const;
+
+export function outletTierRank(tier: string): number {
+  const roman = tier.trim().split(" ").pop()?.toUpperCase();
+  const ranks: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4, V: 5, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 };
+  return ranks[roman ?? ""] ?? 1;
+}
+
+export function OutletTierIcon({ tier, className }: { tier: string; className?: string }) {
+  const rank = Math.min(5, Math.max(1, outletTierRank(tier)));
+  const Icon = TIER_ICONS[rank - 1];
+  return (
+    <span className={cn("iz-outlet-tier-icon", `iz-outlet-tier-icon--${rank}`, className)} aria-hidden>
+      <Icon className="h-3.5 w-3.5" />
+    </span>
+  );
+}
+
+function performanceLevel(actual: number, target: number, lowerIsBetter = false): TrafficLevel {
+  if (target <= 0) return actual > 0 ? "green" : "yellow";
+  const ratio = actual / target;
+  if (lowerIsBetter) {
+    if (ratio <= 1) return "green";
+    if (ratio <= 1.12) return "yellow";
+    return "red";
+  }
+  return trafficLevelForRatio(actual, target);
+}
+
+export function OutletPage({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("iz-screen iz-outlet-page", className)}>{children}</div>;
+}
+
+export function OutletPageHeader({
+  eyebrow,
+  title,
+  hint,
+  trailing,
+}: {
+  eyebrow?: string;
+  title: string;
+  hint?: string;
+  trailing?: ReactNode;
+}) {
+  return (
+    <header className="iz-outlet-page-header">
+      <div className="min-w-0 flex-1">
+        {eyebrow && <p className="iz-outlet-page-eyebrow">{eyebrow}</p>}
+        <h2 className="font-sora text-lg font-extrabold leading-snug text-[var(--iz-txt)]">{title}</h2>
+        {hint && <p className="iz-outlet-page-hint">{hint}</p>}
+      </div>
+      {trailing}
+    </header>
+  );
+}
+
+export function OutletFormCard({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("iz-job-posting-form-card", className)}>{children}</div>;
+}
+
+export function OutletField({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={cn("iz-outlet-field flex w-full min-w-0 flex-col gap-1", className)}>
+      <JobPostingMicroLabel>{label}</JobPostingMicroLabel>
+      {children}
+    </label>
+  );
+}
+
+export function OutletPageLegend() {
+  return (
+    <div className="iz-outlet-page-legend">
+      <p className="iz-outlet-page-legend__title">How to use this page</p>
+      <ul className="iz-outlet-page-legend__list">
+        <li>
+          <span className="iz-outlet-page-legend__dot iz-outlet-page-legend__dot--violet" />
+          Violet = tap to edit or expand a section
+        </li>
+        <li>
+          <span className="iz-outlet-page-legend__dot iz-outlet-page-legend__dot--target" />
+          Target values use neutral violet · actual uses traffic light by performance
+        </li>
+        <li>
+          <span className="iz-outlet-page-legend__dot iz-outlet-page-legend__dot--action" />
+          Action buttons show what happens when you tap (confirm, seal, accept)
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+export function OutletTargetActualCard({
+  label,
+  target,
+  actual,
+  lowerIsBetter = false,
+}: {
+  label: string;
+  target: number;
+  actual: number;
+  lowerIsBetter?: boolean;
+}) {
+  const level = performanceLevel(actual, target, lowerIsBetter);
+  const gap = actual - target;
+  const gapLabel =
+    gap === 0
+      ? "On target"
+      : lowerIsBetter
+        ? gap < 0
+          ? `${formatOutletShiftMetricAmount(Math.abs(gap))} under`
+          : `+${formatOutletShiftMetricAmount(gap)} over`
+        : gap > 0
+          ? `+${formatOutletShiftMetricAmount(gap)} above`
+          : `${formatOutletShiftMetricAmount(Math.abs(gap))} below`;
+
+  return (
+    <div className="iz-outlet-ta-card">
+      <div className="iz-outlet-ta-card__head">
+        <span className="iz-outlet-ta-card__label">{label}</span>
+        <TrafficPill level={level} hideIcon className="!py-0.5 !text-[9px]">
+          {level === "green" ? "On track" : level === "yellow" ? "Watch" : "Attention"}
+        </TrafficPill>
+      </div>
+      <div className="iz-outlet-ta-card__rows">
+        <div className="iz-outlet-ta-card__row">
+          <span className="iz-outlet-ta-card__kind iz-outlet-ta-card__kind--target">Target</span>
+          <span className="iz-outlet-ta-card__value iz-outlet-ta-card__value--target">
+            {formatOutletShiftMetricAmount(target)}
+          </span>
+        </div>
+        <div className="iz-outlet-ta-card__row">
+          <span className="iz-outlet-ta-card__kind">Actual</span>
+          <span className={cn("iz-outlet-ta-card__value", `iz-outlet-ta-card__value--${level}`)}>
+            {formatOutletShiftMetricAmount(actual)}
+          </span>
+        </div>
+      </div>
+      <p className={cn("iz-outlet-ta-card__gap", `iz-outlet-ta-card__gap--${level}`)}>{gapLabel}</p>
+    </div>
+  );
+}
+
+export function OutletStatChip({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "neutral" | "violet" | "warn" | "danger";
+}) {
+  return (
+    <div className={cn("iz-outlet-stat-chip", `iz-outlet-stat-chip--${tone}`)}>
+      <span className="iz-outlet-stat-chip__label">{label}</span>
+      <span className="iz-outlet-stat-chip__value">{value}</span>
+    </div>
+  );
+}
+
+type ActionTone = "green" | "gold" | "violet" | "danger" | "soft";
+
+export function OutletActionButton({
+  icon: Icon,
+  title,
+  hint,
+  tone = "soft",
+  onClick,
+  disabled,
+  className,
+}: {
+  icon: LucideIcon;
+  title: string;
+  hint?: string;
+  tone?: ActionTone;
+  onClick?: () => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn("iz-outlet-action-btn", `iz-outlet-action-btn--${tone}`, className)}
+    >
+      <span className="iz-outlet-action-btn__icon" aria-hidden>
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="iz-outlet-action-btn__title">{title}</span>
+        {hint && <span className="iz-outlet-action-btn__hint">{hint}</span>}
+      </span>
+    </button>
+  );
+}
+
+export function OutletApplicantRow({
+  name,
+  meta,
+  onAccept,
+  onDecline,
+}: {
+  name: string;
+  meta: ReactNode;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <div className="iz-outlet-applicant-row">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-[var(--iz-txt)]">{name}</p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1">{meta}</div>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <span className="iz-outlet-applicant-row__label">Tap to respond</span>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={onAccept}
+            className="iz-outlet-applicant-btn iz-outlet-applicant-btn--accept"
+            aria-label={`Accept ${name}`}
+            title="Accept — add to shift"
+          >
+            <Check className="h-4 w-4" strokeWidth={2.5} />
+          </button>
+          <button
+            type="button"
+            onClick={onDecline}
+            className="iz-outlet-applicant-btn iz-outlet-applicant-btn--decline"
+            aria-label={`Decline ${name}`}
+            title="Decline — remove application"
+          >
+            <X className="h-4 w-4" strokeWidth={2.5} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function OutletEmptyState({ children }: { children: ReactNode }) {
+  return (
+    <p className="iz-outlet-empty rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
+      {children}
+    </p>
+  );
+}
+
+export function OutletCardHeader({
+  icon: Icon,
+  title,
+  badge,
+  trailing,
+}: {
+  icon?: ComponentType<{ className?: string }>;
+  title: string;
+  badge?: ReactNode;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className="iz-outlet-card-head">
+      <div className="flex min-w-0 items-center gap-2">
+        {Icon && (
+          <span className="iz-outlet-card-head__icon" aria-hidden>
+            <Icon className="h-4 w-4" />
+          </span>
+        )}
+        <span className="font-sora text-sm font-extrabold text-[var(--iz-txt)]">{title}</span>
+        {badge}
+      </div>
+      {trailing}
+    </div>
+  );
+}
+
+export function OutletLockedRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="iz-job-posting-control">
+      <div className="iz-post-job-locked-row w-full">
+        <span className="min-w-0 flex-1 text-sm font-semibold text-[var(--iz-txt)]">{children}</span>
+        <span className="iz-post-job-locked-badge">
+          <Lock className="h-3 w-3" aria-hidden />
+          Locked
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function OutletEditableShell({
+  children,
+  icon: Icon = Pencil,
+}: {
+  children: ReactNode;
+  icon?: LucideIcon;
+}) {
+  return (
+    <div className="iz-job-posting-control iz-post-job-editable-shell">
+      <div className="min-w-0 flex-1">{children}</div>
+      <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--iz-violet)]" aria-hidden />
+    </div>
+  );
+}

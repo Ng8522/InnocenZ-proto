@@ -1,10 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentType, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function OutletSection({
   id,
   title,
+  icon: Icon,
   hint,
   collapsible = false,
   defaultOpen = true,
@@ -16,6 +17,7 @@ export function OutletSection({
 }: {
   id?: string;
   title: string;
+  icon?: ComponentType<{ className?: string }>;
   hint?: string;
   collapsible?: boolean;
   defaultOpen?: boolean;
@@ -41,7 +43,8 @@ export function OutletSection({
         <div className="flex items-center gap-2 py-0.5">
           <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
             <div className="min-w-0">
-              <div className="iz-outlet-section-title font-sora text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--iz-muted)]">
+              <div className="iz-outlet-section-title flex items-center gap-1.5 font-sora text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--iz-muted)]">
+                {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />}
                 {title}
               </div>
               {hint && <p className="iz-tiny iz-muted2 mt-0.5 truncate">{hint}</p>}
@@ -49,7 +52,7 @@ export function OutletSection({
             {trailing}
           </div>
         </div>
-        <div className="mt-2.5">{children}</div>
+        <div className="mt-2.5 iz-outlet-section-card">{children}</div>
       </section>
     );
   }
@@ -63,7 +66,10 @@ export function OutletSection({
         onClick={() => setOpen((v) => !v)}
       >
         <span className="min-w-0 flex-1">
-          <span className="iz-collapsible-section__title">{title}</span>
+          <span className="iz-collapsible-section__title inline-flex items-center gap-1.5">
+            {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />}
+            {title}
+          </span>
           {hint && !open && <span className="iz-collapsible-section__hint">{hint}</span>}
           <span className="iz-collapsible-section__action">{open ? "Tap to collapse" : "Tap to expand"}</span>
         </span>
@@ -80,7 +86,7 @@ export function OutletSection({
           <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} />
         </span>
       </button>
-      {open && <div className="iz-collapsible-section__body">{children}</div>}
+      {open && <div className="iz-collapsible-section__body iz-outlet-section-card">{children}</div>}
     </section>
   );
 }

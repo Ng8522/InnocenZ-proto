@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { IzCard } from "@/components/iz/ui";
+import { OutletPage, OutletPageHeader } from "@/components/outlet/outlet-portal-ui";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { WorkspaceTierRatesEditor } from "@/components/outlet/WorkspaceTierRatesEditor";
 import { useStore } from "@/lib/store";
@@ -132,16 +133,16 @@ function OutletWorkspacePage() {
   const tierHint = `${formatTierWageRange(draft.tierRates)} · synced to post job & agency`;
 
   return (
-    <div className="iz-screen">
-      <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Workspace</h2>
-        <p className="iz-tiny iz-muted mt-0.5">Rates for new shifts · {draft.outletName}</p>
-        {!canEdit && (
-          <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
-            Read-only (Finance)
-          </p>
-        )}
-      </header>
+    <OutletPage>
+      <OutletPageHeader
+        title="Workspace"
+        hint={`Rates for new shifts · ${draft.outletName}`}
+      />
+      {!canEdit && (
+        <p className="iz-tiny iz-muted rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
+          Read-only (Finance)
+        </p>
+      )}
 
       <OutletSection
         title="Rates by PR tier"
@@ -211,6 +212,6 @@ function OutletWorkspacePage() {
           Save workspace
         </button>
       )}
-    </div>
+    </OutletPage>
   );
 }

@@ -6,7 +6,6 @@ import {
   endOfWeek,
   format,
   isSameMonth,
-  isToday,
   startOfMonth,
   startOfWeek,
   subMonths,
@@ -39,7 +38,14 @@ import {
 import { OutletShiftStaffingSection } from "@/components/outlet/OutletShiftStaffingSection";
 import { cn } from "@/lib/utils";
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+const CAL_LEGEND = [
+  { key: "live", label: "Live", className: "live" },
+  { key: "confirmed", label: "Confirmed", className: "confirmed" },
+  { key: "open", label: "Open", className: "open" },
+  { key: "draft", label: "Draft", className: "draft" },
+] as const;
 
 type CalendarEvent = {
   shift: ShiftRequest;
@@ -101,10 +107,19 @@ function buildCalendarEvents(
     });
 }
 
-function statusEventClass(status: ShiftRequest["status"]) {
-  if (status === "confirmed") return "iz-outlet-ops-cal-event--live";
-  if (status === "open") return "iz-outlet-ops-cal-event--open";
-  if (status === "sealed") return "iz-outlet-ops-cal-event--sealed";
+function formatEventTimeDisplay(timeRange: string): string {
+  return timeRange.replace(/\s+/g, "").toUpperCase();
+}
+
+function isShiftLiveTonight(shift: ShiftRequest): boolean {
+  return shift.status === "confirmed" && shift.date === "Tonight";
+}
+
+function statusEventClass(shift: ShiftRequest) {
+  if (isShiftLiveTonight(shift)) return "iz-outlet-ops-cal-event--live";
+  if (shift.status === "confirmed") return "iz-outlet-ops-cal-event--confirmed";
+  if (shift.status === "open") return "iz-outlet-ops-cal-event--open";
+  if (shift.status === "sealed") return "iz-outlet-ops-cal-event--sealed";
   return "iz-outlet-ops-cal-event--draft";
 }
 
@@ -135,23 +150,16 @@ export function OutletOperationsCalendar() {
     [shifts, outletWorkspace, agencyRoster, outletCommissionRules],
   );
 
-  const liveShift =
-    visibleShifts.find((s) => s.status === "confirmed" && s.date === "Tonight") ??
-    visibleShifts.find((s) => s.status === "confirmed");
-  const calendarShifts = liveShift
-    ? visibleShifts.filter((s) => s.id !== liveShift.id)
-    : visibleShifts;
-
   const events = useMemo(
     () =>
       buildCalendarEvents(
-        calendarShifts,
+        visibleShifts,
         agencyRoster,
         agencyPRs,
         shiftApplicants,
-        DEFAULT_ROSTER_DATE_ISO,
+        todayIso,
       ),
-    [calendarShifts, agencyRoster, agencyPRs, shiftApplicants],
+    [visibleShifts, agencyRoster, agencyPRs, shiftApplicants, todayIso],
   );
 
   const eventsByDate = useMemo(() => {
@@ -171,13 +179,13 @@ export function OutletOperationsCalendar() {
   }, [viewMonth]);
 
   const selectedShift = selectedShiftId
-    ? calendarShifts.find((s) => s.id === selectedShiftId) ?? null
+    ? visibleShifts.find((s) => s.id === selectedShiftId) ?? null
     : null;
   const deleteTarget = deleteTargetId
-    ? calendarShifts.find((s) => s.id === deleteTargetId) ?? null
+    ? visibleShifts.find((s) => s.id === deleteTargetId) ?? null
     : null;
 
-  if (calendarShifts.length === 0) {
+  if (visibleShifts.length === 0) {
     return (
       <p className="iz-tiny iz-muted rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
         No upcoming shifts — use Post Job to create one.
@@ -189,36 +197,43 @@ export function OutletOperationsCalendar() {
     <>
       <div className="iz-outlet-ops-cal">
         <div className="iz-outlet-ops-cal-toolbar">
-          <button
-            type="button"
-            className="iz-chip !px-3 !py-1.5 text-xs font-semibold"
-            onClick={() => setViewMonth(dateFromIsoKey(todayIso) ?? new Date())}
-          >
-            Today
-          </button>
-          <div className="flex items-center gap-1">
+          <div className="iz-outlet-ops-cal-toolbar__left">
             <button
               type="button"
-              className="iz-topbar-action h-8 w-8"
-              aria-label="Previous month"
-              onClick={() => setViewMonth((m) => subMonths(m, 1))}
+              className="iz-outlet-ops-cal-today"
+              onClick={() => setViewMonth(dateFromIsoKey(todayIso) ?? new Date())}
             >
-              <ChevronLeft className="h-4 w-4" />
+              Today
             </button>
-            <button
-              type="button"
-              className="iz-topbar-action h-8 w-8"
-              aria-label="Next month"
-              onClick={() => setViewMonth((m) => addMonths(m, 1))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+            <div className="iz-outlet-ops-cal-nav">
+              <button
+                type="button"
+                className="iz-outlet-ops-cal-nav-btn"
+                aria-label="Previous month"
+                onClick={() => setViewMonth((m) => subMonths(m, 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="iz-outlet-ops-cal-nav-btn"
+                aria-label="Next month"
+                onClick={() => setViewMonth((m) => addMonths(m, 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-          <h3 className="font-sora flex-1 text-center text-sm font-bold text-[var(--iz-txt)] sm:text-base">
-            {format(viewMonth, "MMMM yyyy")}
-          </h3>
-          <div className="hidden text-[10px] text-[var(--iz-muted2)] sm:block">
-            {events.length} shifts booked
+
+          <h3 className="iz-outlet-ops-cal-month">{format(viewMonth, "MMMM yyyy")}</h3>
+
+          <div className="iz-outlet-ops-cal-legend iz-outlet-ops-cal-legend--toolbar" aria-label="Shift status legend">
+            {CAL_LEGEND.map((item) => (
+              <span key={item.key} className="iz-outlet-ops-cal-legend__item">
+                <i className={cn("iz-outlet-ops-cal-legend__swatch", item.className)} aria-hidden />
+                {item.label}
+              </span>
+            ))}
           </div>
         </div>
 
@@ -235,7 +250,7 @@ export function OutletOperationsCalendar() {
             const iso = isoKeyFromDate(day);
             const dayEvents = eventsByDate[iso] ?? [];
             const inMonth = isSameMonth(day, viewMonth);
-            const today = isToday(day);
+            const today = iso === todayIso;
 
             return (
               <div
@@ -261,38 +276,25 @@ export function OutletOperationsCalendar() {
                     <button
                       key={ev.shift.id}
                       type="button"
-                      className={cn("iz-outlet-ops-cal-event", statusEventClass(ev.shift.status))}
+                      className={cn(
+                        "iz-outlet-ops-cal-event",
+                        statusEventClass(ev.shift),
+                      )}
                       onClick={() => setSelectedShiftId(ev.shift.id)}
                     >
-                      <span className="iz-outlet-ops-cal-event-time">{ev.timeRange}</span>
+                      <div className="iz-outlet-ops-cal-event-top">
+                        <span className="iz-outlet-ops-cal-event-time">
+                          {formatEventTimeDisplay(ev.timeRange)}
+                        </span>
+                        <span className="iz-outlet-ops-cal-event-count">{ev.demand} PR</span>
+                      </div>
                       <span className="iz-outlet-ops-cal-event-title">{ev.shift.event}</span>
-                      <span className="iz-outlet-ops-cal-event-meta">
-                        {ev.eventType}
-                      </span>
-                      <span className="iz-outlet-ops-cal-event-stats">
-                        {ev.supplied}/{ev.demand} booked
-                        {ev.pendingCount > 0 ? ` · ${ev.pendingCount} applied` : ""}
-                      </span>
-                      <span className="iz-outlet-ops-cal-event-agency">{ev.agencyLabel}</span>
-                      <span className="iz-outlet-ops-cal-event-pr">{ev.bookedNames}</span>
                     </button>
                   ))}
                 </div>
               </div>
             );
           })}
-        </div>
-
-        <div className="iz-outlet-ops-cal-legend">
-          <span>
-            <i className="sw open" /> Open shift
-          </span>
-          <span>
-            <i className="sw live" /> Live
-          </span>
-          <span>
-            <i className="sw draft" /> Draft
-          </span>
         </div>
       </div>
 

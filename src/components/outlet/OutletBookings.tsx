@@ -17,6 +17,7 @@ import {
   OutletShiftDetailPanel,
   OutletShiftStatusBadge,
 } from "@/components/outlet/OutletShiftDetailPanel";
+import { OutletEmptyState } from "@/components/outlet/outlet-portal-ui";
 import { ChevronDown, Trash2 } from "lucide-react";
 
 export function OutletBookings({ variant = "home" }: { variant?: "home" | "future" }) {
@@ -54,26 +55,20 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
 
   if (variant === "home" && !liveShift) {
     return (
-      <p className="iz-tiny iz-muted rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
+      <OutletEmptyState>
         No live shift tonight — check Calendar page for upcoming events.
-      </p>
+      </OutletEmptyState>
     );
   }
 
   if (variant === "future" && futureShifts.length === 0) {
     return (
-      <p className="iz-tiny iz-muted rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
-        No upcoming shifts — use Post Job to create one.
-      </p>
+      <OutletEmptyState>No upcoming shifts — use Post Job to create one.</OutletEmptyState>
     );
   }
 
   if (visibleShifts.length === 0) {
-    return (
-      <p className="iz-tiny iz-muted rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
-        No shifts yet — use Post Job to create one.
-      </p>
-    );
+    return <OutletEmptyState>No shifts yet — use Post Job to create one.</OutletEmptyState>;
   }
 
   const renderShiftCard = (s: (typeof visibleShifts)[number], hideLogSales = false) => {

@@ -104,7 +104,7 @@ export function OutletCutLossActions({
 
   return (
     <div
-      className={cn("mt-2.5 rounded-xl border border-[var(--iz-line)] bg-white/[0.02]", className)}
+      className={cn("mt-2.5 rounded-xl border border-[var(--iz-line2)] bg-white/[0.02]", className)}
     >
       <button
         type="button"

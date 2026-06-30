@@ -17,11 +17,12 @@ import {
 } from "@/components/agency/Comcard3dPreview";
 import { OutletPrShiftHistorySheet } from "@/components/iz/ShiftHistoryLog";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzPill } from "@/components/iz/ui";
+import { IzPill, TierBadge } from "@/components/iz/ui";
 import {
   workforceStatusLabel,
   workforceStatusVariant,
 } from "@/components/portal/LiveWorkforceTable";
+import { OutletFormCard } from "@/components/outlet/outlet-portal-ui";
 import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -155,12 +156,7 @@ export function OutletTodayOperationPanel({
   if (!canRate && !canLogSales) return null;
 
   return (
-    <div
-      className={cn(
-        "rounded-2xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-3.5",
-        className,
-      )}
-    >
+    <OutletFormCard className={cn("!mb-0", className)}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="iz-tiny iz-muted2 uppercase tracking-widest">Today operation</p>
@@ -306,9 +302,7 @@ export function OutletTodayOperationPanel({
             <Comcard3dPreviewVisual pr={comcardPreviewPr} showName={false} compact />
             <div className="iz-outlet-comcard-sheet__pills">
               {comcardPreviewProfile?.trainingLevel && (
-                <IzPill variant="ink" className="!py-0.5 !text-[9px]">
-                  {comcardPreviewProfile.trainingLevel}
-                </IzPill>
+                <TierBadge tier={comcardPreviewProfile.trainingLevel} />
               )}
               {comcardPreviewProfile?.rating != null && (
                 <IzPill variant="gold" className="!py-0.5 !text-[9px]">
@@ -391,6 +385,6 @@ export function OutletTodayOperationPanel({
           </div>
         </IzSheet>
       )}
-    </div>
+    </OutletFormCard>
   );
 }

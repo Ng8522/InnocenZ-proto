@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppHeader } from "@/components/Nav";
 import { OutletSalesDashboard } from "@/components/outlet/OutletSalesDashboard";
+import { OutletEmptyState, OutletPage, OutletPageHeader } from "@/components/outlet/outlet-portal-ui";
 import { useStore } from "@/lib/store";
 import { outletCan } from "@/lib/outlet-rbac";
 
@@ -10,18 +10,21 @@ export const Route = createFileRoute("/outlet/billing")({
 
 function BillingPage() {
   const outletSubRole = useStore((s) => s.outletSubRole);
+  const outletName = useStore((s) => s.outletWorkspace.outletName);
   const showSales = outletCan(outletSubRole, "viewSalesDashboard");
 
   return (
-    <div className="iz-screen">
-      <AppHeader subtitle="InnocenZ · Outlet" title="Reports" />
+    <OutletPage>
+      <OutletPageHeader
+        eyebrow={outletName}
+        title="Reports"
+        hint="Weekly earnings, P&L split & top PRs"
+      />
       {showSales ? (
         <OutletSalesDashboard />
       ) : (
-        <p className="iz-sm iz-muted rounded-2xl border border-dashed border-[var(--iz-line)] px-4 py-8 text-center">
-          You do not have access to outlet reports.
-        </p>
+        <OutletEmptyState>You do not have access to outlet reports.</OutletEmptyState>
       )}
-    </div>
+    </OutletPage>
   );
 }

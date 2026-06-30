@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
+import { OutletPage, OutletPageHeader } from "@/components/outlet/outlet-portal-ui";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { SecuritySettingsSheets } from "@/components/auth/SecuritySettingsSheets";
 import { useStore } from "@/lib/store";
@@ -176,20 +177,20 @@ function OutletSettingsPage() {
   const fieldsLocked = !editing || !canEdit;
 
   return (
-    <div className="iz-screen">
+    <OutletPage>
       {editing && <AppTopbar onBack={cancelEdit} backLabel="Cancel edit" />}
-      <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Settings</h2>
-        <p className="iz-tiny iz-muted mt-0.5">{owner.orgName}</p>
-        {editing && <span className="iz-pill iz-pill-amber mt-2 !text-[10px]">Editing</span>}
-        {isSubRoleReadOnly && !editing && (
-          <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
-            {outletSubRole === "outlet_finance"
-              ? "Finance view — read-only · cannot edit owner profile"
-              : "Ops view — read-only · cannot edit owner profile"}
-          </p>
-        )}
-      </header>
+      <OutletPageHeader
+        title="Settings"
+        hint={owner.orgName}
+        trailing={editing ? <span className="iz-pill iz-pill-amber !text-[10px]">Editing</span> : undefined}
+      />
+      {isSubRoleReadOnly && !editing && (
+        <p className="iz-tiny iz-muted rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
+          {outletSubRole === "outlet_finance"
+            ? "Finance view — read-only · cannot edit owner profile"
+            : "Ops view — read-only · cannot edit owner profile"}
+        </p>
+      )}
 
       <div className="flex flex-col items-center py-4">
         <input
@@ -401,7 +402,7 @@ function OutletSettingsPage() {
           )}
         </div>
       )}
-    </div>
+    </OutletPage>
   );
 }
 

@@ -1,7 +1,18 @@
 import { cn } from "@/lib/utils";
-import { Clock, X } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  Award,
+  CheckCircle2,
+  Clock,
+  Crown,
+  Medal,
+  Star,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode, type SelectHTMLAttributes } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { TrafficLevel } from "@/lib/traffic-status";
 
 /** Normalize HH:MM (or H:MM) for native `type="time"` inputs */
 export function normalizeTimeValue(v: string): string {
@@ -48,6 +59,54 @@ export function IzPill({
     ink: "iz-pill-ink",
   }[variant];
   return <span className={cn("iz-pill", v, className)}>{children}</span>;
+}
+
+const TRAFFIC_ICON: Record<TrafficLevel, typeof AlertTriangle> = {
+  red: AlertTriangle,
+  yellow: AlertCircle,
+  green: CheckCircle2,
+};
+
+/** Target-vs-actual status pill. Pass `level` directly, or derive it with trafficLevelForRatio(). */
+export function TrafficPill({
+  level,
+  children,
+  className,
+  hideIcon,
+}: {
+  level: TrafficLevel;
+  children: ReactNode;
+  className?: string;
+  hideIcon?: boolean;
+}) {
+  const Icon = TRAFFIC_ICON[level];
+  return (
+    <span className={cn("iz-pill iz-pill-traffic", `iz-pill-traffic--${level}`, className)}>
+      {hideIcon ? <span className="iz-traffic-dot" /> : <Icon className="h-3 w-3 shrink-0" />}
+      {children}
+    </span>
+  );
+}
+
+const TIER_ICON = [Star, Medal, Award, Award, Crown] as const;
+
+/** Parses "Tier I".."Tier V" into a 1-5 rank; falls back to 1 for unknown/missing values. */
+function tierRank(tier: string): number {
+  const roman = tier.trim().split(" ")[1]?.toUpperCase();
+  const ranks: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4, V: 5 };
+  return ranks[roman ?? ""] ?? 1;
+}
+
+/** Visually distinct PR tier badge — color + icon scale from Tier I (base) to Tier V (top). */
+export function TierBadge({ tier, className }: { tier: string; className?: string }) {
+  const rank = tierRank(tier);
+  const Icon = TIER_ICON[rank - 1];
+  return (
+    <span className={cn("iz-tier-badge", `iz-tier-badge--${rank}`, className)}>
+      <Icon />
+      {tier}
+    </span>
+  );
 }
 
 export function IzSectionLabel({ children, className }: { children: ReactNode; className?: string }) {

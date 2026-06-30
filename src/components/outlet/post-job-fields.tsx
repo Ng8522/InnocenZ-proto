@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { format, startOfToday, addDays } from "date-fns";
 import { Check, HelpCircle, Minus, Pencil, Plus, X } from "lucide-react";
-import { OutletDatePopoverChip, OutletDatePopoverField, OutletDateRangePopover } from "@/components/outlet/outlet-date-popover";
+import { OutletDatePopoverChip, OutletDatePopoverField, OutletDateRangePopover, OutletMultiDatePopover } from "@/components/outlet/outlet-date-popover";
 import { PrComcardPickerThumb } from "@/components/pr/PortfolioComcardVisual";
 import { IzCard, IzSelect, IzTimeInput, normalizeTimeValue } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
@@ -247,6 +247,36 @@ function jobRangeMatchesSpan(from: Date, to: Date, span: JobDateSpan): boolean {
   return isoFromJobDate(to) === isoFromJobDate(jobEndDateForSpan(from, span));
 }
 
+export function sortJobDateIsos(isos: string[]): string[] {
+  return [...isos].sort();
+}
+
+export function jobDateIsosForSpan(from: Date, span: JobDateSpan): string[] {
+  return eachJobDateInRange(from, jobEndDateForSpan(from, span)).map(isoFromJobDate);
+}
+
+export function jobSpanMatchesSelection(from: Date, span: JobDateSpan, selectedIsos: string[]): boolean {
+  const expected = jobDateIsosForSpan(from, span);
+  if (expected.length !== selectedIsos.length) return false;
+  const sorted = sortJobDateIsos(selectedIsos);
+  return expected.every((iso, index) => iso === sorted[index]);
+}
+
+export function formatJobDates(isos: string[]): string {
+  const sorted = sortJobDateIsos(isos);
+  if (sorted.length === 0) return "Pick dates";
+  if (sorted.length === 1) {
+    const day = new Date(sorted[0] + "T12:00:00");
+    return formatJobDate(day);
+  }
+  if (sorted.length <= 3) {
+    return sorted
+      .map((iso) => format(new Date(iso + "T12:00:00"), "d MMM"))
+      .join(", ");
+  }
+  return `${sorted.length} dates`;
+}
+
 export function starTierToMinRating(tier: number): number {
   if (tier >= 5) return 4.5;
   if (tier >= 4) return 4;
@@ -399,10 +429,12 @@ export function JobDateRangePicker({
   jobDate,
   jobEndDate,
   onChange,
+  embedded,
 }: {
   jobDate: Date;
   jobEndDate: Date;
   onChange: (patch: { jobDate: Date; jobEndDate: Date }) => void;
+  embedded?: boolean;
 }) {
   const isPast = (date: Date) => date < startOfToday();
 
@@ -411,35 +443,97 @@ export function JobDateRangePicker({
     onChange({ jobDate: n.from, jobEndDate: n.to });
   };
 
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-1">
-        {(["3d", "week"] as const).map((span) => (
-          <button
-            key={span}
-            type="button"
-            onClick={() => applyRange(jobDate, jobEndDateForSpan(jobDate, span))}
-            className={cn(
-              "iz-pill !text-[10px]",
-              jobRangeMatchesSpan(jobDate, jobEndDate, span) ? "iz-pill-gold" : "iz-pill-ink",
-            )}
-          >
-            {span === "3d" ? "3 days" : "1 week"}
-          </button>
-        ))}
-      </div>
+  const dayCount = eachJobDateInRange(jobDate, jobEndDate).length;
+  const rangeLabel = formatJobDateRange(jobDate, jobEndDate);
+
+  const content = (
+    <>
+      {(["3d", "week"] as const).map((span) => (
+        <button
+          key={span}
+          type="button"
+          onClick={() => applyRange(jobDate, jobEndDateForSpan(jobDate, span))}
+          className={cn(
+            "iz-pill !text-xs",
+            jobRangeMatchesSpan(jobDate, jobEndDate, span) ? "iz-pill-gold" : "iz-pill-ink",
+          )}
+        >
+          {span === "3d" ? "3 days" : "1 week"}
+        </button>
+      ))}
       <OutletDateRangePopover
         from={jobDate}
         to={jobEndDate}
         onRangeChange={applyRange}
         disabled={isPast}
-        formatRangeLabel={formatJobDateRange}
-        className="w-full"
+        formatRangeLabel={() => rangeLabel}
+        compact
       />
-      <p className="iz-tiny iz-muted2">
-        {eachJobDateInRange(jobDate, jobEndDate).length} day
-        {eachJobDateInRange(jobDate, jobEndDate).length === 1 ? "" : "s"} in range
-      </p>
+      {!embedded && dayCount > 1 && (
+        <span className="iz-tiny iz-muted2 whitespace-nowrap px-0.5">
+          {dayCount} days
+        </span>
+      )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="inline-flex max-w-full flex-wrap items-center gap-1.5">{content}</div>;
+  }
+
+  return (
+    <div className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-xl border border-[var(--iz-line)] bg-[rgba(0,0,0,0.15)] p-2">
+      {content}
+    </div>
+  );
+}
+
+export function JobMultiDatePicker({
+  selectedDateIsos,
+  onChange,
+  embedded,
+}: {
+  selectedDateIsos: string[];
+  onChange: (isos: string[]) => void;
+  embedded?: boolean;
+}) {
+  const isPast = (date: Date) => date < startOfToday();
+  const label = formatJobDates(selectedDateIsos);
+
+  const content = (
+    <>
+      <OutletMultiDatePopover
+        selectedIsos={selectedDateIsos}
+        onChange={onChange}
+        disabled={isPast}
+        formatLabel={() => label}
+        compact
+        quickSpans={{
+          spans: [
+            { id: "3d", label: "3 days" },
+            { id: "week", label: "1 week" },
+          ],
+          isActive: (spanAnchor, spanId) =>
+            jobSpanMatchesSelection(spanAnchor, spanId as JobDateSpan, selectedDateIsos),
+          onApply: (spanAnchor, spanId) =>
+            onChange(jobDateIsosForSpan(spanAnchor, spanId as JobDateSpan)),
+        }}
+      />
+      {!embedded && selectedDateIsos.length > 1 && (
+        <span className="iz-tiny iz-muted2 whitespace-nowrap px-0.5">
+          {selectedDateIsos.length} days
+        </span>
+      )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex w-full min-w-0 items-center">{content}</div>;
+  }
+
+  return (
+    <div className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-xl border border-[var(--iz-line)] bg-[rgba(0,0,0,0.15)] p-2">
+      {content}
     </div>
   );
 }

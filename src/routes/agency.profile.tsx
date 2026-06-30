@@ -1,9 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
 import type { AgencyFinanceHead, AgencyOwnerSettings } from "@/lib/agency-demo";
-import { getAgencySubscriptionPlan } from "@/lib/agency-demo";
+import {
+  agencySubscriptionBillingForWeeklyPv,
+  agencyWeeklyPvCount,
+} from "@/lib/agency-demo";
+import { getPreviousWeekSundayIso } from "@/lib/demo-clock";
+import { getAgencyManagedPvs } from "@/lib/agency-payroll";
 import { agencyCan } from "@/lib/agency-rbac";
 import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { SecuritySettingsSheets } from "@/components/auth/SecuritySettingsSheets";
@@ -15,6 +20,8 @@ export const Route = createFileRoute("/agency/profile")({
 
 function AgencyProfile() {
   const agencyOwner = useStore((s) => s.agencyOwner);
+  const agencyPRs = useStore((s) => s.agencyPRs);
+  const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const agencyFinanceHead = useStore((s) => s.agencyFinanceHead);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const scalingTierMultipliers = useStore((s) => s.scalingTierMultipliers);
@@ -32,7 +39,19 @@ function AgencyProfile() {
 
   const owner = editing ? draft : agencyOwner;
   const finance = editing ? financeDraft : agencyFinanceHead;
-  const subscriptionPlan = getAgencySubscriptionPlan(owner.subscriptionPlanId);
+  const payrollWeekStartIso = getPreviousWeekSundayIso();
+  const issuedWeeklyPv = useMemo(
+    () =>
+      agencyWeeklyPvCount(
+        getAgencyManagedPvs(prPaymentVouchers, agencyPRs),
+        payrollWeekStartIso,
+      ),
+    [prPaymentVouchers, agencyPRs, payrollWeekStartIso],
+  );
+  const subscriptionBilling = useMemo(
+    () => agencySubscriptionBillingForWeeklyPv(issuedWeeklyPv),
+    [issuedWeeklyPv],
+  );
   const avatarLetter =
     owner.ownerName.trim()[0]?.toUpperCase() ?? owner.orgName.trim()[0]?.toUpperCase() ?? "A";
   const editCardClass = editing ? " border-[rgba(217,185,122,.25)]" : "";
@@ -191,7 +210,7 @@ function AgencyProfile() {
         <div className="mt-1 flex items-center gap-1 iz-tiny text-[var(--iz-green)]">
           <Shield className="h-3 w-3" />
           {owner.accountActivated
-            ? `Verified · RM${subscriptionPlan.monthlyRm}/mo active`
+            ? `Verified · ${subscriptionBilling.priceLabel} · usage-based weekly`
             : "Pending OTP activation"}
         </div>
         {editing && canEdit && (

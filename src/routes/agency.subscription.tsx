@@ -3,21 +3,18 @@ import { useEffect, useMemo } from "react";
 import { useStore } from "@/lib/store";
 import {
   AGENCY_SUBSCRIPTION_PLANS,
-  agencyActivePrCount,
-  agencyExpectedWeeklyPvFromPrCount,
+  agencySubscriptionBillingForWeeklyPv,
   agencyWeeklyPvCount,
-  getAgencySubscriptionPlan,
-  resolveAgencySubscriptionPlanForWeeklyPv,
-  type AgencySubscriptionPlanId,
 } from "@/lib/agency-demo";
 import { getPreviousWeekSundayIso } from "@/lib/demo-clock";
 import { getAgencyManagedPvs } from "@/lib/agency-payroll";
+import { demoPayrollWeekBoundsForWeeksAgo, demoPvIssueIsoForWeeksAgo } from "@/lib/pr-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { IzCard, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
 import { Calendar, CreditCard, Receipt, Users } from "lucide-react";
+import { format, parseISO } from "date-fns";
 
-const RENEWAL_DATE = "15 Jul 2026";
 const CARD_LAST4 = "4242";
 
 export const Route = createFileRoute("/agency/subscription")({
@@ -34,11 +31,9 @@ function AgencySubscription() {
   const toast = useStore((s) => s.toast);
   const canEdit = agencyCan(agencySubRole, "editSettings");
 
-  const currentPlan = getAgencySubscriptionPlan(agencyOwner.subscriptionPlanId);
-  const activePrCount = agencyActivePrCount(agencyPRs);
-  const expectedWeeklyPv = agencyExpectedWeeklyPvFromPrCount(activePrCount);
-  const rosterFitPlan = resolveAgencySubscriptionPlanForWeeklyPv(expectedWeeklyPv);
   const payrollWeekStartIso = getPreviousWeekSundayIso();
+  const payrollWeek = demoPayrollWeekBoundsForWeeksAgo(0);
+  const nextChargeDate = format(parseISO(demoPvIssueIsoForWeeksAgo(0)), "d MMM yyyy");
   const issuedWeeklyPv = useMemo(
     () =>
       agencyWeeklyPvCount(
@@ -47,12 +42,16 @@ function AgencySubscription() {
       ),
     [prPaymentVouchers, agencyPRs, payrollWeekStartIso],
   );
+  const billing = useMemo(
+    () => agencySubscriptionBillingForWeeklyPv(issuedWeeklyPv),
+    [issuedWeeklyPv],
+  );
 
   useEffect(() => {
-    if (agencyOwner.subscriptionPlanId !== rosterFitPlan.id) {
-      saveAgencyOwner({ subscriptionPlanId: rosterFitPlan.id });
+    if (agencyOwner.subscriptionPlanId !== billing.plan.id) {
+      saveAgencyOwner({ subscriptionPlanId: billing.plan.id });
     }
-  }, [agencyOwner.subscriptionPlanId, rosterFitPlan.id, saveAgencyOwner]);
+  }, [agencyOwner.subscriptionPlanId, billing.plan.id, saveAgencyOwner]);
 
   const billingHistory = useMemo(
     () =>
@@ -63,25 +62,6 @@ function AgencySubscription() {
       ),
     [agencyCollections],
   );
-
-  const selectPlan = (planId: AgencySubscriptionPlanId) => {
-    if (!canEdit || planId === currentPlan.id) return;
-    const next = getAgencySubscriptionPlan(planId);
-    if (next.renegotiate) {
-      toast("Contact InnocenZ admin to negotiate pricing for 201+ PV/week", "info");
-      return;
-    }
-    if (expectedWeeklyPv > next.pvLimit) {
-      toast(
-        `Your roster needs ~${expectedWeeklyPv} PV/week (${activePrCount} active PRs × 1 PV/week) — choose a plan with at least ${expectedWeeklyPv} PV/week before switching to ${next.label}`,
-        "warn",
-      );
-      return;
-    }
-    saveAgencyOwner({ subscriptionPlanId: planId });
-    const price = next.monthlyRm != null ? `${formatRM(next.monthlyRm)}/mo` : next.priceLabel ?? "Renegotiate Price";
-    toast(`Switched to ${next.label} · ${price} · ${next.capacityLabel}`, "success");
-  };
 
   if (!agencyCan(agencySubRole, "viewSettings")) {
     return (
@@ -97,6 +77,7 @@ function AgencySubscription() {
   }
 
   const isFinanceReadOnly = agencySubRole === "agency_finance";
+  const renewalDate = nextChargeDate;
 
   return (
     <div className="iz-screen">
@@ -105,34 +86,51 @@ function AgencySubscription() {
         <p className="iz-tiny iz-muted mt-0.5">{agencyOwner.orgName}</p>
         {isFinanceReadOnly && (
           <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
-            Finance view — read-only · contact owner to change plan or card
+            Finance view — read-only · contact owner to update card
           </p>
         )}
       </header>
 
-      <IzSectionLabel>Plans · monthly</IzSectionLabel>
+      <IzSectionLabel>Usage-based · weekly</IzSectionLabel>
+      <IzCard className="border-[rgba(57,217,138,.35)] bg-[rgba(57,217,138,.06)]">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="iz-tiny iz-muted2">Last payroll week · {payrollWeek.cycle}</p>
+            <p className="mt-1 font-sora text-base font-bold">
+              {issuedWeeklyPv} PV{issuedWeeklyPv === 1 ? "" : "s"} issued
+            </p>
+            <p className="iz-tiny iz-muted mt-1">
+              Tier auto-selected from weekly PV volume — no plan changes needed
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <IzPill variant="green">{billing.plan.label}</IzPill>
+            <p className="mt-2 text-lg font-bold text-[var(--iz-gold-l)]">{billing.priceLabel}</p>
+            <p className="iz-tiny iz-muted2 mt-0.5">{billing.plan.capacityLabel}</p>
+          </div>
+        </div>
+        <p className="iz-tiny iz-muted2 mt-3 border-t border-[var(--iz-line)] pt-2">
+          Next weekly charge {renewalDate}
+          {billing.plan.renegotiate
+            ? " · contact InnocenZ admin for custom pricing"
+            : ` · ${billing.priceLabel} based on ${issuedWeeklyPv} PV${issuedWeeklyPv === 1 ? "" : "s"}`}
+        </p>
+      </IzCard>
+
+      <IzSectionLabel>Rate card</IzSectionLabel>
       <p className="iz-tiny iz-muted2 -mt-1 mb-2">
-        1 PV per active PR per week · {activePrCount} PR
-        {activePrCount === 1 ? "" : "s"} on roster · {issuedWeeklyPv} PV
-        {issuedWeeklyPv === 1 ? "" : "s"} issued last payroll week · plan allows {currentPlan.capacityLabel}
-        {currentPlan.id !== rosterFitPlan.id ? (
-          <>
-            {" "}
-            · roster fits <b className="text-[var(--iz-gold-l)]">{rosterFitPlan.label}</b>
-          </>
-        ) : null}
+        Reference tiers — your charge each week follows PVs issued in that payroll week
       </p>
       <div className="grid grid-cols-2 gap-2">
         {AGENCY_SUBSCRIPTION_PLANS.map((plan) => {
-          const isCurrent = plan.id === currentPlan.id;
-          const isRosterFit = plan.id === rosterFitPlan.id;
+          const isBilledTier = plan.id === billing.plan.id;
           const priceDisplay =
-            plan.priceLabel ?? (plan.monthlyRm != null ? formatRM(plan.monthlyRm) : "Renegotiate Price");
+            plan.priceLabel ?? (plan.weeklyRm != null ? formatRM(plan.weeklyRm) : "Renegotiate Price");
           return (
             <IzCard
               key={plan.id}
               className={
-                isCurrent
+                isBilledTier
                   ? "border-[rgba(57,217,138,.35)] bg-[rgba(57,217,138,.06)]"
                   : undefined
               }
@@ -141,13 +139,12 @@ function AgencySubscription() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-sora text-sm font-bold">{plan.label}</p>
-                    {isCurrent && <IzPill variant="green">Current</IzPill>}
-                    {isRosterFit && !isCurrent && <IzPill variant="ink">Roster fit</IzPill>}
+                    {isBilledTier && <IzPill variant="green">Your tier</IzPill>}
                   </div>
                   <p className="mt-1 text-lg font-bold text-[var(--iz-gold-l)]">
                     {priceDisplay}
-                    {!plan.priceLabel && plan.monthlyRm != null && (
-                      <span className="iz-tiny iz-muted font-normal"> / month</span>
+                    {!plan.priceLabel && plan.weeklyRm != null && (
+                      <span className="iz-tiny iz-muted font-normal">/Week</span>
                     )}
                   </p>
                 </div>
@@ -159,24 +156,6 @@ function AgencySubscription() {
                 </div>
               </div>
               <p className="iz-tiny iz-muted mt-2">{plan.description}</p>
-              {isCurrent ? (
-                <p className="iz-tiny iz-muted2 mt-2">
-                  Renewal {RENEWAL_DATE}
-                  {plan.renegotiate
-                    ? ` · ~${expectedWeeklyPv} PV/week from roster`
-                    : ` · ~${expectedWeeklyPv} / ${plan.capacityLabel} from roster`}
-                </p>
-              ) : (
-                canEdit && (
-                  <button
-                    type="button"
-                    className="iz-btn iz-btn-soft mt-3 w-full"
-                    onClick={() => selectPlan(plan.id)}
-                  >
-                    {plan.renegotiate ? "Contact admin" : `Switch to ${plan.label}`}
-                  </button>
-                )
-              )}
             </IzCard>
           );
         })}
@@ -215,7 +194,7 @@ function AgencySubscription() {
 
       <OutletSection
         title="Payment method"
-        hint={`Visa ···· ${CARD_LAST4} · renewal ${RENEWAL_DATE}`}
+        hint={`Visa ···· ${CARD_LAST4} · next charge ${renewalDate}`}
         collapsible
         defaultOpen={false}
         className="!mt-5"
@@ -226,9 +205,7 @@ function AgencySubscription() {
             <div>
               <p className="iz-sm font-semibold">Visa ···· {CARD_LAST4}</p>
               <p className="iz-tiny iz-muted">
-                Billed monthly ·{" "}
-                {currentPlan.priceLabel ??
-                  (currentPlan.monthlyRm != null ? formatRM(currentPlan.monthlyRm) : "Renegotiate Price")}{" "}
+                Billed weekly from PV usage · current tier {billing.plan.label} · {billing.priceLabel}{" "}
                 · auto-renew
               </p>
             </div>
@@ -246,7 +223,7 @@ function AgencySubscription() {
 
         <div className="mt-2 flex items-center gap-2 iz-tiny iz-muted">
           <Calendar className="h-3.5 w-3.5" />
-          Next renewal {RENEWAL_DATE}
+          Next weekly charge {renewalDate}
         </div>
       </OutletSection>
     </div>

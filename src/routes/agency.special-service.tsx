@@ -28,8 +28,8 @@ function AgencySpecialService() {
   return (
     <div className="iz-screen">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Available Services</h2>
-        <p className="iz-tiny iz-muted mt-0.5">{agencyOwner.orgName} · review & fulfil orders</p>
+        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Job posting</h2>
+        <p className="iz-tiny iz-muted mt-0.5">{agencyOwner.orgName} · book services for PRs & outlets</p>
       </header>
 
       <SpecialServiceSection canBook={agencyCan(agencySubRole, "raisePv")} />

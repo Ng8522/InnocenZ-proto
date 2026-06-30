@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { format, startOfToday } from "date-fns";
 import { ChevronRight, Pencil, Plus, Sparkles, X } from "lucide-react";
 import { SpecialServiceFilters } from "@/components/agency/SpecialServiceFilters";
-import { IzHScroll } from "@/components/iz/HScroll";
 import { IzCard, IzSectionLabel, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import {
@@ -18,11 +17,10 @@ import { cn } from "@/lib/utils";
 import {
   EMPTY_SPECIAL_SERVICE_FILTERS,
   bookableServiceOffers,
-  collectSpecialServiceAmountInOptions,
-  collectSpecialServiceAmountOutOptions,
   collectSpecialServiceDateIsos,
   filterSpecialServiceRecords,
   specialServiceOffer,
+  specialServiceRemarkHint,
   specialServiceTypeLabel,
   type AgencySpecialServiceOffer,
 } from "@/lib/special-service-demo";
@@ -138,7 +136,7 @@ function DraftServiceEditor({
         />
       </div>
       <ServiceFormRow label="Service type" alignTop stacked>
-        <IzHScroll className="flex w-full gap-1 pb-0.5">
+        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
           {offers.map((option) => (
             <button
               key={option.id}
@@ -150,14 +148,14 @@ function DraftServiceEditor({
                 })
               }
               className={cn(
-                "iz-pill shrink-0 whitespace-nowrap !text-[10px]",
+                "iz-pill w-full justify-center whitespace-nowrap !text-xs",
                 draft.serviceType === option.id ? "iz-pill-gold" : "iz-pill-ink",
               )}
             >
               {option.label}
             </button>
           ))}
-        </IzHScroll>
+        </div>
         {offer && <p className="mt-2 text-[10px] leading-snug text-[var(--iz-muted2)]">{offer.summary}</p>}
       </ServiceFormRow>
       <ServiceFormRow label="Time">
@@ -187,7 +185,7 @@ function DraftServiceEditor({
       <ServiceFormRow label="Notes" stacked last>
         <textarea
           className="min-h-[72px] w-full rounded-xl border border-[var(--iz-line2)] bg-[rgba(255,255,255,0.03)] px-2.5 py-2 text-sm outline-none"
-          placeholder="Pickup address, delivery items, outlet contact…"
+          placeholder={specialServiceRemarkHint(draft.serviceType)}
           value={draft.note}
           onChange={(e) => onChange({ note: e.target.value })}
         />
@@ -287,8 +285,6 @@ export function OutletServicePostSection() {
     [records, outletName],
   );
   const bookingDateIsos = useMemo(() => collectSpecialServiceDateIsos(scopedRecords), [scopedRecords]);
-  const amountInOptions = useMemo(() => collectSpecialServiceAmountInOptions(scopedRecords), [scopedRecords]);
-  const amountOutOptions = useMemo(() => collectSpecialServiceAmountOutOptions(scopedRecords), [scopedRecords]);
   const filtered = useMemo(
     () => filterSpecialServiceRecords(scopedRecords, bookingFilters),
     [scopedRecords, bookingFilters],
@@ -440,8 +436,6 @@ export function OutletServicePostSection() {
           filters={bookingFilters}
           onChange={(patch) => setBookingFilters((prev) => ({ ...prev, ...patch }))}
           bookingDateIsos={bookingDateIsos}
-          amountInOptions={amountInOptions}
-          amountOutOptions={amountOutOptions}
           resultCount={filtered.length}
           totalCount={scopedRecords.length}
           serviceOffers={serviceOffers}

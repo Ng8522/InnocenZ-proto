@@ -7,6 +7,9 @@ export type SpecialServiceInitiator = "agency" | "outlet" | "pr";
 export type PartyAcceptance = "pending" | "accepted" | "declined" | "n/a";
 
 export type SpecialServiceStatus =
+  | "pending_admin"
+  | "accepted"
+  | "rejected"
   | "pending_agency"
   | "pending_pr"
   | "pending_outlet"
@@ -19,6 +22,7 @@ export type AgencySpecialServiceOffer = {
   id: string;
   label: string;
   summary: string;
+  remarkHint: string;
   defaultRate: number;
   unit: string;
 };
@@ -29,6 +33,7 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
     id: "transportation",
     label: "Transportation",
     summary: "Shift pickup, late-night return, and outlet transfers",
+    remarkHint: "Pickup location and destination",
     defaultRate: 45,
     unit: "per trip",
   },
@@ -36,6 +41,7 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
     id: "delivery",
     label: "Deliveries",
     summary: "Outfits, heels, props, and supplies sent to venue",
+    remarkHint: "What to deliver and delivery address",
     defaultRate: 35,
     unit: "per delivery",
   },
@@ -43,6 +49,7 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
     id: "wardrobe",
     label: "Wardrobe & styling",
     summary: "Gown rental, dress code sourcing, and styling coordination",
+    remarkHint: "Outfit or item needed, size, and occasion",
     defaultRate: 95,
     unit: "per booking",
   },
@@ -50,6 +57,7 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
     id: "makeup",
     label: "Makeup & grooming",
     summary: "Professional makeup before VIP or launch events",
+    remarkHint: "Event, start time, and look required",
     defaultRate: 120,
     unit: "per session",
   },
@@ -57,6 +65,7 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
     id: "vip_escort",
     label: "VIP escort",
     summary: "Premium table hosting and high-value guest coverage",
+    remarkHint: "Guest or table, venue, and coverage hours",
     defaultRate: 180,
     unit: "per shift",
   },
@@ -64,6 +73,7 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
     id: "uniform",
     label: "Uniform & documents",
     summary: "Uniform handling, badge printing, and compliance docs",
+    remarkHint: "Uniform or document type and quantity",
     defaultRate: 25,
     unit: "per item",
   },
@@ -71,6 +81,7 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
     id: "emergency_cover",
     label: "Emergency cover",
     summary: "Last-minute replacement PR sourcing and dispatch",
+    remarkHint: "Outlet, shift time, and PRs needed",
     defaultRate: 150,
     unit: "per call-out",
   },
@@ -78,6 +89,7 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
     id: "training",
     label: "Training top-up",
     summary: "Tier upgrades, coaching sessions, and certification fees",
+    remarkHint: "PR name and training topic or tier goal",
     defaultRate: 80,
     unit: "per session",
   },
@@ -85,6 +97,7 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
     id: "leave_agency",
     label: "Leave agency",
     summary: "Before 1 year you must raise a support ticket for early leave",
+    remarkHint: "Reason and intended last working date",
     defaultRate: 0,
     unit: "support ticket",
   },
@@ -127,16 +140,25 @@ export type SpecialServiceRecord = {
   amountOut: number;
   initiatedBy: SpecialServiceInitiator;
   raisedBy: string;
+  /** InnocenZ admin review for agency-posted jobs */
+  adminAccepted: PartyAcceptance;
   agencyAccepted: PartyAcceptance;
   prAcceptance: PartyAcceptance;
   outletAcceptance: PartyAcceptance;
   status: SpecialServiceStatus;
   approvedAt?: string;
   declineReason?: string;
-  declinedBy?: "agency" | "pr" | "outlet";
+  declinedBy?: "agency" | "pr" | "outlet" | "admin";
 };
 
 export function recomputeSpecialServiceStatus(record: SpecialServiceRecord): SpecialServiceStatus {
+  if (record.initiatedBy === "agency") {
+    if (record.adminAccepted === "declined") return "rejected";
+    if (record.adminAccepted === "pending") return "pending_admin";
+    if (record.adminAccepted === "accepted") return "accepted";
+    return "pending_admin";
+  }
+
   if (record.status === "paid") return "paid";
 
   if (
@@ -198,15 +220,16 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     dateIso: DEFAULT_ROSTER_DATE_ISO,
     time: "22:00",
     serviceType: "vip_escort",
-    description: "VIP table escort — Hennessy launch · 3h premium coverage",
+    description: "Table 7, Velvet 23 — 3h Hennessy launch coverage",
     amountIn: 250,
     amountOut: 180,
     initiatedBy: "agency",
     raisedBy: "Agency Owner",
+    adminAccepted: "accepted",
     agencyAccepted: "accepted",
-    prAcceptance: "accepted",
-    outletAcceptance: "accepted",
-    status: "confirmed",
+    prAcceptance: "n/a",
+    outletAcceptance: "n/a",
+    status: "accepted",
     approvedAt: "18 Jun 2026 · 14:20",
   },
   {
@@ -218,11 +241,12 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     dateIso: DEFAULT_ROSTER_DATE_ISO,
     time: "04:15",
     serviceType: "transportation",
-    description: "Late-night return after 04:00 shift — agency Grab booking",
+    description: "Onyx KL → Bangsar South (late shift return)",
     amountIn: 0,
     amountOut: 45,
     initiatedBy: "pr",
     raisedBy: "Alice (PR)",
+    adminAccepted: "n/a",
     agencyAccepted: "pending",
     prAcceptance: "accepted",
     outletAcceptance: "n/a",
@@ -237,11 +261,12 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     dateIso: DEFAULT_ROSTER_DATE_ISO,
     time: "19:30",
     serviceType: "delivery",
-    description: "Heels + clutch delivered to outlet before Ladies Night",
+    description: "Red heels size 38 + clutch — Velvet 23, Ladies Night",
     amountIn: 50,
     amountOut: 35,
     initiatedBy: "outlet",
     raisedBy: "Velvet 23",
+    adminAccepted: "n/a",
     agencyAccepted: "pending",
     prAcceptance: "n/a",
     outletAcceptance: "accepted",
@@ -256,16 +281,16 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     dateIso: DEFAULT_ROSTER_DATE_ISO,
     time: "20:00",
     serviceType: "makeup",
-    description: "Agency-booked makeup session before VIP table — confirm availability",
+    description: "VIP table night, 20:00 — soft glam full face",
     amountIn: 80,
-    amountOut: 120,
+    amountOut: 0,
     initiatedBy: "agency",
     raisedBy: "Agency Owner",
+    adminAccepted: "pending",
     agencyAccepted: "accepted",
-    prAcceptance: "pending",
-    outletAcceptance: "pending",
-    status: "pending_both",
-    approvedAt: "18 Jun 2026 · 10:05",
+    prAcceptance: "n/a",
+    outletAcceptance: "n/a",
+    status: "pending_admin",
   },
   {
     id: "SS-2026-011",
@@ -276,15 +301,16 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     dateIso: "2026-06-03",
     time: "18:00",
     serviceType: "makeup",
-    description: "Professional makeup before weekend VIP slot",
-    amountIn: 0,
-    amountOut: 120,
+    description: "Weekend VIP slot, 18:00 — natural evening look",
+    amountIn: 100,
+    amountOut: 100,
     initiatedBy: "agency",
     raisedBy: "Agency Owner",
+    adminAccepted: "accepted",
     agencyAccepted: "accepted",
-    prAcceptance: "accepted",
+    prAcceptance: "n/a",
     outletAcceptance: "n/a",
-    status: "paid",
+    status: "accepted",
     approvedAt: "3 Jun 2026 · 18:05",
   },
   {
@@ -296,11 +322,12 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     dateIso: "2026-06-02",
     time: "17:45",
     serviceType: "wardrobe",
-    description: "Gown rental — lounge launch black-dress code",
+    description: "Black gown size S — Bear Lounge launch night",
     amountIn: 120,
     amountOut: 95,
     initiatedBy: "outlet",
     raisedBy: "Bear Lounge",
+    adminAccepted: "n/a",
     agencyAccepted: "accepted",
     prAcceptance: "accepted",
     outletAcceptance: "n/a",
@@ -316,11 +343,12 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     dateIso: "2026-06-02",
     time: "20:30",
     serviceType: "emergency_cover",
-    description: "Same-day cover dispatch when outlet PR no-showed",
+    description: "Urban Soul, 20:30 shift — 1 replacement PR",
     amountIn: 200,
     amountOut: 150,
     initiatedBy: "outlet",
     raisedBy: "Urban Soul",
+    adminAccepted: "n/a",
     agencyAccepted: "accepted",
     prAcceptance: "accepted",
     outletAcceptance: "n/a",
@@ -333,6 +361,19 @@ export function specialServiceOffer(id: string): AgencySpecialServiceOffer | und
   return AGENCY_SPECIAL_SERVICE_OFFERS.find((s) => s.id === id);
 }
 
+export function specialServiceRemarkHint(serviceType: string): string {
+  return specialServiceOffer(serviceType)?.remarkHint ?? "Add job details…";
+}
+
+/** Admin-arranged service cost — never above the agency budget (amountIn). */
+export function adminServiceCostForOrder(
+  record: Pick<SpecialServiceRecord, "amountIn" | "serviceType">,
+): number {
+  const defaultRate = specialServiceOffer(record.serviceType)?.defaultRate ?? 0;
+  if (record.amountIn <= 0) return 0;
+  return Math.min(defaultRate, record.amountIn);
+}
+
 /** Canonical PR name on service orders — agency roster match + Luna → Vicky migration. */
 export function resolveSpecialServicePrName(
   row: Pick<SpecialServiceRecord, "prId" | "prName">,
@@ -342,6 +383,28 @@ export function resolveSpecialServicePrName(
 }
 
 /** Keep demo seed names after localStorage hydrate (e.g. Luna → Vicky on p1). */
+function normalizeAgencyJobDemoRow(
+  row: SpecialServiceRecord,
+  seedRow?: SpecialServiceRecord,
+): SpecialServiceRecord {
+  if (row.initiatedBy !== "agency") return row;
+  const base = seedRow
+    ? {
+        ...row,
+        prName: seedRow.prName,
+        description: seedRow.description,
+        amountIn: seedRow.amountIn,
+      }
+    : row;
+  if (base.adminAccepted === "pending") {
+    return { ...base, amountOut: 0 };
+  }
+  if (base.adminAccepted === "accepted" && base.amountIn > 0) {
+    return { ...base, amountOut: adminServiceCostForOrder(base) };
+  }
+  return base;
+}
+
 export function mergeSpecialServiceOrders(
   persisted: SpecialServiceRecord[] | undefined,
   seed: SpecialServiceRecord[] = SEED_SPECIAL_SERVICES,
@@ -356,11 +419,29 @@ export function mergeSpecialServiceOrders(
 
   const merged = persisted.map((row) => {
     const seedRow = seedById[row.id];
-    const base = seedRow ? { ...seedRow, ...row, prName: seedRow.prName } : row;
-    return { ...base, prName: resolveSpecialServicePrName(base, agencyPRs) };
+    const base = seedRow ? { ...seedRow, ...row } : row;
+    const withPr = { ...base, prName: resolveSpecialServicePrName(base, agencyPRs) };
+    const normalized = normalizeAgencyJobDemoRow(withPr, seedRow);
+    if ("adminAccepted" in normalized) {
+      return { ...normalized, status: recomputeSpecialServiceStatus(normalized) };
+    }
+    const migrated: SpecialServiceRecord = {
+      ...normalized,
+      adminAccepted:
+        normalized.initiatedBy === "agency"
+          ? normalized.status === "declined"
+            ? "declined"
+            : normalized.status === "pending_admin"
+              ? "pending"
+              : "accepted"
+          : "n/a",
+    };
+    return { ...migrated, status: recomputeSpecialServiceStatus(migrated) };
   });
 
-  const missingSeed = seed.filter((s) => !persistedIds.has(s.id)).map((r) => ({ ...r }));
+  const missingSeed = seed
+    .filter((s) => !persistedIds.has(s.id))
+    .map((r) => normalizeAgencyJobDemoRow({ ...r }, r));
   return [...merged, ...missingSeed];
 }
 
@@ -429,6 +510,12 @@ export function collectSpecialServiceAmountOutOptions(records: SpecialServiceRec
 
 export function specialServiceStatusLabel(status: SpecialServiceStatus): string {
   switch (status) {
+    case "pending_admin":
+      return "Pending Admin Review";
+    case "accepted":
+      return "Accepted";
+    case "rejected":
+      return "Rejected";
     case "pending_agency":
       return "Pending agency";
     case "pending_pr":
@@ -446,17 +533,58 @@ export function specialServiceStatusLabel(status: SpecialServiceStatus): string 
   }
 }
 
+export function agencyJobPostingInzLabel(record: SpecialServiceRecord): string {
+  if (record.adminAccepted === "declined") return "Rejected";
+  if (record.adminAccepted === "pending") return "Pending review";
+  if (record.adminAccepted === "accepted") return "Accepted";
+  return specialServiceStatusLabel(record.status);
+}
+
+export type AgencyJobPostingStatusTone = "accepted" | "pending" | "rejected" | "neutral";
+
+export function agencyJobPostingStatusTone(record: SpecialServiceRecord): AgencyJobPostingStatusTone {
+  if (record.adminAccepted === "declined") return "rejected";
+  if (record.adminAccepted === "pending") return "pending";
+  if (record.adminAccepted === "accepted") return "accepted";
+  if (
+    record.status === "pending_admin" ||
+    record.status === "pending_agency" ||
+    record.status === "pending_pr" ||
+    record.status === "pending_outlet" ||
+    record.status === "pending_both"
+  ) {
+    return "pending";
+  }
+  if (record.status === "accepted" || record.status === "confirmed" || record.status === "paid") {
+    return "accepted";
+  }
+  if (record.status === "rejected" || record.status === "declined") return "rejected";
+  return "neutral";
+}
+
+export function agencyJobPostingInzVariant(
+  record: SpecialServiceRecord,
+): "ink" | "amber" | "green" | "violet" {
+  if (record.adminAccepted === "declined") return "ink";
+  if (record.adminAccepted === "pending") return "amber";
+  if (record.adminAccepted === "accepted") return "violet";
+  return specialServiceStatusVariant(record.status);
+}
+
 export function specialServiceStatusVariant(
   status: SpecialServiceStatus,
 ): "ink" | "amber" | "green" | "violet" {
   switch (status) {
+    case "pending_admin":
     case "pending_agency":
     case "pending_pr":
     case "pending_outlet":
     case "pending_both":
       return "amber";
+    case "accepted":
     case "confirmed":
       return "violet";
+    case "rejected":
     case "declined":
       return "ink";
     case "paid":

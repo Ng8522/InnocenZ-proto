@@ -962,8 +962,8 @@ export type AgencySubscriptionPlanId =
 export interface AgencySubscriptionPlan {
   id: AgencySubscriptionPlanId;
   label: string;
-  /** Monthly fee — null when price is negotiated with admin */
-  monthlyRm: number | null;
+  /** Weekly fee — null when price is negotiated with admin */
+  weeklyRm: number | null;
   priceLabel?: string;
   /** Max PVs/week on this plan (upper bound for ranged tiers) */
   pvLimit: number;
@@ -978,7 +978,7 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
   {
     id: "starter",
     label: "Starter",
-    monthlyRm: 499,
+    weeklyRm: 125,
     pvLimit: 5,
     capacityLabel: "5 PV/Week",
     description: "InnocenZ Agency · core portal access",
@@ -986,42 +986,42 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
   {
     id: "plus",
     label: "Plus",
-    monthlyRm: 999,
+    weeklyRm: 250,
     pvLimit: 10,
-    capacityLabel: "10 PV/Week",
+    capacityLabel: "6–10 PV/Week",
     description: "Growing roster · payroll & history",
   },
   {
     id: "growth",
     label: "Growth",
-    monthlyRm: 1999,
+    weeklyRm: 500,
     pvLimit: 25,
-    capacityLabel: "25 PV/Week",
+    capacityLabel: "11–25 PV/Week",
     description: "Expanded roster · payroll & reporting",
   },
   {
     id: "enterprise",
     label: "Enterprise",
-    monthlyRm: 3999,
-    pvLimit: 100,
-    capacityLabel: "26–100 PV/Week",
+    weeklyRm: 1000,
+    pvLimit: 75,
+    capacityLabel: "26–75 PV/Week",
     description: "Large roster · priority support",
   },
   {
     id: "scale",
     label: "Scale",
-    monthlyRm: 5999,
-    pvLimit: 200,
-    capacityLabel: "101–200 PV/Week",
+    weeklyRm: 1500,
+    pvLimit: 150,
+    capacityLabel: "76–150 PV/Week",
     description: "High volume · dedicated success",
   },
   {
     id: "renego",
     label: "Custom",
-    monthlyRm: null,
+    weeklyRm: null,
     priceLabel: "Renegotiate Price",
     pvLimit: Number.POSITIVE_INFINITY,
-    capacityLabel: "201+ PV/Week",
+    capacityLabel: "151+ PV/Week",
     description: "Enterprise volume · custom terms with InnocenZ admin",
     renegotiate: true,
   },
@@ -1056,6 +1056,30 @@ export function resolveAgencySubscriptionPlanForWeeklyPv(
   return getAgencySubscriptionPlan("renego");
 }
 
+/** Human-readable weekly subscription price for a plan tier. */
+export function agencyWeeklyPlanPriceLabel(plan: AgencySubscriptionPlan): string {
+  if (plan.priceLabel) return plan.priceLabel;
+  if (plan.weeklyRm == null) return "Renegotiate Price";
+  return `RM ${plan.weeklyRm.toLocaleString("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}/Week`;
+}
+
+/** Resolve billed tier and weekly charge from PVs issued in a payroll week. */
+export function agencySubscriptionBillingForWeeklyPv(weeklyPv: number): {
+  plan: AgencySubscriptionPlan;
+  weeklyPv: number;
+  priceLabel: string;
+} {
+  const plan = resolveAgencySubscriptionPlanForWeeklyPv(weeklyPv);
+  return {
+    plan,
+    weeklyPv,
+    priceLabel: agencyWeeklyPlanPriceLabel(plan),
+  };
+}
+
 /** @deprecated use resolveAgencySubscriptionPlanForWeeklyPv */
 export const resolveAgencySubscriptionPlanForMonthlyPv = resolveAgencySubscriptionPlanForWeeklyPv;
 
@@ -1077,9 +1101,12 @@ export function agencySubscriptionAllowsWeeklyPv(
 
 export function syncAgencyOwnerSubscriptionPlan(
   owner: AgencyOwnerSettings,
-  agencyPRs: Pick<AgencyManagedPR, "detached">[],
+  managedWeekPvs: { weekStartIso?: string; issued: string }[],
+  payrollWeekStartIso: string,
 ): AgencyOwnerSettings {
-  const plan = resolveAgencySubscriptionPlanForRoster(agencyPRs);
+  const plan = resolveAgencySubscriptionPlanForWeeklyPv(
+    agencyWeeklyPvCount(managedWeekPvs, payrollWeekStartIso),
+  );
   return { ...owner, subscriptionPlanId: plan.id };
 }
 
@@ -1125,7 +1152,7 @@ export const DEFAULT_AGENCY_OWNER: AgencyOwnerSettings = {
   otpChannel: "email",
   accountActivated: true,
   avatarPhoto: null,
-  subscriptionPlanId: resolveAgencySubscriptionPlanForRoster(SEED_AGENCY_PRS).id,
+  subscriptionPlanId: "growth",
 };
 
 export interface AgencyFinanceHead {
@@ -1273,7 +1300,7 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
   {
     id: "AINV-2026-0601",
     outlet: "Platform fee",
-    amount: 3999,
+    amount: 500,
     issueDate: "1 Jun 2026",
     issueTime: "08:00",
     dueDate: "1 Jun 2026",
@@ -1285,8 +1312,8 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     lines: [
       {
         label: "Atlas Agency subscription",
-        detail: "Jun 2026 · Enterprise · SaaS",
-        amount: 3999,
+        detail: "Jun 2026 · Growth · 20 PVs · weekly",
+        amount: 500,
         group: "fees",
       },
     ],

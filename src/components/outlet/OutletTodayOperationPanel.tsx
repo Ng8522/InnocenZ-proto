@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import type { PR, ShiftRequest } from "@/lib/store";
 import type { AgencyRosterSlot } from "@/lib/agency-demo";
-import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
 import { OutletSection } from "@/components/outlet/OutletSection";
-import { PR_RATING_TAGS } from "@/lib/outlet-demo";
+import { outletPrLiveFloorSales } from "@/lib/outlet-financial-sync";
+import { tierSalesTargetForPr, resolveShiftTierRates } from "@/lib/outlet-demo";
 import { outletCan } from "@/lib/outlet-rbac";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
@@ -23,7 +23,6 @@ import {
   workforceStatusVariant,
 } from "@/components/portal/LiveWorkforceTable";
 import { Star } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 type FloorDisplayStatus = "on-duty" | "en-route" | "scheduled" | "out";
 
@@ -52,20 +51,20 @@ const STATUS_SORT: Record<FloorDisplayStatus, number> = {
 export function OutletTodayOperationPanel({
   shift,
   outletName,
-  className,
 }: {
   shift: ShiftRequest;
   outletName: string;
-  className?: string;
 }) {
   const outletSubRole = useStore((s) => s.outletSubRole);
+  const outletWorkspace = useStore((s) => s.outletWorkspace);
+  const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
   const { prs, ratePr, agencyRoster, agencyPRs, postSealRatePrompt, clearPostSealRatePrompt } =
     useStore();
-  const canLogSales = outletCan(outletSubRole, "logSales");
   const canRate = outletCan(outletSubRole, "ratePrs");
   const [openPr, setOpenPr] = useState<string | null>(null);
   const [comcardPreviewId, setComcardPreviewId] = useState<string | null>(null);
   const [historyPrId, setHistoryPrId] = useState<string | null>(null);
+  const [liveSalesPrId, setLiveSalesPrId] = useState<string | null>(null);
   const [stars, setStars] = useState(5);
   const [note, setNote] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -136,6 +135,28 @@ export function OutletTodayOperationPanel({
     ? rosterTonight.find((s) => s.prId === historyPrId)
     : undefined;
   const historyPrAgency = historyPrSlot ? rosterSlotAgencyName(historyPrSlot) : undefined;
+  const liveSalesPr = liveSalesPrId ? prs.find((p) => p.id === liveSalesPrId) : null;
+  const liveSalesSlot = liveSalesPrId
+    ? rosterTonight.find((s) => s.prId === liveSalesPrId)
+    : undefined;
+  const tierRates = useMemo(
+    () => resolveShiftTierRates(shift, outletWorkspace),
+    [shift, outletWorkspace],
+  );
+  const liveSalesProfile = liveSalesPrId ? agencyPrById.get(liveSalesPrId) : undefined;
+  const liveSales = liveSalesPr
+    ? outletPrLiveFloorSales({
+        prId: liveSalesPr.id,
+        outletName,
+        shift,
+        slot: liveSalesSlot,
+        drinkMenu: outletWorkspace.drinkMenu ?? [],
+        receiptScans: prReceiptScans,
+      })
+    : null;
+  const liveSalesTarget = liveSalesProfile
+    ? tierSalesTargetForPr(tierRates, liveSalesProfile.trainingLevel)
+    : 0;
 
   const toggleTag = (tag: string) => {
     setTags((cur) => (cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag]));
@@ -152,27 +173,12 @@ export function OutletTodayOperationPanel({
           .filter(Boolean)
           .join(" · ");
 
-  if (!canRate && !canLogSales) return null;
+  if (!canRate) return null;
 
   return (
-    <div
-      className={cn(
-        "rounded-2xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-3.5",
-        className,
-      )}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="iz-tiny iz-muted2 uppercase tracking-widest">Today operation</p>
-          <p className="font-sora mt-0.5 text-sm font-bold text-[var(--iz-txt)] truncate">
-            {shift.event}
-          </p>
-          <p className="iz-tiny iz-muted mt-0.5">{shift.shift}</p>
-        </div>
-      </div>
-
-      {postSealRatePrompt && canRate && (
-        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-[rgba(232,194,122,.3)] bg-[rgba(232,194,122,.06)] px-3 py-2">
+    <>
+      {postSealRatePrompt && (
+        <div className="mb-2.5 flex items-center justify-between gap-2 rounded-xl border border-[rgba(232,194,122,.3)] bg-[rgba(232,194,122,.06)] px-3 py-2">
           <p className="text-xs font-semibold">
             Rate {postSealRatePrompt.prIds.length} PR
             {postSealRatePrompt.prIds.length !== 1 ? "s" : ""} · 24h
@@ -187,35 +193,7 @@ export function OutletTodayOperationPanel({
         </div>
       )}
 
-      {canRate && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <IzPill variant="green">{staffTonight.length} PRs</IzPill>
-          {statusCounts.onDuty > 0 && (
-            <IzPill variant="green">
-              {statusCounts.onDuty} on duty
-            </IzPill>
-          )}
-          {statusCounts.enRoute > 0 && (
-            <IzPill variant="violet">
-              {statusCounts.enRoute} en route
-            </IzPill>
-          )}
-          {statusCounts.booked > 0 && (
-            <IzPill variant="amber">
-              {statusCounts.booked} booked
-            </IzPill>
-          )}
-        </div>
-      )}
-
-      {canLogSales && shift.status === "confirmed" && (
-        <div className="mt-3">
-          <OutletShiftSalesPanel shiftId={shift.id} label="Log sales" collapsible />
-        </div>
-      )}
-
-      {canRate && (
-        <OutletSection title="PR tonight" hint={staffHint} className="!mt-3 !mb-0">
+      <OutletSection title="PR tonight" hint={staffHint} className="!mb-0">
           {staffTonight.length === 0 ? (
             <p className="iz-tiny iz-muted rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
               No PRs assigned for tonight yet.
@@ -270,6 +248,14 @@ export function OutletTodayOperationPanel({
 
                     <button
                       type="button"
+                      onClick={() => setLiveSalesPrId(pr.id)}
+                      className="iz-btn iz-btn-soft iz-btn-sm w-full !py-1.5 !text-[10px]"
+                    >
+                      Live sales
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setHistoryPrId(pr.id)}
                       className="iz-btn iz-btn-soft iz-btn-sm w-full !py-1.5 !text-[10px]"
                     >
@@ -288,8 +274,7 @@ export function OutletTodayOperationPanel({
               })}
             </div>
           )}
-        </OutletSection>
-      )}
+      </OutletSection>
 
       <IzSheet open={!!comcardPreviewPr} onClose={() => setComcardPreviewId(null)} comcard>
         {comcardPreviewPr && (
@@ -336,6 +321,54 @@ export function OutletTodayOperationPanel({
           outletName={outletName}
           agencyName={historyPrAgency || undefined}
         />
+      )}
+
+      {liveSalesPr && liveSales && (
+        <IzSheet open onClose={() => setLiveSalesPrId(null)}>
+          <div className="iz-cardttl">Live sales · {liveSalesPr.name}</div>
+          <p className="iz-tiny iz-muted mt-1">
+            {shift.event} · tonight floor
+          </p>
+          <p className="mt-4 font-sora text-3xl font-bold tabular-nums text-[var(--iz-green)]">
+            RM {liveSales.salesRm.toLocaleString("en-MY")}
+          </p>
+          <div className="mt-4 space-y-2 rounded-xl border border-[var(--iz-line)] bg-white/[0.02] p-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[var(--iz-muted)]">Drinks</span>
+              <span className="font-semibold tabular-nums">
+                {liveSales.drinkUnits} · RM {liveSales.drinkSalesRm.toLocaleString("en-MY")}
+              </span>
+            </div>
+            {liveSales.tipRm > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-[var(--iz-muted)]">Tips</span>
+                <span className="font-semibold tabular-nums">
+                  RM {liveSales.tipRm.toLocaleString("en-MY")}
+                </span>
+              </div>
+            )}
+            {liveSalesTarget > 0 && (
+              <div className="flex items-center justify-between border-t border-[var(--iz-line)] pt-2 text-sm">
+                <span className="text-[var(--iz-muted)]">Tier target</span>
+                <span className="font-semibold tabular-nums text-[var(--iz-muted)]">
+                  RM {liveSalesTarget.toLocaleString("en-MY")}
+                </span>
+              </div>
+            )}
+          </div>
+          {liveSales.salesRm === 0 && (
+            <p className="iz-tiny iz-muted2 mt-3 text-center">
+              No floor sales logged for this PR yet tonight.
+            </p>
+          )}
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft mt-4 w-full"
+            onClick={() => setLiveSalesPrId(null)}
+          >
+            Close
+          </button>
+        </IzSheet>
       )}
 
       {openPr && openPrData && canRate && (
@@ -391,6 +424,6 @@ export function OutletTodayOperationPanel({
           </div>
         </IzSheet>
       )}
-    </div>
+    </>
   );
 }

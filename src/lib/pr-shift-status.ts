@@ -1,4 +1,4 @@
-import { getOutletRule } from "@/lib/agency-demo";
+import { calcShiftWagesFromRule, formatShiftWagesDetail, getOutletRule } from "@/lib/agency-demo";
 import { shiftHoursFromLabel } from "@/lib/outlet-demo";
 import {
   calcReceiptCommissions,
@@ -12,13 +12,14 @@ import {
 } from "@/lib/pr-demo";
 
 export type DutyWagesBreakdown = {
+  /** Flat pay per completed shift (legacy field name). */
   wagePerHour: number;
   shiftHours: number;
   wages: number;
   detail: string;
 };
 
-/** Hourly wages from outlet rate × scheduled shift hours (+ OT after checkout). */
+/** Flat shift pay on checkout (+ OT beyond threshold). */
 export function calcDutyWagesFromOutlet(
   outlet: string,
   shiftTime: string,
@@ -28,17 +29,12 @@ export function calcDutyWagesFromOutlet(
   const shiftHours = shiftHoursFromLabel(shiftTime);
   const extraHours = overtimeMinutes / 60;
   const totalHours = shiftHours + extraHours;
-  const baseHours = Math.min(totalHours, rule.otAfterHours);
-  const otHours = Math.max(0, totalHours - rule.otAfterHours);
-  const wages = baseHours * rule.wagePerHour + otHours * rule.wagePerHour * 1.5;
-  const detail =
-    overtimeMinutes > 0
-      ? `RM ${rule.wagePerHour}/hr × ${shiftHours}h + OT ${overtimeMinutes}m`
-      : `RM ${rule.wagePerHour}/hr × ${shiftHours}h · outlet rate`;
+  const { wages, shiftPay } = calcShiftWagesFromRule(rule, totalHours, true);
+  const detail = formatShiftWagesDetail(rule, totalHours, overtimeMinutes);
   return {
-    wagePerHour: rule.wagePerHour,
+    wagePerHour: shiftPay,
     shiftHours,
-    wages: Math.round(wages * 100) / 100,
+    wages,
     detail,
   };
 }
@@ -229,7 +225,7 @@ export function buildShiftStatusRows(
       wagesRm: dutyWages,
       commissionRm: 0,
       verified: true,
-      verifyNote: "Sealed at outlet rate",
+      verifyNote: "Paid on shift completion",
     },
   ];
 

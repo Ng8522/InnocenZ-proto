@@ -7,8 +7,9 @@ import { IzPill, formatRM } from "@/components/iz/ui";
 import { useStore } from "@/lib/store";
 import { agencyCan, type AgencySubRole } from "@/lib/agency-rbac";
 import { AGENCY_PV_STATUS_LABELS, agencyPvStatusLabel } from "@/lib/agency-payroll";
-import { DEFAULT_TIED_AGENCY_ID, pvStatusPillVariant } from "@/lib/pr-demo";
+import { pvStatusPillVariant } from "@/lib/pr-demo";
 import { deriveLiveWorkforce } from "@/lib/portal-sync";
+import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 type HubTab = "on-duty" | "approvals" | "review" | "disputes";
 
@@ -23,7 +24,7 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
   const agencyRoster = useStore((s) => s.agencyRoster);  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
   const pendingPRs = useStore((s) => s.pendingPRs);
-  const pendingFreelancerPayrolls = useStore((s) => s.pendingFreelancerPayrolls);
+  const pendingCutlostRequests = useStore((s) => s.pendingCutlostRequests);
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
 
   const showWorkforce = agencyCan(agencySubRole, "viewWorkforce");
@@ -51,15 +52,13 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
   );
 
   const signups = pendingPRs.filter((p) => p.status === "pending");
-  const freelancers = pendingFreelancerPayrolls.filter(
-    (p) => p.agencyId === DEFAULT_TIED_AGENCY_ID && p.status === "pending",
-  );
+  const cutlostRequests = pendingCutlostRequests.filter((r) => r.status === "pending");
   const pendingReview = prPaymentVouchers.filter((p) => p.status === "PENDING_REVIEW");
   const disputes = prPaymentVouchers.filter((p) => p.status === "DISPUTED");
 
   const counts: Record<HubTab, number> = {
     "on-duty": workforce.length,
-    approvals: signups.length + freelancers.length,
+    approvals: signups.length + cutlostRequests.length,
     review: pendingReview.length,
     disputes: disputes.length,
   };
@@ -109,14 +108,14 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
             <h3 className="font-sora text-base font-bold">Pending approvals</h3>
             <HubPanelLink to="/agency/pending" label="Open approvals" />
           </div>
-          {signups.length + freelancers.length === 0 ? (
+          {signups.length + cutlostRequests.length === 0 ? (
             <p className="iz-tiny iz-muted px-4 py-6 text-center">Nothing awaiting approval.</p>
           ) : (
             <div className="iz-portal-table-wrap">
               <table className="iz-portal-table">
                 <thead>
                   <tr>
-                    <th>PR</th>
+                    <th>Outlet / PR</th>
                     <th>Type</th>
                     <th>Details</th>
                   </tr>
@@ -134,25 +133,24 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
                       <td className="iz-portal-table-meta">{p.languages || p.mobile}</td>
                     </PortalClickableTableRow>
                   ))}
-                  {freelancers.map((p) => (
+                  {cutlostRequests.map((req) => (
                     <PortalClickableTableRow
-                      key={p.id}
-                      target={
-                        p.prId
-                          ? { to: "/agency/prs", search: { pr: p.prId } }
-                          : { to: "/agency/pending", search: { tab: "freelancer" } }
-                      }
+                      key={req.id}
+                      target={{ to: "/agency/pending", search: { tab: "cutlost" } }}
                     >
                       <td>
                         <div className="iz-portal-table-pr">
-                          <span className="iz-portal-table-av">{p.prName.trim()[0]}</span>
-                          <span className="iz-portal-table-name">{p.prName}</span>
+                          <span className="iz-portal-table-av">{req.outletName.trim()[0]}</span>
+                          <span className="iz-portal-table-name">{req.outletName}</span>
                         </div>
                       </td>
-                      <td className="iz-portal-table-meta">Freelancer payroll</td>
-                      <td className="iz-portal-table-meta">{p.agencyName}</td>
+                      <td className="iz-portal-table-meta">Cutlost request</td>
+                      <td className="iz-portal-table-meta">
+                        {cutlostRequestTitle(req)} · ~RM {Math.round(req.estimatedSavings).toLocaleString("en-MY")}
+                      </td>
                     </PortalClickableTableRow>
-                  ))}                </tbody>
+                  ))}
+                </tbody>
               </table>
             </div>
           )}

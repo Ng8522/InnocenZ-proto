@@ -46,6 +46,42 @@ export function addDaysToIso(iso: string, days: number): string {
   return format(addDays(parseISO(iso), days), "yyyy-MM-dd");
 }
 
+export const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
+export function weekdayFromIso(iso: string): number {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).getDay();
+}
+
+export function weekdayNameFromIso(iso: string): string {
+  return WEEKDAY_NAMES[weekdayFromIso(iso)]!;
+}
+
+/** Next calendar date on the given weekday (0=Sun … 6=Sat) from a reference ISO date. */
+export function isoOnWeekday(fromIso: string, weekday: number, allowSameDay = false): string {
+  const todayDow = weekdayFromIso(fromIso);
+  let delta = (weekday - todayDow + 7) % 7;
+  if (delta === 0 && !allowSameDay) delta = 7;
+  return addDaysToIso(fromIso, delta);
+}
+
+export function ymdFromIso(iso: string): [number, number, number] {
+  const [y, m, d] = iso.split("-").map(Number);
+  return [y, m, d];
+}
+
+export function weekdayEventName(weekday: number, suffix: string): string {
+  return `${WEEKDAY_NAMES[weekday]} ${suffix}`;
+}
+
 /** PV issues on the Sunday after a Sun–Sat week ends. */
 export function isWeekPvIssuedOnCalendar(weekEndIso: string, fromIso = getLiveTodayIso()): boolean {
   return fromIso >= addDaysToIso(weekEndIso, 1);

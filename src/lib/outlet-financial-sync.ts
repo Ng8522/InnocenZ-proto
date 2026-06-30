@@ -7,12 +7,20 @@ import {
   type AgencyRosterSlot,
   type OutletPnlRow,
 } from "@/lib/agency-demo";
-import { floorTipsForOutletFromRoster } from "@/lib/portal-sync";
+import { floorTipsForOutletFromRoster, outletMatches } from "@/lib/portal-sync";
 import type { ShiftRequest } from "@/lib/store";
-
-import { averageDrinkPrice, effectiveShiftDrinkMenu, shiftStartTimeFromLabel, type OutletDrinkPrice } from "@/lib/outlet-demo";
 import { resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
+import { aggregateShiftSales, shiftSalesLogged } from "@/lib/pr-shift-status";
+import type { PrReceiptScan } from "@/lib/pr-demo";
+import { receiptDateIso } from "@/lib/receipt-scan-utils";
 import { shiftStartMs } from "@/lib/pr-schedule-cancellation";
+import { getLiveTodayIso } from "@/lib/demo-clock";
+import {
+  averageDrinkPrice,
+  effectiveShiftDrinkMenu,
+  shiftStartTimeFromLabel,
+  type OutletDrinkPrice,
+} from "@/lib/outlet-demo";
 
 export const DEFAULT_PER_DRINK_RM = 120;
 export const DEFAULT_PER_TABLE_RM = 100;
@@ -86,6 +94,71 @@ export function outletShiftFloorSalesStarted(
 export function outletShiftDisplayLiveSales(shift: ShiftRequest, now = new Date()): number {
   if (!outletShiftFloorSalesStarted(shift, now)) return 0;
   return shift.liveSales ?? 0;
+}
+
+export type OutletPrLiveSales = {
+  salesRm: number;
+  drinkSalesRm: number;
+  drinkUnits: number;
+  tipRm: number;
+};
+
+/** Per-PR floor sales for outlet tonight — receipt scans when present, else roster floor counts. */
+export function outletPrLiveFloorSales(opts: {
+  prId: string;
+  outletName: string;
+  shift: Pick<
+    ShiftRequest,
+    "date" | "dateIso" | "shift" | "status" | "perDrinkRm" | "eventDrinkMenu"
+  >;
+  slot?: AgencyRosterSlot;
+  drinkMenu: OutletDrinkPrice[];
+  receiptScans?: PrReceiptScan[];
+  now?: Date;
+}): OutletPrLiveSales {
+  const empty = { salesRm: 0, drinkSalesRm: 0, drinkUnits: 0, tipRm: 0 };
+  const shiftDateIso = resolveOutletShiftDateIso(opts.shift.date, opts.shift.dateIso);
+  const previewTonight =
+    opts.shift.status === "confirmed" && shiftDateIso === getLiveTodayIso();
+  if (!outletShiftFloorSalesStarted(opts.shift, opts.now) && !previewTonight) return empty;
+  const scans = (opts.receiptScans ?? []).filter(
+    (scan) =>
+      scan.prId === opts.prId &&
+      outletMatches(scan.outlet, opts.outletName) &&
+      receiptDateIso(scan) === shiftDateIso,
+  );
+
+  if (scans.length > 0) {
+    const agg = aggregateShiftSales(scans);
+    const drinkSalesRm = scans.reduce(
+      (sum, scan) =>
+        sum +
+        scan.items
+          .filter((item) => item.category === "drinks")
+          .reduce((line, item) => line + item.amount, 0),
+      0,
+    );
+    const tipRm = agg.tipRm;
+    const salesRm = shiftSalesLogged(scans);
+    return {
+      salesRm,
+      drinkSalesRm: drinkSalesRm > 0 ? drinkSalesRm : salesRm,
+      drinkUnits: agg.drinkUnits,
+      tipRm,
+    };
+  }
+
+  const menu = effectiveShiftDrinkMenu(opts.shift, opts.drinkMenu);
+  const perDrink = opts.shift.perDrinkRm ?? averageDrinkPrice(menu);
+  const drinkUnits = opts.slot?.floorDrinks ?? 0;
+  const drinkSalesRm = Math.round(drinkUnits * perDrink * 100) / 100;
+  const tipRm = opts.slot?.floorTips ?? 0;
+  return {
+    salesRm: Math.round((drinkSalesRm + tipRm) * 100) / 100,
+    drinkSalesRm,
+    drinkUnits,
+    tipRm,
+  };
 }
 
 export function floorTipsForOutlet(outletName: string, roster: AgencyRosterSlot[] = []): number {

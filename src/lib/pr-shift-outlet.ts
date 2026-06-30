@@ -2,7 +2,6 @@ import { getOutletRule, type AgencyRosterSlot } from "@/lib/agency-demo";
 import type { PrShiftOffer } from "@/lib/pr-demo";
 import { DEFAULT_PR_AGENCY_NAME, formatRMPlain } from "@/lib/pr-demo";
 import { OUTLET_GPS, mapsDirectionsUrl, type GeoCoord } from "@/lib/gps-locations";
-import { shiftHoursFromLabel } from "@/lib/outlet-demo";
 
 export type PrShiftOutletBrief = {
   name: string;
@@ -90,8 +89,7 @@ export function getPrShiftOutletBrief(
     ? mapsDirectionsUrl(opts.prCoord, outletCoord)
     : `https://www.google.com/maps?q=${gps.lat},${gps.lng}`;
   const rule = getOutletRule(offer.outlet);
-  const shiftHours = shiftHoursFromLabel(offer.time);
-  const estWages = rule.wagePerHour * shiftHours;
+  const estWages = rule.wagePerHour;
 
   return {
     name: offer.outlet,
@@ -104,7 +102,7 @@ export function getPrShiftOutletBrief(
     distance: offer.distance,
     mapsUrl: `https://www.google.com/maps?q=${gps.lat},${gps.lng}`,
     directionsUrl,
-    estPayout: `${formatRMPlain(estWages)} wages · RM ${rule.wagePerHour}/hr`,
+    estPayout: `${formatRMPlain(estWages)} shift pay · RM ${rule.wagePerHour.toLocaleString("en-MY")}/shift`,
     agencyNote: opts?.rosterSlot?.agencyAssignment?.agencyNote,
     heroGradient: meta.gradient,
     opsContact: meta.opsContact,

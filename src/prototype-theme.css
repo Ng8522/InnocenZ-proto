@@ -4507,7 +4507,7 @@
 /* Outlet manage — shift metric cards (demand, est pay, tags) */
 .iz-outlet-shift-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: 10px;
 }
@@ -4581,6 +4581,13 @@
   color: var(--iz-txt);
   font-size: 0.95rem;
 }
+.iz-outlet-shift-metric__tiers {
+  display: block;
+  font-size: 10px;
+  line-height: 1.35;
+  font-weight: 600;
+  word-break: break-word;
+}
 .iz-outlet-shift-metric__nums {
   display: inline-flex;
   align-items: baseline;
@@ -4603,10 +4610,63 @@
   color: var(--iz-txt);
 }
 .iz-outlet-shift-metric__open {
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--iz-amber);
   line-height: 1.2;
+}
+
+.iz-outlet-tier-request-table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.iz-outlet-tier-request-table thead {
+  background: rgba(255, 255, 255, 0.03);
+}
+.iz-outlet-tier-request-table th {
+  padding: 8px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--iz-muted);
+  border-bottom: 1px solid var(--iz-line);
+}
+.iz-outlet-tier-request-table td {
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--iz-txt);
+  border-bottom: 1px solid var(--iz-line);
+}
+.iz-outlet-tier-request-table td.tabular-nums {
+  font-family: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+}
+.iz-outlet-tier-request-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.iz-outlet-tier-request-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+.iz-outlet-tier-request-table--combined th:not(:first-child):not(:last-child),
+.iz-outlet-tier-request-table--combined td:not(:first-child):not(:last-child) {
+  white-space: nowrap;
+}
+.iz-outlet-tier-request-table__target {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--iz-green);
+}
+.iz-outlet-tier-request-table__commission {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--iz-txt);
+}
+.iz-outlet-tier-request-table__commission span:first-child,
+.iz-outlet-tier-request-table__commission span:last-child {
+  font-variant-numeric: tabular-nums;
 }
 
 .iz-outlet-floor-row {

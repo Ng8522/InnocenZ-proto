@@ -320,7 +320,7 @@ export function PrShiftStatusPanel({
                   </span>
                   <p className="iz-tiny iz-muted2 mt-0.5">
                     {wagesFinalized
-                      ? `Payout ${formatRM(payout)} · hourly wages + commission`
+                      ? `Payout ${formatRM(payout)} · shift pay + commission`
                       : "Total excluding wages & OT"}
                   </p>
                 </td>
@@ -382,8 +382,8 @@ export function PrShiftStatusPanel({
         {shiftScans.length === 0 && (
           <p className="iz-tiny iz-muted2 mt-2 text-center">
             {wagesFinalized
-              ? "Duty time is sealed at the outlet hourly rate (wages column). Scan receipts to add rows — each receipt scan is verified for commission."
-              : "Duty wages are calculated when you check out. Scan receipts to add commission rows below."}
+              ? "Shift pay is sealed when you check out (wages column). Scan receipts to add rows — each receipt scan is verified for commission."
+              : "Shift pay is calculated when you check out. Scan receipts to add commission rows below."}
           </p>
         )}
       </PrSection>

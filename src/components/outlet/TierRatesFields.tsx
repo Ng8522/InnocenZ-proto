@@ -167,10 +167,10 @@ export function TierRatesFields({
             (postJob ? (
               <>
                 {isBase ? (
-                  <>Base pay scales other tiers via multiplier</>
+                  <>Base pay per shift scales other tiers via multiplier</>
                 ) : (
                   <>
-                    Pay / hr for{" "}
+                    Pay per shift for{" "}
                     <span className="text-[var(--iz-gold-l)]">{activeTier}</span>
                     {" · "}
                     {tierMultipliers?.[activeTier]}× base
@@ -180,7 +180,7 @@ export function TierRatesFields({
               </>
             ) : wageOnly ? (
               <>
-                Target pay / hr for{" "}
+                Target pay per shift for{" "}
                 <span className="text-[var(--iz-gold-l)]">{activeTier}</span>
               </>
             ) : (
@@ -192,7 +192,7 @@ export function TierRatesFields({
         </p>
         <div className={postJob || wageOnly ? "space-y-2" : "flex gap-3"}>
           <NumField
-            label={postJob && isBase ? "Base pay / hour" : "Pay / hour"}
+            label={postJob && isBase ? "Base pay per shift" : "Pay per shift"}
             value={activeRates.wagePerHour}
             suffix="RM"
             readOnly={payReadOnly}

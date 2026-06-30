@@ -13,6 +13,9 @@ import {
   SEED_PENDING_FREELANCER_PAYROLLS,
   SEED_PENDING_PRS,
   SEED_RECONCILIATION,
+  buildDefaultTierRates,
+  cloneTierRates,
+  getOutletRule,
   type AgencyCollectionInvoice,
   type AgencyManagedPR,
   type AgencyRosterSlot,
@@ -25,7 +28,6 @@ import {
   DEFAULT_OUTLET_OWNER,
   DEFAULT_OUTLET_FINANCE_HEAD,
   DEFAULT_OUTLET_OPS_HEAD,
-  patchShiftTierWages,
   patchShiftTierSalesTargets,
   DEMO_SHIFT_TIER_SALES_TARGETS,
   type ShiftApplicant,
@@ -66,8 +68,12 @@ import {
   SEED_PR_SWAP_REQUESTS,
 } from "@/lib/pr-features";
 import type { Booking, PV, ShiftRequest } from "@/lib/store";
-import { addDaysToIso } from "@/lib/demo-clock";
+import { addDaysToIso, isoOnWeekday, weekdayEventName } from "@/lib/demo-clock";
 import { resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
+import {
+  allocateDiversePayTierSplit,
+  payTierRowsFromSplit,
+} from "@/lib/post-job-pay-tiers";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 
 const DEMO_BOOKINGS: Booking[] = [
@@ -143,13 +149,10 @@ function demoShiftDateLabel(daysFromToday: number): string {
 /** Next occurrence of a weekday (0=Sun … 6=Sat) — keeps event names like "Friday lounge" aligned. */
 function demoShiftDateOnWeekday(weekday: number, allowToday = false): string {
   const todayIso = DEFAULT_ROSTER_DATE_ISO;
-  const [y, m, d] = todayIso.split("-").map(Number);
-  const todayDow = new Date(y, m - 1, d).getDay();
-  let delta = (weekday - todayDow + 7) % 7;
-  if (delta === 0 && !allowToday) delta = 7;
-  if (delta === 0) return "Tonight";
-  if (delta === 1) return "Tomorrow";
-  return fmtDateLabelFromIso(addDaysToIso(todayIso, delta));
+  const dateIso = isoOnWeekday(todayIso, weekday, allowToday);
+  if (dateIso === todayIso) return "Tonight";
+  if (dateIso === addDaysToIso(todayIso, 1)) return "Tomorrow";
+  return fmtDateLabelFromIso(dateIso);
 }
 
 /** Outlet home — Private VIP Hennessy Launch (Velvet 23 tonight). */
@@ -165,6 +168,18 @@ export const HENNESSY_LAUNCH_PR_IDS = [
   "pr-comcard-grace",
   "pr-comcard-hazel",
 ] as const;
+
+/** Demo tier demand for Hennessy — includes Tier 4–5 slots to match booked PR training levels. */
+export const HENNESSY_DEMO_PAY_TIER_SPLIT: Array<{
+  payTierId: import("@/lib/post-job-pay-tiers").PostJobPayTierId;
+  prCount: number;
+}> = [
+  { payTierId: "tier_1", prCount: 7 },
+  { payTierId: "tier_2", prCount: 4 },
+  { payTierId: "tier_3", prCount: 2 },
+  { payTierId: "tier_4", prCount: 2 },
+  { payTierId: "tier_5", prCount: 1 },
+];
 
 const AGENCY_PR_NAME_BY_ID = Object.fromEntries(SEED_AGENCY_PRS.map((p) => [p.id, p.name]));
 
@@ -202,12 +217,61 @@ export function mergeDemoShiftDates(
     const dateIso =
       seed.dateIso ??
       resolveOutletShiftDateIso(seed.date, seed.dateIso, DEFAULT_ROSTER_DATE_ISO);
-    return { ...sh, date: seed.date, dateIso };
+    return { ...sh, date: seed.date, dateIso, event: seed.event, payTierRows: seed.payTierRows };
   });
 }
 
-function velvetTonightRosterSlot(id: string, prId: string, estPayout = 360): AgencyRosterSlot {
+/** Re-apply assignment-pending roster dates & notes after localStorage hydrate. */
+export function mergeDemoRosterAssignmentSlots(
+  roster: AgencyRosterSlot[],
+  seedRoster: AgencyRosterSlot[] = SEED_AGENCY_ROSTER,
+): AgencyRosterSlot[] {
+  const seedById = Object.fromEntries(seedRoster.map((s) => [s.id, s]));
+  return roster.map((slot) => {
+    const seed = seedById[slot.id];
+    if (!seed?.agencyAssignment) return slot;
+    return {
+      ...slot,
+      dateIso: seed.dateIso,
+      date: seed.date,
+      agencyAssignment: {
+        ...slot.agencyAssignment,
+        ...seed.agencyAssignment,
+      },
+    };
+  });
+}
+
+/** Re-apply Hennessy tonight floor counts after localStorage hydrate. */
+export function mergeDemoHennessyRosterFloor(
+  roster: AgencyRosterSlot[],
+  seedRoster: AgencyRosterSlot[] = buildDemoRoster(),
+): AgencyRosterSlot[] {
+  const seedByPrId = Object.fromEntries(
+    seedRoster.filter((s) => s.id.startsWith("rs-hennessy-")).map((s) => [s.prId, s]),
+  );
+  return roster.map((slot) => {
+    const seed = seedByPrId[slot.prId];
+    if (!seed || !slot.id.startsWith("rs-hennessy-")) return slot;
+    return {
+      ...slot,
+      floorDrinks: seed.floorDrinks,
+      floorTips: seed.floorTips,
+      status: seed.status,
+      checkedInAt: seed.checkedInAt,
+    };
+  });
+}
+
+function velvetTonightRosterSlot(
+  id: string,
+  prId: string,
+  floorDrinks = 0,
+  floorTips = 0,
+  estPayout = 360,
+): AgencyRosterSlot {
   const date = fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO);
+  const onFloor = floorDrinks > 0 || floorTips > 0;
   return {
     id,
     prId,
@@ -218,43 +282,60 @@ function velvetTonightRosterSlot(id: string, prId: string, estPayout = 360): Age
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
     shiftEnd: "04:00",
-    status: "scheduled",
+    status: onFloor ? "on-duty" : "scheduled",
+    checkedInAt: onFloor ? "22:10" : undefined,
+    floorDrinks,
+    floorTips,
     estPayout,
   };
 }
 
+const HENNESSY_FLOOR_BY_PR: Record<string, { floorDrinks: number; floorTips?: number }> = {
+  p1: { floorDrinks: 6, floorTips: 150 },
+  "pr-comcard-alice": { floorDrinks: 4, floorTips: 90 },
+  "pr-comcard-angie": { floorDrinks: 3, floorTips: 60 },
+  "pr-comcard-ava": { floorDrinks: 2, floorTips: 40 },
+  "pr-comcard-bernice": { floorDrinks: 5, floorTips: 75 },
+  "pr-comcard-charlotte": { floorDrinks: 2 },
+  "pr-comcard-grace": { floorDrinks: 4, floorTips: 55 },
+  "pr-comcard-hazel": { floorDrinks: 3, floorTips: 45 },
+};
+
 function buildDemoShifts(): ShiftRequest[] {
   const wsTierRates = DEFAULT_OUTLET_WORKSPACE.tierRates;
-  const tierRatesFor = (
-    baseWage: number,
+  const velvetTierRates = (
     targets: Partial<Record<import("@/lib/agency-demo").OutletPrTier, number>>,
-  ) =>
-    patchShiftTierSalesTargets(
-      patchShiftTierWages(wsTierRates, {
-        "Tier I": baseWage,
-        "Tier II": baseWage + 5,
-        "Tier III": baseWage + 10,
-        "Tier IV": baseWage + 15,
-        "Tier V": baseWage + 30,
-      }),
-      targets,
-    );
-  const tonightTiers = tierRatesFor(50, DEMO_SHIFT_TIER_SALES_TARGETS.s1);
+  ) => patchShiftTierSalesTargets(cloneTierRates(wsTierRates), targets);
+  const tierRatesForOutlet = (
+    outletName: string,
+    targets: Partial<Record<import("@/lib/agency-demo").OutletPrTier, number>>,
+  ) => {
+    const rule = getOutletRule(outletName, OUTLET_COMMISSION_RULES);
+    const base = {
+      wagePerHour: rule.wagePerHour,
+      drinkPct: rule.drinkPct,
+      tipPct: rule.tipPct,
+      tablePct: rule.tablePct,
+      otAfterHours: rule.otAfterHours,
+    };
+    return patchShiftTierSalesTargets(buildDefaultTierRates(base), targets);
+  };
+  const tonightTiers = velvetTierRates(DEMO_SHIFT_TIER_SALES_TARGETS.s1);
   const vipEventDrinks = DEFAULT_OUTLET_WORKSPACE.drinkMenu.map((d) => ({
     ...d,
     priceRm: d.id === "hennessy" ? 450 : d.id === "champagne" ? 550 : Math.round(d.priceRm * 1.25),
   }));
-  const ladiesTiers = tierRatesFor(55, DEMO_SHIFT_TIER_SALES_TARGETS.s2);
-  const corporateTiers = tierRatesFor(45, DEMO_SHIFT_TIER_SALES_TARGETS.s3);
-  const mermateThuTiers = tierRatesFor(45, DEMO_SHIFT_TIER_SALES_TARGETS.s4);
-  const mermateRelaunchTiers = tierRatesFor(45, DEMO_SHIFT_TIER_SALES_TARGETS.s5);
-  const mermateVipTiers = tierRatesFor(45, DEMO_SHIFT_TIER_SALES_TARGETS.s6);
-  const bearLaunchTiers = tierRatesFor(50, DEMO_SHIFT_TIER_SALES_TARGETS.s7);
-  const bearSoulTiers = tierRatesFor(50, DEMO_SHIFT_TIER_SALES_TARGETS.s8);
-  const onyxThuTiers = tierRatesFor(55, DEMO_SHIFT_TIER_SALES_TARGETS.s9);
-  const onyxRooftopTiers = tierRatesFor(55, DEMO_SHIFT_TIER_SALES_TARGETS.s10);
-  const urbanPartyTiers = tierRatesFor(45, DEMO_SHIFT_TIER_SALES_TARGETS.s11);
-  const urbanSatTiers = tierRatesFor(45, DEMO_SHIFT_TIER_SALES_TARGETS.s12);
+  const ladiesTiers = velvetTierRates(DEMO_SHIFT_TIER_SALES_TARGETS.s2);
+  const corporateTiers = velvetTierRates(DEMO_SHIFT_TIER_SALES_TARGETS.s3);
+  const mermateThuTiers = tierRatesForOutlet("Mermate", DEMO_SHIFT_TIER_SALES_TARGETS.s4);
+  const mermateRelaunchTiers = tierRatesForOutlet("Mermate", DEMO_SHIFT_TIER_SALES_TARGETS.s5);
+  const mermateVipTiers = tierRatesForOutlet("Mermate", DEMO_SHIFT_TIER_SALES_TARGETS.s6);
+  const bearLaunchTiers = tierRatesForOutlet("Bear Lounge", DEMO_SHIFT_TIER_SALES_TARGETS.s7);
+  const bearSoulTiers = tierRatesForOutlet("Bear Lounge", DEMO_SHIFT_TIER_SALES_TARGETS.s8);
+  const onyxThuTiers = tierRatesForOutlet("Onyx KL", DEMO_SHIFT_TIER_SALES_TARGETS.s9);
+  const onyxRooftopTiers = tierRatesForOutlet("Onyx KL", DEMO_SHIFT_TIER_SALES_TARGETS.s10);
+  const urbanPartyTiers = tierRatesForOutlet("Urban Soul", DEMO_SHIFT_TIER_SALES_TARGETS.s11);
+  const urbanSatTiers = tierRatesForOutlet("Urban Soul", DEMO_SHIFT_TIER_SALES_TARGETS.s12);
   const raw: ShiftRequest[] = [
     withShiftFinancialDefaults({
       id: "s1",
@@ -341,12 +422,12 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s5",
       outletName: "Mermate",
-      date: demoShiftDateLabel(1),
+      date: demoShiftDateOnWeekday(5),
       shift: "22:00 — 04:00",
       quantity: 16,
       filled: 10,
       languages: "English / Mandarin",
-      event: "Lounge relaunch",
+      event: weekdayEventName(5, "lounge relaunch"),
       preferredRating: 4.2,
       preferredStarTiers: [3, 4, 5],
       estimatedCost: 2880,
@@ -361,12 +442,12 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s6",
       outletName: "Mermate",
-      date: demoShiftDateLabel(2),
+      date: demoShiftDateOnWeekday(6),
       shift: "21:00 — 02:00",
       quantity: 12,
       filled: 6,
       languages: "English",
-      event: "Weekend VIP tables",
+      event: weekdayEventName(6, "VIP tables"),
       preferredRating: 4.5,
       preferredStarTiers: [4, 5],
       estimatedCost: 2160,
@@ -594,12 +675,12 @@ function buildDemoShifts(): ShiftRequest[] {
     withShiftFinancialDefaults({
       id: "s16",
       outletName: "Mermate",
-      date: demoShiftDateLabel(6),
+      date: demoShiftDateOnWeekday(3),
       shift: "21:00 — 02:00",
       quantity: 13,
       filled: 5,
       languages: "English / Mandarin",
-      event: "Midweek tables",
+      event: weekdayEventName(3, "lounge tables"),
       preferredRating: 4.1,
       estimatedCost: 2340,
       liveSales: 0,
@@ -613,6 +694,10 @@ function buildDemoShifts(): ShiftRequest[] {
   ];
   return raw.map((s) => ({
     ...s,
+    payTierRows:
+      s.id === HENNESSY_LAUNCH_SHIFT_ID
+        ? payTierRowsFromSplit(s.tierRates, HENNESSY_DEMO_PAY_TIER_SPLIT, s.id)
+        : payTierRowsFromSplit(s.tierRates, allocateDiversePayTierSplit(s.quantity), s.id),
     filled: s.prs?.length ?? 0,
     liveSales:
       (s.drinkUnits ?? 0) > 0 || s.drinkUnitCounts
@@ -736,9 +821,15 @@ function buildDemoRoster(): AgencyRosterSlot[] {
     }
     return slot;
   });
-  const velvetTonight: AgencyRosterSlot[] = HENNESSY_LAUNCH_PR_IDS.filter(
-    (prId) => prId !== "p1" && prId !== "pr-comcard-alice",
-  ).map((prId, index) => velvetTonightRosterSlot(`rs-hennessy-${index + 1}`, prId));
+  const velvetTonight: AgencyRosterSlot[] = HENNESSY_LAUNCH_PR_IDS.map((prId, index) => {
+    const floor = HENNESSY_FLOOR_BY_PR[prId];
+    return velvetTonightRosterSlot(
+      `rs-hennessy-${index + 1}`,
+      prId,
+      floor?.floorDrinks ?? 0,
+      floor?.floorTips ?? 0,
+    );
+  });
   return [...patched, ...velvetTonight];
 }
 
@@ -869,6 +960,7 @@ export function buildDemoStoreReset() {
     postSealRatePrompt: null,
     pendingPRs: SEED_PENDING_PRS.map((p) => ({ ...p })),
     pendingFreelancerPayrolls: SEED_PENDING_FREELANCER_PAYROLLS.map((p) => ({ ...p })),
+    pendingCutlostRequests: [],
     specialServiceOrders: SEED_SPECIAL_SERVICES.map((r) => ({ ...r })),
     ...prDemo,
   };

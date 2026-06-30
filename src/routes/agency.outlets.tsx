@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AgencyCommissionRulesPanel } from "@/components/agency/AgencyCommissionRulesPanel";
+import { WorkspaceTierRatesEditor } from "@/components/outlet/WorkspaceTierRatesEditor";
 import { AgencyOutletFilters } from "@/components/agency/AgencyOutletFilters";
 import { OutletSection } from "@/components/outlet/OutletSection";
-import { ShiftTierWagesStrip } from "@/components/outlet/ShiftTierWagesStrip";
 import {
   EMPTY_AGENCY_OUTLET_FILTERS,
   buildAgencyOutletSummaries,
@@ -14,7 +14,6 @@ import {
   outletShiftSourceLabel,
   outletShiftEventTypeLabel,
   outletShiftIsSpecialEvent,
-  outletShiftStaffingLabel,
   summarizeOutletDemandTodayFuture,
   type AgencyOutletAvailableShift,
   type AgencyOutletDayDemand,
@@ -22,6 +21,11 @@ import {
 } from "@/lib/agency-outlet-shifts";
 import { agencyCan } from "@/lib/agency-rbac";
 import { formatTierSalesTargets, formatTierWageRange } from "@/lib/agency-demo";
+import {
+  formatPayTierRowsCompact,
+  resolveShiftPayTierRows,
+  shiftTierStaffingByPayTier,
+} from "@/lib/post-job-pay-tiers";
 import { useStore } from "@/lib/store";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
@@ -240,7 +244,7 @@ function AgencyManageOutlets() {
                       {summary.outlet}
                     </p>
                     <p className="mt-0.5 truncate text-xs text-[var(--iz-muted2)]">
-                      RM{summary.rule.wagePerHour}/hr wage
+                      RM{summary.rule.wagePerHour.toLocaleString("en-MY")}/shift
                     </p>
                   </div>
                 </div>
@@ -335,7 +339,7 @@ function AgencyOutletDetail({
           {summary.outlet}
         </h2>
         <p className="iz-tiny iz-muted mt-0.5">
-          Wage RM{summary.rule.wagePerHour}/hr · Drinks {summary.rule.drinkPct}% · Tips{" "}
+          Wage RM{summary.rule.wagePerHour.toLocaleString("en-MY")}/shift · Drinks {summary.rule.drinkPct}% · Tips{" "}
           {summary.rule.tipPct}%
         </p>
       </header>
@@ -393,7 +397,7 @@ function AgencyOutletDetail({
         </OutletSection>
       )}
 
-      <OutletSection title="Commission rules" className="!mb-3">
+      <OutletSection title="Rates by PR tier" className="!mb-3">
         <AgencyCommissionRulesPanel outlet={summary.outlet} />
       </OutletSection>
 
@@ -509,6 +513,55 @@ function OutletDemandSuppliedStat({
   );
 }
 
+function OutletShiftTierRequestTable({ shift }: { shift: AgencyOutletAvailableShift }) {
+  const shifts = useStore((s) => s.shifts);
+  const agencyPRs = useStore((s) => s.agencyPRs);
+  const outletWorkspace = useStore((s) => s.outletWorkspace);
+
+  const tierStaffingByPayTier = useMemo(() => {
+    const postedShiftId =
+      shift.source === "posted" && shift.id.startsWith("posted-")
+        ? shift.id.slice("posted-".length)
+        : shift.linkedShiftId;
+    const postedShift = postedShiftId ? shifts.find((s) => s.id === postedShiftId) : undefined;
+    return shiftTierStaffingByPayTier({
+      payTierRows: shift.payTierRows,
+      quantity: shift.quantity,
+      tierRates: shift.tierRates,
+      bookedPrIds: postedShift?.prs ?? [],
+      agencyPRs,
+    });
+  }, [
+    shift.payTierRows,
+    shift.quantity,
+    shift.tierRates,
+    shift.id,
+    shift.source,
+    shift.linkedShiftId,
+    shifts,
+    agencyPRs,
+  ]);
+
+  const hasAnyDemand = Object.values(tierStaffingByPayTier).some((row) => row.demand > 0);
+  if (!hasAnyDemand) return null;
+
+  return (
+    <div className="mb-2.5 mt-2">
+      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
+        Pay & tiers
+      </p>
+      <WorkspaceTierRatesEditor
+        tierRates={shift.tierRates}
+        commissionOnlyRates={outletWorkspace.commissionOnlyRates}
+        onPatchTier={() => {}}
+        onPatchCommissionOnly={() => {}}
+        readOnly
+        tierStaffingByPayTier={tierStaffingByPayTier}
+      />
+    </div>
+  );
+}
+
 function OutletShiftCard({ shift }: { shift: AgencyOutletAvailableShift }) {
   const sourceVariant =
     shift.source === "assignment-pending" ? "amber" : "ink";
@@ -516,7 +569,13 @@ function OutletShiftCard({ shift }: { shift: AgencyOutletAvailableShift }) {
   const salesTargets = formatTierSalesTargets(shift.tierRates);
   const eventType = outletShiftEventTypeLabel(shift);
   const isSpecialEvent = outletShiftIsSpecialEvent(shift);
-  const staffing = outletShiftStaffingLabel(shift.destination);
+  const tierRequest = formatPayTierRowsCompact(
+    resolveShiftPayTierRows({
+      payTierRows: shift.payTierRows,
+      quantity: shift.quantity,
+      tierRates: shift.tierRates,
+    }),
+  );
 
   return (
     <details className="iz-outlet-booking-card group">
@@ -557,12 +616,10 @@ function OutletShiftCard({ shift }: { shift: AgencyOutletAvailableShift }) {
             >
               {eventType}
             </OutletShiftMetric>
-            <OutletShiftMetric label="Staffing" tone="ink">
-              {staffing}
-            </OutletShiftMetric>
           </div>
 
           <p className="iz-tiny iz-muted mt-2 truncate group-open:hidden">
+            {tierRequest ? `${tierRequest} · ` : ""}
             {targetPay}
             {salesTargets ? ` · ${salesTargets}` : ""}
           </p>
@@ -573,7 +630,7 @@ function OutletShiftCard({ shift }: { shift: AgencyOutletAvailableShift }) {
       <div className="border-t border-[var(--iz-line)] px-3.5 pb-3.5 pt-2">
         {shift.languages && <p className="iz-tiny iz-muted">Languages · {shift.languages}</p>}
         {shift.briefing && <p className="iz-tiny iz-muted2 mt-1">{shift.briefing}</p>}
-        <ShiftTierWagesStrip tierRates={shift.tierRates} compact />
+        <OutletShiftTierRequestTable shift={shift} />
       </div>
     </details>
   );

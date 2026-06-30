@@ -112,7 +112,7 @@ export function TierRatePill({
         </span>
       </div>
       <span className="mt-0.5 shrink-0 text-[8px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
-        Pay / hr
+        Pay / shift
       </span>
       <span
         className={cn(
@@ -156,7 +156,7 @@ export function ShiftTierWagesStrip({
           compact ? "mb-1 text-[9px]" : "mb-1.5 text-[10px]",
         )}
       >
-        {hasSalesTargets ? "Target pay & sales by tier" : "Target pay / hr by tier"}
+        {hasSalesTargets ? "Target pay & sales by tier" : "Pay per shift by tier"}
       </p>
       <div
         className={cn(

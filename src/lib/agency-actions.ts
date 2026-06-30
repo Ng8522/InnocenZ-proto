@@ -66,9 +66,9 @@ export function buildPvFromShiftHistoryRow(
       date: dateLabel,
       day,
       outlet: row.outlet,
-      desc: "Daily Wages",
+      desc: "Shift pay",
       qty: 1,
-      amt: payout.wages,
+      amt: payout.shiftPay,
       ref: "Sealed shift",
     },
   ];
@@ -109,8 +109,8 @@ export function buildPvFromShiftHistoryRow(
       ref: "Outlet log",
     });
   }
-  if (otHours > 0) {
-    const otAmt = Math.round(otHours * rule.wagePerHour * 1.5 * 100) / 100;
+  if (payout.otSupplement > 0) {
+    const otAmt = payout.otSupplement;
     rows.push({
       i: idx++,
       date: dateLabel,

@@ -3,7 +3,7 @@
 import type { PrShiftOffer } from "@/lib/pr-demo";
 import { PR_SHIFT_OFFERS, SHIFT_TODAY, fmtDateLabelFromIso, fmtDtable, shiftTodayIso } from "@/lib/pr-demo";
 import { SEED_AGENCY_ROSTER, type AgencyRosterSlot } from "@/lib/agency-demo";
-import { migrateDemoYmd } from "@/lib/demo-clock";
+import { getLiveTodayIso, isoOnWeekday, migrateDemoYmd, weekdayEventName, ymdFromIso } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO, isDemoDateOnOrAfter } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
 
@@ -261,13 +261,17 @@ export const PR_AGENCY_CODES: Record<string, string> = {
   NOVA26: "nova",
 };
 
+function tiedOfferYmd(weekday: number, allowToday = false): [number, number, number] {
+  return ymdFromIso(isoOnWeekday(getLiveTodayIso(), weekday, allowToday));
+}
+
 export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
   {
     id: "tied-velvet",
     agencyName: "Atlas Agency",
     outlet: "Velvet 23",
     event: "Private VIP — Hennessy Launch · Agency offer",
-    date: [2026, 6, 4],
+    date: ymdFromIso(getLiveTodayIso()),
     time: "22:00 — 04:00",
     endNext: true,
     distance: "1.2 km",
@@ -284,8 +288,8 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     id: "tied-mermate",
     agencyName: "Atlas Agency",
     outlet: "Mermate",
-    event: "Weekend regular",
-    date: [2026, 6, 5],
+    event: weekdayEventName(5, "regular"),
+    date: tiedOfferYmd(5),
     time: "21:00 — 02:00",
     endNext: true,
     distance: "2.8 km",
@@ -302,8 +306,8 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     id: "tied-onyx",
     agencyName: "Atlas Agency",
     outlet: "Onyx KL",
-    event: "Thursday lounge",
-    date: [2026, 6, 4],
+    event: weekdayEventName(4, "lounge"),
+    date: tiedOfferYmd(4, true),
     time: "21:00 — 03:00",
     endNext: true,
     distance: "3.4 km",
@@ -320,8 +324,8 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     id: "tied-bear",
     agencyName: "Atlas Agency",
     outlet: "Bear Lounge",
-    event: "Lounge launch",
-    date: [2026, 6, 5],
+    event: weekdayEventName(5, "lounge launch"),
+    date: tiedOfferYmd(5),
     time: "22:30 — 04:30",
     endNext: true,
     distance: "4.5 km",
@@ -338,8 +342,8 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     id: "tied-urban",
     agencyName: "Atlas Agency",
     outlet: "Urban Soul",
-    event: "Friday party",
-    date: [2026, 6, 5],
+    event: weekdayEventName(5, "party"),
+    date: tiedOfferYmd(5),
     time: "20:00 — 01:00",
     endNext: true,
     distance: "5.1 km",
@@ -356,8 +360,8 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     id: "tied-mermate-sat",
     agencyName: "Atlas Agency",
     outlet: "Mermate",
-    event: "Saturday VIP",
-    date: [2026, 6, 6],
+    event: weekdayEventName(6, "VIP"),
+    date: tiedOfferYmd(6),
     time: "21:00 — 02:00",
     endNext: true,
     distance: "2.8 km",
@@ -374,8 +378,8 @@ export const PR_AGENCY_TIED_OFFERS: AgencyTiedOffer[] = [
     id: "tied-onyx-sat",
     agencyName: "Atlas Agency",
     outlet: "Onyx KL",
-    event: "Saturday rooftop",
-    date: [2026, 6, 6],
+    event: weekdayEventName(6, "rooftop"),
+    date: tiedOfferYmd(6),
     time: "20:00 — 02:00",
     endNext: true,
     distance: "3.4 km",

@@ -333,9 +333,6 @@ export function OutletOperationsCalendar() {
                 </p>
               </div>
             </div>
-            <div className="mt-3 px-1">
-              <OutletShiftStaffingSection shift={selectedShift} />
-            </div>
             <OutletShiftDetailPanel
               shift={selectedShift}
               variant="future"
@@ -346,6 +343,9 @@ export function OutletOperationsCalendar() {
                 setDeleteTargetId(selectedShift.id);
               }}
             />
+            <div className="mt-3 border-t border-[var(--iz-line)] px-1 pt-3">
+              <OutletShiftStaffingSection shift={selectedShift} />
+            </div>
           </>
           );
         })()}

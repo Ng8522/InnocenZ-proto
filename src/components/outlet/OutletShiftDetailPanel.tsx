@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useStore, type ShiftRequest } from "@/lib/store";
 import { outletCan } from "@/lib/outlet-rbac";
 import { IzPill } from "@/components/iz/ui";
 import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
-import { OutletSealReview } from "@/components/outlet/OutletSealReview";
+// import { OutletSealReview } from "@/components/outlet/OutletSealReview";
 import { OutletCutLossActions } from "@/components/outlet/OutletCutLossActions";
 import { WorkspaceTierRatesEditor } from "@/components/outlet/WorkspaceTierRatesEditor";
 import {
@@ -70,15 +70,15 @@ export function OutletShiftDetailPanel({
   const outletSubRole = useStore((s) => s.outletSubRole);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const agencyPRs = useStore((s) => s.agencyPRs);
-  const { confirmShift, sealShift, shiftApplicants, respondToApplicant } = useStore();
+  const { confirmShift, /* sealShift, */ shiftApplicants, respondToApplicant } = useStore();
 
   const canLogSales = outletCan(outletSubRole, "logSales");
   const canConfirm = outletCan(outletSubRole, "confirmShift");
-  const canSeal = outletCan(outletSubRole, "sealShift");
+  // const canSeal = outletCan(outletSubRole, "sealShift");
   const canDelete = outletCan(outletSubRole, "postJob");
   const canStaff = outletCan(outletSubRole, "manageShiftStaffing");
 
-  const [sealOpen, setSealOpen] = useState(false);
+  // const [sealOpen, setSealOpen] = useState(false);
 
   const showApplicantActions = variant !== "future";
   const todayIso = getLiveTodayIso();
@@ -265,6 +265,7 @@ export function OutletShiftDetailPanel({
                 onClick={() => confirmShift(shift.id)}
               />
             )}
+          {/* Seal shift — disabled until agency payroll link is wired
           {canSeal && shift.status === "confirmed" && (
             <OutletActionButton
               icon={Lock}
@@ -274,6 +275,7 @@ export function OutletShiftDetailPanel({
               onClick={() => setSealOpen(true)}
             />
           )}
+          */}
           {canDelete && shift.status !== "sealed" && onDelete && (
             <OutletActionButton
               icon={Trash2}
@@ -291,7 +293,7 @@ export function OutletShiftDetailPanel({
         </div>
       </div>
 
-      <OutletSealReview
+      {/* <OutletSealReview
         shift={shift}
         open={sealOpen}
         onClose={() => setSealOpen(false)}
@@ -299,7 +301,7 @@ export function OutletShiftDetailPanel({
           sealShift(shift.id);
           setSealOpen(false);
         }}
-      />
+      /> */}
     </>
   );
 }

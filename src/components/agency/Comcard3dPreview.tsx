@@ -193,21 +193,35 @@ export function Comcard3dPreviewVisual({
   className,
   showName = true,
   showStats = true,
+  compact = false,
 }: {
   pr: ComcardPreviewData;
   className?: string;
   showName?: boolean;
   showStats?: boolean;
+  /** Tighter layout for outlet preview sheets — fits one screen without scrolling. */
+  compact?: boolean;
 }) {
   const weight = comcardWeight(pr.weight);
 
   return (
-    <div className={cn("iz-comcard-3d-preview", className)}>
-      {pr.comcardImageUrl ? (
-        <StaticComcardVisual src={pr.comcardImageUrl} className="!w-full" />
-      ) : (
-        <ComcardStage pr={pr} variant="full" />
+    <div
+      className={cn(
+        "iz-comcard-3d-preview",
+        compact && "iz-comcard-3d-preview--sheet",
+        className,
       )}
+    >
+      <div className={cn(compact && "iz-comcard-3d-preview--sheet__frame")}>
+        {pr.comcardImageUrl ? (
+          <StaticComcardVisual
+            src={pr.comcardImageUrl}
+            className={compact ? "iz-comcard-3d-preview--sheet__visual" : "!w-full"}
+          />
+        ) : (
+          <ComcardStage pr={pr} variant="full" />
+        )}
+      </div>
       {showStats && (
         <div className="iz-comcard-3d-preview-stats">
           <ComcardStat label="HEIGHT" value={`${pr.height} cm`} />

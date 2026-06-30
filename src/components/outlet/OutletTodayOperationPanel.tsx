@@ -15,6 +15,7 @@ import {
   Comcard3dPreviewThumb,
   Comcard3dPreviewVisual,
 } from "@/components/agency/Comcard3dPreview";
+import { OutletPrShiftHistorySheet } from "@/components/iz/ShiftHistoryLog";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzPill } from "@/components/iz/ui";
 import {
@@ -64,6 +65,7 @@ export function OutletTodayOperationPanel({
   const canRate = outletCan(outletSubRole, "ratePrs");
   const [openPr, setOpenPr] = useState<string | null>(null);
   const [comcardPreviewId, setComcardPreviewId] = useState<string | null>(null);
+  const [historyPrId, setHistoryPrId] = useState<string | null>(null);
   const [stars, setStars] = useState(5);
   const [note, setNote] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -129,6 +131,11 @@ export function OutletTodayOperationPanel({
           null,
         )
       : null;
+  const historyPr = historyPrId ? prs.find((p) => p.id === historyPrId) : null;
+  const historyPrSlot = historyPrId
+    ? rosterTonight.find((s) => s.prId === historyPrId)
+    : undefined;
+  const historyPrAgency = historyPrSlot ? rosterSlotAgencyName(historyPrSlot) : undefined;
 
   const toggleTag = (tag: string) => {
     setTags((cur) => (cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag]));
@@ -208,7 +215,7 @@ export function OutletTodayOperationPanel({
       )}
 
       {canRate && (
-        <OutletSection title="Staff tonight" hint={staffHint} className="!mt-3 !mb-0">
+        <OutletSection title="PR tonight" hint={staffHint} className="!mt-3 !mb-0">
           {staffTonight.length === 0 ? (
             <p className="iz-tiny iz-muted rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
               No PRs assigned for tonight yet.
@@ -263,6 +270,14 @@ export function OutletTodayOperationPanel({
 
                     <button
                       type="button"
+                      onClick={() => setHistoryPrId(pr.id)}
+                      className="iz-btn iz-btn-soft iz-btn-sm w-full !py-1.5 !text-[10px]"
+                    >
+                      Shift history
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setOpenPr(pr.id)}
                       className="iz-btn iz-btn-soft iz-btn-sm w-full !py-1.5 !text-[10px]"
                     >
@@ -276,18 +291,20 @@ export function OutletTodayOperationPanel({
         </OutletSection>
       )}
 
-      <IzSheet open={!!comcardPreviewPr} onClose={() => setComcardPreviewId(null)}>
+      <IzSheet open={!!comcardPreviewPr} onClose={() => setComcardPreviewId(null)} comcard>
         {comcardPreviewPr && (
-          <div className="px-1 pb-2">
-            <div className="iz-cardttl mb-1">{comcardPreviewPr.name}</div>
-            {(() => {
-              const slot = rosterTonight.find((s) => s.prId === comcardPreviewId);
-              return slot ? (
-                <p className="iz-tiny iz-muted mb-3">{rosterSlotAgencyName(slot)}</p>
-              ) : null;
-            })()}
-            <Comcard3dPreviewVisual pr={comcardPreviewPr} showName={false} />
-            <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="iz-outlet-comcard-sheet">
+            <p className="iz-outlet-comcard-sheet__meta">
+              <span className="font-sora font-bold text-[var(--iz-txt)]">{comcardPreviewPr.name}</span>
+              {(() => {
+                const slot = rosterTonight.find((s) => s.prId === comcardPreviewId);
+                return slot ? (
+                  <span className="iz-muted"> · {rosterSlotAgencyName(slot)}</span>
+                ) : null;
+              })()}
+            </p>
+            <Comcard3dPreviewVisual pr={comcardPreviewPr} showName={false} compact />
+            <div className="iz-outlet-comcard-sheet__pills">
               {comcardPreviewProfile?.trainingLevel && (
                 <IzPill variant="ink" className="!py-0.5 !text-[9px]">
                   {comcardPreviewProfile.trainingLevel}
@@ -309,6 +326,17 @@ export function OutletTodayOperationPanel({
           </div>
         )}
       </IzSheet>
+
+      {historyPr && (
+        <OutletPrShiftHistorySheet
+          open
+          onClose={() => setHistoryPrId(null)}
+          prId={historyPr.id}
+          prName={historyPr.name}
+          outletName={outletName}
+          agencyName={historyPrAgency || undefined}
+        />
+      )}
 
       {openPr && openPrData && canRate && (
         <IzSheet open onClose={() => setOpenPr(null)} rating>

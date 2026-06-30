@@ -19,6 +19,7 @@ import {
   specialServiceOffer,
   specialServiceRemarkHint,
   specialServiceTypeLabel,
+  isOthersService,
   type AgencyJobPostingStatusTone,
   type AgencySpecialServiceOffer,
   type SpecialServiceRecord,
@@ -30,6 +31,7 @@ const DEFAULT_OUTLET = OUTLET_NAMES[0] ?? "Velvet 23";
 type AgencyJobDraft = {
   selectedDateIsos: string[];
   serviceType: string;
+  customServiceName: string;
   time: string;
   budget: string;
   remark: string;
@@ -42,6 +44,7 @@ function newAgencyJobDraft(offers: AgencySpecialServiceOffer[]): AgencyJobDraft 
   return {
     selectedDateIsos: [isoKeyFromDate(startOfToday())],
     serviceType: first?.id ?? "transportation",
+    customServiceName: "",
     time: "19:00",
     budget: "",
     remark: "",
@@ -53,6 +56,7 @@ function parseDraftAmounts(draft: AgencyJobDraft) {
   const offer = specialServiceOffer(draft.serviceType);
   if (!offer) return null;
   if (!draft.budget.trim() || !Number.isFinite(budget) || budget <= 0) return null;
+  if (isOthersService(draft.serviceType) && !draft.customServiceName.trim()) return null;
   return { budget, offer };
 }
 
@@ -213,7 +217,12 @@ function AgencyJobComposer({
             <button
               key={option.id}
               type="button"
-              onClick={() => onChange({ serviceType: option.id })}
+              onClick={() =>
+                onChange({
+                  serviceType: option.id,
+                  customServiceName: isOthersService(option.id) ? draft.customServiceName : "",
+                })
+              }
               className={cn(
                 "iz-job-posting-type-pill",
                 draft.serviceType === option.id && "is-active",
@@ -224,6 +233,16 @@ function AgencyJobComposer({
           ))}
         </div>
         {offer && <p className="iz-job-posting-type-summary">{offer.summary}</p>}
+        {isOthersService(draft.serviceType) && (
+          <input
+            type="text"
+            className="iz-job-posting-control iz-job-posting-input mt-2 block w-full min-w-0"
+            placeholder="Name your service"
+            aria-label="Custom service name"
+            value={draft.customServiceName}
+            onChange={(e) => onChange({ customServiceName: e.target.value })}
+          />
+        )}
       </ComposerField>
 
       <ComposerField label="Remark" className="mt-3">
@@ -289,7 +308,9 @@ function AgencyJobQueueTable({
                   </div>
                 </div>
               </td>
-              <td className="iz-job-posting-col-type whitespace-nowrap">{specialServiceTypeLabel(row.serviceType)}</td>
+              <td className="iz-job-posting-col-type whitespace-nowrap">
+                {specialServiceTypeLabel(row.serviceType, row.customServiceName)}
+              </td>
               <td className="text-right whitespace-nowrap">
                 <JobBudgetCell amount={budget} />
               </td>
@@ -337,7 +358,9 @@ function AgencyJobPostingsTable({ rows }: { rows: SpecialServiceRecord[] }) {
         {sorted.map((row, index) => (
           <tr key={row.id} className={index % 2 === 1 ? "is-alt" : undefined}>
             <td className="iz-job-posting-col-date whitespace-nowrap">{row.date}</td>
-            <td className="iz-job-posting-col-type whitespace-nowrap">{specialServiceTypeLabel(row.serviceType)}</td>
+            <td className="iz-job-posting-col-type whitespace-nowrap">
+              {specialServiceTypeLabel(row.serviceType, row.customServiceName)}
+            </td>
             <td className="text-right whitespace-nowrap">
               <JobBudgetCell amount={row.amountIn} />
             </td>
@@ -424,6 +447,7 @@ export function SpecialServiceSection({ canBook }: { canBook: boolean }) {
           prName: pr.name,
           outlet: DEFAULT_OUTLET,
           serviceType: job.serviceType,
+          customServiceName: isOthersService(job.serviceType) ? job.customServiceName.trim() : undefined,
           description: job.remark.trim() || parsed.offer.summary,
           amountIn: parsed.budget,
           amountOut: 0,

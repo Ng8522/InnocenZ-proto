@@ -94,6 +94,14 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
     unit: "per session",
   },
   {
+    id: "others",
+    label: "Others",
+    summary: "Name your own service — describe what you need below",
+    remarkHint: "Details for your custom service",
+    defaultRate: 50,
+    unit: "per booking",
+  },
+  {
     id: "leave_agency",
     label: "Leave agency",
     summary: "Before 1 year you must raise a support ticket for early leave",
@@ -104,9 +112,14 @@ export const AGENCY_SPECIAL_SERVICE_OFFERS: AgencySpecialServiceOffer[] = [
 ];
 
 export const LEAVE_AGENCY_SERVICE_ID = "leave_agency";
+export const OTHERS_SERVICE_ID = "others";
 
 export function isLeaveAgencyService(serviceType: string): boolean {
   return serviceType === LEAVE_AGENCY_SERVICE_ID;
+}
+
+export function isOthersService(serviceType: string): boolean {
+  return serviceType === OTHERS_SERVICE_ID;
 }
 
 /** Service types available when raising a new order (role-specific). */
@@ -135,6 +148,8 @@ export type SpecialServiceRecord = {
   dateIso: string;
   time: string;
   serviceType: string;
+  /** Custom label when serviceType is "others" */
+  customServiceName?: string;
   description: string;
   amountIn: number;
   amountOut: number;
@@ -603,6 +618,16 @@ export function specialServiceInitiatorLabel(initiatedBy: SpecialServiceInitiato
   }
 }
 
-export function specialServiceTypeLabel(type: string): string {
+export function specialServiceTypeLabel(type: string, customServiceName?: string): string {
+  if (isOthersService(type)) {
+    const name = customServiceName?.trim();
+    return name ? `Others - ${name}` : "Others";
+  }
   return SPECIAL_SERVICE_TYPE_LABELS[type] ?? specialServiceOffer(type)?.label ?? type;
+}
+
+export function specialServiceRecordTypeLabel(
+  record: Pick<SpecialServiceRecord, "serviceType" | "customServiceName">,
+): string {
+  return specialServiceTypeLabel(record.serviceType, record.customServiceName);
 }

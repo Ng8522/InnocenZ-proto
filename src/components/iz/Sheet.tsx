@@ -47,6 +47,7 @@ function SheetContent({
   variant,
   wide,
   rating,
+  comcard,
 }: {
   onClose: () => void;
   children: ReactNode;
@@ -54,6 +55,7 @@ function SheetContent({
   variant: SheetVariant;
   wide?: boolean;
   rating?: boolean;
+  comcard?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -72,7 +74,7 @@ function SheetContent({
     <div className={wrapClass}>
       <button type="button" className="iz-sheet-bg" aria-label="Close" onClick={onClose} />
       <div
-        className={`iz-sheet${sheetVariantClass(mode, variant)}${wide ? " iz-sheet--wide" : ""}${rating ? " iz-sheet--rating" : ""}`}
+        className={`iz-sheet${sheetVariantClass(mode, variant)}${wide ? " iz-sheet--wide" : ""}${rating ? " iz-sheet--rating" : ""}${comcard ? " iz-sheet--comcard" : ""}`}
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
@@ -91,6 +93,7 @@ export function IzSheet({
   variant = "dialog",
   wide = false,
   rating = false,
+  comcard = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -99,6 +102,8 @@ export function IzSheet({
   variant?: SheetVariant;
   wide?: boolean;
   rating?: boolean;
+  /** Compact PR comcard preview — no inner scroll, content sized to fit. */
+  comcard?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -116,6 +121,7 @@ export function IzSheet({
       variant={sheetVariant}
       wide={wide}
       rating={rating}
+      comcard={comcard}
     >
       {children}
     </SheetContent>

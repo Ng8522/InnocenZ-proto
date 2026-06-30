@@ -3919,7 +3919,7 @@ export const useStore = create<StoreState>()(
         const st = get();
         const id = `SS-2026-${String(st.specialServiceOrders.length + 18).padStart(3, "0")}`;
         const order = buildSpecialServiceOrder(input, id);
-        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        const serviceLabel = specialServiceTypeLabel(order.serviceType, order.customServiceName);
         set({ specialServiceOrders: [order, ...st.specialServiceOrders] });
 
         if (input.initiatedBy === "agency") {
@@ -3958,7 +3958,7 @@ export const useStore = create<StoreState>()(
         set({
           specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
         });
-        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        const serviceLabel = specialServiceTypeLabel(order.serviceType, order.customServiceName);
         const isConfirmed = order.status === "confirmed";
 
         if (order.prAcceptance === "pending") {
@@ -4007,7 +4007,7 @@ export const useStore = create<StoreState>()(
         set({
           specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
         });
-        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        const serviceLabel = specialServiceTypeLabel(order.serviceType, order.customServiceName);
         get().pushNotify({
           type: "special_service_update",
           orderId,
@@ -4031,7 +4031,7 @@ export const useStore = create<StoreState>()(
         set({
           specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
         });
-        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        const serviceLabel = specialServiceTypeLabel(order.serviceType, order.customServiceName);
         get().pushNotify({
           type: "special_service_update",
           orderId,
@@ -4054,7 +4054,7 @@ export const useStore = create<StoreState>()(
         set({
           specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
         });
-        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        const serviceLabel = specialServiceTypeLabel(order.serviceType, order.customServiceName);
         get().pushNotify({
           type: "special_service_update",
           orderId,
@@ -4077,7 +4077,7 @@ export const useStore = create<StoreState>()(
         set({
           specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
         });
-        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        const serviceLabel = specialServiceTypeLabel(order.serviceType, order.customServiceName);
         get().pushNotify({
           type: "special_service_update",
           orderId,
@@ -4104,7 +4104,7 @@ export const useStore = create<StoreState>()(
         set({
           specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
         });
-        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        const serviceLabel = specialServiceTypeLabel(order.serviceType, order.customServiceName);
         get().pushNotify({
           type: "special_service_update",
           orderId,
@@ -4128,7 +4128,7 @@ export const useStore = create<StoreState>()(
         set({
           specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
         });
-        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        const serviceLabel = specialServiceTypeLabel(order.serviceType, order.customServiceName);
         get().pushNotify({
           type: "special_service_update",
           orderId,
@@ -4155,7 +4155,7 @@ export const useStore = create<StoreState>()(
         set({
           specialServiceOrders: st.specialServiceOrders.map((r) => (r.id === orderId ? order : r)),
         });
-        const serviceLabel = specialServiceTypeLabel(order.serviceType);
+        const serviceLabel = specialServiceTypeLabel(order.serviceType, order.customServiceName);
         get().pushNotify({
           type: "special_service_update",
           orderId,

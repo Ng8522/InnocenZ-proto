@@ -125,7 +125,7 @@ export function PostJobTierSectionHeader() {
       <div className="min-w-0">
         <p className="font-sora text-sm font-extrabold text-[var(--iz-txt)]">Pay by PR tier</p>
         <p className="mt-0.5 text-xs leading-snug text-[var(--iz-muted2)]">
-          Tap a gold cell to set pay · set how many PRs you want at each tier
+          Tap a gold cell to set pay · tap + drinks &amp; tips to set commission · set PR count per tier
         </p>
       </div>
     </div>

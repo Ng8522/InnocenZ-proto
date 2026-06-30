@@ -1019,7 +1019,7 @@ export interface LiveWorkforceEntry {
   id: string;
   prName: string;
   outlet: string;
-  status: "on-duty" | "en-route" | "checked-out";
+  status: "on-duty" | "en-route" | "checked-out" | "out";
   checkIn?: string;
   checkOut?: string;
   estPayout: number;

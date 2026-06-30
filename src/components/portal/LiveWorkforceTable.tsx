@@ -268,8 +268,8 @@ export function LiveWorkforceList({
           <li key={w.id} className="iz-portal-roster-row">
             <span className="iz-portal-table-av">{w.prName.trim()[0]}</span>
             <span className="min-w-0 flex-1 truncate iz-portal-table-name">{w.prName}</span>
-            <IzPill variant={statusVariant(w.status)} className="!py-0.5 !text-[9px]">
-              {statusLabel(w.status)}
+            <IzPill variant={workforceStatusVariant(w.status)} className="!py-0.5 !text-[9px]">
+              {workforceStatusLabel(w.status)}
             </IzPill>
           </li>
         ))}

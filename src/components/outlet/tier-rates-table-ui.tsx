@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Minus, Plus } from "lucide-react";
 import { snapTierWage } from "@/lib/agency-demo";
 import { cn } from "@/lib/utils";
 
@@ -184,6 +185,84 @@ export function TierCountInput({
       onBlur={() => applyCount(text, true)}
       className="min-w-0 flex-1 bg-transparent text-center text-sm font-semibold tabular-nums outline-none disabled:cursor-not-allowed disabled:opacity-50 cursor-text"
     />
+  );
+}
+
+function TierTableStepperBtn({
+  kind,
+  onClick,
+  disabled,
+  label,
+}: {
+  kind: "dec" | "inc";
+  onClick: () => void;
+  disabled?: boolean;
+  label: string;
+}) {
+  const Icon = kind === "dec" ? Minus : Plus;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="iz-tier-table-stepper__btn"
+      aria-label={label}
+    >
+      <Icon className="h-3 w-3" />
+    </button>
+  );
+}
+
+export function TierPctStepper({
+  value,
+  onChange,
+  disabled,
+  step = 1,
+  min = 0,
+  max = 100,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  disabled?: boolean;
+  step?: number;
+  min?: number;
+  max?: number;
+}) {
+  const dec = () => onChange(Math.max(min, value - step));
+  const inc = () => onChange(Math.min(max, value + step));
+
+  return (
+    <div className="iz-tier-table-stepper">
+      <TierTableStepperBtn kind="dec" onClick={dec} disabled={disabled || value <= min} label="Decrease" />
+      <TierPctInput value={value} onChange={onChange} disabled={disabled} />
+      <span className="text-[9px] font-semibold text-[var(--iz-muted)]">%</span>
+      <TierTableStepperBtn kind="inc" onClick={inc} disabled={disabled || value >= max} label="Increase" />
+    </div>
+  );
+}
+
+export function TierCountStepper({
+  value,
+  onChange,
+  disabled,
+  max,
+  min = 0,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  disabled?: boolean;
+  max?: number;
+  min?: number;
+}) {
+  const dec = () => onChange(Math.max(min, value - 1));
+  const inc = () => onChange(max !== undefined ? Math.min(max, value + 1) : value + 1);
+
+  return (
+    <div className="iz-tier-table-stepper iz-tier-table-stepper--count">
+      <TierTableStepperBtn kind="dec" onClick={dec} disabled={disabled || value <= min} label="Decrease" />
+      <TierCountInput value={value} onChange={onChange} disabled={disabled} max={max} />
+      <TierTableStepperBtn kind="inc" onClick={inc} disabled={disabled || (max !== undefined && value >= max)} label="Increase" />
+    </div>
   );
 }
 

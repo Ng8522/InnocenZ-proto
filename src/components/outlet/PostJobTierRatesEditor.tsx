@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Award, Crown, Medal, Plus, Star, Trash2 } from "lucide-react";
 import { IzSelect } from "@/components/iz/ui";
 import { type OutletPrTier, type OutletTierRateSettings } from "@/lib/agency-demo";
@@ -16,7 +16,7 @@ import {
   type CommissionOnlyRateSettings,
 } from "@/lib/post-job-pay-tiers";
 import { cn } from "@/lib/utils";
-import { TierCountInput, TierPayInput } from "@/components/outlet/tier-rates-table-ui";
+import { TierCountStepper, TierPayInput, TierPctStepper } from "@/components/outlet/tier-rates-table-ui";
 
 const TIER_COLUMN_ICONS = [Star, Medal, Award, Award, Crown] as const;
 
@@ -56,6 +56,9 @@ export function PostJobTierRatesEditor({
     (o) => o.id,
   );
   const allocatedTotal = totalPrCountFromPayTierRows(rows);
+  const [commissionExpanded, setCommissionExpanded] = useState(() =>
+    rows.some((row) => row.drinkPct > 0 || row.tipPct > 0),
+  );
 
   const sortedRows = [...rows].sort(
     (a, b) => tierColumnRank(a.payTierId) - tierColumnRank(b.payTierId),
@@ -94,7 +97,14 @@ export function PostJobTierRatesEditor({
     ]);
   };
 
-  const rowLabels = ["Base / hr", "Commission", "PR count"] as const;
+  const rowLabels = commissionExpanded
+    ? (["Base / hr", "Drinks", "Tips", "PR count"] as const)
+    : (["Base / hr", "Commission", "PR count"] as const);
+
+  const commissionRowIndex = 1;
+  const drinksRowIndex = 1;
+  const tipsRowIndex = 2;
+  const prCountRowIndex = commissionExpanded ? 3 : 2;
 
   return (
     <div className="space-y-2">
@@ -193,31 +203,70 @@ export function PostJobTierRatesEditor({
                     );
                   }
 
-                  if (labelIndex === 1) {
+                  if (labelIndex === commissionRowIndex && !commissionExpanded) {
                     const hint = formatCommissionHint(row);
                     return (
-                      <div
+                      <button
                         key={`${row.id}-comm`}
+                        type="button"
                         className={cn(
-                          "iz-post-job-tier-comm-cell",
+                          "iz-post-job-tier-comm-cell iz-post-job-tier-comm-cell--btn",
                           hint === "—" && "iz-post-job-tier-comm-cell--none",
                         )}
+                        onClick={() => setCommissionExpanded(true)}
+                        title="Tap to edit drinks and tips commission"
                       >
                         {hint}
+                      </button>
+                    );
+                  }
+
+                  if (commissionExpanded && labelIndex === drinksRowIndex) {
+                    return (
+                      <div
+                        key={`${row.id}-drinks`}
+                        className="iz-post-job-tier-comm-edit-cell"
+                        title="Tap to edit drinks commission"
+                      >
+                        <span className="text-[9px] font-semibold text-[var(--iz-muted)]">Dr</span>
+                        <TierPctStepper
+                          value={row.drinkPct}
+                          onChange={(drinkPct) => patchRow(row.id, { drinkPct })}
+                        />
                       </div>
                     );
                   }
 
-                  return (
-                    <div key={`${row.id}-count`} className="iz-post-job-tier-count-cell">
-                      <TierCountInput
-                        value={row.prCount}
-                        onChange={(prCount) => patchRow(row.id, { prCount })}
-                        max={rowMax}
-                        disabled={maxPrTotal === 0}
-                      />
-                    </div>
-                  );
+                  if (commissionExpanded && labelIndex === tipsRowIndex) {
+                    return (
+                      <div
+                        key={`${row.id}-tips`}
+                        className="iz-post-job-tier-comm-edit-cell"
+                        title="Tap to edit tips commission"
+                      >
+                        <span className="text-[9px] font-semibold text-[var(--iz-muted)]">Tip</span>
+                        <TierPctStepper
+                          value={row.tipPct}
+                          onChange={(tipPct) => patchRow(row.id, { tipPct })}
+                        />
+                      </div>
+                    );
+                  }
+
+                  if (labelIndex === prCountRowIndex) {
+                    return (
+                      <div key={`${row.id}-count`} className="iz-post-job-tier-count-cell">
+                        <TierCountStepper
+                          value={row.prCount}
+                          onChange={(prCount) => patchRow(row.id, { prCount })}
+                          max={rowMax}
+                          disabled={maxPrTotal === 0}
+                        />
+                      </div>
+                    );
+                  }
+
+                  return null;
                 })}
               </div>
             ))}

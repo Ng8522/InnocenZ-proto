@@ -4,7 +4,7 @@ import type { PR, ShiftRequest } from "@/lib/store";
 import type { AgencyRosterSlot } from "@/lib/agency-demo";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { outletPrLiveFloorSales } from "@/lib/outlet-financial-sync";
-import { tierSalesTargetForPr, resolveShiftTierRates } from "@/lib/outlet-demo";
+import { tierSalesTargetForPr, resolveShiftTierRates, PR_RATING_TAGS } from "@/lib/outlet-demo";
 import { outletCan } from "@/lib/outlet-rbac";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
@@ -23,9 +23,11 @@ import {
   workforceStatusVariant,
 } from "@/components/portal/LiveWorkforceTable";
 import { OutletFormCard } from "@/components/outlet/outlet-portal-ui";
+import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
 
-type FloorDisplayStatus = "on-duty" | "en-route" | "scheduled" | "out";
+
+type FloorDisplayStatus = "on-duty" | "en-route" | "scheduled" | "checked-out";
 
 type StaffEntry = {
   pr: PR;
@@ -35,7 +37,7 @@ type StaffEntry = {
 
 function resolveFloorPrDisplayStatus(slot?: AgencyRosterSlot): FloorDisplayStatus {
   if (!slot) return "scheduled";
-  if (slot.checkedOutAt) return "out";
+  if (slot.checkedOutAt) return "checked-out";
   if (slot.status === "on-duty" && slot.checkedInAt) return "on-duty";
   if (slot.status === "en-route") return "en-route";
   if (slot.status === "on-duty") return "en-route";
@@ -46,15 +48,17 @@ const STATUS_SORT: Record<FloorDisplayStatus, number> = {
   "on-duty": 0,
   "en-route": 1,
   scheduled: 2,
-  out: 3,
+  "checked-out": 3,
 };
 
 export function OutletTodayOperationPanel({
   shift,
   outletName,
+  className,
 }: {
   shift: ShiftRequest;
   outletName: string;
+  className?: string;
 }) {
   const outletSubRole = useStore((s) => s.outletSubRole);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
@@ -92,14 +96,13 @@ export function OutletTodayOperationPanel({
   const staffTonight = useMemo((): StaffEntry[] => {
     const rosterByPr = new Map(rosterTonight.map((s) => [s.prId, s]));
     return (shift.prs ?? [])
-      .map((id) => {
+      .flatMap((id): StaffEntry[] => {
         const pr = prs.find((p) => p.id === id);
-        if (!pr) return null;
+        if (!pr) return [];
         const slot = rosterByPr.get(id);
         const displayStatus = resolveFloorPrDisplayStatus(slot);
-        return { pr, slot, displayStatus };
+        return slot ? [{ pr, slot, displayStatus }] : [{ pr, displayStatus }];
       })
-      .filter((entry): entry is StaffEntry => entry != null)
       .sort(
         (a, b) =>
           STATUS_SORT[a.displayStatus] - STATUS_SORT[b.displayStatus] ||
@@ -178,16 +181,6 @@ export function OutletTodayOperationPanel({
 
   return (
     <OutletFormCard className={cn("!mb-0", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="iz-tiny iz-muted2 uppercase tracking-widest">Today operation</p>
-          <p className="font-sora mt-0.5 text-sm font-bold text-[var(--iz-txt)] truncate">
-            {shift.event}
-          </p>
-          <p className="iz-tiny iz-muted mt-0.5">{shift.shift}</p>
-        </div>
-      </div>
-
       {postSealRatePrompt && canRate && (
         <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-[rgba(232,194,122,.3)] bg-[rgba(232,194,122,.06)] px-3 py-2">
           <p className="text-xs font-semibold">
@@ -219,7 +212,7 @@ export function OutletTodayOperationPanel({
                 const langs = agencyProfile ? languagesFromPr(agencyProfile) : pr.languages;
                 const opsLine = [
                   slot?.checkedInAt ? `In ${slot.checkedInAt}` : null,
-                  (slot?.floorDrinks ?? 0) > 0 ? `${slot.floorDrinks} drinks` : null,
+                  (slot?.floorDrinks ?? 0) > 0 ? `${slot?.floorDrinks} drinks` : null,
                   slot ? rosterSlotAgencyName(slot) : null,
                 ]
                   .filter(Boolean)

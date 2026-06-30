@@ -4967,6 +4967,67 @@
   color: var(--iz-muted2);
   font-weight: 600;
 }
+.iz-post-job-tier-comm-cell--btn {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.iz-post-job-tier-comm-cell--btn:hover {
+  background: rgba(183, 156, 232, 0.08);
+  color: var(--iz-violet-l);
+}
+.iz-post-job-tier-comm-edit-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 34px;
+  padding: 6px 4px;
+  background: rgba(183, 156, 232, 0.07);
+  border: 1px solid rgba(183, 156, 232, 0.22);
+  color: var(--iz-txt);
+  cursor: text;
+}
+.iz-post-job-tier-comm-edit-cell input {
+  text-align: center;
+}
+.iz-tier-table-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+}
+.iz-tier-table-stepper--count .iz-tier-table-stepper__btn {
+  flex-shrink: 0;
+}
+.iz-tier-table-stepper__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 1px solid var(--iz-line2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--iz-muted);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.iz-tier-table-stepper__btn:hover:not(:disabled) {
+  border-color: rgba(183, 156, 232, 0.35);
+  background: rgba(183, 156, 232, 0.1);
+  color: var(--iz-violet-l);
+}
+.iz-tier-table-stepper__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.iz-post-job-tier-count-cell .iz-tier-table-stepper {
+  padding: 0 2px;
+}
 .iz-post-job-tier-count-cell {
   display: flex;
   align-items: center;

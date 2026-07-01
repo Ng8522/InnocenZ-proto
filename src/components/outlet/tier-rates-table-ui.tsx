@@ -324,6 +324,10 @@ export function fieldShell(className?: string, flat?: boolean) {
 export const TIER_TABLE_GRID_BASE = "grid items-stretch";
 export const TIER_TABLE_GRID_COLS =
   "grid-cols-[minmax(7.5rem,1.15fr)_minmax(5.5rem,0.9fr)_minmax(5.5rem,0.9fr)_minmax(7.5rem,1.1fr)_minmax(4.5rem,0.7fr)]";
+export const TIER_TABLE_GRID_COLS_WORKSPACE =
+  "grid-cols-[minmax(5.5rem,0.85fr)_minmax(5rem,0.8fr)_minmax(3.75rem,0.55fr)_minmax(5rem,0.8fr)_minmax(4.25rem,0.65fr)_minmax(4.25rem,0.65fr)_minmax(3.25rem,0.5fr)_minmax(3.75rem,0.55fr)]";
+export const TIER_TABLE_GRID_COLS_WORKSPACE_RATES_ONLY =
+  "grid-cols-[minmax(5.5rem,0.85fr)_minmax(5rem,0.8fr)_minmax(3.75rem,0.55fr)_minmax(4.25rem,0.65fr)_minmax(4.25rem,0.65fr)_minmax(3.25rem,0.5fr)_minmax(3.75rem,0.55fr)]";
 export const TIER_TABLE_GRID_COLS_RATES_ONLY =
   "grid-cols-[minmax(7.5rem,1.15fr)_minmax(5.5rem,0.9fr)_minmax(7.5rem,1.1fr)_minmax(4.5rem,0.7fr)]";
 export const TIER_TABLE_GRID_COLS_WITH_STAFFING =
@@ -351,6 +355,25 @@ export function tierTableReadonlyCell(className?: string) {
   return cn(tierTableCell(className), "bg-black/15 text-[var(--iz-muted)]");
 }
 
+export function formatTierHourlyRate(n: number): string {
+  if (n <= 0) return "—";
+  const rounded = Math.round(n * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/\.?0+$/, "");
+}
+
+export function TierRmHrReadonly({ amount }: { amount: number }) {
+  if (amount <= 0) {
+    return <span className="text-xs text-[var(--iz-muted)]">—</span>;
+  }
+  return (
+    <div className="flex min-w-0 items-center justify-center gap-0.5">
+      <span className="text-[9px] text-[var(--iz-muted)]">RM</span>
+      <span className="text-sm font-semibold tabular-nums text-[var(--iz-txt)]">
+        {formatTierHourlyRate(amount)}
+      </span>
+    </div>
+  );
+}
 export function tierTableHeadCell(className?: string, editable?: boolean) {
   return cn(
     "border-r border-[var(--iz-line)] px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide last:border-r-0",

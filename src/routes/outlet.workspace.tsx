@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IzCard } from "@/components/iz/ui";
 import { OutletPage, OutletPageHeader } from "@/components/outlet/outlet-portal-ui";
 import { OutletSection } from "@/components/outlet/OutletSection";
@@ -7,12 +7,12 @@ import { WorkspaceTierRatesEditor } from "@/components/outlet/WorkspaceTierRates
 import { useStore } from "@/lib/store";
 import { outletCan } from "@/lib/outlet-rbac";
 import { OutletDrinkMenuEditor } from "@/components/outlet/OutletDrinkMenuEditor";
-import { drinkMenuPriceRange } from "@/lib/outlet-demo";
+import { drinkMenuPriceRange, OUTLET_SERVICE_ENTITLEMENT_SECTION_ID, sortOutletDrinkMenuByPrice } from "@/lib/outlet-demo";
 import {
   OUTLET_BASE_TIER,
   OUTLET_PR_TIERS,
   buildDefaultTierRates,
-  formatTierWageRange,
+  defaultHappyHourDrinkPct,
   snapTierWage,
   type OutletPrTier,
   type OutletTierRateSettings,
@@ -93,19 +93,52 @@ function NumField({
 
 function OutletWorkspacePage() {
   const outletSubRole = useStore((s) => s.outletSubRole);
-  const { outletWorkspace, saveOutletWorkspace } = useStore();
+  const outletWorkspace = useStore((s) => s.outletWorkspace);
+  const saveOutletWorkspace = useStore((s) => s.saveOutletWorkspace);
   const canEdit = outletCan(outletSubRole, "manageWorkspace");
   const [draft, setDraft] = useState(outletWorkspace);
+  const draftDirtyRef = useRef(false);
 
   useEffect(() => {
-    setDraft(outletWorkspace);
+    if (!draftDirtyRef.current) {
+      setDraft(outletWorkspace);
+    }
   }, [outletWorkspace]);
 
-  const patch = (p: Partial<typeof draft>) => setDraft((d) => ({ ...d, ...p }));
+  useEffect(() => {
+    const scrollToServiceEntitlement = () => {
+      if (window.location.hash.replace("#", "") !== OUTLET_SERVICE_ENTITLEMENT_SECTION_ID) return;
+      document
+        .getElementById(OUTLET_SERVICE_ENTITLEMENT_SECTION_ID)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    scrollToServiceEntitlement();
+    window.addEventListener("hashchange", scrollToServiceEntitlement);
+    return () => window.removeEventListener("hashchange", scrollToServiceEntitlement);
+  }, []);
+
+  const markDirty = () => {
+    draftDirtyRef.current = true;
+  };
+  const patch = (p: Partial<typeof draft>) => {
+    markDirty();
+    setDraft((d) => ({ ...d, ...p }));
+  };
   const patchTier = (tier: OutletPrTier, tierPatch: Partial<OutletTierRateSettings>) => {
+    markDirty();
     setDraft((d) => {
       const patch = { ...tierPatch };
       if (patch.wagePerHour != null) patch.wagePerHour = snapTierWage(patch.wagePerHour);
+      if (patch.drinkPct != null && patch.happyHourDrinkPct == null) {
+        const prev = d.tierRates[tier];
+        const wasDefaultHappy =
+          prev.happyHourDrinkPct == null ||
+          prev.happyHourDrinkPct === prev.drinkPct ||
+          prev.happyHourDrinkPct === defaultHappyHourDrinkPct(prev.drinkPct);
+        if (wasDefaultHappy) {
+          patch.happyHourDrinkPct = defaultHappyHourDrinkPct(patch.drinkPct);
+        }
+      }
       let nextTierRates = {
         ...d.tierRates,
         [tier]: { ...d.tierRates[tier], ...patch },
@@ -135,13 +168,24 @@ function OutletWorkspacePage() {
       };
     });
   };
-  const patchCommissionOnly = (patch: Partial<typeof draft.commissionOnlyRates>) =>
-    setDraft((d) => ({
-      ...d,
-      commissionOnlyRates: { ...d.commissionOnlyRates, ...patch },
-    }));
+  const patchCommissionOnly = (patch: Partial<typeof draft.commissionOnlyRates>) => {
+    markDirty();
+    setDraft((d) => {
+      const next = { ...d.commissionOnlyRates, ...patch };
+      if (patch.drinkPct != null && patch.happyHourDrinkPct == null) {
+        const prev = d.commissionOnlyRates;
+        const wasDefaultHappy =
+          prev.happyHourDrinkPct == null ||
+          prev.happyHourDrinkPct === prev.drinkPct ||
+          prev.happyHourDrinkPct === defaultHappyHourDrinkPct(prev.drinkPct);
+        if (wasDefaultHappy) {
+          next.happyHourDrinkPct = defaultHappyHourDrinkPct(patch.drinkPct);
+        }
+      }
+      return { ...d, commissionOnlyRates: next };
+    });
+  };
   const drinkRange = drinkMenuPriceRange(draft.drinkMenu ?? []);
-  const tierHint = `${formatTierWageRange(draft.tierRates)} · paid on shift completion · synced to post job & agency`;
 
   return (
     <OutletPage>
@@ -157,7 +201,6 @@ function OutletWorkspacePage() {
 
       <OutletSection
         title="Rates by PR tier"
-        hint={tierHint}
         className="!mt-4"
       >
         <IzCard className="!py-3">
@@ -172,23 +215,29 @@ function OutletWorkspacePage() {
       </OutletSection>
 
       <OutletSection
-        title="Drink prices"
+        id={OUTLET_SERVICE_ENTITLEMENT_SECTION_ID}
+        title="Service Entitlement"
         hint={
           draft.drinkMenu?.length
-            ? `${draft.drinkMenu.length} drinks · RM ${drinkRange.min}–${drinkRange.max}`
-            : "Add drinks below"
+            ? `${draft.drinkMenu.length} services · RM ${drinkRange.min}–${drinkRange.max}`
+            : "Add services below"
         }
       >
         <IzCard className="!py-3">
           <OutletDrinkMenuEditor
             drinks={draft.drinkMenu ?? []}
             readOnly={!canEdit}
-            onChange={canEdit ? (drinkMenu) => patch({ drinkMenu }) : () => {}}
+            onChange={canEdit ? (drinkMenu) => patch({ drinkMenu: sortOutletDrinkMenuByPrice(drinkMenu) }) : () => {}}
           />
         </IzCard>
       </OutletSection>
 
-      <OutletSection title="Happy hour" hint={`${draft.happyHourStart}–${draft.happyHourEnd}`} collapsible defaultOpen={false}>
+      <OutletSection
+        title="Happy hour"
+        hint={`${draft.happyHourStart}–${draft.happyHourEnd} · ${draft.happyHourDrinkDiscountPct}% off drinks`}
+        collapsible
+        defaultOpen={false}
+      >
       <IzCard className="!py-3">
         <div className="flex gap-3">
           <TimeField
@@ -203,14 +252,19 @@ function OutletWorkspacePage() {
             readOnly={!canEdit}
             onChange={canEdit ? (v) => patch({ happyHourEnd: v }) : undefined}
           />
-        </div>
-        <div className="mt-2">
           <NumField
-            label="Drink boost"
-            value={draft.happyHourDrinkBoost}
-            suffix="×"
+            label="Drink discount"
+            value={draft.happyHourDrinkDiscountPct}
+            suffix="%"
             readOnly={!canEdit}
-            onChange={canEdit ? (n) => patch({ happyHourDrinkBoost: n }) : undefined}
+            onChange={
+              canEdit
+                ? (n) =>
+                    patch({
+                      happyHourDrinkDiscountPct: Math.min(100, Math.max(0, Math.round(n))),
+                    })
+                : undefined
+            }
           />
         </div>
       </IzCard>
@@ -220,7 +274,10 @@ function OutletWorkspacePage() {
         <button
           type="button"
           className="iz-btn iz-btn-primary mt-5"
-          onClick={() => saveOutletWorkspace(draft)}
+          onClick={() => {
+            saveOutletWorkspace(draft);
+            draftDirtyRef.current = false;
+          }}
         >
           Save workspace
         </button>

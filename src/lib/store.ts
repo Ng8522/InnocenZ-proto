@@ -211,7 +211,7 @@ import {
 import type { PendingCutlostRequest } from "@/lib/outlet-cutlost-requests";
 import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import type { PostJobPayTierRow } from "@/lib/post-job-pay-tiers";
-import { buildDemoStoreReset, buildPrDemoReset, mergeDemoHennessyRosterFloor, mergeDemoRosterAssignmentSlots, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
+import { buildDemoStoreReset, buildPrDemoReset, mergeDemoCalendarPastShifts, mergeDemoHennessyRosterFloor, mergeDemoRosterAssignmentSlots, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
 import {
   SEED_SPECIAL_SERVICES,
   mergeSpecialServiceOrders,
@@ -6092,8 +6092,11 @@ export const useStore = create<StoreState>()(
             const menu = ws.drinkMenu;
             const merged = mergeDemoShiftDates(
               mergeDemoShiftStaffing(
-                (p?.shifts ?? current.shifts).map((sh) =>
-                  migrateShiftTierRates(withShiftFinancialDefaults(sh, menu), ws),
+                mergeDemoCalendarPastShifts(
+                  (p?.shifts ?? current.shifts).map((sh) =>
+                    migrateShiftTierRates(withShiftFinancialDefaults(sh, menu), ws),
+                  ),
+                  demoSnapshot.shifts,
                 ),
                 demoSnapshot.shifts,
               ),

@@ -68,7 +68,7 @@ export function OutletDrinkMenuEditor({
   const addDrink = () => {
     onChange([
       ...drinks,
-      { id: `drink-${Date.now()}`, name: "New drink", priceRm: 100 },
+      { id: `service-${Date.now()}`, name: "New service", priceRm: 100 },
     ]);
   };
 
@@ -78,7 +78,7 @@ export function OutletDrinkMenuEditor({
         <div key={drink.id} className="flex items-end gap-2">
           <div className="min-w-0 flex-1">
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
-              Drink
+              Service
             </div>
             <input
               type="text"
@@ -115,7 +115,7 @@ export function OutletDrinkMenuEditor({
       ))}
       {!readOnly && (
         <button type="button" onClick={addDrink} className="iz-chip w-full justify-center text-[11px]">
-          <Plus className="h-3.5 w-3.5" /> Add drink
+          <Plus className="h-3.5 w-3.5" /> Add More
         </button>
       )}
     </div>

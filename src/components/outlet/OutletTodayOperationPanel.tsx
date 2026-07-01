@@ -3,8 +3,19 @@ import { useStore } from "@/lib/store";
 import type { PR, ShiftRequest } from "@/lib/store";
 import type { AgencyRosterSlot } from "@/lib/agency-demo";
 import { OutletSection } from "@/components/outlet/OutletSection";
-import { outletPrLiveFloorSales } from "@/lib/outlet-financial-sync";
-import { tierSalesTargetForPr, resolveShiftTierRates, PR_RATING_TAGS } from "@/lib/outlet-demo";
+import {
+  outletTonightFloorTotals,
+  outletTonightLiveEarningsRows,
+  outletShiftFloorSalesStarted,
+} from "@/lib/outlet-financial-sync";
+import { specialServicesForOutlet } from "@/lib/special-service-actions";
+import {
+  resolveShiftTierRates,
+  PR_RATING_TAGS,
+  OUTLET_PR_TONIGHT_SECTION_ID,
+  OUTLET_LIVE_SALES_SECTION_ID,
+  OUTLET_OPEN_LIVE_SALES_EVENT,
+} from "@/lib/outlet-demo";
 import { outletCan } from "@/lib/outlet-rbac";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
@@ -25,6 +36,9 @@ import {
   workforceStatusVariant,
 } from "@/components/portal/LiveWorkforceTable";
 import { OutletFormCard } from "@/components/outlet/outlet-portal-ui";
+import { OutletTonightSummaryTable } from "@/components/outlet/OutletTonightSummaryTable";
+import { OutletPrLiveSalesSheet } from "@/components/outlet/OutletPrLiveSalesSheet";
+import { OutletPrLiveSalesFloorTable } from "@/components/outlet/OutletPrLiveSalesFloorTable";
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
 
@@ -97,6 +111,7 @@ export function OutletTodayOperationPanel({
   const outletSubRole = useStore((s) => s.outletSubRole);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
+  const specialServiceOrders = useStore((s) => s.specialServiceOrders);
   const { prs, ratePr, agencyRoster, agencyPRs, postSealRatePrompt, clearPostSealRatePrompt } =
     useStore();
   const prSubRole = useStore((s) => s.prSubRole);
@@ -110,6 +125,7 @@ export function OutletTodayOperationPanel({
   const [comcardPreviewId, setComcardPreviewId] = useState<string | null>(null);
   const [historyPrId, setHistoryPrId] = useState<string | null>(null);
   const [liveSalesPrId, setLiveSalesPrId] = useState<string | null>(null);
+  const [liveSalesOpen, setLiveSalesOpen] = useState(false);
   const [stars, setStars] = useState(5);
   const [note, setNote] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -122,6 +138,12 @@ export function OutletTodayOperationPanel({
       setTags([]);
     }
   }, [postSealRatePrompt]);
+
+  useEffect(() => {
+    const openLiveSales = () => setLiveSalesOpen(true);
+    window.addEventListener(OUTLET_OPEN_LIVE_SALES_EVENT, openLiveSales);
+    return () => window.removeEventListener(OUTLET_OPEN_LIVE_SALES_EVENT, openLiveSales);
+  }, []);
 
   useEffect(() => {
     syncLivePrCheckInToRoster();
@@ -203,28 +225,77 @@ export function OutletTodayOperationPanel({
     ? rosterTonight.find((s) => s.prId === historyPrId)
     : undefined;
   const historyPrAgency = historyPrSlot ? rosterSlotAgencyName(historyPrSlot) : undefined;
-  const liveSalesPr = liveSalesPrId ? prs.find((p) => p.id === liveSalesPrId) : null;
-  const liveSalesSlot = liveSalesPrId
-    ? rosterTonight.find((s) => s.prId === liveSalesPrId)
-    : undefined;
   const tierRates = useMemo(
     () => resolveShiftTierRates(shift, outletWorkspace),
     [shift, outletWorkspace],
   );
-  const liveSalesProfile = liveSalesPrId ? agencyPrById.get(liveSalesPrId) : undefined;
-  const liveSales = liveSalesPr
-    ? outletPrLiveFloorSales({
-        prId: liveSalesPr.id,
-        outletName,
+
+  const liveEarningsRows = useMemo(
+    () =>
+      outletTonightLiveEarningsRows({
         shift,
-        slot: liveSalesSlot,
+        outletName,
         drinkMenu: outletWorkspace.drinkMenu ?? [],
+        rosterSlots: rosterTonight,
+        prIds: shift.prs ?? [],
+        prNameById: Object.fromEntries(prs.map((p) => [p.id, p.name])),
+        trainingLevelById: Object.fromEntries(agencyPRs.map((p) => [p.id, p.trainingLevel])),
+        tierRates,
+        happyHourStart: outletWorkspace.happyHourStart,
+        happyHourEnd: outletWorkspace.happyHourEnd,
         receiptScans: prReceiptScans,
-      })
+      }),
+    [
+      shift,
+      outletName,
+      outletWorkspace.drinkMenu,
+      outletWorkspace.happyHourStart,
+      outletWorkspace.happyHourEnd,
+      rosterTonight,
+      prs,
+      agencyPRs,
+      tierRates,
+      prReceiptScans,
+    ],
+  );
+
+  const liveSalesBreakdown = liveSalesPrId
+    ? (liveEarningsRows.find((row) => row.prId === liveSalesPrId) ?? null)
     : null;
-  const liveSalesTarget = liveSalesProfile
-    ? tierSalesTargetForPr(tierRates, liveSalesProfile.trainingLevel)
-    : 0;
+
+  const floorSalesStarted = outletShiftFloorSalesStarted(shift);
+
+  const tonightFloorTotals = useMemo(
+    () => {
+      if (!floorSalesStarted) {
+        return { totalSalesRm: 0, totalDrinksRm: 0, drinkUnits: 0, totalTipsRm: 0 };
+      }
+      return outletTonightFloorTotals({
+        shift,
+        outletName,
+        drinkMenu: outletWorkspace.drinkMenu ?? [],
+        rosterSlots: rosterTonight,
+        prIds: shift.prs ?? [],
+        receiptScans: prReceiptScans,
+      });
+    },
+    [floorSalesStarted, shift, outletName, outletWorkspace.drinkMenu, rosterTonight, prReceiptScans],
+  );
+
+  const tonightSpecialServiceRm = useMemo(
+    () => {
+      if (!floorSalesStarted) return 0;
+      return specialServicesForOutlet(specialServiceOrders, outletName)
+        .filter(
+          (r) =>
+            r.dateIso === DEFAULT_ROSTER_DATE_ISO &&
+            r.status !== "declined" &&
+            r.status !== "rejected",
+        )
+        .reduce((sum, r) => sum + r.amountIn, 0);
+    },
+    [floorSalesStarted, specialServiceOrders, outletName],
+  );
 
   const toggleTag = (tag: string) => {
     setTags((cur) => (cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag]));
@@ -262,7 +333,7 @@ export function OutletTodayOperationPanel({
         </div>
       )}
 
-      <OutletSection title="PR tonight" hint={staffHint} className="!mb-0">
+      <OutletSection id={OUTLET_PR_TONIGHT_SECTION_ID} title="PR tonight" hint={staffHint} className="!mb-0">
           {staffTonight.length === 0 ? (
             <p className="iz-tiny iz-muted rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
               No PRs assigned for tonight yet.
@@ -347,6 +418,37 @@ export function OutletTodayOperationPanel({
               })}
             </div>
           )}
+          <OutletSection
+            id={OUTLET_LIVE_SALES_SECTION_ID}
+            title="Live sales"
+            collapsible
+            open={liveSalesOpen}
+            onOpenChange={setLiveSalesOpen}
+            className="iz-outlet-live-sales-section !mt-3"
+            collapsedPreview={
+              <OutletTonightSummaryTable
+                floorTotals={tonightFloorTotals}
+                specialServiceRm={tonightSpecialServiceRm}
+                outletSubRole={outletSubRole}
+                drinkMenu={outletWorkspace.drinkMenu ?? []}
+                shift={shift}
+                variant="collapsed"
+              />
+            }
+          >
+            <OutletTonightSummaryTable
+              floorTotals={tonightFloorTotals}
+              specialServiceRm={tonightSpecialServiceRm}
+              outletSubRole={outletSubRole}
+              drinkMenu={outletWorkspace.drinkMenu ?? []}
+              shift={shift}
+              variant="embedded"
+            />
+            <OutletPrLiveSalesFloorTable
+              rows={liveEarningsRows}
+              onRowClick={(prId) => setLiveSalesPrId(prId)}
+            />
+          </OutletSection>
       </OutletSection>
 
       <IzSheet open={!!comcardPreviewPr} onClose={() => setComcardPreviewId(null)} comcard>
@@ -394,52 +496,13 @@ export function OutletTodayOperationPanel({
         />
       )}
 
-      {liveSalesPr && liveSales && (
-        <IzSheet open onClose={() => setLiveSalesPrId(null)}>
-          <div className="iz-cardttl">Live sales · {liveSalesPr.name}</div>
-          <p className="iz-tiny iz-muted mt-1">
-            {shift.event} · tonight floor
-          </p>
-          <p className="mt-4 font-sora text-3xl font-bold tabular-nums text-[var(--iz-green)]">
-            RM {liveSales.salesRm.toLocaleString("en-MY")}
-          </p>
-          <div className="mt-4 space-y-2 rounded-xl border border-[var(--iz-line)] bg-white/[0.02] p-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-[var(--iz-muted)]">Drinks</span>
-              <span className="font-semibold tabular-nums">
-                {liveSales.drinkUnits} · RM {liveSales.drinkSalesRm.toLocaleString("en-MY")}
-              </span>
-            </div>
-            {liveSales.tipRm > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[var(--iz-muted)]">Tips</span>
-                <span className="font-semibold tabular-nums">
-                  RM {liveSales.tipRm.toLocaleString("en-MY")}
-                </span>
-              </div>
-            )}
-            {liveSalesTarget > 0 && (
-              <div className="flex items-center justify-between border-t border-[var(--iz-line)] pt-2 text-sm">
-                <span className="text-[var(--iz-muted)]">Tier target</span>
-                <span className="font-semibold tabular-nums text-[var(--iz-muted)]">
-                  RM {liveSalesTarget.toLocaleString("en-MY")}
-                </span>
-              </div>
-            )}
-          </div>
-          {liveSales.salesRm === 0 && (
-            <p className="iz-tiny iz-muted2 mt-3 text-center">
-              No floor sales logged for this PR yet tonight.
-            </p>
-          )}
-          <button
-            type="button"
-            className="iz-btn iz-btn-soft mt-4 w-full"
-            onClick={() => setLiveSalesPrId(null)}
-          >
-            Close
-          </button>
-        </IzSheet>
+      {liveSalesBreakdown && (
+        <OutletPrLiveSalesSheet
+          open
+          onClose={() => setLiveSalesPrId(null)}
+          shiftEvent={shift.event}
+          breakdown={liveSalesBreakdown}
+        />
       )}
 
       {openPr && openPrData && canRate && (

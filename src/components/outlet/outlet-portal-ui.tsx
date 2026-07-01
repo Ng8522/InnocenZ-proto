@@ -100,11 +100,13 @@ export function OutletTargetActualCard({
   target,
   actual,
   lowerIsBetter = false,
+  onClick,
 }: {
   label: string;
   target: number;
   actual: number;
   lowerIsBetter?: boolean;
+  onClick?: () => void;
 }) {
   const level = performanceLevel(actual, target, lowerIsBetter);
   const gap = actual - target;
@@ -119,8 +121,9 @@ export function OutletTargetActualCard({
           ? `+${formatOutletShiftMetricAmount(gap)} above`
           : `${formatOutletShiftMetricAmount(Math.abs(gap))} below`;
 
-  return (
-    <div className="iz-outlet-ta-card">
+  const className = cn("iz-outlet-ta-card", onClick && "iz-outlet-ta-card--interactive");
+  const body = (
+    <>
       <div className="iz-outlet-ta-card__head">
         <span className="iz-outlet-ta-card__label">{label}</span>
         <TrafficPill level={level} hideIcon className="!py-0.5 !text-[9px]">
@@ -142,21 +145,48 @@ export function OutletTargetActualCard({
         </div>
       </div>
       <p className={cn("iz-outlet-ta-card__gap", `iz-outlet-ta-card__gap--${level}`)}>{gapLabel}</p>
-    </div>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {body}
+      </button>
+    );
+  }
+
+  return <div className={className}>{body}</div>;
 }
 
 export function OutletStatChip({
   label,
   value,
   tone = "neutral",
+  onClick,
 }: {
   label: string;
   value: string;
   tone?: "neutral" | "violet" | "warn" | "danger";
+  onClick?: () => void;
 }) {
+  const className = cn(
+    "iz-outlet-stat-chip",
+    `iz-outlet-stat-chip--${tone}`,
+    onClick && "iz-outlet-stat-chip--interactive",
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        <span className="iz-outlet-stat-chip__label">{label}</span>
+        <span className="iz-outlet-stat-chip__value">{value}</span>
+      </button>
+    );
+  }
+
   return (
-    <div className={cn("iz-outlet-stat-chip", `iz-outlet-stat-chip--${tone}`)}>
+    <div className={className}>
       <span className="iz-outlet-stat-chip__label">{label}</span>
       <span className="iz-outlet-stat-chip__value">{value}</span>
     </div>

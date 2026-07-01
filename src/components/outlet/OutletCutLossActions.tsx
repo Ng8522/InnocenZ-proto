@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import type { ShiftRequest } from "@/lib/store";
 import { IzSheet } from "@/components/iz/Sheet";
@@ -15,12 +15,13 @@ import {
   outletShiftTargetLaborCost,
   outletShiftPlannedLaborPerSlot,
   resolveShiftTierRates,
+  OUTLET_REDUCE_CUTLOST_SECTION_ID,
 } from "@/lib/outlet-demo";
 import { recommendBestEffortCutlost } from "@/lib/outlet-cutlost-recommendations";
 import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
+import { OutletSection } from "@/components/outlet/OutletSection";
 import {
   Check,
-  ChevronDown,
   Clock,
   ShieldCheck,
   Sparkles,
@@ -42,12 +43,17 @@ function formatCutLossSavings(savings: number, cutLoss: number): string | null {
 
 type CutlostModelChoice = "guaranteed" | "best_effort";
 
+export const OUTLET_OPEN_CUTLOST_EVENT = "outlet:open-cutlost";
+
 export function OutletCutLossActions({
   shift,
   className,
+  sectionId = OUTLET_REDUCE_CUTLOST_SECTION_ID,
 }: {
   shift: ShiftRequest;
   className?: string;
+  /** DOM id for scroll targets — unique per shift when inline in a list. */
+  sectionId?: string;
 }) {
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const agencyPRs = useStore((s) => s.agencyPRs);
@@ -64,11 +70,20 @@ export function OutletCutLossActions({
   const [releaseOpen, setReleaseOpen] = useState(false);
   const [bestEffortOpen, setBestEffortOpen] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
-  const [open, setOpen] = useState(() => cutLoss > 0);
+  const [open, setOpen] = useState(false);
   const [activeModel, setActiveModel] = useState<CutlostModelChoice | null>(null);
   const { demand, supplied, openSlots } = outletShiftDemandSupplied(shift);
   const adjustments = outletShiftCutLossAdjustmentsLabel(shift);
   const perSlotLabor = outletShiftPlannedLaborPerSlot(shift, tierRates, prTierById);
+
+  useEffect(() => {
+    const openFromChip = (event: Event) => {
+      const targetId = (event as CustomEvent<{ sectionId?: string }>).detail?.sectionId;
+      if (!targetId || targetId === sectionId) setOpen(true);
+    };
+    window.addEventListener(OUTLET_OPEN_CUTLOST_EVENT, openFromChip);
+    return () => window.removeEventListener(OUTLET_OPEN_CUTLOST_EVENT, openFromChip);
+  }, [sectionId]);
 
   const pendingRequest = useMemo(
     () => pendingCutlostRequests.find((r) => r.shiftId === shift.id && r.status === "pending"),
@@ -161,36 +176,36 @@ export function OutletCutLossActions({
     setActiveModel((cur) => (cur === model ? null : model));
   };
 
-  return (
-    <div
-      className={cn("mt-2.5 rounded-xl border border-[var(--iz-line2)] bg-white/[0.02]", className)}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
-        aria-expanded={open}
-      >
-        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
-          Reduce cutlost
-        </span>
-        {cutLoss > 0 && (
-          <IzPill variant="red" className="shrink-0 !py-0.5 !text-[11px]">
-            {formatRm(cutLoss)}
-          </IzPill>
-        )}
-        {pendingRequest && (
-          <IzPill variant="amber" className="shrink-0 !py-0.5 !text-[11px]">
-            Pending agency
-          </IzPill>
-        )}
-        <ChevronDown
-          className={cn("ml-auto h-4 w-4 shrink-0 text-[var(--iz-muted)]", open && "rotate-180")}
-        />
-      </button>
+  const cutlostHint =
+    cutLoss > 0
+      ? `${formatRm(cutLoss)} cutlost · ${formatRm(targetLabor)} target − ${formatRm(actualLabor)} actual`
+      : "Pick a model to reduce planned labor";
 
-      {open && (
-        <div className="border-t border-[var(--iz-line)] px-3 pb-2 pt-1.5">
+  return (
+    <>
+      <OutletSection
+        id={sectionId}
+        title="Reduce cutlost"
+        hint={cutlostHint}
+        collapsible
+        open={open}
+        onOpenChange={setOpen}
+        className={cn("iz-outlet-cutlost-section !mt-2.5", className)}
+        trailing={
+          <span className="flex items-center gap-1.5">
+            {cutLoss > 0 && (
+              <IzPill variant="red" className="shrink-0 !py-0.5 !text-[11px]">
+                {formatRm(cutLoss)}
+              </IzPill>
+            )}
+            {pendingRequest && (
+              <IzPill variant="amber" className="shrink-0 !py-0.5 !text-[11px]">
+                Pending agency
+              </IzPill>
+            )}
+          </span>
+        }
+      >
           <p className="text-xs leading-snug text-[var(--iz-muted2)]">
             Cutlost is {Math.round(OUTLET_CUTLOSS_COST_SHARE * 100)}% of planned labor minus wages
             for PRs on shift ({formatRm(targetLabor)} − {formatRm(actualLabor)} ={" "}
@@ -287,8 +302,7 @@ export function OutletCutLossActions({
               onClick={() => toggleModel("best_effort")}
             />
           </div>
-        </div>
-      )}
+      </OutletSection>
 
       <IzSheet open={releaseOpen} onClose={() => setReleaseOpen(false)}>
         <div className="iz-cardttl">Guaranteed cutlost · release PRs</div>
@@ -415,7 +429,7 @@ export function OutletCutLossActions({
           Cancel
         </button>
       </IzSheet>
-    </div>
+    </>
   );
 }
 

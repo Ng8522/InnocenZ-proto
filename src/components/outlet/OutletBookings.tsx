@@ -6,6 +6,7 @@ import { outletCan } from "@/lib/outlet-rbac";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzCard, IzPill } from "@/components/iz/ui";
 import { OutletTodayOperationPanel } from "@/components/outlet/OutletTodayOperationPanel";
+import { OutletLaborCostReport } from "@/components/outlet/OutletLaborCostReport";
 import {
   shiftSpecialEventLabel,
   outletShiftDemandSupplied,
@@ -13,11 +14,12 @@ import {
 } from "@/lib/outlet-demo";
 import { outletShiftDisplayLiveSales } from "@/lib/outlet-financial-sync";
 import { formatTierSalesTargets, formatTierWageRange } from "@/lib/agency-demo";
+import { OutletCutLossActions } from "@/components/outlet/OutletCutLossActions";
 import {
   OutletShiftDetailPanel,
   OutletShiftStatusBadge,
 } from "@/components/outlet/OutletShiftDetailPanel";
-import { OutletEmptyState } from "@/components/outlet/outlet-portal-ui";
+import { OutletEmptyState, OutletActionButton } from "@/components/outlet/outlet-portal-ui";
 import { ChevronDown, Trash2 } from "lucide-react";
 
 export function OutletBookings({ variant = "home" }: { variant?: "home" | "future" }) {
@@ -27,6 +29,7 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
   const agencyRoster = useStore((s) => s.agencyRoster);
   const { shifts, deleteShift } = useStore();
   const canDelete = outletCan(outletSubRole, "postJob");
+  const canStaff = outletCan(outletSubRole, "manageShiftStaffing");
 
   const visibleShifts = useMemo(
     () =>
@@ -103,7 +106,12 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
           shift={s}
           variant={variant}
           hideLogSales={hideLogSales}
-          onDelete={canDelete && s.status !== "sealed" ? () => setDeleteTargetId(s.id) : undefined}
+          hideCutlost={variant === "home"}
+          onDelete={
+            canDelete && s.status !== "sealed" && variant !== "home"
+              ? () => setDeleteTargetId(s.id)
+              : undefined
+          }
         />
       </details>
     );
@@ -115,6 +123,23 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
         {variant === "home" && liveShift && renderShiftCard(liveShift, true)}
         {variant === "home" && liveShift && (
           <OutletTodayOperationPanel shift={liveShift} outletName={outletWorkspace.outletName} />
+        )}
+        {variant === "home" && liveShift && <OutletLaborCostReport shift={liveShift} />}
+        {variant === "home" && liveShift && liveShift.status === "confirmed" && (
+          <OutletCutLossActions shift={liveShift} />
+        )}
+        {variant === "home" && liveShift && (canStaff || canDelete) && (
+          <div className="mt-2 flex flex-col gap-2">
+            {canDelete && liveShift.status !== "sealed" && (
+              <OutletActionButton
+                icon={Trash2}
+                title="Cancel shift"
+                hint="Remove this shift and release all PRs"
+                tone="danger"
+                onClick={() => setDeleteTargetId(liveShift.id)}
+              />
+            )}
+          </div>
         )}
         {variant === "future" && futureShifts.map((s) => renderShiftCard(s))}
       </div>

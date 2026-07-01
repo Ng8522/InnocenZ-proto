@@ -7,11 +7,13 @@ export interface OutletDrinkPrice {
 }
 
 export const DEFAULT_OUTLET_DRINK_MENU: OutletDrinkPrice[] = [
-  { id: "beer", name: "Beer", priceRm: 45 },
-  { id: "wine", name: "Wine", priceRm: 85 },
-  { id: "whisky", name: "Whisky", priceRm: 120 },
-  { id: "champagne", name: "Champagne", priceRm: 350 },
-  { id: "hennessy", name: "Hennessy VSOP", priceRm: 280 },
+  { id: "booking-com", name: "Booking commission", priceRm: 100 },
+  { id: "cosmo", name: "Cosmo", priceRm: 150 },
+  { id: "heradura-anejo-ultra", name: "Heradura anejo ultra", priceRm: 150 },
+  { id: "laddies-drink", name: "Laddies drink", priceRm: 150 },
+  { id: "dom-perignon", name: "Dom perignon", priceRm: 200 },
+  { id: "donjulio", name: "Donjulio", priceRm: 200 },
+  { id: "havoc", name: "Havoc", priceRm: 1000 },
 ];
 
 /** Per-outlet drink menus — prices differ by venue */

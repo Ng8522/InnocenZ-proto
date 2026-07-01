@@ -495,12 +495,17 @@ export type OutletSubscriptionPlanId =
   | "pro"
   | "enterprise"
   | "scale"
-  | "premier";
+  | "premier"
+  | "pos_integration";
 
 export interface OutletSubscriptionPlan {
   id: OutletSubscriptionPlanId;
   label: string;
   monthlyRm: number;
+  /** Shown instead of monthlyRm when pricing is negotiated with admin */
+  priceLabel?: string;
+  /** Requires InnocenZ admin to quote pricing — not a self-serve plan switch */
+  renegotiate?: boolean;
   /** Max outlet-requested specific PRs per calendar day (agency-assigned fill excluded) */
   prPerDayMax: number;
   /** Lower bound of daily PR band (display) */
@@ -579,6 +584,18 @@ export const OUTLET_SUBSCRIPTION_PLANS: OutletSubscriptionPlan[] = [
     capacityLabel: "101+ PRs / day",
     description: "Flagship venues · choose more than 100 PRs per shift",
   },
+  {
+    id: "pos_integration",
+    label: "Integrate with POS",
+    monthlyRm: 0,
+    priceLabel: "Call to get price",
+    renegotiate: true,
+    prPerDayMax: 0,
+    prPoolSize: 0,
+    prSelectMax: 0,
+    capacityLabel: "POS sync",
+    description: "Sync sales & commissions from your point-of-sale",
+  },
 ];
 
 export function getOutletSubscriptionPlan(
@@ -591,6 +608,7 @@ export function getOutletSubscriptionPlan(
 }
 
 export function formatOutletPlanPrPickerRule(plan: OutletSubscriptionPlan): string {
+  if (plan.renegotiate) return plan.description;
   if (plan.id === "premier") return "Choose more than 100 PRs";
   return `Choose ${plan.prSelectMax} from ${plan.prPoolSize} PRs`;
 }

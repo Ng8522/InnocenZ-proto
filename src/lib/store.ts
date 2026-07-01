@@ -208,6 +208,11 @@ import {
   type OutletSubscriptionInvoice,
   type OutletSubscriptionPlanId,
 } from "@/lib/outlet-demo";
+import {
+  adminNotificationStamp,
+  type AdminNotification,
+  type OutletPosPricingRequest,
+} from "@/lib/admin-notifications";
 import type { PendingCutlostRequest } from "@/lib/outlet-cutlost-requests";
 import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import type { PostJobPayTierRow } from "@/lib/post-job-pay-tiers";
@@ -485,6 +490,12 @@ interface StoreState {
   notificationPrefs: NotificationPrefs;
   pushNotify: (event: PushEvent) => void;
   markOpsNotificationRead: (id: string) => void;
+  adminNotifications: AdminNotification[];
+  outletPosPricingRequests: OutletPosPricingRequest[];
+  markAdminNotificationRead: (id: string) => void;
+  requestOutletPosIntegrationPricing: () => void;
+  cancelOutletPosIntegrationPricing: () => void;
+  markOutletPosPricingContacted: (requestId: string) => void;
   prDeclinedOfferIds: string[];
   prMarketplaceApplication: {
     listingId: string;
@@ -1382,6 +1393,8 @@ export const useStore = create<StoreState>()(
 
       prNotifications: [...SEED_PR_NOTIFICATIONS],
       opsNotifications: [],
+      adminNotifications: [],
+      outletPosPricingRequests: [],
       sosIncidents: [],
       notificationPrefs: { ...DEFAULT_NOTIFICATION_PREFS },
       pushNotify: (event) => {
@@ -1403,6 +1416,70 @@ export const useStore = create<StoreState>()(
             n.id === id ? { ...n, read: true } : n,
           ),
         })),
+      markAdminNotificationRead: (id) =>
+        set((st) => ({
+          adminNotifications: st.adminNotifications.map((n) =>
+            n.id === id ? { ...n, read: true } : n,
+          ),
+        })),
+      requestOutletPosIntegrationPricing: () => {
+        const owner = get().outletOwner;
+        const orgName = owner.orgName.trim();
+        const existing = get().outletPosPricingRequests.find(
+          (r) => r.outletName === orgName && r.status === "pending",
+        );
+        if (existing) {
+          get().toast("POS integration request already sent — admin will contact you", "info");
+          return;
+        }
+        const at = adminNotificationStamp();
+        const requestId = `pos-${Date.now().toString(36)}`;
+        const request: OutletPosPricingRequest = {
+          id: requestId,
+          outletName: orgName,
+          contactName: owner.ownerName.trim(),
+          contactEmail: owner.email.trim(),
+          contactMobile: owner.mobile.trim(),
+          currentPlanId: owner.subscriptionPlanId ?? "pro",
+          requestedAt: at,
+          status: "pending",
+        };
+        const notification: AdminNotification = {
+          id: `adm-${requestId}`,
+          kind: "pos_pricing_request",
+          title: "POS integration pricing",
+          body: `${orgName} requested a quote · contact ${owner.ownerName.trim()}`,
+          at,
+          read: false,
+          href: "/admin/subscriptions",
+          requestId,
+        };
+        set((st) => ({
+          outletPosPricingRequests: [request, ...st.outletPosPricingRequests],
+          adminNotifications: [notification, ...st.adminNotifications],
+        }));
+        get().toast(`Request sent — InnocenZ admin will contact ${orgName}`, "success");
+      },
+      cancelOutletPosIntegrationPricing: () => {
+        const orgName = get().outletOwner.orgName.trim();
+        const pending = get().outletPosPricingRequests.find(
+          (r) => r.outletName === orgName && r.status === "pending",
+        );
+        if (!pending) return;
+        set((st) => ({
+          outletPosPricingRequests: st.outletPosPricingRequests.filter((r) => r.id !== pending.id),
+          adminNotifications: st.adminNotifications.filter((n) => n.requestId !== pending.id),
+        }));
+        get().toast("POS integration request cancelled", "info");
+      },
+      markOutletPosPricingContacted: (requestId) => {
+        set((st) => ({
+          outletPosPricingRequests: st.outletPosPricingRequests.map((r) =>
+            r.id === requestId ? { ...r, status: "contacted" as const } : r,
+          ),
+        }));
+        get().toast("Marked as contacted", "success");
+      },
       prDeclinedOfferIds: [],
       prMarketplaceApplication: null,
       prUpcomingShifts: [...SEED_UPCOMING_SHIFTS],
@@ -5716,6 +5793,8 @@ export const useStore = create<StoreState>()(
           prPayrollAgencyId: s.prPayrollAgencyId,
           prNotifications: s.prNotifications,
           opsNotifications: s.opsNotifications,
+          adminNotifications: s.adminNotifications,
+          outletPosPricingRequests: s.outletPosPricingRequests,
           sosIncidents: s.sosIncidents,
           notificationPrefs: s.notificationPrefs,
           prDeclinedOfferIds: s.prDeclinedOfferIds,
@@ -6009,6 +6088,9 @@ export const useStore = create<StoreState>()(
           prPayrollAgencyId: p?.prPayrollAgencyId ?? current.prPayrollAgencyId,
           prNotifications: p?.prNotifications?.length ? p.prNotifications : current.prNotifications,
           opsNotifications: p?.opsNotifications ?? current.opsNotifications,
+          adminNotifications: p?.adminNotifications ?? current.adminNotifications,
+          outletPosPricingRequests:
+            p?.outletPosPricingRequests ?? current.outletPosPricingRequests,
           sosIncidents: p?.sosIncidents ?? current.sosIncidents,
           notificationPrefs: p?.notificationPrefs ?? current.notificationPrefs,
           prDeclinedOfferIds: p?.prDeclinedOfferIds ?? current.prDeclinedOfferIds,

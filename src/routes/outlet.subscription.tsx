@@ -9,14 +9,18 @@ import {
   outletNamedPrCountForDate,
   type OutletSubscriptionPlanId,
 } from "@/lib/outlet-demo";
+import { outletHasPendingPosPricingRequest } from "@/lib/admin-notifications";
 import { outletCan } from "@/lib/outlet-rbac";
 import { tonightShiftOutletName } from "@/lib/portal-sync";
 import { isoKeyFromDate } from "@/components/iz/HistDateCalendar";
 import { OutletSection } from "@/components/outlet/OutletSection";
+import { OutletPosIntegrationAddon } from "@/components/outlet/OutletPosIntegrationAddon";
 import { IzCard, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
 import { Calendar, CreditCard, Receipt, Users } from "lucide-react";
 
 const RENEWAL_DATE = "15 Jul 2026";
+
+const MONTHLY_PLANS = OUTLET_SUBSCRIPTION_PLANS.filter((p) => !p.renegotiate);
 
 export const Route = createFileRoute("/outlet/subscription")({
   component: OutletSubscriptionPage,
@@ -27,8 +31,11 @@ function OutletSubscriptionPage() {
   const outletOwner = useStore((s) => s.outletOwner);
   const shifts = useStore((s) => s.shifts);
   const paymentCardLast4 = useStore((s) => s.paymentCardLast4);
+  const posPricingRequests = useStore((s) => s.outletPosPricingRequests);
   const saveOutletOwner = useStore((s) => s.saveOutletOwner);
   const recordOutletSubscriptionPlanChange = useStore((s) => s.recordOutletSubscriptionPlanChange);
+  const requestOutletPosIntegrationPricing = useStore((s) => s.requestOutletPosIntegrationPricing);
+  const cancelOutletPosIntegrationPricing = useStore((s) => s.cancelOutletPosIntegrationPricing);
   const billingHistory = useStore((s) => s.outletSubscriptionBilling);
   const updateOutletPaymentCard = useStore((s) => s.updateOutletPaymentCard);
   const toast = useStore((s) => s.toast);
@@ -36,6 +43,7 @@ function OutletSubscriptionPage() {
 
   const outletName = tonightShiftOutletName(shifts);
   const currentPlan = getOutletSubscriptionPlan(outletOwner.subscriptionPlanId);
+  const posRequestPending = outletHasPendingPosPricingRequest(posPricingRequests, outletOwner.orgName);
 
   const todayIso = isoKeyFromDate(new Date());
   const namedPrsToday = useMemo(
@@ -50,6 +58,7 @@ function OutletSubscriptionPage() {
   const selectPlan = (planId: OutletSubscriptionPlanId) => {
     if (!canEdit || planId === currentPlan.id) return;
     const next = getOutletSubscriptionPlan(planId);
+    if (next.renegotiate) return;
     if (peakDailyNamedPrs > next.prPerDayMax) {
       toast(
         `Peak day has ${peakDailyNamedPrs} requested PRs — reduce to ${next.prPerDayMax}/day before downgrading to ${next.label}`,
@@ -97,7 +106,7 @@ function OutletSubscriptionPage() {
         PR limit = max specific PRs you name per day (agency fill does not count) · {namedPrsToday} requested today · peak day {peakDailyNamedPrs}
       </p>
       <div className="grid grid-cols-2 gap-2">
-        {OUTLET_SUBSCRIPTION_PLANS.map((plan) => {
+        {MONTHLY_PLANS.map((plan) => {
           const isCurrent = plan.id === currentPlan.id;
           const atCapacity = namedPrsToday >= plan.prPerDayMax;
           return (
@@ -147,6 +156,17 @@ function OutletSubscriptionPage() {
           );
         })}
       </div>
+
+      <IzSectionLabel className="!mt-4">Add-ons</IzSectionLabel>
+      <p className="iz-tiny iz-muted2 -mt-1 mb-2">
+        Optional integrations — pricing negotiated directly with InnocenZ admin
+      </p>
+      <OutletPosIntegrationAddon
+        canEdit={canEdit}
+        pending={posRequestPending}
+        onRequest={requestOutletPosIntegrationPricing}
+        onCancel={cancelOutletPosIntegrationPricing}
+      />
 
       <IzSectionLabel>Billing history</IzSectionLabel>
       <div className="space-y-2">

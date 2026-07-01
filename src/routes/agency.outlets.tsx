@@ -21,6 +21,7 @@ import {
 } from "@/lib/agency-outlet-shifts";
 import { agencyCan } from "@/lib/agency-rbac";
 import { formatTierSalesTargets, formatTierWageRange } from "@/lib/agency-demo";
+import { outletShiftActivePrIds } from "@/lib/outlet-demo";
 import {
   formatPayTierRowsCompact,
   resolveShiftPayTierRows,
@@ -524,11 +525,14 @@ function OutletShiftTierRequestTable({ shift }: { shift: AgencyOutletAvailableSh
         ? shift.id.slice("posted-".length)
         : shift.linkedShiftId;
     const postedShift = postedShiftId ? shifts.find((s) => s.id === postedShiftId) : undefined;
+    const bookedPrIds = postedShift ? outletShiftActivePrIds(postedShift) : [];
     return shiftTierStaffingByPayTier({
       payTierRows: shift.payTierRows,
       quantity: shift.quantity,
+      demandCut: postedShift?.demandCut,
+      releasedEarlyPrIds: postedShift?.releasedEarlyPrIds,
       tierRates: shift.tierRates,
-      bookedPrIds: postedShift?.prs ?? [],
+      bookedPrIds,
       agencyPRs,
     });
   }, [

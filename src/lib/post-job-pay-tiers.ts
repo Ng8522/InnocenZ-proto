@@ -71,14 +71,20 @@ export type ShiftTierStaffing = { demand: number; supplied: number };
 export function shiftTierStaffingByPayTier(opts: {
   payTierRows?: PostJobPayTierRow[];
   quantity: number;
+  demandCut?: number;
+  releasedEarlyPrIds?: string[];
   tierRates: Record<OutletPrTier, OutletTierRateSettings>;
   bookedPrIds?: string[];
   agencyPRs?: { id: string; trainingLevel?: string }[];
 }): Partial<Record<PostJobPayTierId, ShiftTierStaffing>> {
-  const demandRows = resolveShiftPayTierRows({
+  const demandRows = resolveEffectiveShiftPayTierRows({
     payTierRows: opts.payTierRows,
     quantity: opts.quantity,
+    demandCut: opts.demandCut,
+    releasedEarlyPrIds: opts.releasedEarlyPrIds,
     tierRates: opts.tierRates,
+    bookedPrIds: opts.bookedPrIds,
+    agencyPRs: opts.agencyPRs,
   });
   const booked = countBookedPrsByPayTier(opts.bookedPrIds ?? [], opts.agencyPRs ?? []);
   const suppliedMap = suppliedByPayTierDemand(demandRows, booked);
@@ -395,13 +401,103 @@ export function resolveShiftPayTierRows(input: {
   quantity: number;
   tierRates?: Record<OutletPrTier, OutletTierRateSettings>;
 }): PostJobPayTierRow[] {
+  const quantity = Math.max(0, Math.floor(input.quantity));
   if (input.payTierRows?.length) {
-    return input.payTierRows.filter((row) => row.prCount > 0);
+    return adjustPayTierRowsToTotal(
+      input.payTierRows.filter((row) => row.prCount > 0),
+      quantity,
+    );
   }
   if (input.tierRates) {
-    return defaultPostJobPayTierRows(input.tierRates, input.quantity);
+    return defaultPostJobPayTierRows(input.tierRates, quantity);
   }
   return [];
+}
+
+/** Peel demand only from unfilled slots per tier (Tier 1 → 5), never below supplied. */
+export function applyOpenSlotDemandCut(
+  rows: PostJobPayTierRow[],
+  bookedByTier: Partial<Record<PostJobPayTierId, number>>,
+  demandCut: number,
+): PostJobPayTierRow[] {
+  let remaining = Math.max(0, Math.floor(demandCut));
+  if (remaining <= 0) return rows.map((row) => ({ ...row }));
+
+  const next = rows.map((row) => ({ ...row }));
+  for (const option of POST_JOB_PAY_TIER_OPTIONS) {
+    if (remaining <= 0) break;
+    const idx = next.findIndex((row) => row.payTierId === option.id);
+    if (idx < 0) continue;
+    const row = next[idx];
+    const supplied = bookedByTier[option.id] ?? 0;
+    const open = Math.max(0, row.prCount - supplied);
+    const peel = Math.min(open, remaining);
+    if (peel <= 0) continue;
+    next[idx] = { ...row, prCount: row.prCount - peel };
+    remaining -= peel;
+  }
+  return next;
+}
+
+function countPrIdsByPayTier(
+  prIds: string[],
+  agencyPRs?: { id: string; trainingLevel?: string }[],
+  prTierById?: Record<string, string | undefined>,
+): Partial<Record<PostJobPayTierId, number>> {
+  if (agencyPRs?.length) {
+    return countBookedPrsByPayTier(prIds, agencyPRs);
+  }
+  const counts: Partial<Record<PostJobPayTierId, number>> = {};
+  for (const prId of prIds) {
+    const outletTier = (prTierById?.[prId] ?? "Tier I") as OutletPrTier;
+    const payTierId = postJobPayTierIdForOutletTier(outletTier);
+    counts[payTierId] = (counts[payTierId] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** Posted pay tiers after open-slot cuts and early releases — preserves filled tiers. */
+export function resolveEffectiveShiftPayTierRows(input: {
+  payTierRows?: PostJobPayTierRow[];
+  quantity: number;
+  demandCut?: number;
+  releasedEarlyPrIds?: string[];
+  tierRates?: Record<OutletPrTier, OutletTierRateSettings>;
+  bookedPrIds?: string[];
+  agencyPRs?: { id: string; trainingLevel?: string }[];
+  prTierById?: Record<string, string | undefined>;
+}): PostJobPayTierRow[] {
+  const baseRows = resolveShiftPayTierRows({
+    payTierRows: input.payTierRows,
+    quantity: input.quantity,
+    tierRates: input.tierRates,
+  });
+  const booked = countPrIdsByPayTier(
+    input.bookedPrIds ?? [],
+    input.agencyPRs,
+    input.prTierById,
+  );
+
+  let rows = baseRows;
+  const demandCut = input.demandCut ?? 0;
+  if (demandCut > 0) {
+    rows = applyOpenSlotDemandCut(rows, booked, demandCut);
+  }
+
+  const releasedIds = [...new Set(input.releasedEarlyPrIds ?? [])];
+  if (releasedIds.length > 0) {
+    const releasedByTier = countPrIdsByPayTier(
+      releasedIds,
+      input.agencyPRs,
+      input.prTierById,
+    );
+    rows = rows.map((row) => {
+      const peel = releasedByTier[row.payTierId] ?? 0;
+      return { ...row, prCount: Math.max(0, row.prCount - peel) };
+    });
+  }
+
+  return rows;
 }
 
 export function payTierRowShiftWage(

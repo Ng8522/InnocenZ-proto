@@ -17,10 +17,11 @@ import {
   formatShiftDrinkPricingSummary,
   formatShiftEventTypeSummary,
   shiftSpecialEventLabel,
-  outletShiftActualLaborCost,
-  outletShiftCutLoss,
+  outletShiftActualLaborCostForShift,
   outletShiftCutLossAdjustmentsLabel,
+  outletShiftCutLossForShift,
   outletShiftDemandSupplied,
+  outletShiftActivePrIds,
   outletShiftTargetLaborCost,
   outletShiftTargetSalesForShift,
   resolveShiftTierRates,
@@ -100,9 +101,9 @@ export function OutletShiftDetailPanel({
   const prTierById = Object.fromEntries(agencyPRs.map((pr) => [pr.id, pr.trainingLevel]));
   const targetSales = outletShiftTargetSalesForShift(shift, tierRates);
   const targetCost = outletShiftTargetLaborCost(shift, tierRates, prTierById);
-  const actualCost = outletShiftActualLaborCost(shift, tierRates, prTierById);
+  const actualCost = outletShiftActualLaborCostForShift(shift, tierRates, prTierById);
   const displaySales = outletShiftDisplayLiveSales(shift);
-  const cutLoss = outletShiftCutLoss(targetCost, actualCost);
+  const cutLoss = outletShiftCutLossForShift(shift, tierRates, prTierById);
   const { demand: staffingDemand, supplied } = outletShiftDemandSupplied(shift);
   const adjustmentsLabel = outletShiftCutLossAdjustmentsLabel(shift);
   const tierStaffingByPayTier = useMemo(
@@ -110,11 +111,21 @@ export function OutletShiftDetailPanel({
       shiftTierStaffingByPayTier({
         payTierRows: shift.payTierRows,
         quantity: shift.quantity,
+        demandCut: shift.demandCut,
+        releasedEarlyPrIds: shift.releasedEarlyPrIds,
         tierRates,
-        bookedPrIds: shift.prs,
+        bookedPrIds: outletShiftActivePrIds(shift),
         agencyPRs,
       }),
-    [shift.payTierRows, shift.quantity, shift.prs, tierRates, agencyPRs],
+    [
+      shift.payTierRows,
+      shift.quantity,
+      shift.demandCut,
+      shift.releasedEarlyPrIds,
+      shift.prs,
+      tierRates,
+      agencyPRs,
+    ],
   );
   const demandLevel = trafficLevelForRatio(supplied, staffingDemand);
   const demandTone =

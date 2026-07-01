@@ -189,13 +189,19 @@ export function mergeDemoShiftStaffing(
   seedShifts?: ShiftRequest[],
 ): ShiftRequest[] {
   const seed = seedShifts?.find((s) => s.id === HENNESSY_LAUNCH_SHIFT_ID);
-  const prIds = [...HENNESSY_LAUNCH_PR_IDS];
+  const rosterPrIds = [...HENNESSY_LAUNCH_PR_IDS];
   return shifts.map((sh) => {
     if (sh.id !== HENNESSY_LAUNCH_SHIFT_ID) return sh;
+    const releasedEarly = [...new Set(sh.releasedEarlyPrIds ?? [])];
+    const activePrs = rosterPrIds.filter((id) => !releasedEarly.includes(id));
     return {
       ...sh,
-      prs: prIds,
-      filled: Math.max(sh.filled ?? 0, prIds.length, seed?.filled ?? 0),
+      quantity: seed?.quantity ?? sh.quantity,
+      payTierRows: seed?.payTierRows ?? sh.payTierRows,
+      demandCut: sh.demandCut ?? 0,
+      releasedEarlyPrIds: releasedEarly.length ? releasedEarly : undefined,
+      prs: activePrs,
+      filled: activePrs.length,
       drinkUnits: seed?.drinkUnits ?? 0,
       drinkUnitCounts: seed?.drinkUnitCounts,
       legacyDrinkSalesRm: seed?.legacyDrinkSalesRm,

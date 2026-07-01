@@ -78,6 +78,7 @@ function HostShifts() {
   const shiftAccepted = useStore((s) => s.shiftAccepted);
   const pendingApproval = useStore((s) => s.pendingApproval);
   const checkedIn = useStore((s) => s.checkedIn);
+  const checkedOut = useStore((s) => s.checkedOut);
   const acceptedShiftIndex = useStore((s) => s.acceptedShiftIndex);
   const declinePrOffer = useStore((s) => s.declinePrOffer);
   const applyFreelancerListing = useStore((s) => s.applyFreelancerListing);
@@ -189,13 +190,15 @@ function HostShifts() {
     outletPendingShifts.length +
     (pendingApproval ? 1 : 0) +
     (!tied && prMarketplaceApplication?.status === "pending" ? 1 : 0);
-  const todayStatus = checkedIn
-    ? "On duty"
-    : effectiveShiftAccepted
-      ? "Tonight"
-      : agencyTonight
-        ? "Scheduled"
-        : "Off";
+  const todayStatus = checkedOut
+    ? "Complete"
+    : checkedIn
+      ? "On duty"
+      : effectiveShiftAccepted
+        ? "Tonight"
+        : agencyTonight
+          ? "Scheduled"
+          : "Off";
 
   const confirmMkt = confirmMktId
     ? PR_MARKETPLACE_LISTINGS.find((l) => l.id === confirmMktId)
@@ -239,9 +242,11 @@ function HostShifts() {
         : todoCount > 0
           ? `${todoCount} to-do`
           : effectiveShiftAccepted
-            ? checkedIn
-              ? "On duty"
-              : "Confirmed"
+            ? checkedOut
+              ? "Complete"
+              : checkedIn
+                ? "On duty"
+                : "Confirmed"
             : pendingApproval
               ? "Pending"
               : "Browsing";
@@ -361,15 +366,23 @@ function HostShifts() {
             >
               {effectiveShiftAccepted && activeShift ? (
                 <TodayShiftCard
-                  eyebrow={checkedIn ? "On duty" : "Tonight"}
+                  eyebrow={checkedOut ? "Complete" : checkedIn ? "On duty" : "Tonight"}
                   outlet={activeShift.outlet}
                   date={fmtDFriendly(activeShift.date[0], activeShift.date[1], activeShift.date[2])}
                   time={activeShift.time}
                   footnote={`${activeShift.event} · ${formatRM(activeShift.base + activeShift.comm)}`}
+                  badge={
+                    checkedOut ? (
+                      <PrStatusPill variant="green">Checked out</PrStatusPill>
+                    ) : undefined
+                  }
                 >
-                  <Link to="/host/tonight" className="iz-btn iz-btn-primary iz-btn-sm mt-3 w-full">
+                  <Link
+                    to="/host/tonight"
+                    className={`iz-btn iz-btn-sm mt-3 w-full${checkedOut ? " iz-btn-soft" : " iz-btn-primary"}`}
+                  >
                     <MapPin className="h-3.5 w-3.5" />
-                    {checkedIn ? "Attendance" : "Check in"}
+                    {checkedOut ? "View summary" : checkedIn ? "Attendance" : "Check in"}
                   </Link>
                 </TodayShiftCard>
               ) : agencyTonight ? (

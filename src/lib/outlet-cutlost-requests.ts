@@ -1,4 +1,6 @@
-export type CutlostRequestKind = "release_prs" | "cut_slots";
+import type { CutlostModel } from "@/lib/outlet-cutlost-recommendations";
+
+export type CutlostRequestKind = "release_prs" | "cut_slots" | "best_effort";
 
 export type PendingCutlostRequest = {
   id: string;
@@ -8,6 +10,7 @@ export type PendingCutlostRequest = {
   shiftLabel: string;
   dateLabel: string;
   kind: CutlostRequestKind;
+  model?: CutlostModel;
   status: "pending" | "approved" | "rejected";
   releasedPrIds?: string[];
   releasedPrNames?: string[];
@@ -16,9 +19,15 @@ export type PendingCutlostRequest = {
   cutlostBefore: number;
   requestedAt: string;
   declineReason?: string;
+  rationale?: string[];
 };
 
-export function cutlostRequestTitle(req: Pick<PendingCutlostRequest, "kind" | "releasedPrNames" | "slotsCut">): string {
+export function cutlostRequestTitle(
+  req: Pick<PendingCutlostRequest, "kind" | "model" | "releasedPrNames" | "slotsCut">,
+): string {
+  if (req.kind === "best_effort" || req.model === "best_effort") {
+    return "Best-effort cutlost plan";
+  }
   if (req.kind === "release_prs") {
     const names = req.releasedPrNames ?? [];
     if (names.length === 1) return `Release ${names[0]} early`;
@@ -30,6 +39,16 @@ export function cutlostRequestTitle(req: Pick<PendingCutlostRequest, "kind" | "r
 }
 
 export function cutlostRequestDetail(req: PendingCutlostRequest): string {
+  if (req.kind === "best_effort") {
+    const parts: string[] = [];
+    if ((req.slotsCut ?? 0) > 0) {
+      parts.push(`${req.slotsCut} slot${req.slotsCut === 1 ? "" : "s"} cut`);
+    }
+    if (req.releasedPrNames?.length) {
+      parts.push(`release ${req.releasedPrNames.join(", ")}`);
+    }
+    return `${req.outletName} · ${parts.join(" · ") || "Optimized mix"}`;
+  }
   if (req.kind === "release_prs") {
     const names = req.releasedPrNames?.join(", ") ?? "Selected PRs";
     return `${req.outletName} · ${names}`;

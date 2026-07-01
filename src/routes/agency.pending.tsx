@@ -8,7 +8,7 @@ import { nowAgencyDateTime } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { IzCard, IzPill } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
-import { Camera, Check, Clock, Image, TrendingDown, UserMinus, UserPlus, X } from "lucide-react";
+import { Camera, Check, Clock, Image, Sparkles, TrendingDown, UserMinus, UserPlus, X } from "lucide-react";
 import { publicAssetPath } from "@/lib/public-asset";
 import { portfolioFilledCount } from "@/components/pr/PortfolioGalleryPicker";
 
@@ -253,7 +253,12 @@ function CutlostRequestCard({
 }) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const Icon = req.kind === "release_prs" ? UserMinus : TrendingDown;
+  const Icon =
+    req.kind === "best_effort"
+      ? Sparkles
+      : req.kind === "release_prs"
+        ? UserMinus
+        : TrendingDown;
 
   return (
     <>
@@ -275,9 +280,17 @@ function CutlostRequestCard({
         <div className="mt-2 flex flex-wrap gap-1.5">
           <IzPill variant="ink">{req.dateLabel}</IzPill>
           <IzPill variant="ink">{req.shiftLabel}</IzPill>
+          {req.model === "best_effort" && (
+            <IzPill variant="violet">Best effort</IzPill>
+          )}
           <IzPill variant="red">Cutlost RM {Math.round(req.cutlostBefore).toLocaleString("en-MY")}</IzPill>
           <IzPill variant="green">Saves ~RM {Math.round(req.estimatedSavings).toLocaleString("en-MY")}</IzPill>
         </div>
+        {req.rationale?.length ? (
+          <p className="iz-tiny iz-muted2 mt-2 leading-snug">
+            {req.rationale[0]}
+          </p>
+        ) : null}
         <p className="iz-tiny mt-2 flex items-center gap-1 text-[var(--iz-amber)]">
           <Clock className="h-3 w-3" />
           Requested {req.requestedAt}

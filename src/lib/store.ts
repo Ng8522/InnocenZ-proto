@@ -198,6 +198,8 @@ import {
   outletUnfilledDemandSlots,
   outletShiftCutLossForShift,
   outletShiftCutLossSavings,
+  mergeReleasedEarlyPrIds,
+  outletShiftActivePrIds,
   OUTLET_SUBSCRIPTION_BILLING,
   outletSubscriptionInvoiceForPlan,
   syncOutletSubscriptionBilling,
@@ -746,7 +748,15 @@ interface StoreState {
   rejectFreelancerPayroll: (id: string) => void;
   requestOutletCutlostReduction: (
     shiftId: string,
-    payload: { kind: "release_prs"; prIds: string[] } | { kind: "cut_slots"; slots: number },
+    payload:
+      | { kind: "release_prs"; prIds: string[]; model?: "guaranteed" }
+      | { kind: "cut_slots"; slots: number; model?: "guaranteed" }
+      | {
+          kind: "best_effort";
+          prIds: string[];
+          slotsCut: number;
+          rationale: string[];
+        },
   ) => void;
   approveCutlostRequest: (id: string) => void;
   rejectCutlostRequest: (id: string, reason?: string) => void;
@@ -4936,7 +4946,8 @@ export const useStore = create<StoreState>()(
         const shift = st.shifts.find((sh) => sh.id === shiftId);
         if (!shift || shift.status === "sealed") return;
         const alreadyReleased = new Set(shift.releasedEarlyPrIds ?? []);
-        const valid = prIds.filter((id) => shift.prs.includes(id) && !alreadyReleased.has(id));
+        const activePrIds = new Set(outletShiftActivePrIds(shift));
+        const valid = prIds.filter((id) => activePrIds.has(id) && !alreadyReleased.has(id));
         if (!valid.length) {
           get().toast("No PRs available to release", "warn");
           return;
@@ -4954,7 +4965,7 @@ export const useStore = create<StoreState>()(
             agencyRoster,
             shifts: cur.shifts.map((sh) => {
               if (sh.id !== shiftId) return sh;
-              const releasedEarlyPrIds = [...(sh.releasedEarlyPrIds ?? []), ...valid];
+              const releasedEarlyPrIds = mergeReleasedEarlyPrIds(sh.releasedEarlyPrIds, valid);
               const prs = sh.prs.filter((id) => !valid.includes(id));
               return {
                 ...sh,
@@ -5028,10 +5039,34 @@ export const useStore = create<StoreState>()(
         let releasedPrIds: string[] | undefined;
         let releasedPrNames: string[] | undefined;
         let slotsCut: number | undefined;
+        let rationale: string[] | undefined;
+        let model: "guaranteed" | "best_effort" | undefined;
+        let kind = payload.kind;
 
-        if (payload.kind === "release_prs") {
+        if (payload.kind === "best_effort") {
+          model = "best_effort";
           const alreadyReleased = new Set(shift.releasedEarlyPrIds ?? []);
-          const valid = payload.prIds.filter((id) => shift.prs.includes(id) && !alreadyReleased.has(id));
+          const activePrIds = new Set(outletShiftActivePrIds(shift));
+          const validPrs = payload.prIds.filter((id) => activePrIds.has(id) && !alreadyReleased.has(id));
+          const unfilled = outletUnfilledDemandSlots(shift);
+          const cut = Math.min(payload.slotsCut, unfilled);
+          releasedPrIds = validPrs.length ? validPrs : undefined;
+          releasedPrNames = validPrs.map((id) => st.agencyPRs.find((p) => p.id === id)?.name ?? id);
+          slotsCut = cut > 0 ? cut : undefined;
+          rationale = payload.rationale;
+          estimatedSavings = outletShiftCutLossSavings(shift, tierRates, prTierById, {
+            demandCut: (shift.demandCut ?? 0) + (cut > 0 ? cut : 0),
+            releasedEarlyPrIds: mergeReleasedEarlyPrIds(shift.releasedEarlyPrIds, validPrs),
+          });
+          if (!cut && !validPrs.length) {
+            get().toast("No cutlost actions available for this plan", "warn");
+            return;
+          }
+        } else if (payload.kind === "release_prs") {
+          model = payload.model ?? "guaranteed";
+          const alreadyReleased = new Set(shift.releasedEarlyPrIds ?? []);
+          const activePrIds = new Set(outletShiftActivePrIds(shift));
+          const valid = payload.prIds.filter((id) => activePrIds.has(id) && !alreadyReleased.has(id));
           if (!valid.length) {
             get().toast("No PRs available to release", "warn");
             return;
@@ -5039,9 +5074,10 @@ export const useStore = create<StoreState>()(
           releasedPrIds = valid;
           releasedPrNames = valid.map((id) => st.agencyPRs.find((p) => p.id === id)?.name ?? id);
           estimatedSavings = outletShiftCutLossSavings(shift, tierRates, prTierById, {
-            releasedEarlyPrIds: [...(shift.releasedEarlyPrIds ?? []), ...valid],
+            releasedEarlyPrIds: mergeReleasedEarlyPrIds(shift.releasedEarlyPrIds, valid),
           });
         } else {
+          model = payload.model ?? "guaranteed";
           const unfilled = outletUnfilledDemandSlots(shift);
           const cut = Math.min(payload.slots, unfilled);
           if (cut <= 0) {
@@ -5072,7 +5108,8 @@ export const useStore = create<StoreState>()(
           shiftEvent: shift.event,
           shiftLabel: shift.shift,
           dateLabel: shift.date,
-          kind: payload.kind,
+          kind,
+          model,
           status: "pending",
           releasedPrIds,
           releasedPrNames,
@@ -5080,6 +5117,7 @@ export const useStore = create<StoreState>()(
           estimatedSavings,
           cutlostBefore,
           requestedAt,
+          rationale,
         };
 
         set({ pendingCutlostRequests: [req, ...st.pendingCutlostRequests] });
@@ -5095,7 +5133,10 @@ export const useStore = create<StoreState>()(
         const req = st.pendingCutlostRequests.find((r) => r.id === id);
         if (!req || req.status !== "pending") return;
 
-        if (req.kind === "release_prs" && req.releasedPrIds?.length) {
+        if (req.kind === "best_effort") {
+          if (req.slotsCut) get().cutOutletUnfilledDemand(req.shiftId, req.slotsCut);
+          if (req.releasedPrIds?.length) get().releaseOutletPrsEarly(req.shiftId, req.releasedPrIds);
+        } else if (req.kind === "release_prs" && req.releasedPrIds?.length) {
           get().releaseOutletPrsEarly(req.shiftId, req.releasedPrIds);
         } else if (req.kind === "cut_slots" && req.slotsCut) {
           get().cutOutletUnfilledDemand(req.shiftId, req.slotsCut);

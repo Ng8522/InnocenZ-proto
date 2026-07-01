@@ -76,7 +76,7 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
     const targetPay = formatTierWageRange(tierRates);
     const salesTargets = formatTierSalesTargets(tierRates);
     const displaySales = outletShiftDisplayLiveSales(s);
-    const { supplied } = outletShiftDemandSupplied(s);
+    const { demand, supplied } = outletShiftDemandSupplied(s);
 
     return (
       <details key={s.id} className="iz-outlet-booking-card group" open={s.id === defaultOpenId}>
@@ -92,7 +92,7 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
               <OutletShiftStatusBadge shift={s} />
             </div>
             <p className="iz-tiny iz-muted mt-0.5 truncate group-open:hidden">
-              {s.date} · {supplied}/{s.quantity} PRs · {targetPay}
+              {s.date} · {supplied}/{demand} PRs · {targetPay}
               {salesTargets ? ` · ${salesTargets}` : ""} · RM {displaySales.toLocaleString()} sales
             </p>
           </div>

@@ -35,8 +35,11 @@ export interface OutletCommissionRule {
   tierMultipliers?: Record<OutletPrTier, number>;
 }
 
-export const OUTLET_PR_TIERS = ["Tier I", "Tier II", "Tier III", "Tier IV", "Tier V"] as const;
+export const OUTLET_PR_TIERS = ["Tier I", "Tier II", "Tier III", "Tier IV", "Tier V", "Servant"] as const;
 export type OutletPrTier = (typeof OUTLET_PR_TIERS)[number];
+/** Tiers I–V — ascending pay ladder (Servant sits below Tier I). */
+export const OUTLET_RANKED_PR_TIERS = ["Tier I", "Tier II", "Tier III", "Tier IV", "Tier V"] as const;
+export const OUTLET_SERVANT_TIER: OutletPrTier = "Servant";
 /** Canonical base tier — flat commission fields and 1× multiplier */
 export const OUTLET_BASE_TIER: OutletPrTier = "Tier I";
 
@@ -44,6 +47,8 @@ export interface OutletTierRateSettings {
   /** Flat pay per completed shift (legacy field name: wagePerHour). */
   wagePerHour: number;
   drinkPct: number;
+  /** Happy-hour drink commission % — defaults to `drinkPct` when unset. */
+  happyHourDrinkPct?: number;
   tipPct: number;
   tablePct: number;
   otAfterHours: number;
@@ -57,22 +62,80 @@ const TIER_WAGE_MULTIPLIERS: Record<OutletPrTier, number> = {
   "Tier III": 1.4,
   "Tier IV": 1.65,
   "Tier V": 2,
+  Servant: 0.4,
 };
+
+const SERVANT_DRINK_PCT_OFFSET = -2;
+const SERVANT_TIP_PCT_OFFSET = -3;
 
 /** Higher tiers earn stepped drinks & tips commission above the Tier I base. */
 const TIER_DRINK_PCT_STEP = 1;
 const TIER_TIP_PCT_STEP = 1;
+/** Happy-hour drink commission sits below normal hours (cheaper drink prices). */
+export const HAPPY_HOUR_DRINK_PCT_OFFSET = -5;
+
+export function defaultHappyHourDrinkPct(normalDrinkPct: number): number {
+  return Math.max(0, normalDrinkPct + HAPPY_HOUR_DRINK_PCT_OFFSET);
+}
 
 function defaultCommissionForTier(
   base: OutletTierRateSettings,
   tier: OutletPrTier,
-): Pick<OutletTierRateSettings, "drinkPct" | "tipPct"> {
-  const tierIndex = OUTLET_PR_TIERS.indexOf(tier);
+): Pick<OutletTierRateSettings, "drinkPct" | "happyHourDrinkPct" | "tipPct"> {
+  if (tier === OUTLET_SERVANT_TIER) {
+    const drinkPct = Math.max(0, base.drinkPct + SERVANT_DRINK_PCT_OFFSET);
+    return {
+      drinkPct,
+      happyHourDrinkPct: defaultHappyHourDrinkPct(drinkPct),
+      tipPct: Math.max(0, base.tipPct + SERVANT_TIP_PCT_OFFSET),
+    };
+  }
+  const tierIndex = OUTLET_RANKED_PR_TIERS.indexOf(tier as (typeof OUTLET_RANKED_PR_TIERS)[number]);
   const step = Math.max(0, tierIndex);
+  const drinkPct = Math.min(100, base.drinkPct + step * TIER_DRINK_PCT_STEP);
   return {
-    drinkPct: Math.min(100, base.drinkPct + step * TIER_DRINK_PCT_STEP),
+    drinkPct,
+    happyHourDrinkPct: defaultHappyHourDrinkPct(drinkPct),
     tipPct: Math.min(100, base.tipPct + step * TIER_TIP_PCT_STEP),
   };
+}
+
+export function tierHappyHourDrinkPct(
+  rates: Pick<OutletTierRateSettings, "drinkPct" | "happyHourDrinkPct">,
+): number {
+  return rates.happyHourDrinkPct ?? defaultHappyHourDrinkPct(rates.drinkPct);
+}
+
+/** Backfill when legacy data copied normal drink % to happy hour. */
+export function migrateTierRatesHappyHourDrinks(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  const out = cloneTierRates(tierRates);
+  for (const tier of OUTLET_PR_TIERS) {
+    const rates = out[tier];
+    if (rates.happyHourDrinkPct == null || rates.happyHourDrinkPct === rates.drinkPct) {
+      out[tier] = { ...rates, happyHourDrinkPct: defaultHappyHourDrinkPct(rates.drinkPct) };
+    }
+  }
+  return out;
+}
+
+const OT_HOURLY_PREMIUM = 1.5;
+
+/** Regular hourly equivalent from flat shift pay and standard hours. */
+export function tierBaseRmPerHour(
+  rule: Pick<OutletTierRateSettings, "wagePerHour" | "otAfterHours">,
+): number {
+  if (rule.otAfterHours <= 0 || rule.wagePerHour <= 0) return 0;
+  return rule.wagePerHour / rule.otAfterHours;
+}
+
+/** OT hourly pay rate (1.5× base hourly — matches `calcShiftWagesFromRule`). */
+export function tierOtRmPerHour(
+  rule: Pick<OutletTierRateSettings, "wagePerHour" | "otAfterHours">,
+): number {
+  const base = tierBaseRmPerHour(rule);
+  return base > 0 ? base * OT_HOURLY_PREMIUM : 0;
 }
 
 export function defaultTierWageMultipliers(): Record<OutletPrTier, number> {
@@ -127,6 +190,7 @@ export function buildDefaultTierRates(base: OutletTierRateSettings): Record<Outl
     out[tier] = {
       wagePerHour: tierWageFromMultiplier(baseWage, TIER_WAGE_MULTIPLIERS[tier]),
       drinkPct: commission.drinkPct,
+      happyHourDrinkPct: commission.happyHourDrinkPct,
       tipPct: commission.tipPct,
       tablePct: base.tablePct,
       otAfterHours,
@@ -140,15 +204,19 @@ export function ensureDistinctTierCommissions(
   tierRates: Record<OutletPrTier, OutletTierRateSettings>,
 ): Record<OutletPrTier, OutletTierRateSettings> {
   const base = tierRates[OUTLET_BASE_TIER];
-  const allSameDrink = OUTLET_PR_TIERS.every((tier) => tierRates[tier].drinkPct === base.drinkPct);
-  const allSameTip = OUTLET_PR_TIERS.every((tier) => tierRates[tier].tipPct === base.tipPct);
-  if (!allSameDrink && !allSameTip) return tierRates;
+  const allSameDrink = OUTLET_RANKED_PR_TIERS.every((tier) => tierRates[tier].drinkPct === base.drinkPct);
+  const allSameHappyHour = OUTLET_RANKED_PR_TIERS.every(
+    (tier) => tierHappyHourDrinkPct(tierRates[tier]) === tierHappyHourDrinkPct(base),
+  );
+  const allSameTip = OUTLET_RANKED_PR_TIERS.every((tier) => tierRates[tier].tipPct === base.tipPct);
+  if (!allSameDrink && !allSameHappyHour && !allSameTip) return tierRates;
 
   const rebuilt = buildDefaultTierRates(base);
   const out = cloneTierRates(tierRates);
   for (const tier of OUTLET_PR_TIERS) {
     out[tier] = { ...out[tier] };
     if (allSameDrink) out[tier].drinkPct = rebuilt[tier].drinkPct;
+    if (allSameHappyHour) out[tier].happyHourDrinkPct = rebuilt[tier].happyHourDrinkPct;
     if (allSameTip) out[tier].tipPct = rebuilt[tier].tipPct;
   }
   return out;
@@ -157,11 +225,13 @@ export function ensureDistinctTierCommissions(
 export function tierWagesAreDistinct(
   tierRates: Record<OutletPrTier, OutletTierRateSettings>,
 ): boolean {
-  const wages = OUTLET_PR_TIERS.map((t) => tierRates[t].wagePerHour);
+  const wages = OUTLET_RANKED_PR_TIERS.map((t) => tierRates[t].wagePerHour);
   if (new Set(wages).size <= 1) return false;
-  for (let i = 1; i < OUTLET_PR_TIERS.length; i++) {
+  for (let i = 1; i < OUTLET_RANKED_PR_TIERS.length; i++) {
     if (wages[i]! <= wages[i - 1]!) return false;
   }
+  const servantWage = tierRates[OUTLET_SERVANT_TIER]?.wagePerHour ?? 0;
+  if (servantWage > 0 && servantWage >= wages[0]!) return false;
   return true;
 }
 
@@ -300,12 +370,36 @@ export function normalizeTierRates(
   return ensureDistinctTierCommissions(ensureAscendingTierWages(snapTierRatesWages(out)));
 }
 
+/** Workspace save — keep explicit per-tier edits; only snap wages and fill missing tiers. */
+export function normalizeWorkspaceTierRates(
+  base: OutletTierRateSettings,
+  partial?: Partial<Record<OutletPrTier, OutletTierRateSettings>>,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  const snappedBase = { ...base, wagePerHour: snapTierWage(base.wagePerHour) };
+  const defaults = buildDefaultTierRates(snappedBase);
+  if (!partial) return defaults;
+  const out = { ...defaults };
+  for (const tier of OUTLET_PR_TIERS) {
+    if (partial[tier]) {
+      out[tier] = {
+        ...defaults[tier],
+        ...partial[tier],
+        wagePerHour: snapTierWage(partial[tier].wagePerHour ?? defaults[tier].wagePerHour),
+        otAfterHours:
+          partial[tier].otAfterHours ?? defaults[tier].otAfterHours ?? snappedBase.otAfterHours ?? 6,
+      };
+    }
+  }
+  return snapTierRatesWages(out);
+}
+
 const DEFAULT_TIER_MULTIPLIERS: Record<OutletPrTier, number> = {
   "Tier I": 1,
   "Tier II": 1.2,
   "Tier III": 1.4,
   "Tier IV": 1.65,
   "Tier V": 2,
+  Servant: 0.4,
 };
 
 export function usesLegacyTierIIIBaseMultipliers(
@@ -439,7 +533,7 @@ export const OUTLET_COMMISSION_RULES: OutletCommissionRule[] = [
   commissionRuleSeed({
     outlet: "Velvet 23",
     wagePerHour: OUTLET_STANDARD_SHIFT_PAY,
-    drinkPct: 8,
+    drinkPct: 10,
     tipPct: 15,
     tablePct: 10,
     otAfterHours: 6,

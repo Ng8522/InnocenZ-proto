@@ -1,10 +1,11 @@
 import { useMemo } from "react";
+import { Link } from "@tanstack/react-router";
 import { useStore, type ShiftRequest } from "@/lib/store";
 import { outletCan } from "@/lib/outlet-rbac";
 import { IzPill } from "@/components/iz/ui";
 import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
 // import { OutletSealReview } from "@/components/outlet/OutletSealReview";
-import { OutletCutLossActions } from "@/components/outlet/OutletCutLossActions";
+import { OutletCutLossActions, OUTLET_OPEN_CUTLOST_EVENT } from "@/components/outlet/OutletCutLossActions";
 import { WorkspaceTierRatesEditor } from "@/components/outlet/WorkspaceTierRatesEditor";
 import {
   OutletActionButton,
@@ -13,15 +14,20 @@ import {
   OutletTargetActualCard,
 } from "@/components/outlet/outlet-portal-ui";
 import {
-  SHIFT_DESTINATION_LABELS,
   formatShiftDrinkPricingSummary,
   formatShiftEventTypeSummary,
+  formatOutletPriceRm,
+  OUTLET_PR_TONIGHT_SECTION_ID,
+  OUTLET_REDUCE_CUTLOST_SECTION_ID,
+  OUTLET_SERVICE_ENTITLEMENT_SECTION_ID,
+  scrollToOutletLaborCostReport,
+  scrollToOutletLiveSales,
   shiftSpecialEventLabel,
-  outletShiftActualLaborCostForShift,
   outletShiftCutLossAdjustmentsLabel,
   outletShiftCutLossForShift,
   outletShiftDemandSupplied,
   outletShiftActivePrIds,
+  outletShiftActualLaborCostForShift,
   outletShiftTargetLaborCost,
   outletShiftTargetSalesForShift,
   resolveShiftTierRates,
@@ -30,6 +36,8 @@ import {
 } from "@/lib/outlet-demo";
 import { outletShiftDisplayLiveSales } from "@/lib/outlet-financial-sync";
 import { resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
+import { outletMatches } from "@/lib/portal-sync";
+import { specialServicesForOutlet } from "@/lib/special-service-actions";
 import { shiftTierStaffingByPayTier } from "@/lib/post-job-pay-tiers";
 import { getLiveTodayIso } from "@/lib/demo-clock";
 import { trafficLevelForRatio } from "@/lib/traffic-status";
@@ -58,12 +66,15 @@ export function OutletShiftDetailPanel({
   shift,
   variant = "future",
   hideLogSales = false,
+  hideCutlost = false,
   staffingAgency,
   onDelete,
 }: {
   shift: ShiftRequest;
   variant?: "home" | "future";
   hideLogSales?: boolean;
+  /** Home page renders cutlost at page bottom — hide inline block here. */
+  hideCutlost?: boolean;
   /** When set, show linked agency instead of destination/freelancer labels. */
   staffingAgency?: string;
   onDelete?: () => void;
@@ -71,6 +82,9 @@ export function OutletShiftDetailPanel({
   const outletSubRole = useStore((s) => s.outletSubRole);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const agencyPRs = useStore((s) => s.agencyPRs);
+  const agencyRoster = useStore((s) => s.agencyRoster);
+  const prReceiptScans = useStore((s) => s.prReceiptScans);
+  const specialServiceOrders = useStore((s) => s.specialServiceOrders);
   const { confirmShift, /* sealShift, */ shiftApplicants, respondToApplicant } = useStore();
 
   const canLogSales = outletCan(outletSubRole, "logSales");
@@ -102,7 +116,51 @@ export function OutletShiftDetailPanel({
   const targetSales = outletShiftTargetSalesForShift(shift, tierRates);
   const targetCost = outletShiftTargetLaborCost(shift, tierRates, prTierById);
   const actualCost = outletShiftActualLaborCostForShift(shift, tierRates, prTierById);
-  const displaySales = outletShiftDisplayLiveSales(shift);
+  const rosterTonight = useMemo(
+    () =>
+      agencyRoster.filter(
+        (slot) =>
+          outletMatches(slot.outlet, shift.outletName) &&
+          slot.dateIso === shiftDateIso &&
+          (shift.prs ?? []).includes(slot.prId),
+      ),
+    [agencyRoster, shift.outletName, shiftDateIso, shift.prs],
+  );
+  const tonightSpecialServiceRm = useMemo(
+    () =>
+      specialServicesForOutlet(specialServiceOrders, shift.outletName)
+        .filter(
+          (r) =>
+            r.dateIso === shiftDateIso &&
+            r.status !== "declined" &&
+            r.status !== "rejected",
+        )
+        .reduce((sum, r) => sum + r.amountIn, 0),
+    [specialServiceOrders, shift.outletName, shiftDateIso],
+  );
+  const displaySales = useMemo(
+    () =>
+      outletShiftDisplayLiveSales(
+        shift,
+        hideCutlost
+          ? {
+              outletName: shift.outletName,
+              drinkMenu: outletWorkspace.drinkMenu ?? [],
+              rosterSlots: rosterTonight,
+              receiptScans: prReceiptScans,
+              specialServiceRm: tonightSpecialServiceRm,
+            }
+          : undefined,
+      ),
+    [
+      shift,
+      hideCutlost,
+      outletWorkspace.drinkMenu,
+      rosterTonight,
+      prReceiptScans,
+      tonightSpecialServiceRm,
+    ],
+  );
   const cutLoss = outletShiftCutLossForShift(shift, tierRates, prTierById);
   const { demand: staffingDemand, supplied } = outletShiftDemandSupplied(shift);
   const adjustmentsLabel = outletShiftCutLossAdjustmentsLabel(shift);
@@ -130,6 +188,15 @@ export function OutletShiftDetailPanel({
   const demandLevel = trafficLevelForRatio(supplied, staffingDemand);
   const demandTone =
     demandLevel === "green" ? "neutral" : demandLevel === "yellow" ? "warn" : "violet";
+  const cutlostSectionId = hideCutlost
+    ? OUTLET_REDUCE_CUTLOST_SECTION_ID
+    : `${OUTLET_REDUCE_CUTLOST_SECTION_ID}-${shift.id}`;
+  const scrollToCutlost = () => {
+    window.dispatchEvent(
+      new CustomEvent(OUTLET_OPEN_CUTLOST_EVENT, { detail: { sectionId: cutlostSectionId } }),
+    );
+    document.getElementById(cutlostSectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <>
@@ -141,7 +208,14 @@ export function OutletShiftDetailPanel({
             {eventTypeLabel}
           </p>
           <p className="iz-tiny iz-muted2">
-            <span className="text-[var(--iz-muted)]">Drink prices · </span>
+            <Link
+              to="/outlet/workspace"
+              hash={OUTLET_SERVICE_ENTITLEMENT_SECTION_ID}
+              className="text-[var(--iz-muted)] underline-offset-2 transition-colors hover:text-[var(--iz-txt)] hover:underline"
+            >
+              Service Entitlement
+            </Link>
+            <span className="text-[var(--iz-muted)]"> · </span>
             {drinkPricingLabel}
           </p>
           {shift.eventKind === "special" && drinkLines.length > 0 && (
@@ -150,42 +224,58 @@ export function OutletShiftDetailPanel({
                 <span key={d.name}>
                   {i > 0 ? " · " : null}
                   <span className={d.changed ? "text-[var(--iz-gold)]" : undefined}>
-                    {d.name} RM {d.priceRm}
+                    {d.name} RM {formatOutletPriceRm(d.priceRm)}
                   </span>
                 </span>
               ))}
             </p>
           )}
         </div>
-        {(shift.dressCode || staffingAgency || shift.destination) && (
+        {(shift.dressCode || staffingAgency) && (
           <p className="iz-tiny iz-muted2 mt-0.5">
-            {[shift.dressCode, staffingAgency ?? (shift.destination && SHIFT_DESTINATION_LABELS[shift.destination])]
-              .filter(Boolean)
-              .join(" · ")}
+            {shift.dressCode && (
+              <>
+                <span className="text-[var(--iz-muted)]">Dress Code: </span>
+                {shift.dressCode}
+              </>
+            )}
+            {shift.dressCode && staffingAgency ? " · " : null}
+            {staffingAgency}
           </p>
         )}
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <OutletStatChip
-            label="Demand / supplied"
-            value={`${staffingDemand} / ${supplied}`}
-            tone={demandTone}
-          />
-          <OutletStatChip
-            label="Cutlost"
-            value={formatOutletShiftMetricAmount(cutLoss)}
-            tone={cutLoss > 0 ? "danger" : "neutral"}
-          />
-        </div>
-
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <OutletTargetActualCard label="Sales" target={targetSales} actual={displaySales} />
-          <OutletTargetActualCard
-            label="Labor cost"
-            target={targetCost}
-            actual={actualCost}
-            lowerIsBetter
-          />
+        <div className="mt-3">
+          <div className="iz-outlet-shift-kpi-row">
+            <OutletStatChip
+              label="Demand / supplied"
+              value={`${staffingDemand} / ${supplied}`}
+              tone={demandTone}
+              onClick={() => {
+                document
+                  .getElementById(OUTLET_PR_TONIGHT_SECTION_ID)
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            />
+            <OutletTargetActualCard
+              label="Sales"
+              target={targetSales}
+              actual={displaySales}
+              onClick={hideCutlost ? scrollToOutletLiveSales : undefined}
+            />
+            <OutletTargetActualCard
+              label="Labor cost"
+              target={targetCost}
+              actual={actualCost}
+              lowerIsBetter
+              onClick={hideCutlost ? scrollToOutletLaborCostReport : undefined}
+            />
+            <OutletStatChip
+              label="Cutlost"
+              value={formatOutletShiftMetricAmount(cutLoss)}
+              tone={cutLoss > 0 ? "danger" : "neutral"}
+              onClick={scrollToCutlost}
+            />
+          </div>
         </div>
 
         {adjustmentsLabel && (
@@ -194,8 +284,8 @@ export function OutletShiftDetailPanel({
           </p>
         )}
 
-        {canStaff && shift.status === "confirmed" && showCutlost && (
-          <OutletCutLossActions shift={shift} />
+        {canStaff && shift.status === "confirmed" && showCutlost && !hideCutlost && (
+          <OutletCutLossActions shift={shift} sectionId={cutlostSectionId} />
         )}
 
         <div className="mt-2.5">

@@ -482,7 +482,7 @@ export function buildOutletDayDemandSummaries(input: {
     if (shift.outletName !== input.outlet) continue;
     if (shift.destination !== "agency" && shift.destination !== "both") continue;
     if (shift.status !== "open" && shift.status !== "confirmed") continue;
-    const dateIso = resolveOutletShiftDateIso(shift.date, shift.date, todayIso);
+    const dateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso, todayIso);
     const dateLabel =
       shift.date === "Tonight" || shift.date === "Tomorrow"
         ? shift.date
@@ -494,6 +494,10 @@ export function buildOutletDayDemandSummaries(input: {
   for (const offer of tied.filter((o) => o.outlet === input.outlet)) {
     const dateYmd = migrateDemoYmd(offer.date);
     const dateIso = ymdToIso(dateYmd);
+    // Outlet post + agency tied offer are the same event — count demand once.
+    if (findMatchingOutletShift(input.outlet, dateIso, offer.time, input.posted, todayIso)) {
+      continue;
+    }
     bump(dateIso, fmtDShort(...dateYmd), tiedOfferHeadcount(offer), tiedOfferSupplied(offer));
   }
 
@@ -691,6 +695,22 @@ export function outletShiftIsSpecialEvent(
 
 export function outletShiftStaffingLabel(destination?: ShiftDestination) {
   return destination ? SHIFT_DESTINATION_LABELS[destination] : SHIFT_DESTINATION_LABELS.agency;
+}
+
+/** All outlet shifts for calendar month view — includes past sealed events. */
+export function outletCalendarShiftRequests(input: {
+  shifts: ShiftRequest[];
+  outletName: string;
+  todayIso?: string;
+}): ShiftRequest[] {
+  const todayIso = input.todayIso ?? DEFAULT_ROSTER_DATE_ISO;
+  return input.shifts
+    .filter((s) => s.outletName === input.outletName && s.status !== "draft")
+    .sort((a, b) => {
+      const isoA = resolveOutletShiftDateIso(a.date, a.dateIso, todayIso);
+      const isoB = resolveOutletShiftDateIso(b.date, b.dateIso, todayIso);
+      return isoA.localeCompare(isoB) || a.event.localeCompare(b.event);
+    });
 }
 
 /** Outlet home — same posted shifts as agency Manage Outlet, plus live confirmed shifts */

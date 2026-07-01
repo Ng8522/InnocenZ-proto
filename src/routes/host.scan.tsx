@@ -618,7 +618,7 @@ function ReceiptScanPage() {
 
       <IzCard flat className="iz-tiny iz-muted mt-2.5">
         <Shield className="mr-1 inline h-3 w-3" />
-        Wrong scan? Open the receipt on Check-In and tap <b>Scan again</b>. Pending self-logs can be <b>edited</b>.
+        Wrong scan? Open the receipt on Check-In and tap <b>Scan again</b>. Pending self-logs can be <b>edited</b> or <b>deleted</b>.
       </IzCard>
       <Link to="/host/tonight" className="iz-btn iz-btn-soft mt-2.5">
         Back to attendance

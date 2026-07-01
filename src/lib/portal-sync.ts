@@ -565,7 +565,13 @@ export function rosterCheckIn(
     ) {
       return roster.map((s) =>
         s.id === existing.id
-          ? { ...s, status: "on-duty" as const, checkedInAt: time, noShowFlag: false }
+          ? {
+              ...s,
+              status: "on-duty" as const,
+              checkedInAt: time,
+              checkedOutAt: undefined,
+              noShowFlag: false,
+            }
           : s,
       );
     }
@@ -579,7 +585,7 @@ export function rosterCheckIn(
     roster,
     { prId, outlet: canon, dateIso, ...seed },
     "on-duty",
-    { checkedInAt: time, noShowFlag: false, shiftStart, shiftEnd },
+    { checkedInAt: time, checkedOutAt: undefined, noShowFlag: false, shiftStart, shiftEnd },
   );
 }
 
@@ -593,8 +599,13 @@ export function rosterCheckOut(
   const canon = canonicalOutlet(outlet);
   return roster.map((s) => {
     if (s.prId !== prId || !outletMatches(s.outlet, canon)) return s;
-    if (s.status === "on-duty") {
-      return { ...s, status: "scheduled" as const, checkedOutAt: time };
+    if (s.status === "on-duty" && s.checkedInAt) {
+      return {
+        ...s,
+        status: "scheduled" as const,
+        checkedInAt: undefined,
+        checkedOutAt: time,
+      };
     }
     return s;
   });
@@ -605,6 +616,7 @@ export type PrAttendanceRosterSync = {
   prName: string;
   checkedIn: boolean;
   checkedOut?: boolean;
+  checkOutTime?: string;
   session?: {
     outlet: string;
     shiftTime: string;
@@ -613,12 +625,19 @@ export type PrAttendanceRosterSync = {
   dateIso?: string;
 };
 
-/** Mirror PR portal check-in onto agency roster slots. */
+/** Mirror PR portal check-in / check-out onto agency roster slots. */
 export function syncPrAttendanceToRoster(
   roster: AgencyRosterSlot[],
   input: PrAttendanceRosterSync,
 ): AgencyRosterSlot[] {
-  if (input.checkedOut || !input.checkedIn || !input.session) return roster;
+  if (!input.session) return roster;
+  if (input.checkedOut) {
+    const checkOutTime =
+      input.checkOutTime ??
+      new Date().toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
+    return rosterCheckOut(roster, input.prId, input.session.outlet, checkOutTime);
+  }
+  if (!input.checkedIn) return roster;
   const checkInTime =
     input.session.timeIn.match(/\d{1,2}:\d{2}/)?.[0] ?? input.session.timeIn;
   return rosterCheckIn(roster, input.prId, input.session.outlet, checkInTime, {

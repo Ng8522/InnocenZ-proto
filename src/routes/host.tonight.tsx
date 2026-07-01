@@ -128,13 +128,15 @@ function AttendancePage() {
 
   const statusLabel = !shiftAccepted
     ? "No shift"
-    : checkedIn && !checkedOut
+    : checkedIn && prActiveShift && !checkedOut
       ? "On duty"
       : checkedOut
         ? "Complete"
         : enRoute
           ? "En route"
           : "Booked";
+
+  const onDuty = shiftAccepted && checkedIn && Boolean(prActiveShift) && !checkedOut;
 
   const completeCheckIn = async () => {
     setCheckingLocation(true);
@@ -225,7 +227,7 @@ function AttendancePage() {
           </div>
         )}
 
-        {shiftAccepted && !checkedIn && (
+        {shiftAccepted && !onDuty && !checkedOut && (
           <>
             <HoldButton
               label={checkingLocation ? "Checking location…" : "Check in"}
@@ -252,7 +254,7 @@ function AttendancePage() {
           </>
         )}
 
-        {shiftAccepted && checkedIn && !checkedOut && (
+        {onDuty && (
           <>
             <PrShiftStatusPanel
               session={prActiveShift}

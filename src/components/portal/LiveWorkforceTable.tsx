@@ -10,17 +10,23 @@ import { IzPill } from "@/components/iz/ui";
 import { PortalClickableTableRow } from "@/components/portal/PortalClickableTableRow";
 import { ChevronRight } from "lucide-react";
 
-export function workforceStatusVariant(status: LiveWorkforceEntry["status"] | "scheduled") {
+export function workforceStatusVariant(
+  status: LiveWorkforceEntry["status"] | "scheduled" | "checked-out",
+) {
   if (status === "on-duty") return "green" as const;
   if (status === "en-route") return "violet" as const;
   if (status === "scheduled") return "amber" as const;
+  if (status === "checked-out") return "ink" as const;
   return "ink" as const;
 }
 
-export function workforceStatusLabel(status: LiveWorkforceEntry["status"] | "scheduled") {
+export function workforceStatusLabel(
+  status: LiveWorkforceEntry["status"] | "scheduled" | "checked-out",
+) {
   if (status === "on-duty") return "ON-DUTY";
   if (status === "en-route") return "EN-ROUTE";
   if (status === "scheduled") return "BOOKED";
+  if (status === "checked-out") return "CHECK OUT";
   return "OUT";
 }
 

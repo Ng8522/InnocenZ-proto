@@ -161,13 +161,13 @@ export function defaultPrShiftSessionForRole(role: PrSubRole, ctx: PrSessionCont
   if (!slot) return { ...EMPTY_PR_SHIFT_SESSION };
 
   const pending = slot.status === "assignment-pending";
-  const onDuty = slot.status === "on-duty" && !!slot.checkedInAt;
 
   return {
     shiftAccepted: !pending,
     pendingApproval: pending,
     acceptedShiftIndex: shiftIndexForOutlet(slot.outlet),
-    checkedIn: onDuty,
+    // Roster on-duty is for agency/outlet floor view — PR app check-in requires prActiveShift.
+    checkedIn: false,
     checkedOut: false,
     drinks: slot.floorDrinks ?? 0,
     tables: 0,
@@ -206,11 +206,22 @@ export function extractPrShiftSession(st: {
   };
 }
 
+/** PR portal is only on-duty when a live shift session exists (set by prCheckIn). */
+export function normalizePrShiftSession(session: PrShiftSessionState): PrShiftSessionState {
+  if (session.checkedIn && !session.checkedOut && !session.prActiveShift) {
+    return { ...session, checkedIn: false };
+  }
+  return session;
+}
+
 export function applyPrShiftSession(session: PrShiftSessionState): PrShiftSessionState {
+  const normalized = normalizePrShiftSession(session);
   return {
-    ...session,
-    prCheckInMeta: { ...session.prCheckInMeta },
-    prMarketplaceApplication: session.prMarketplaceApplication ? { ...session.prMarketplaceApplication } : null,
+    ...normalized,
+    prCheckInMeta: { ...normalized.prCheckInMeta },
+    prMarketplaceApplication: normalized.prMarketplaceApplication
+      ? { ...normalized.prMarketplaceApplication }
+      : null,
   };
 }
 

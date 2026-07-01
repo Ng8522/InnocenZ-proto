@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { OutletBookings } from "@/components/outlet/OutletBookings";
 import { OutletReconciliationBanner } from "@/components/outlet/OutletReconciliationBanner";
-import { OutletPage, OutletPageHeader, OutletPageLegend } from "@/components/outlet/outlet-portal-ui";
+import { OutletPage, OutletPageHeader } from "@/components/outlet/outlet-portal-ui";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 
 export const Route = createFileRoute("/outlet/")({
@@ -27,8 +27,6 @@ function OutletHome() {
         title={`${date} · ${time}`}
         hint="Live shift · tap card to expand details and actions"
       />
-
-      <OutletPageLegend />
 
       <OutletBookings />
 

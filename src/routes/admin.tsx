@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { Toasts } from "@/components/Toasts";
+import { AdminNotificationBell } from "@/components/portal/AdminNotificationBell";
 import { Shield } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -18,9 +19,12 @@ function AdminLayout() {
             </div>
             <p className="iz-tiny iz-muted mt-0.5">Hidden operations portal</p>
           </div>
-          <Link to="/admin/jobs" className="iz-chip !text-[11px]">
-            Job postings
-          </Link>
+          <div className="flex items-center gap-2">
+            <AdminNotificationBell />
+            <Link to="/admin/jobs" className="iz-chip !text-[11px]">
+              Job postings
+            </Link>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-4">

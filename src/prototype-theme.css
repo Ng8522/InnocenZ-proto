@@ -5957,7 +5957,7 @@
   white-space: nowrap;
 }
 .iz-outlet-live-earnings-table-wrap--sheet {
-  overflow-x: visible;
+  overflow-x: auto;
 }
 .iz-outlet-live-earnings-table--sheet {
   min-width: 0;
@@ -5973,13 +5973,92 @@
   text-overflow: ellipsis;
 }
 
-/* Live sales sheet — wider dialog, no horizontal table scroll */
+/* Live sales PR sheet — stacked earnings breakdown (fits phone width) */
+.iz-outlet-pr-earnings-sheet {
+  border-radius: 12px;
+  border: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+.iz-outlet-pr-earnings-sheet__identity {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.02);
+}
+.iz-outlet-pr-earnings-sheet__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--iz-txt);
+}
+.iz-outlet-pr-earnings-sheet__id {
+  margin-top: 2px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--iz-muted);
+  word-break: break-all;
+}
+.iz-outlet-pr-earnings-sheet__rows {
+  margin: 0;
+  padding: 4px 0;
+}
+.iz-outlet-pr-earnings-sheet__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--iz-line2);
+}
+.iz-outlet-pr-earnings-sheet__row:last-child {
+  border-bottom: none;
+}
+.iz-outlet-pr-earnings-sheet__row dt {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--iz-muted2);
+}
+.iz-outlet-pr-earnings-sheet__row dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--iz-txt);
+  text-align: right;
+}
+.iz-outlet-pr-earnings-sheet__total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--iz-line2);
+  background: rgba(255, 255, 255, 0.03);
+}
+.iz-outlet-pr-earnings-sheet__total span:first-child {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--iz-muted2);
+}
+.iz-outlet-pr-earnings-sheet__total span:last-child {
+  font-family: "Sora", sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #f87171;
+}
+
+/* Live sales sheet dialog */
 .iz-sheet--live-sales {
   max-height: min(90vh, 820px);
 }
 @media (min-width: 768px) {
   .iz-sheet--dialog.iz-sheet--live-sales {
-    width: min(960px, calc(100vw - 24px));
+    width: min(520px, calc(100vw - 24px));
     padding: 24px 24px 28px;
   }
 }
@@ -5989,31 +6068,15 @@
 .iz-sheet--live-sales .iz-cardttl {
   font-size: 1.35rem;
 }
-.iz-sheet--live-sales .iz-tiny {
+.iz-sheet--live-sales .iz-sm {
   font-size: 14px;
   line-height: 1.45;
 }
-.iz-sheet--live-sales .iz-outlet-live-earnings-table {
-  font-size: 14px;
+.iz-sheet--live-sales .iz-outlet-pr-earnings-sheet__row dd {
+  font-size: 16px;
 }
-.iz-sheet--live-sales .iz-outlet-live-earnings-table th {
-  font-size: 11px;
-  padding: 10px 12px;
-}
-.iz-sheet--live-sales .iz-outlet-live-earnings-table td {
-  padding: 12px;
-}
-.iz-sheet--live-sales .iz-outlet-live-earnings-table__name,
-.iz-sheet--live-sales .iz-outlet-live-earnings-table__wage,
-.iz-sheet--live-sales .iz-outlet-live-earnings-table__amount {
-  font-size: 15px;
-}
-.iz-sheet--live-sales .iz-outlet-live-earnings-table__id {
-  font-size: 12px;
-  max-width: 9rem;
-}
-.iz-sheet--live-sales .iz-outlet-live-earnings-table__total {
-  font-size: 20px;
+.iz-sheet--live-sales .iz-outlet-pr-earnings-sheet__total span:last-child {
+  font-size: 22px;
 }
 .iz-sheet--live-sales .iz-btn {
   font-size: 16px;
@@ -6709,6 +6772,115 @@
   font-weight: 700;
   color: var(--iz-amber);
   line-height: 1.2;
+}
+
+/* Outlet subscription — POS integration add-on */
+.iz-outlet-pos-addon {
+  position: relative;
+  border-radius: 14px;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(167, 139, 250, 0.55) 0%,
+    rgba(96, 165, 250, 0.25) 50%,
+    rgba(167, 139, 250, 0.15) 100%
+  );
+  overflow: hidden;
+}
+.iz-outlet-pos-addon__glow {
+  position: absolute;
+  inset: -40% auto auto -20%;
+  width: 55%;
+  height: 120%;
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.22) 0%, transparent 68%);
+  pointer-events: none;
+}
+.iz-outlet-pos-addon__inner {
+  position: relative;
+  border-radius: 13px;
+  background: linear-gradient(160deg, rgba(22, 18, 36, 0.98) 0%, rgba(12, 10, 20, 0.98) 100%);
+  padding: 16px 16px 14px;
+}
+.iz-outlet-pos-addon__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.iz-outlet-pos-addon__icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 12px;
+  flex-shrink: 0;
+  color: var(--iz-violet-l);
+  background: rgba(167, 139, 250, 0.14);
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  box-shadow: 0 0 18px rgba(167, 139, 250, 0.12);
+}
+.iz-outlet-pos-addon__title {
+  font-family: var(--font-sora, "Sora", sans-serif);
+  font-size: 1.125rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--iz-txt);
+}
+.iz-outlet-pos-addon__subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--iz-muted);
+}
+.iz-outlet-pos-addon__lead {
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--iz-muted2);
+}
+.iz-outlet-pos-addon__features {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.iz-outlet-pos-addon__features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--iz-txt);
+}
+.iz-outlet-pos-addon__cta {
+  margin-top: 16px;
+  width: 100%;
+  font-size: 14px;
+}
+.iz-outlet-pos-addon__sent {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(57, 217, 138, 0.28);
+  background: rgba(57, 217, 138, 0.06);
+}
+.iz-outlet-pos-addon__sent-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--iz-txt);
+}
+.iz-outlet-pos-addon__sent-body {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--iz-muted2);
+}
+.iz-outlet-pos-addon__cancel {
+  margin-top: 12px;
+  width: 100%;
+  font-size: 13px;
 }
 
 .iz-outlet-tier-request-table {

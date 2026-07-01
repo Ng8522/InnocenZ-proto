@@ -750,6 +750,29 @@ export const OUTLET_SUBSCRIPTION_PLANS: OutletSubscriptionPlan[] = [
   },
 ];
 
+export type OutletSubscriptionAddonId = "pos_integration";
+
+export interface OutletSubscriptionAddon {
+  id: OutletSubscriptionAddonId;
+  label: string;
+  priceLabel: string;
+  capacityLabel: string;
+  description: string;
+  negotiateWithAdmin: true;
+}
+
+/** Add-ons billed separately — price negotiated with InnocenZ admin */
+export const OUTLET_SUBSCRIPTION_ADDONS: OutletSubscriptionAddon[] = [
+  {
+    id: "pos_integration",
+    label: "Integrate with POS",
+    priceLabel: "Call to get price",
+    capacityLabel: "POS sync",
+    description: "Sync floor sales with your POS — InnocenZ admin will quote for your venue",
+    negotiateWithAdmin: true,
+  },
+];
+
 export function getOutletSubscriptionPlan(
   id?: OutletSubscriptionPlanId | null,
 ): OutletSubscriptionPlan {

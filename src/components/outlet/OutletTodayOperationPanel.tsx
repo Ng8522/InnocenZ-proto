@@ -9,6 +9,8 @@ import { outletCan } from "@/lib/outlet-rbac";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
 import { rosterSlotAgencyName, languagesFromPr } from "@/lib/agency-demo";
+import { TIED_DEMO_ROSTER_PR_ID } from "@/lib/pr-demo";
+import type { PrShiftSessionState } from "@/lib/pr-session";
 import { comcardPreviewFromSlot, toComcardPreview } from "@/components/agency/PrComcardIdentity";
 import {
   Comcard3dPreviewCard,
@@ -35,13 +37,45 @@ type StaffEntry = {
   displayStatus: FloorDisplayStatus;
 };
 
-function resolveFloorPrDisplayStatus(slot?: AgencyRosterSlot): FloorDisplayStatus {
+function resolveFloorPrDisplayStatusFromSlot(slot?: AgencyRosterSlot): FloorDisplayStatus {
   if (!slot) return "scheduled";
-  if (slot.checkedOutAt) return "checked-out";
   if (slot.status === "on-duty" && slot.checkedInAt) return "on-duty";
+  if (slot.checkedOutAt) return "checked-out";
   if (slot.status === "en-route") return "en-route";
   if (slot.status === "on-duty") return "en-route";
   return "scheduled";
+}
+
+function resolveTiedPrLiveAttendance(
+  prSessionByRole: Partial<Record<string, PrShiftSessionState>> | undefined,
+  prSubRole: string | null,
+  checkedIn: boolean,
+  checkedOut: boolean,
+  prActiveShift: { outlet: string } | null | undefined,
+) {
+  const cache = prSessionByRole?.pr_tied;
+  const onTiedRole = prSubRole === "pr_tied";
+  const liveCheckedIn = onTiedRole ? checkedIn : (cache?.checkedIn ?? checkedIn);
+  const liveCheckedOut = onTiedRole ? checkedOut : (cache?.checkedOut ?? checkedOut);
+  const liveSession =
+    (onTiedRole ? prActiveShift : cache?.prActiveShift) ?? prActiveShift ?? null;
+  return {
+    onDuty: Boolean(liveCheckedIn && !liveCheckedOut && liveSession),
+    checkedOutTonight: Boolean(liveCheckedOut),
+    outlet: liveSession?.outlet,
+  };
+}
+
+function resolveStaffFloorStatus(
+  prId: string,
+  slot: AgencyRosterSlot | undefined,
+  tiedLive: ReturnType<typeof resolveTiedPrLiveAttendance>,
+): FloorDisplayStatus {
+  if (prId === TIED_DEMO_ROSTER_PR_ID) {
+    if (tiedLive.onDuty) return "on-duty";
+    if (tiedLive.checkedOutTonight) return "checked-out";
+  }
+  return resolveFloorPrDisplayStatusFromSlot(slot);
 }
 
 const STATUS_SORT: Record<FloorDisplayStatus, number> = {
@@ -65,6 +99,12 @@ export function OutletTodayOperationPanel({
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
   const { prs, ratePr, agencyRoster, agencyPRs, postSealRatePrompt, clearPostSealRatePrompt } =
     useStore();
+  const prSubRole = useStore((s) => s.prSubRole);
+  const prSessionByRole = useStore((s) => s.prSessionByRole);
+  const checkedIn = useStore((s) => s.checkedIn);
+  const checkedOut = useStore((s) => s.checkedOut);
+  const prActiveShift = useStore((s) => s.prActiveShift);
+  const syncLivePrCheckInToRoster = useStore((s) => s.syncLivePrCheckInToRoster);
   const canRate = outletCan(outletSubRole, "ratePrs");
   const [openPr, setOpenPr] = useState<string | null>(null);
   const [comcardPreviewId, setComcardPreviewId] = useState<string | null>(null);
@@ -83,6 +123,30 @@ export function OutletTodayOperationPanel({
     }
   }, [postSealRatePrompt]);
 
+  useEffect(() => {
+    syncLivePrCheckInToRoster();
+  }, [
+    syncLivePrCheckInToRoster,
+    checkedIn,
+    checkedOut,
+    prActiveShift,
+    prSubRole,
+    prSessionByRole,
+    agencyRoster.length,
+  ]);
+
+  const tiedLive = useMemo(
+    () =>
+      resolveTiedPrLiveAttendance(
+        prSessionByRole,
+        prSubRole,
+        checkedIn,
+        checkedOut,
+        prActiveShift,
+      ),
+    [prSessionByRole, prSubRole, checkedIn, checkedOut, prActiveShift],
+  );
+
   const rosterTonight = useMemo(
     () =>
       agencyRoster.filter(
@@ -100,7 +164,7 @@ export function OutletTodayOperationPanel({
         const pr = prs.find((p) => p.id === id);
         if (!pr) return [];
         const slot = rosterByPr.get(id);
-        const displayStatus = resolveFloorPrDisplayStatus(slot);
+        const displayStatus = resolveStaffFloorStatus(id, slot, tiedLive);
         return slot ? [{ pr, slot, displayStatus }] : [{ pr, displayStatus }];
       })
       .sort(
@@ -108,15 +172,15 @@ export function OutletTodayOperationPanel({
           STATUS_SORT[a.displayStatus] - STATUS_SORT[b.displayStatus] ||
           a.pr.name.localeCompare(b.pr.name),
       );
-  }, [shift.prs, prs, rosterTonight]);
+  }, [shift.prs, prs, rosterTonight, tiedLive]);
 
   const statusCounts = useMemo(() => {
-    const counts = { onDuty: 0, enRoute: 0, booked: 0, out: 0 };
+    const counts = { onDuty: 0, enRoute: 0, booked: 0, checkedOut: 0 };
     for (const { displayStatus } of staffTonight) {
       if (displayStatus === "on-duty") counts.onDuty += 1;
       else if (displayStatus === "en-route") counts.enRoute += 1;
       else if (displayStatus === "scheduled") counts.booked += 1;
-      else counts.out += 1;
+      else if (displayStatus === "checked-out") counts.checkedOut += 1;
     }
     return counts;
   }, [staffTonight]);
@@ -172,6 +236,7 @@ export function OutletTodayOperationPanel({
       : [
           statusCounts.onDuty > 0 ? `${statusCounts.onDuty} on duty` : null,
           statusCounts.enRoute > 0 ? `${statusCounts.enRoute} en route` : null,
+          statusCounts.checkedOut > 0 ? `${statusCounts.checkedOut} checked out` : null,
           statusCounts.booked > 0 ? `${statusCounts.booked} booked` : null,
         ]
           .filter(Boolean)
@@ -211,7 +276,11 @@ export function OutletTodayOperationPanel({
                   : comcardPreviewFromSlot({ prId: pr.id, prName: pr.name });
                 const langs = agencyProfile ? languagesFromPr(agencyProfile) : pr.languages;
                 const opsLine = [
-                  slot?.checkedInAt ? `In ${slot.checkedInAt}` : null,
+                  displayStatus === "on-duty" && slot?.checkedInAt
+                    ? `In ${slot.checkedInAt}`
+                    : displayStatus === "checked-out" && slot?.checkedOutAt
+                      ? `Out ${slot.checkedOutAt}`
+                      : null,
                   (slot?.floorDrinks ?? 0) > 0 ? `${slot?.floorDrinks} drinks` : null,
                   slot ? rosterSlotAgencyName(slot) : null,
                 ]

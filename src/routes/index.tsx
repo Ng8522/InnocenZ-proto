@@ -33,7 +33,6 @@ function Welcome() {
   const setPrSubRole = useStore((s) => s.setPrSubRole);
   const setOutletSubRole = useStore((s) => s.setOutletSubRole);
   const setAgencySubRole = useStore((s) => s.setAgencySubRole);
-  const resetPrShift = useStore((s) => s.resetPrShift);
   const resetDemo = useStore((s) => s.resetDemo);
   const toast = useStore((s) => s.toast);
 
@@ -48,7 +47,6 @@ function Welcome() {
       setPrSubRole("pr_tied");
       setOutletSubRole(null);
       setAgencySubRole(null);
-      resetPrShift();
       return;
     }
     if (side === "outlet") {

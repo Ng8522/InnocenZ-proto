@@ -95,28 +95,6 @@ export function OutletField({
   );
 }
 
-export function OutletPageLegend() {
-  return (
-    <div className="iz-outlet-page-legend">
-      <p className="iz-outlet-page-legend__title">How to use this page</p>
-      <ul className="iz-outlet-page-legend__list">
-        <li>
-          <span className="iz-outlet-page-legend__dot iz-outlet-page-legend__dot--violet" />
-          Violet = tap to edit or expand a section
-        </li>
-        <li>
-          <span className="iz-outlet-page-legend__dot iz-outlet-page-legend__dot--target" />
-          Target values use neutral violet · actual uses traffic light by performance
-        </li>
-        <li>
-          <span className="iz-outlet-page-legend__dot iz-outlet-page-legend__dot--action" />
-          Action buttons show what happens when you tap (confirm, seal, accept)
-        </li>
-      </ul>
-    </div>
-  );
-}
-
 export function OutletTargetActualCard({
   label,
   target,

@@ -263,8 +263,6 @@ export function mergeDemoHennessyRosterFloor(
       ...slot,
       floorDrinks: seed.floorDrinks,
       floorTips: seed.floorTips,
-      status: seed.status,
-      checkedInAt: seed.checkedInAt,
     };
   });
 }
@@ -277,7 +275,6 @@ function velvetTonightRosterSlot(
   estPayout = 360,
 ): AgencyRosterSlot {
   const date = fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO);
-  const onFloor = floorDrinks > 0 || floorTips > 0;
   return {
     id,
     prId,
@@ -288,8 +285,8 @@ function velvetTonightRosterSlot(
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
     shiftEnd: "04:00",
-    status: onFloor ? "on-duty" : "scheduled",
-    checkedInAt: onFloor ? "22:10" : undefined,
+    status: "scheduled" as const,
+    checkedInAt: undefined,
     floorDrinks,
     floorTips,
     estPayout,

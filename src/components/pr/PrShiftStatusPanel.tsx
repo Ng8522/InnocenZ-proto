@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Check, Shield, AlertTriangle, Camera, FileText, PenLine, RotateCcw, Clock } from "lucide-react";
+import { Check, Shield, AlertTriangle, Camera, FileText, PenLine, RotateCcw, Clock, Trash2 } from "lucide-react";
+import { useStore } from "@/lib/store";
 import { formatRM } from "@/components/iz/ui";
 import { IzHScroll } from "@/components/iz/HScroll";
 import { IzSheet } from "@/components/iz/Sheet";
@@ -147,6 +148,19 @@ export function PrShiftStatusPanel({
           : `${verifiedReceipts} receipt${verifiedReceipts !== 1 ? "s" : ""} matched · PV ready`;
 
   const [viewScan, setViewScan] = useState<PrReceiptScan | null>(null);
+  const deleteReceiptSelfLog = useStore((s) => s.deleteReceiptSelfLog);
+
+  const handleDeleteSelfLog = (scan: PrReceiptScan) => {
+    if (
+      !window.confirm(
+        `Delete this self-log (${scan.receiptRef})? It will be removed before agency verification.`,
+      )
+    ) {
+      return;
+    }
+    deleteReceiptSelfLog(scan.id);
+    setViewScan((current) => (current?.id === scan.id ? null : current));
+  };
 
   const wagesFinalized = checkedOut || Boolean(session?.timeOut);
 
@@ -283,14 +297,24 @@ export function PrShiftStatusPanel({
                       {row.kind === "receipt" && row.scan ? (
                         <div className="iz-pr-shift-status__action-btns">
                           {isManualSelfLog(row.scan) && isSelfLogPendingAgency(row.scan) ? (
-                            <Link
-                              to="/host/scan"
-                              search={{ edit: row.scan.id }}
-                              className="iz-pr-shift-status__action-btn iz-pr-shift-status__action-btn--edit"
-                              title="Edit self-log"
-                            >
-                              <PenLine className="h-3 w-3" />
-                            </Link>
+                            <>
+                              <Link
+                                to="/host/scan"
+                                search={{ edit: row.scan.id }}
+                                className="iz-pr-shift-status__action-btn iz-pr-shift-status__action-btn--edit"
+                                title="Edit self-log"
+                              >
+                                <PenLine className="h-3 w-3" />
+                              </Link>
+                              <button
+                                type="button"
+                                className="iz-pr-shift-status__action-btn iz-pr-shift-status__action-btn--delete"
+                                title="Delete self-log"
+                                onClick={() => handleDeleteSelfLog(row.scan!)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </>
                           ) : null}
                           <Link
                             to="/host/scan"
@@ -353,14 +377,23 @@ export function PrShiftStatusPanel({
               {!checkedOut && (
                 <div className="mt-4 flex flex-col gap-2">
                   {isManualSelfLog(viewScan) && isSelfLogPendingAgency(viewScan) && (
-                    <Link
-                      to="/host/scan"
-                      search={{ edit: viewScan.id }}
-                      className="iz-btn iz-btn-primary iz-btn-sm w-full"
-                      onClick={() => setViewScan(null)}
-                    >
-                      <PenLine className="h-4 w-4" /> Edit self-log
-                    </Link>
+                    <>
+                      <Link
+                        to="/host/scan"
+                        search={{ edit: viewScan.id }}
+                        className="iz-btn iz-btn-primary iz-btn-sm w-full"
+                        onClick={() => setViewScan(null)}
+                      >
+                        <PenLine className="h-4 w-4" /> Edit self-log
+                      </Link>
+                      <button
+                        type="button"
+                        className="iz-btn iz-btn-ghost iz-btn-sm w-full text-[var(--iz-red)]"
+                        onClick={() => handleDeleteSelfLog(viewScan)}
+                      >
+                        <Trash2 className="h-4 w-4" /> Delete self-log
+                      </button>
+                    </>
                   )}
                   <Link
                     to="/host/scan"

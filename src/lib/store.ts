@@ -594,6 +594,7 @@ interface StoreState {
       category?: "drinks" | "tips" | "tables";
     },
   ) => void;
+  deleteReceiptSelfLog: (scanId: string) => void;
   verifyAgencyReceiptSelfLog: (scanId: string, decision: "approved" | "rejected") => void;
   editAgencyPv: (
     id: string,
@@ -795,6 +796,8 @@ interface StoreState {
   clearPostSealRatePrompt: () => void;
   /** Repair agency roster when PR checked in before roster slot existed (freelancers) */
   syncLivePrCheckInToRoster: () => void;
+  /** Keep same-day shift live after sign-out or accidental check-out */
+  ensurePrShiftResumed: (opts?: { silent?: boolean }) => boolean;
 
   acceptBooking: (id: string) => void;
   checkIn: (id: string) => void;
@@ -889,6 +892,85 @@ function demoAttendanceContext(
   };
 }
 
+function shiftDatesEqual(a: [number, number, number], b: [number, number, number]) {
+  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+}
+
+function withPrSessionRoleCache(
+  st: StoreState,
+  patch: Partial<StoreState>,
+): Partial<StoreState> {
+  const role = st.prSubRole;
+  if (!role) return patch;
+  const merged = { ...st, ...patch };
+  return {
+    ...patch,
+    prSessionByRole: {
+      ...st.prSessionByRole,
+      [role]: extractPrShiftSession(merged),
+    },
+  };
+}
+
+/** Restore an in-progress shift after sign-out or accidental check-out (same day only). */
+function resumePrShiftPatch(
+  st: Pick<
+    StoreState,
+    | "checkedIn"
+    | "checkedOut"
+    | "prActiveShift"
+    | "prCheckInMeta"
+    | "prReceiptScans"
+    | "agencyRoster"
+    | "prSubRole"
+    | "agencyPRs"
+    | "shiftHistory"
+  >,
+): Partial<StoreState> {
+  const closed = st.prCheckInMeta?.closedShift;
+  if (!st.checkedOut || !closed || st.prActiveShift) return {};
+  if (!shiftDatesEqual(closed.date, getShiftToday())) return {};
+
+  const { timeOut: _timeOut, overtimeMinutes: _ot, ...shiftBase } = closed;
+  const prActiveShift: PrActiveShiftSession = {
+    ...shiftBase,
+    receiptIds: [...(shiftBase.receiptIds ?? [])],
+  };
+  const scanIds = new Set(prActiveShift.receiptIds);
+  const prId = getPrRosterId(st.prSubRole);
+  const prName =
+    st.agencyPRs.find((p) => p.id === prId)?.name ??
+    getPrProfile(st.prSubRole ?? "pr_tied").name;
+  const checkInTime =
+    prActiveShift.timeIn.match(/\d{1,2}:\d{2}/)?.[0] ??
+    new Date().toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
+  const [y, m, d] = closed.date;
+  const dateIso = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+  return {
+    checkedIn: true,
+    checkedOut: false,
+    prActiveShift,
+    prCheckInMeta: { ...st.prCheckInMeta, closedShift: null },
+    prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).map((r) =>
+      scanIds.has(r.id) && r.status === "pending" ? { ...r, status: "attached" as const } : r,
+    ),
+    agencyRoster: rosterCheckIn(st.agencyRoster, prId, prActiveShift.outlet, checkInTime, {
+      prName,
+      dateIso: DEFAULT_ROSTER_DATE_ISO,
+      shift: prActiveShift.shiftTime,
+    }),
+    shiftHistory: st.shiftHistory.filter(
+      (row) =>
+        !(
+          row.prId === prId &&
+          row.dateIso === dateIso &&
+          outletMatches(row.outlet, prActiveShift.outlet)
+        ),
+    ),
+  };
+}
+
 function resolveTiedPrAttendance(
   st: Pick<
     StoreState,
@@ -911,17 +993,69 @@ function rosterWithTiedPrAttendance(
   roster: AgencyRosterSlot[],
   st: Pick<
     StoreState,
-    "prSubRole" | "checkedIn" | "checkedOut" | "prActiveShift" | "prSessionByRole" | "agencyPRs"
+    | "prSubRole"
+    | "checkedIn"
+    | "checkedOut"
+    | "prActiveShift"
+    | "prSessionByRole"
+    | "prCheckInMeta"
+    | "agencyPRs"
+    | "acceptedShiftIndex"
+    | "agencyRoster"
+    | "shifts"
   >,
 ): AgencyRosterSlot[] {
+  const prId = TIED_DEMO_ROSTER_PR_ID;
+  const tiedCache = st.prSessionByRole?.pr_tied;
+  const liveOnTied = st.prSubRole === "pr_tied";
+  const checkedIn = liveOnTied ? st.checkedIn : (tiedCache?.checkedIn ?? st.checkedIn);
+  const checkedOut = liveOnTied ? st.checkedOut : (tiedCache?.checkedOut ?? st.checkedOut);
+  const closedShift = liveOnTied
+    ? st.prCheckInMeta?.closedShift
+    : tiedCache?.prCheckInMeta?.closedShift;
+
+  if (checkedOut) {
+    const outlet =
+      closedShift?.outlet ??
+      st.prActiveShift?.outlet ??
+      activePrShiftOffer(st).outlet;
+    const checkOutTime =
+      closedShift?.timeOut?.match(/\d{1,2}:\d{2}/)?.[0] ??
+      new Date().toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
+    return rosterCheckOut(roster, prId, outlet, checkOutTime);
+  }
+
   const attendance = resolveTiedPrAttendance(st);
-  if (!attendance) return roster;
-  return syncPrAttendanceToRoster(roster, {
-    prId: attendance.prId,
-    prName: attendance.prName,
-    checkedIn: true,
-    session: attendance.session,
-  });
+  if (attendance) {
+    return syncPrAttendanceToRoster(roster, {
+      prId: attendance.prId,
+      prName: attendance.prName,
+      checkedIn: true,
+      session: attendance.session,
+    });
+  }
+
+  if (!checkedIn) {
+    const outlet = activePrShiftOffer(st).outlet;
+    return roster.map((s) => {
+      if (
+        s.prId === prId &&
+        s.dateIso === DEFAULT_ROSTER_DATE_ISO &&
+        outletMatches(s.outlet, outlet) &&
+        s.status === "on-duty" &&
+        s.checkedInAt
+      ) {
+        return {
+          ...s,
+          status: "scheduled" as const,
+          checkedInAt: undefined,
+        };
+      }
+      return s;
+    });
+  }
+
+  return roster;
 }
 
 function applyOutletFinancialSync(
@@ -1106,17 +1240,25 @@ export const useStore = create<StoreState>()(
         }
         writePersistedPrSubRole(r);
         set(next);
+        if (r) get().ensurePrShiftResumed({ silent: true });
       },
       setOutletSubRole: (r) => set({ outletSubRole: r }),
       setAgencySubRole: (r) => set({ agencySubRole: r }),
       signIn: (name, email) => set({ user: { name, email } }),
       signOut: () => {
+        const st = get();
+        const prev = st.prSubRole;
+        const prSessionByRole = { ...st.prSessionByRole };
+        if (prev) {
+          prSessionByRole[prev] = extractPrShiftSession(st);
+        }
         set({
           user: null,
           role: null,
           prSubRole: null,
           outletSubRole: null,
           agencySubRole: null,
+          prSessionByRole,
         });
       },
       resetDemo: () => {
@@ -1143,6 +1285,7 @@ export const useStore = create<StoreState>()(
           return;
         }
         if (st.checkedOut) {
+          if (get().ensurePrShiftResumed({ silent: true })) return;
           get().toast(
             "Shift complete — use Reset all demo data on the welcome screen to start fresh",
             "warn",
@@ -1569,8 +1712,9 @@ export const useStore = create<StoreState>()(
             lateFlag: late,
             noShowFlag: false,
           });
-          return {
+          return withPrSessionRoleCache(st, {
             checkedIn: true,
+            checkedOut: false,
             prActiveShift: session,
             agencyRoster: roster,
             prCheckInMeta: {
@@ -1580,8 +1724,9 @@ export const useStore = create<StoreState>()(
               gpsFallback,
               closedShift: null,
             },
-          };
+          });
         });
+        get().syncLivePrCheckInToRoster();
         const lateNote = late ? " · Late flag (+15 min)" : "";
         const gpsNote = gpsFallback ? " · Manual maps fallback" : "";
         const profile = getPrProfile(get().prSubRole);
@@ -1657,7 +1802,19 @@ export const useStore = create<StoreState>()(
           minute: "2-digit",
         });
         if (!shift) {
-          set({ checkedOut: true });
+          const offer = activePrShiftOffer(get());
+          const checkOutTime = new Date().toLocaleTimeString("en-MY", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          set((st) =>
+            withPrSessionRoleCache(st, {
+              checkedIn: false,
+              checkedOut: true,
+              agencyRoster: rosterCheckOut(st.agencyRoster, prId, offer.outlet, checkOutTime),
+            }),
+          );
+          get().syncLivePrCheckInToRoster();
           get().toast("Checked out ✓ duration recorded", "success");
           return;
         }
@@ -1696,34 +1853,38 @@ export const useStore = create<StoreState>()(
           hour: "2-digit",
           minute: "2-digit",
         });
-        set((st) => ({
-          ...syncLedgerState(st, {
-            agencyRoster: rosterCheckOut(st.agencyRoster, prId, shift.outlet, checkOutTime),
-            shiftHistory: mergeShiftHistory(
-              st.shiftHistory.filter(
-                (r) => shiftHistorySlotKey(r) !== shiftHistorySlotKey(historyRow),
+        set((st) =>
+          withPrSessionRoleCache(st, {
+            ...syncLedgerState(st, {
+              agencyRoster: rosterCheckOut(st.agencyRoster, prId, shift.outlet, checkOutTime),
+              shiftHistory: mergeShiftHistory(
+                st.shiftHistory.filter(
+                  (r) => shiftHistorySlotKey(r) !== shiftHistorySlotKey(historyRow),
+                ),
+                [historyRow],
               ),
-              [historyRow],
+            }),
+            checkedOut: true,
+            checkedIn: false,
+            prActiveShift: null,
+            prCheckInMeta: {
+              ...st.prCheckInMeta,
+              closedShift: closed,
+            },
+            prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).map((r) =>
+              scanIds.has(r.id)
+                ? {
+                    ...r,
+                    shiftSessionId: shift.id,
+                    status: "pending" as const,
+                  }
+                : r,
             ),
           }),
-          checkedOut: true,
-          prActiveShift: null,
-          prCheckInMeta: {
-            ...st.prCheckInMeta,
-            closedShift: closed,
-          },
-          prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).map((r) =>
-            scanIds.has(r.id)
-              ? {
-                  ...r,
-                  shiftSessionId: shift.id,
-                  status: "pending" as const,
-                }
-              : r,
-          ),
-        }));
+        );
+        get().syncLivePrCheckInToRoster();
         get().toast(
-          `Checked out ✓ shift sealed · ${scans.length} receipt(s) · weekly PV issues Sunday`,
+          `Checked out · ${scans.length} receipt(s) logged — reopen Check-In to continue this shift`,
           "success",
         );
         get().pushNotify({
@@ -2525,6 +2686,41 @@ export const useStore = create<StoreState>()(
           });
         }
         get().toast(`Self-log updated · RM ${amount.toFixed(2)} — agency notified`, "success");
+      },
+
+      deleteReceiptSelfLog: (scanId) => {
+        const shift = get().prActiveShift;
+        if (!get().checkedIn || get().checkedOut) {
+          get().toast("Check in on your shift to delete self-logs", "warn");
+          return;
+        }
+        if (!shift) {
+          get().toast("No active shift session", "warn");
+          return;
+        }
+        const scans = get().prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS;
+        const scan = scans.find((s) => s.id === scanId);
+        if (!scan || scan.logSource !== "manual" || scan.agencyVerification !== "pending") {
+          get().toast("Only pending self-logs on this shift can be deleted", "warn");
+          return;
+        }
+        if (scan.shiftSessionId !== shift.id) {
+          get().toast("This self-log belongs to another shift", "warn");
+          return;
+        }
+        const oldQty = receiptQtyDelta(scan.items);
+        set((st) => ({
+          prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).filter((s) => s.id !== scanId),
+          prActiveShift: st.prActiveShift
+            ? {
+                ...st.prActiveShift,
+                receiptIds: st.prActiveShift.receiptIds.filter((id) => id !== scanId),
+              }
+            : null,
+          drinks: Math.max(0, st.drinks - oldQty.drinks),
+          tables: Math.max(0, st.tables - oldQty.tables),
+        }));
+        get().toast(`Self-log deleted · ${scan.receiptRef}`, "success");
       },
 
       verifyAgencyReceiptSelfLog: (scanId, decision) => {
@@ -4874,6 +5070,25 @@ export const useStore = create<StoreState>()(
         get().toast("Card updated for subscription billing", "success");
       },
       clearPostSealRatePrompt: () => set({ postSealRatePrompt: null }),
+      ensurePrShiftResumed: (opts) => {
+        const patch = resumePrShiftPatch(get());
+        if (!Object.keys(patch).length) return false;
+        set((st) => {
+          const merged = { ...st, ...patch };
+          const role = st.prSubRole;
+          return {
+            ...patch,
+            prSessionByRole: role
+              ? { ...st.prSessionByRole, [role]: extractPrShiftSession(merged) }
+              : st.prSessionByRole,
+          };
+        });
+        get().syncLivePrCheckInToRoster();
+        if (!opts?.silent) {
+          get().toast("Shift resumed · check-in and logs restored", "info");
+        }
+        return true;
+      },
       syncLivePrCheckInToRoster: () => {
         const st = get();
         const attendance = resolveTiedPrAttendance(st);
@@ -4901,15 +5116,54 @@ export const useStore = create<StoreState>()(
             );
           const before = match(st.agencyRoster);
           const after = match(next);
-          if (after?.status !== before?.status || after?.checkedInAt !== before?.checkedInAt) {
+          if (
+            after?.status !== before?.status ||
+            after?.checkedInAt !== before?.checkedInAt ||
+            after?.checkedOutAt !== before?.checkedOutAt
+          ) {
             set({ agencyRoster: next });
           }
           return;
         }
 
+        const tiedCache = st.prSessionByRole?.pr_tied;
+        const liveOnTied = st.prSubRole === "pr_tied";
+        const checkedOut = liveOnTied ? st.checkedOut : (tiedCache?.checkedOut ?? st.checkedOut);
+        const checkedIn = liveOnTied ? st.checkedIn : (tiedCache?.checkedIn ?? st.checkedIn);
+        const closedShift = liveOnTied
+          ? st.prCheckInMeta?.closedShift
+          : tiedCache?.prCheckInMeta?.closedShift;
         const offer = activePrShiftOffer(st);
-        const outlet = st.prActiveShift?.outlet ?? offer.outlet;
-        const prId = getPrRosterId(st.prSubRole);
+        const outlet = closedShift?.outlet ?? st.prActiveShift?.outlet ?? offer.outlet;
+        const prId = TIED_DEMO_ROSTER_PR_ID;
+
+        if (checkedOut) {
+          const checkOutTime =
+            closedShift?.timeOut?.match(/\d{1,2}:\d{2}/)?.[0] ??
+            new Date().toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
+          const next = rosterCheckOut(st.agencyRoster, prId, outlet, checkOutTime);
+          const before = st.agencyRoster.find(
+            (s) =>
+              s.prId === prId &&
+              s.dateIso === DEFAULT_ROSTER_DATE_ISO &&
+              outletMatches(s.outlet, outlet),
+          );
+          const after = next.find(
+            (s) =>
+              s.prId === prId &&
+              s.dateIso === DEFAULT_ROSTER_DATE_ISO &&
+              outletMatches(s.outlet, outlet),
+          );
+          if (
+            after?.status !== before?.status ||
+            after?.checkedInAt !== before?.checkedInAt ||
+            after?.checkedOutAt !== before?.checkedOutAt
+          ) {
+            set({ agencyRoster: next });
+          }
+          return;
+        }
+
         let changed = false;
         const next = st.agencyRoster.map((s) => {
           if (
@@ -4917,15 +5171,14 @@ export const useStore = create<StoreState>()(
             s.dateIso === DEFAULT_ROSTER_DATE_ISO &&
             outletMatches(s.outlet, outlet) &&
             s.status === "on-duty" &&
-            !st.checkedIn
+            s.checkedInAt &&
+            !checkedIn
           ) {
             changed = true;
             return {
               ...s,
               status: "scheduled" as const,
               checkedInAt: undefined,
-              floorDrinks: 0,
-              floorTips: 0,
             };
           }
           return s;
@@ -5421,6 +5674,7 @@ export const useStore = create<StoreState>()(
             prSwapRequests: state.prSwapRequests ?? [],
           });
         Object.assign(state, applyPrShiftSession(session));
+        Object.assign(state, resumePrShiftPatch(state as StoreState));
       },
       partialize: (s) => {
         const role = s.prSubRole;
@@ -5811,7 +6065,11 @@ export const useStore = create<StoreState>()(
               checkedOut: p?.checkedOut ?? current.checkedOut,
               prActiveShift: p?.prActiveShift ?? current.prActiveShift,
               prSessionByRole: p?.prSessionByRole ?? current.prSessionByRole ?? {},
+              prCheckInMeta: p?.prCheckInMeta ?? current.prCheckInMeta ?? {},
               agencyPRs: mergedAgencyPRs,
+              acceptedShiftIndex: p?.acceptedShiftIndex ?? current.acceptedShiftIndex,
+              agencyRoster: p?.agencyRoster ?? current.agencyRoster,
+              shifts: p?.shifts ?? current.shifts,
             },
           ),
           outletCommissionRules: (() => {
@@ -5907,6 +6165,7 @@ export const useStore = create<StoreState>()(
               prSwapRequests: merged.prSwapRequests ?? [],
             });
           Object.assign(merged, applyPrShiftSession(session));
+          Object.assign(merged, resumePrShiftPatch(merged as StoreState));
         }
         return merged;
       },

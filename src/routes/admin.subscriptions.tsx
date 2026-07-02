@@ -4,7 +4,7 @@ import { Mail, Phone, Plug, User } from "lucide-react";
 import { IzCard, IzPill, IzSectionLabel } from "@/components/iz/ui";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
-import { pendingOutletPosPricingRequests } from "@/lib/admin-notifications";
+import { pendingPosIntegrationQuoteRequests } from "@/lib/admin-notifications";
 import { getOutletSubscriptionPlan } from "@/lib/outlet-demo";
 
 export const Route = createFileRoute("/admin/subscriptions")({
@@ -12,16 +12,16 @@ export const Route = createFileRoute("/admin/subscriptions")({
 });
 
 function AdminSubscriptions() {
-  const requests = useStore((s) => s.outletPosPricingRequests);
-  const markOutletPosPricingContacted = useStore((s) => s.markOutletPosPricingContacted);
+  const requests = useStore((s) => s.posIntegrationQuoteRequests);
+  const markPosIntegrationQuoteContacted = useStore((s) => s.markPosIntegrationQuoteContacted);
   const markAdminNotificationRead = useStore((s) => s.markAdminNotificationRead);
   const adminNotifications = useStore((s) => s.adminNotifications);
 
-  const pending = useMemo(() => pendingOutletPosPricingRequests(requests), [requests]);
+  const pending = useMemo(() => pendingPosIntegrationQuoteRequests(requests), [requests]);
   const contacted = useMemo(() => requests.filter((r) => r.status === "contacted"), [requests]);
 
   const markContacted = (requestId: string) => {
-    markOutletPosPricingContacted(requestId);
+    markPosIntegrationQuoteContacted(requestId);
     const note = adminNotifications.find((n) => n.requestId === requestId);
     if (note && !note.read) {
       markAdminNotificationRead(note.id);
@@ -55,11 +55,11 @@ function AdminSubscriptions() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <Plug className="h-4 w-4 text-[var(--iz-violet-l)]" />
-                      <p className="font-sora text-sm font-bold">{req.outletName}</p>
+                      <p className="font-sora text-sm font-bold">{req.outlet}</p>
                       <IzPill variant="amber">New request</IzPill>
                     </div>
                     <p className="iz-tiny iz-muted mt-1">
-                      Current plan · {plan.label} · requested {req.requestedAt}
+                      Current plan · {plan.label} · requested {req.at}
                     </p>
                   </div>
                   <button
@@ -74,15 +74,15 @@ function AdminSubscriptions() {
                 <div className="mt-3 grid gap-2 border-t border-[var(--iz-line)] pt-3 sm:grid-cols-3">
                   <p className="iz-tiny iz-muted flex items-center gap-1.5">
                     <User className="h-3.5 w-3.5 shrink-0" />
-                    {req.contactName}
+                    {req.ownerName}
                   </p>
                   <p className="iz-tiny iz-muted flex items-center gap-1.5">
                     <Mail className="h-3.5 w-3.5 shrink-0" />
-                    {req.contactEmail}
+                    {req.email}
                   </p>
                   <p className="iz-tiny iz-muted flex items-center gap-1.5">
                     <Phone className="h-3.5 w-3.5 shrink-0" />
-                    {req.contactMobile}
+                    {req.mobile}
                   </p>
                 </div>
               </IzCard>
@@ -108,9 +108,9 @@ function AdminSubscriptions() {
               <IzCard key={req.id} flat>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="iz-sm font-semibold">{req.outletName}</p>
+                    <p className="iz-sm font-semibold">{req.outlet}</p>
                     <p className="iz-tiny iz-muted">
-                      {req.contactName} · {req.contactEmail} · {req.requestedAt}
+                      {req.ownerName} · {req.email} · {req.at}
                     </p>
                   </div>
                   <IzPill variant="green">Contacted</IzPill>

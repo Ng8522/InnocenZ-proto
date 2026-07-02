@@ -1,9 +1,7 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { useEffect } from "react";
 import { BottomNav } from "@/components/Nav";
 import { PhoneFrame } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
-import { useStore } from "@/lib/store";
 import { Briefcase, MapPin, History, FileText, User } from "lucide-react";
 
 export const Route = createFileRoute("/host")({
@@ -11,14 +9,6 @@ export const Route = createFileRoute("/host")({
 });
 
 function HostLayout() {
-  const ensurePrShiftResumed = useStore((s) => s.ensurePrShiftResumed);
-  const prSubRole = useStore((s) => s.prSubRole);
-
-  useEffect(() => {
-    if (!prSubRole) return;
-    ensurePrShiftResumed();
-  }, [ensurePrShiftResumed, prSubRole]);
-
   const items = [
     { to: "/host", label: "Shifts", icon: Briefcase },
     { to: "/host/tonight", label: "Check-In", icon: MapPin },

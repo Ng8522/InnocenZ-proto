@@ -5,37 +5,128 @@ import {
   formatOutletPlanPrPickerRule,
   getOutletSubscriptionPlan,
   maxDailyOutletNamedPrCount,
+  OUTLET_SUBSCRIPTION_ADDONS,
   OUTLET_SUBSCRIPTION_PLANS,
   outletNamedPrCountForDate,
+  type OutletSubscriptionAddon,
   type OutletSubscriptionPlanId,
 } from "@/lib/outlet-demo";
-import { outletHasPendingPosPricingRequest } from "@/lib/admin-notifications";
 import { outletCan } from "@/lib/outlet-rbac";
-import { tonightShiftOutletName } from "@/lib/portal-sync";
+import { outletMatches, tonightShiftOutletName } from "@/lib/portal-sync";
 import { isoKeyFromDate } from "@/components/iz/HistDateCalendar";
 import { OutletSection } from "@/components/outlet/OutletSection";
-import { OutletPosIntegrationAddon } from "@/components/outlet/OutletPosIntegrationAddon";
 import { IzCard, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
-import { Calendar, CreditCard, Receipt, Users } from "lucide-react";
+import { Calendar, Check, CreditCard, Plug, Receipt, Sparkles, Users } from "lucide-react";
 
 const RENEWAL_DATE = "15 Jul 2026";
 
 const MONTHLY_PLANS = OUTLET_SUBSCRIPTION_PLANS.filter((p) => !p.renegotiate);
 
+const POS_FEATURES = [
+  "Real-time drink & table sales from your POS",
+  "Custom setup for your venue layout",
+  "Pricing quoted by InnocenZ admin",
+] as const;
+
 export const Route = createFileRoute("/outlet/subscription")({
   component: OutletSubscriptionPage,
 });
+
+function PosIntegrationAddonCard({
+  addon,
+  canEdit,
+  quotePending,
+  contactLine,
+  onRequestQuote,
+  onCancelQuote,
+}: {
+  addon: OutletSubscriptionAddon;
+  canEdit: boolean;
+  quotePending: boolean;
+  contactLine: string;
+  onRequestQuote: () => void;
+  onCancelQuote: () => void;
+}) {
+  return (
+    <div className="iz-outlet-pos-addon col-span-2">
+      <div className="iz-outlet-pos-addon__glow" aria-hidden />
+      <div className="iz-outlet-pos-addon__inner">
+        <div className="iz-outlet-pos-addon__head">
+          <div className="iz-outlet-pos-addon__icon-wrap">
+            <Plug className="h-6 w-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="iz-outlet-pos-addon__title">{addon.label}</p>
+              <IzPill variant="violet" className="!py-0.5 !text-[10px]">
+                Add-on
+              </IzPill>
+              {quotePending && (
+                <IzPill variant="green" className="!py-0.5 !text-[10px]">
+                  Request sent
+                </IzPill>
+              )}
+            </div>
+            <p className="iz-outlet-pos-addon__subtitle">
+              {addon.capacityLabel} · {addon.priceLabel}
+            </p>
+          </div>
+          <Sparkles className="h-5 w-5 shrink-0 text-[var(--iz-violet-l)] opacity-80" />
+        </div>
+
+        <p className="iz-outlet-pos-addon__lead">{addon.description}</p>
+
+        <ul className="iz-outlet-pos-addon__features">
+          {POS_FEATURES.map((feature) => (
+            <li key={feature}>
+              <Check className="h-4 w-4 shrink-0 text-[var(--iz-green)]" />
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+
+        {quotePending ? (
+          <div className="iz-outlet-pos-addon__sent">
+            <p className="iz-outlet-pos-addon__sent-title">Admin notified</p>
+            <p className="iz-outlet-pos-addon__sent-body">
+              InnocenZ admin received your request and will contact {contactLine} to negotiate pricing.
+            </p>
+            {canEdit && (
+              <button
+                type="button"
+                className="iz-btn iz-btn-soft iz-outlet-pos-addon__cancel"
+                onClick={onCancelQuote}
+              >
+                Cancel request
+              </button>
+            )}
+          </div>
+        ) : (
+          canEdit && (
+            <button
+              type="button"
+              className="iz-btn iz-btn-primary iz-outlet-pos-addon__cta"
+              onClick={onRequestQuote}
+            >
+              Request admin quote
+            </button>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
 
 function OutletSubscriptionPage() {
   const outletSubRole = useStore((s) => s.outletSubRole);
   const outletOwner = useStore((s) => s.outletOwner);
   const shifts = useStore((s) => s.shifts);
   const paymentCardLast4 = useStore((s) => s.paymentCardLast4);
-  const posPricingRequests = useStore((s) => s.outletPosPricingRequests);
+  const posIntegrationQuoteRequests = useStore((s) => s.posIntegrationQuoteRequests);
   const saveOutletOwner = useStore((s) => s.saveOutletOwner);
   const recordOutletSubscriptionPlanChange = useStore((s) => s.recordOutletSubscriptionPlanChange);
-  const requestOutletPosIntegrationPricing = useStore((s) => s.requestOutletPosIntegrationPricing);
-  const cancelOutletPosIntegrationPricing = useStore((s) => s.cancelOutletPosIntegrationPricing);
+  const requestPosIntegrationQuote = useStore((s) => s.requestPosIntegrationQuote);
+  const cancelPosIntegrationQuoteRequest = useStore((s) => s.cancelPosIntegrationQuoteRequest);
   const billingHistory = useStore((s) => s.outletSubscriptionBilling);
   const updateOutletPaymentCard = useStore((s) => s.updateOutletPaymentCard);
   const toast = useStore((s) => s.toast);
@@ -43,7 +134,15 @@ function OutletSubscriptionPage() {
 
   const outletName = tonightShiftOutletName(shifts);
   const currentPlan = getOutletSubscriptionPlan(outletOwner.subscriptionPlanId);
-  const posRequestPending = outletHasPendingPosPricingRequest(posPricingRequests, outletOwner.orgName);
+  const contactLine = outletOwner.email || outletOwner.mobile;
+
+  const posQuotePending = useMemo(
+    () =>
+      posIntegrationQuoteRequests.some(
+        (r) => r.status === "pending" && outletMatches(r.outlet, outletName),
+      ),
+    [posIntegrationQuoteRequests, outletName],
+  );
 
   const todayIso = isoKeyFromDate(new Date());
   const namedPrsToday = useMemo(
@@ -155,18 +254,19 @@ function OutletSubscriptionPage() {
             </IzCard>
           );
         })}
-      </div>
 
-      <IzSectionLabel className="!mt-4">Add-ons</IzSectionLabel>
-      <p className="iz-tiny iz-muted2 -mt-1 mb-2">
-        Optional integrations — pricing negotiated directly with InnocenZ admin
-      </p>
-      <OutletPosIntegrationAddon
-        canEdit={canEdit}
-        pending={posRequestPending}
-        onRequest={requestOutletPosIntegrationPricing}
-        onCancel={cancelOutletPosIntegrationPricing}
-      />
+        {OUTLET_SUBSCRIPTION_ADDONS.map((addon) => (
+          <PosIntegrationAddonCard
+            key={addon.id}
+            addon={addon}
+            canEdit={canEdit}
+            quotePending={posQuotePending}
+            contactLine={contactLine}
+            onRequestQuote={requestPosIntegrationQuote}
+            onCancelQuote={cancelPosIntegrationQuoteRequest}
+          />
+        ))}
+      </div>
 
       <IzSectionLabel>Billing history</IzSectionLabel>
       <div className="space-y-2">

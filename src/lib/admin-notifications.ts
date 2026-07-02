@@ -1,8 +1,8 @@
-/** InnocenZ admin portal — pricing requests & alerts */
+/** InnocenZ admin portal notifications (hidden ops console) */
 
 import type { OutletSubscriptionPlanId } from "@/lib/outlet-demo";
 
-export type AdminNotificationKind = "pos_pricing_request";
+export type AdminNotificationKind = "pos_integration_quote";
 
 export interface AdminNotification {
   id: string;
@@ -13,39 +13,48 @@ export interface AdminNotification {
   read: boolean;
   href?: string;
   requestId?: string;
+  outlet: string;
+  contactLine?: string;
 }
 
-export type OutletPosPricingRequestStatus = "pending" | "contacted";
+export type PosIntegrationQuoteRequestStatus = "pending" | "contacted";
 
-export interface OutletPosPricingRequest {
+export interface PosIntegrationQuoteRequest {
   id: string;
-  outletName: string;
-  contactName: string;
-  contactEmail: string;
-  contactMobile: string;
+  outlet: string;
+  ownerName: string;
+  email: string;
+  mobile: string;
   currentPlanId: OutletSubscriptionPlanId;
-  requestedAt: string;
-  status: OutletPosPricingRequestStatus;
+  at: string;
+  status: PosIntegrationQuoteRequestStatus;
 }
 
-export function adminNotificationStamp(): string {
-  return new Date().toLocaleString("en-MY", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+export function buildPosIntegrationAdminNotification(
+  req: PosIntegrationQuoteRequest,
+): AdminNotification {
+  const contact = [req.ownerName, req.email || req.mobile].filter(Boolean).join(" · ");
+  return {
+    id: `admin-pos-${req.id}`,
+    kind: "pos_integration_quote",
+    title: "POS integration quote",
+    body: `${req.outlet} requested POS sync pricing`,
+    at: req.at,
+    read: false,
+    href: "/admin/subscriptions",
+    requestId: req.id,
+    outlet: req.outlet,
+    contactLine: contact,
+  };
 }
 
-export function pendingOutletPosPricingRequests(
-  requests: OutletPosPricingRequest[],
-): OutletPosPricingRequest[] {
+export function adminNotificationKindLabel(kind: AdminNotificationKind): string {
+  if (kind === "pos_integration_quote") return "POS integration";
+  return "Admin alert";
+}
+
+export function pendingPosIntegrationQuoteRequests(
+  requests: PosIntegrationQuoteRequest[],
+): PosIntegrationQuoteRequest[] {
   return requests.filter((r) => r.status === "pending");
-}
-
-export function outletHasPendingPosPricingRequest(
-  requests: OutletPosPricingRequest[],
-  outletName: string,
-): boolean {
-  return requests.some((r) => r.outletName === outletName && r.status === "pending");
 }

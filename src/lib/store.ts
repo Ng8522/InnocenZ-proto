@@ -54,8 +54,14 @@ import {
 import { writePersistedPrSubRole } from "@/lib/use-pr-sub-role";
 import { DEMO_SOS_LOCATION, type OpsNotification, type SosIncident } from "@/lib/ops-notifications";
 import {
+  buildPosIntegrationAdminNotification,
+  type AdminNotification,
+  type PosIntegrationQuoteRequest,
+} from "@/lib/admin-notifications";
+import {
   applyPushEvent,
   DEFAULT_NOTIFICATION_PREFS,
+  notificationStamp,
   type NotificationPrefs,
   type PushEvent,
 } from "@/lib/push-notifications";
@@ -208,15 +214,10 @@ import {
   type OutletSubscriptionInvoice,
   type OutletSubscriptionPlanId,
 } from "@/lib/outlet-demo";
-import {
-  adminNotificationStamp,
-  type AdminNotification,
-  type OutletPosPricingRequest,
-} from "@/lib/admin-notifications";
 import type { PendingCutlostRequest } from "@/lib/outlet-cutlost-requests";
 import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import type { PostJobPayTierRow } from "@/lib/post-job-pay-tiers";
-import { buildDemoStoreReset, buildPrDemoReset, mergeDemoHennessyRosterFloor, mergeDemoRosterAssignmentSlots, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
+import { buildDemoStoreReset, buildPrDemoReset, mergeDemoCalendarPastShifts, mergeDemoHennessyRosterFloor, mergeDemoRosterAssignmentSlots, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
 import {
   SEED_SPECIAL_SERVICES,
   mergeSpecialServiceOrders,
@@ -486,16 +487,16 @@ interface StoreState {
 
   prNotifications: PrNotification[];
   opsNotifications: OpsNotification[];
+  adminNotifications: AdminNotification[];
+  posIntegrationQuoteRequests: PosIntegrationQuoteRequest[];
   sosIncidents: SosIncident[];
   notificationPrefs: NotificationPrefs;
   pushNotify: (event: PushEvent) => void;
   markOpsNotificationRead: (id: string) => void;
-  adminNotifications: AdminNotification[];
-  outletPosPricingRequests: OutletPosPricingRequest[];
   markAdminNotificationRead: (id: string) => void;
-  requestOutletPosIntegrationPricing: () => void;
-  cancelOutletPosIntegrationPricing: () => void;
-  markOutletPosPricingContacted: (requestId: string) => void;
+  requestPosIntegrationQuote: () => void;
+  cancelPosIntegrationQuoteRequest: () => void;
+  markPosIntegrationQuoteContacted: (requestId: string) => void;
   prDeclinedOfferIds: string[];
   prMarketplaceApplication: {
     listingId: string;
@@ -807,7 +808,7 @@ interface StoreState {
   clearPostSealRatePrompt: () => void;
   /** Repair agency roster when PR checked in before roster slot existed (freelancers) */
   syncLivePrCheckInToRoster: () => void;
-  /** Keep same-day shift live after sign-out or accidental check-out */
+  /** Explicitly undo same-day check-out (demo check-in flow only — not auto on navigation). */
   ensurePrShiftResumed: (opts?: { silent?: boolean }) => boolean;
 
   acceptBooking: (id: string) => void;
@@ -923,7 +924,7 @@ function withPrSessionRoleCache(
   };
 }
 
-/** Restore an in-progress shift after sign-out or accidental check-out (same day only). */
+/** Restore an in-progress shift only when the PR explicitly resumes (demoPrShiftIn). */
 function resumePrShiftPatch(
   st: Pick<
     StoreState,
@@ -1251,7 +1252,6 @@ export const useStore = create<StoreState>()(
         }
         writePersistedPrSubRole(r);
         set(next);
-        if (r) get().ensurePrShiftResumed({ silent: true });
       },
       setOutletSubRole: (r) => set({ outletSubRole: r }),
       setAgencySubRole: (r) => set({ agencySubRole: r }),
@@ -1394,7 +1394,7 @@ export const useStore = create<StoreState>()(
       prNotifications: [...SEED_PR_NOTIFICATIONS],
       opsNotifications: [],
       adminNotifications: [],
-      outletPosPricingRequests: [],
+      posIntegrationQuoteRequests: [],
       sosIncidents: [],
       notificationPrefs: { ...DEFAULT_NOTIFICATION_PREFS },
       pushNotify: (event) => {
@@ -1422,59 +1422,62 @@ export const useStore = create<StoreState>()(
             n.id === id ? { ...n, read: true } : n,
           ),
         })),
-      requestOutletPosIntegrationPricing: () => {
-        const owner = get().outletOwner;
-        const orgName = owner.orgName.trim();
-        const existing = get().outletPosPricingRequests.find(
-          (r) => r.outletName === orgName && r.status === "pending",
+      requestPosIntegrationQuote: () => {
+        const st = get();
+        const outlet = st.outletOwner.orgName || st.outletWorkspace.outletName;
+        const alreadyPending = st.posIntegrationQuoteRequests.some(
+          (r) => r.status === "pending" && outletMatches(r.outlet, outlet),
         );
-        if (existing) {
-          get().toast("POS integration request already sent — admin will contact you", "info");
+        if (alreadyPending) {
+          get().toast(
+            "Quote request already sent — InnocenZ admin will contact you soon",
+            "info",
+          );
           return;
         }
-        const at = adminNotificationStamp();
-        const requestId = `pos-${Date.now().toString(36)}`;
-        const request: OutletPosPricingRequest = {
-          id: requestId,
-          outletName: orgName,
-          contactName: owner.ownerName.trim(),
-          contactEmail: owner.email.trim(),
-          contactMobile: owner.mobile.trim(),
-          currentPlanId: owner.subscriptionPlanId ?? "pro",
-          requestedAt: at,
+        const at = notificationStamp();
+        const req: PosIntegrationQuoteRequest = {
+          id: `pos-req-${Date.now().toString(36)}`,
+          outlet,
+          ownerName: st.outletOwner.ownerName,
+          email: st.outletOwner.email,
+          mobile: st.outletOwner.mobile,
+          currentPlanId: st.outletOwner.subscriptionPlanId ?? "pro",
+          at,
           status: "pending",
         };
-        const notification: AdminNotification = {
-          id: `adm-${requestId}`,
-          kind: "pos_pricing_request",
-          title: "POS integration pricing",
-          body: `${orgName} requested a quote · contact ${owner.ownerName.trim()}`,
-          at,
-          read: false,
-          href: "/admin/subscriptions",
-          requestId,
-        };
-        set((st) => ({
-          outletPosPricingRequests: [request, ...st.outletPosPricingRequests],
-          adminNotifications: [notification, ...st.adminNotifications],
-        }));
-        get().toast(`Request sent — InnocenZ admin will contact ${orgName}`, "success");
-      },
-      cancelOutletPosIntegrationPricing: () => {
-        const orgName = get().outletOwner.orgName.trim();
-        const pending = get().outletPosPricingRequests.find(
-          (r) => r.outletName === orgName && r.status === "pending",
+        const note = buildPosIntegrationAdminNotification(req);
+        set({
+          posIntegrationQuoteRequests: [req, ...st.posIntegrationQuoteRequests],
+          adminNotifications: [note, ...st.adminNotifications],
+        });
+        const contact = st.outletOwner.email || st.outletOwner.mobile;
+        get().toast(
+          `POS quote request sent to InnocenZ admin${contact ? ` — we'll reach you at ${contact}` : ""}`,
+          "success",
         );
-        if (!pending) return;
-        set((st) => ({
-          outletPosPricingRequests: st.outletPosPricingRequests.filter((r) => r.id !== pending.id),
-          adminNotifications: st.adminNotifications.filter((n) => n.requestId !== pending.id),
-        }));
-        get().toast("POS integration request cancelled", "info");
       },
-      markOutletPosPricingContacted: (requestId) => {
+      cancelPosIntegrationQuoteRequest: () => {
+        const st = get();
+        const outlet = st.outletOwner.orgName || st.outletWorkspace.outletName;
+        const pending = st.posIntegrationQuoteRequests.find(
+          (r) => r.status === "pending" && outletMatches(r.outlet, outlet),
+        );
+        if (!pending) {
+          get().toast("No pending POS quote request to cancel", "warn");
+          return;
+        }
+        set({
+          posIntegrationQuoteRequests: st.posIntegrationQuoteRequests.filter((r) => r.id !== pending.id),
+          adminNotifications: st.adminNotifications.filter(
+            (n) => n.id !== `admin-pos-${pending.id}`,
+          ),
+        });
+        get().toast("POS quote request cancelled", "success");
+      },
+      markPosIntegrationQuoteContacted: (requestId) => {
         set((st) => ({
-          outletPosPricingRequests: st.outletPosPricingRequests.map((r) =>
+          posIntegrationQuoteRequests: st.posIntegrationQuoteRequests.map((r) =>
             r.id === requestId ? { ...r, status: "contacted" as const } : r,
           ),
         }));
@@ -5751,7 +5754,6 @@ export const useStore = create<StoreState>()(
             prSwapRequests: state.prSwapRequests ?? [],
           });
         Object.assign(state, applyPrShiftSession(session));
-        Object.assign(state, resumePrShiftPatch(state as StoreState));
       },
       partialize: (s) => {
         const role = s.prSubRole;
@@ -5794,7 +5796,7 @@ export const useStore = create<StoreState>()(
           prNotifications: s.prNotifications,
           opsNotifications: s.opsNotifications,
           adminNotifications: s.adminNotifications,
-          outletPosPricingRequests: s.outletPosPricingRequests,
+          posIntegrationQuoteRequests: s.posIntegrationQuoteRequests,
           sosIncidents: s.sosIncidents,
           notificationPrefs: s.notificationPrefs,
           prDeclinedOfferIds: s.prDeclinedOfferIds,
@@ -6088,9 +6090,9 @@ export const useStore = create<StoreState>()(
           prPayrollAgencyId: p?.prPayrollAgencyId ?? current.prPayrollAgencyId,
           prNotifications: p?.prNotifications?.length ? p.prNotifications : current.prNotifications,
           opsNotifications: p?.opsNotifications ?? current.opsNotifications,
-          adminNotifications: p?.adminNotifications ?? current.adminNotifications,
-          outletPosPricingRequests:
-            p?.outletPosPricingRequests ?? current.outletPosPricingRequests,
+          adminNotifications: p?.adminNotifications ?? current.adminNotifications ?? [],
+          posIntegrationQuoteRequests:
+            p?.posIntegrationQuoteRequests ?? current.posIntegrationQuoteRequests ?? [],
           sosIncidents: p?.sosIncidents ?? current.sosIncidents,
           notificationPrefs: p?.notificationPrefs ?? current.notificationPrefs,
           prDeclinedOfferIds: p?.prDeclinedOfferIds ?? current.prDeclinedOfferIds,
@@ -6174,8 +6176,11 @@ export const useStore = create<StoreState>()(
             const menu = ws.drinkMenu;
             const merged = mergeDemoShiftDates(
               mergeDemoShiftStaffing(
-                (p?.shifts ?? current.shifts).map((sh) =>
-                  migrateShiftTierRates(withShiftFinancialDefaults(sh, menu), ws),
+                mergeDemoCalendarPastShifts(
+                  (p?.shifts ?? current.shifts).map((sh) =>
+                    migrateShiftTierRates(withShiftFinancialDefaults(sh, menu), ws),
+                  ),
+                  demoSnapshot.shifts,
                 ),
                 demoSnapshot.shifts,
               ),
@@ -6247,7 +6252,6 @@ export const useStore = create<StoreState>()(
               prSwapRequests: merged.prSwapRequests ?? [],
             });
           Object.assign(merged, applyPrShiftSession(session));
-          Object.assign(merged, resumePrShiftPatch(merged as StoreState));
         }
         return merged;
       },

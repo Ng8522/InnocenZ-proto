@@ -12,8 +12,7 @@ import {
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useStore, type ShiftRequest } from "@/lib/store";
-import { resolveOutletShiftDateIso, outletHomeShiftRequests } from "@/lib/agency-outlet-shifts";
-import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
+import { resolveOutletShiftDateIso, outletCalendarShiftRequests } from "@/lib/agency-outlet-shifts";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import {
   formatShiftEventTypeSummary,
@@ -108,7 +107,11 @@ function buildCalendarEvents(
 }
 
 function formatEventTimeDisplay(timeRange: string): string {
-  return timeRange.replace(/\s+/g, "").toUpperCase();
+  return timeRange
+    .replace(/\s+/g, "")
+    .replace(/AM/gi, "a")
+    .replace(/PM/gi, "p")
+    .toLowerCase();
 }
 
 function isShiftLiveTonight(shift: ShiftRequest): boolean {
@@ -125,7 +128,6 @@ function statusEventClass(shift: ShiftRequest) {
 
 export function OutletOperationsCalendar() {
   const outletWorkspace = useStore((s) => s.outletWorkspace);
-  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const agencyRoster = useStore((s) => s.agencyRoster);
   const agencyPRs = useStore((s) => s.agencyPRs);
   const shiftApplicants = useStore((s) => s.shiftApplicants);
@@ -138,16 +140,12 @@ export function OutletOperationsCalendar() {
 
   const visibleShifts = useMemo(
     () =>
-      outletHomeShiftRequests({
+      outletCalendarShiftRequests({
         shifts,
         outletName: outletWorkspace.outletName,
-        roster: agencyRoster,
-        tiedOffers: PR_AGENCY_TIED_OFFERS,
-        commissionRules: outletCommissionRules,
-        outletWorkspace,
-        todayIso: DEFAULT_ROSTER_DATE_ISO,
+        todayIso,
       }),
-    [shifts, outletWorkspace, agencyRoster, outletCommissionRules],
+    [shifts, outletWorkspace.outletName, todayIso],
   );
 
   const events = useMemo(
@@ -286,9 +284,19 @@ export function OutletOperationsCalendar() {
                         <span className="iz-outlet-ops-cal-event-time">
                           {formatEventTimeDisplay(ev.timeRange)}
                         </span>
-                        <span className="iz-outlet-ops-cal-event-count">{ev.demand} PR</span>
                       </div>
                       <span className="iz-outlet-ops-cal-event-title">{ev.shift.event}</span>
+                      <div
+                        className="iz-outlet-ops-cal-event-stats"
+                        aria-label={`${ev.demand} demand, ${ev.supplied} supplied`}
+                      >
+                        <span className="iz-outlet-ops-cal-event-stats__label">Demand / supplied</span>
+                        <span className="iz-outlet-ops-cal-event-stats__nums">
+                          <span className="iz-outlet-ops-cal-event-stats__demand">{ev.demand}</span>
+                          <span className="iz-outlet-ops-cal-event-stats__sep">/</span>
+                          <span className="iz-outlet-ops-cal-event-stats__supplied">{ev.supplied}</span>
+                        </span>
+                      </div>
                     </button>
                   ))}
                 </div>

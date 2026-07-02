@@ -7,6 +7,7 @@ export function OutletSection({
   title,
   icon: Icon,
   hint,
+  collapsedPreview,
   collapsible = false,
   defaultOpen = true,
   open: openProp,
@@ -18,7 +19,9 @@ export function OutletSection({
   id?: string;
   title: string;
   icon?: ComponentType<{ className?: string }>;
-  hint?: string;
+  hint?: ReactNode;
+  /** Rich preview shown when collapsible and closed — replaces hint. */
+  collapsedPreview?: ReactNode;
   collapsible?: boolean;
   defaultOpen?: boolean;
   open?: boolean;
@@ -70,7 +73,11 @@ export function OutletSection({
             {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />}
             {title}
           </span>
-          {hint && !open && <span className="iz-collapsible-section__hint">{hint}</span>}
+          {collapsedPreview && !open ? (
+            <div className="iz-collapsible-section__preview">{collapsedPreview}</div>
+          ) : hint && !open ? (
+            <span className="iz-collapsible-section__hint">{hint}</span>
+          ) : null}
           <span className="iz-collapsible-section__action">{open ? "Tap to collapse" : "Tap to expand"}</span>
         </span>
         {trailing && (

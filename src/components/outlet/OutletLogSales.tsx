@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
-import { effectiveShiftDrinkMenu } from "@/lib/outlet-demo";
+import { effectiveShiftDrinkMenu, OUTLET_SERVICE_ENTITLEMENT_SECTION_ID } from "@/lib/outlet-demo";
 import { outletShiftDisplayLiveSales } from "@/lib/outlet-financial-sync";
 import { ChevronDown, Minus, ScanLine, Wine } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -91,9 +91,10 @@ export function OutletShiftSalesPanel({
         </button>
         <Link
           to="/outlet/workspace"
+          hash={OUTLET_SERVICE_ENTITLEMENT_SECTION_ID}
           className="iz-chip flex-1 justify-center text-[11px]"
         >
-          {shift?.eventKind === "special" ? "Workspace prices" : "Drink prices"}
+          Service Entitlement
         </Link>
       </div>
     </>

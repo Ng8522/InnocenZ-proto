@@ -48,6 +48,7 @@ function SheetContent({
   wide,
   rating,
   comcard,
+  liveSales,
 }: {
   onClose: () => void;
   children: ReactNode;
@@ -56,6 +57,7 @@ function SheetContent({
   wide?: boolean;
   rating?: boolean;
   comcard?: boolean;
+  liveSales?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -74,7 +76,7 @@ function SheetContent({
     <div className={wrapClass}>
       <button type="button" className="iz-sheet-bg" aria-label="Close" onClick={onClose} />
       <div
-        className={`iz-sheet${sheetVariantClass(mode, variant)}${wide ? " iz-sheet--wide" : ""}${rating ? " iz-sheet--rating" : ""}${comcard ? " iz-sheet--comcard" : ""}`}
+        className={`iz-sheet${sheetVariantClass(mode, variant)}${wide ? " iz-sheet--wide" : ""}${rating ? " iz-sheet--rating" : ""}${comcard ? " iz-sheet--comcard" : ""}${liveSales ? " iz-sheet--live-sales" : ""}`}
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
@@ -93,6 +95,8 @@ export function IzSheet({
   variant = "dialog",
   wide = false,
   rating = false,
+  /** Wide live sales breakdown — fits full earnings table without scroll. */
+  liveSales = false,
   comcard = false,
 }: {
   open: boolean;
@@ -102,6 +106,7 @@ export function IzSheet({
   variant?: SheetVariant;
   wide?: boolean;
   rating?: boolean;
+  liveSales?: boolean;
   /** Compact PR comcard preview — no inner scroll, content sized to fit. */
   comcard?: boolean;
 }) {
@@ -122,6 +127,7 @@ export function IzSheet({
       wide={wide}
       rating={rating}
       comcard={comcard}
+      liveSales={liveSales}
     >
       {children}
     </SheetContent>

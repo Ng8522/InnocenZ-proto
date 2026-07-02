@@ -1,6 +1,7 @@
 import {
   OUTLET_BASE_TIER,
   OUTLET_PR_TIERS,
+  defaultHappyHourDrinkPct,
   snapTierWage,
   type OutletPrTier,
   type OutletTierRateSettings,
@@ -12,6 +13,7 @@ export const POST_JOB_PAY_TIER_OPTIONS = [
   { id: "tier_3", label: "Tier 3", outletTier: "Tier III" as OutletPrTier },
   { id: "tier_4", label: "Tier 4", outletTier: "Tier IV" as OutletPrTier },
   { id: "tier_5", label: "Tier 5", outletTier: "Tier V" as OutletPrTier },
+  { id: "servant", label: "Servant", outletTier: "Servant" as OutletPrTier },
   { id: "commission_only", label: "Commission only", outletTier: null },
 ] as const;
 
@@ -28,25 +30,29 @@ export type PostJobPayTierRow = {
 };
 
 export const COMMISSION_ONLY_DEFAULT_DRINK_PCT = 80;
-export const COMMISSION_ONLY_DEFAULT_TIP_PCT = 86;
-/** Sales bar for commission-only PRs (no shift pay — above Tier V). */
+export const COMMISSION_ONLY_DEFAULT_TIP_PCT = 85;
+/** Legacy workspace default — cleared on hydrate; targets are set per shift in Post Job. */
 export const COMMISSION_ONLY_DEFAULT_TARGET_SALES_RM = 2500;
 
 export type CommissionOnlyRateSettings = Pick<
   OutletTierRateSettings,
-  "drinkPct" | "tipPct" | "targetSalesRm"
+  "drinkPct" | "happyHourDrinkPct" | "tipPct" | "targetSalesRm"
 >;
 
 export function defaultCommissionOnlyRateSettings(): CommissionOnlyRateSettings {
   return {
     drinkPct: COMMISSION_ONLY_DEFAULT_DRINK_PCT,
+    happyHourDrinkPct: defaultHappyHourDrinkPct(COMMISSION_ONLY_DEFAULT_DRINK_PCT),
     tipPct: COMMISSION_ONLY_DEFAULT_TIP_PCT,
-    targetSalesRm: COMMISSION_ONLY_DEFAULT_TARGET_SALES_RM,
   };
 }
 
 export function isCommissionOnlyPayTier(payTierId: PostJobPayTierId): boolean {
   return payTierId === "commission_only";
+}
+
+export function isServantPayTier(payTierId: PostJobPayTierId): boolean {
+  return payTierId === "servant";
 }
 
 export function postJobPayTierLabel(payTierId: PostJobPayTierId): string {
@@ -120,7 +126,7 @@ export function newPostJobPayTierRow(
     targetSalesRm: partial?.targetSalesRm ?? (commissionOnly ? coDefaults.targetSalesRm : undefined),
     drinkPct:
       partial?.drinkPct ??
-      (commissionOnly ? coDefaults.drinkPct : ws?.drinkPct ?? 8),
+      (commissionOnly ? coDefaults.drinkPct : ws?.drinkPct ?? 10),
     tipPct:
       partial?.tipPct ?? (commissionOnly ? coDefaults.tipPct : ws?.tipPct ?? 15),
     prCount: partial?.prCount != null ? Math.max(0, partial.prCount) : 1,
@@ -324,7 +330,7 @@ export function applyPayTierRowChange(
     next = {
       ...next,
       wagePerHour: commissionOnly ? 0 : snapTierWage(ws?.wagePerHour ?? baseWage),
-      drinkPct: commissionOnly ? coDefaults.drinkPct : ws?.drinkPct ?? 8,
+      drinkPct: commissionOnly ? coDefaults.drinkPct : ws?.drinkPct ?? 10,
       tipPct: commissionOnly ? coDefaults.tipPct : ws?.tipPct ?? 15,
       targetSalesRm: commissionOnly ? coDefaults.targetSalesRm : ws?.targetSalesRm,
     };
@@ -372,7 +378,7 @@ export function formatPayTierRowSummary(row: PostJobPayTierRow): string {
   const parts = [
     postJobPayTierLabel(row.payTierId),
     isCommissionOnlyPayTier(row.payTierId)
-      ? "No shift pay"
+      ? "RM 0/shift"
       : `RM ${row.wagePerHour.toLocaleString("en-MY")}/shift`,
     `${row.drinkPct}% drinks · ${row.tipPct}% tips`,
     row.targetSalesRm ? `Target RM ${row.targetSalesRm}` : null,

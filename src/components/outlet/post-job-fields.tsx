@@ -192,7 +192,14 @@ export type DraftShift = {
   destination: ShiftDestination;
 };
 
-const COMPOSER_TIER_IDS: PostJobPayTierId[] = ["tier_1", "tier_2", "tier_3", "tier_4", "tier_5"];
+const COMPOSER_TIER_IDS: PostJobPayTierId[] = [
+  "tier_1",
+  "tier_2",
+  "tier_3",
+  "tier_4",
+  "tier_5",
+  "servant",
+];
 
 function distributePrCounts(total: number, slots: number): number[] {
   const result = Array(slots).fill(0);

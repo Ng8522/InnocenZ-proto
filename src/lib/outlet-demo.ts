@@ -3,11 +3,16 @@
 import {
   buildDefaultTierRates,
   cloneTierRates,
+  defaultHappyHourDrinkPct,
   estimateShiftLaborCost,
   getOutletRule,
+  migrateTierRatesHappyHourDrinks,
+  tierHappyHourDrinkPct,
   normalizeTierRates,
+  normalizeWorkspaceTierRates,
   OUTLET_BASE_TIER,
   OUTLET_PR_TIERS,
+  OUTLET_SERVANT_TIER,
   snapTierWage,
   type OutletPrTier,
   type OutletTierRateSettings,
@@ -15,6 +20,9 @@ import {
 import { DEFAULT_PER_DRINK_RM, DEFAULT_PER_TABLE_RM } from "@/lib/outlet-financial-sync";
 import { outletMatches } from "@/lib/portal-sync";
 import {
+  COMMISSION_ONLY_DEFAULT_DRINK_PCT,
+  COMMISSION_ONLY_DEFAULT_TIP_PCT,
+  COMMISSION_ONLY_DEFAULT_TARGET_SALES_RM,
   defaultCommissionOnlyRateSettings,
   estimatePayTierRowsLaborCost,
   resolveShiftPayTierRows,
@@ -104,6 +112,10 @@ export function formatShiftEventTypeSummary(
   return sub ? `${SHIFT_EVENT_KIND_LABELS.special} · ${sub}` : SHIFT_EVENT_KIND_LABELS.special;
 }
 
+export function formatOutletPriceRm(amount: number): string {
+  return Math.round(amount).toLocaleString("en-MY");
+}
+
 export function formatShiftDrinkPricingSummary(
   shift: { eventKind?: ShiftEventKind; eventDrinkMenu?: OutletDrinkPrice[] },
   workspaceMenu: OutletDrinkPrice[] = [],
@@ -111,11 +123,13 @@ export function formatShiftDrinkPricingSummary(
   if (shift.eventKind !== "special") {
     const menu = workspaceMenu.length > 0 ? workspaceMenu : DEFAULT_OUTLET_DRINK_MENU;
     const range = drinkMenuPriceRange(menu);
-    return `Workspace · RM ${range.min}–${range.max}`;
+    return `Workspace · RM ${formatOutletPriceRm(range.min)}–${formatOutletPriceRm(range.max)}`;
   }
   const menu = effectiveShiftDrinkMenu(shift, workspaceMenu);
   const range = drinkMenuPriceRange(menu);
-  return menu.length > 0 ? `Event-specific · RM ${range.min}–${range.max}` : "Event-specific";
+  return menu.length > 0
+    ? `Event-specific · RM ${formatOutletPriceRm(range.min)}–${formatOutletPriceRm(range.max)}`
+    : "Event-specific";
 }
 
 export type ShiftDrinkMenuLine = {
@@ -129,7 +143,7 @@ export function shiftDrinkMenuDetailLines(
   shift: { eventKind?: ShiftEventKind; eventDrinkMenu?: OutletDrinkPrice[] },
   workspaceMenu: OutletDrinkPrice[] = [],
 ): ShiftDrinkMenuLine[] {
-  const menu = effectiveShiftDrinkMenu(shift, workspaceMenu);
+  const menu = sortOutletDrinkMenuByPrice(effectiveShiftDrinkMenu(shift, workspaceMenu));
   const workspaceById = Object.fromEntries(
     (workspaceMenu.length > 0 ? workspaceMenu : DEFAULT_OUTLET_DRINK_MENU).map((d) => [
       d.id,
@@ -162,17 +176,75 @@ export interface OutletDrinkPrice {
 }
 
 export const DEFAULT_OUTLET_DRINK_MENU: OutletDrinkPrice[] = [
-  { id: "beer", name: "Beer", priceRm: 45 },
-  { id: "wine", name: "Wine", priceRm: 85 },
-  { id: "whisky", name: "Whisky", priceRm: 120 },
-  { id: "champagne", name: "Champagne", priceRm: 350 },
-  { id: "hennessy", name: "Hennessy VSOP", priceRm: 280 },
+  { id: "booking-com", name: "Booking commission", priceRm: DEFAULT_PER_TABLE_RM },
+  { id: "cosmo", name: "Cosmo", priceRm: 150 },
+  { id: "heradura-anejo-ultra", name: "Heradura anejo ultra", priceRm: 150 },
+  { id: "laddies-drink", name: "Laddies drink", priceRm: 150 },
+  { id: "dom-perignon", name: "Dom perignon", priceRm: 200 },
+  { id: "donjulio", name: "Donjulio", priceRm: 200 },
+  { id: "havoc", name: "Havoc", priceRm: 1000 },
 ];
+
+const BOOKING_COMMISSION_MENU_ID = "booking-com";
+
+/** Workspace page anchor — Service Entitlement section */
+export const OUTLET_SERVICE_ENTITLEMENT_SECTION_ID = "service-entitlement";
+
+/** Outlet home — PR tonight staffing grid */
+export const OUTLET_PR_TONIGHT_SECTION_ID = "pr-tonight";
+
+/** Outlet home — reduce cutlost actions (below shift card on Today) */
+export const OUTLET_REDUCE_CUTLOST_SECTION_ID = "reduce-cutlost";
+
+/** Outlet home — PR live sales earnings table */
+export const OUTLET_LIVE_SALES_SECTION_ID = "live-sales";
+
+export const OUTLET_OPEN_LIVE_SALES_EVENT = "outlet:open-live-sales";
+
+/** Outlet home — labor cost report (below shift card on Today) */
+export const OUTLET_LABOR_COST_SECTION_ID = "labor-cost-report";
+
+export const OUTLET_OPEN_LABOR_COST_EVENT = "outlet:open-labor-cost";
+
+export function scrollToOutletLiveSales() {
+  window.dispatchEvent(new Event(OUTLET_OPEN_LIVE_SALES_EVENT));
+  document
+    .getElementById(OUTLET_LIVE_SALES_SECTION_ID)
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+export function scrollToOutletLaborCostReport() {
+  window.dispatchEvent(new Event(OUTLET_OPEN_LABOR_COST_EVENT));
+  document
+    .getElementById(OUTLET_LABOR_COST_SECTION_ID)
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+const LEGACY_DEFAULT_DRINK_IDS = new Set(["beer", "wine", "whisky", "champagne", "hennessy"]);
+
+export function isLegacyDefaultDrinkMenu(menu: OutletDrinkPrice[]): boolean {
+  if (menu.length !== 5) return false;
+  return menu.every((d) => LEGACY_DEFAULT_DRINK_IDS.has(d.id));
+}
 
 export function averageDrinkPrice(menu: OutletDrinkPrice[]): number {
   if (menu.length === 0) return DEFAULT_PER_DRINK_RM;
   const total = menu.reduce((sum, d) => sum + d.priceRm, 0);
   return Math.round(total / menu.length);
+}
+
+/** Median menu price excluding booking fees and bottle outliers — for floor previews. */
+export function typicalDrinkPrice(menu: OutletDrinkPrice[]): number {
+  if (menu.length === 0) return DEFAULT_PER_DRINK_RM;
+  const prices = menu
+    .map((d) => d.priceRm)
+    .filter((p) => p >= 110 && p <= 800)
+    .sort((a, b) => a - b);
+  if (prices.length === 0) return averageDrinkPrice(menu);
+  const mid = Math.floor(prices.length / 2);
+  return prices.length % 2 === 1
+    ? prices[mid]
+    : Math.round((prices[mid - 1] + prices[mid]) / 2);
 }
 
 export function drinkMenuPriceRange(menu: OutletDrinkPrice[]): { min: number; max: number } {
@@ -183,6 +255,12 @@ export function drinkMenuPriceRange(menu: OutletDrinkPrice[]): { min: number; ma
 
 export function cloneDrinkMenu(menu: OutletDrinkPrice[]): OutletDrinkPrice[] {
   return menu.map((d) => ({ ...d }));
+}
+
+export function sortOutletDrinkMenuByPrice(menu: OutletDrinkPrice[]): OutletDrinkPrice[] {
+  return [...menu].sort(
+    (a, b) => a.priceRm - b.priceRm || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
 }
 
 /** Special events may override workspace drink prices; normal events always use workspace menu. */
@@ -215,16 +293,31 @@ export function workspaceBaseRates(
 export function normalizeOutletWorkspace(
   ws: Partial<OutletWorkspaceSettings> | undefined,
 ): OutletWorkspaceSettings {
-  const drinkMenu =
-    ws?.drinkMenu && ws.drinkMenu.length > 0
-      ? ws.drinkMenu.map((d) => ({ ...d }))
-      : DEFAULT_OUTLET_DRINK_MENU.map((d) => ({ ...d }));
+  const drinkMenu = (() => {
+    let menu =
+      ws?.drinkMenu && ws.drinkMenu.length > 0
+        ? ws.drinkMenu.map((d) => ({ ...d }))
+        : DEFAULT_OUTLET_DRINK_MENU.map((d) => ({ ...d }));
+    if (isLegacyDefaultDrinkMenu(menu)) {
+      menu = DEFAULT_OUTLET_DRINK_MENU.map((d) => ({ ...d }));
+    }
+    if (!menu.some((d) => d.id === BOOKING_COMMISSION_MENU_ID)) {
+      const bookingDefault = DEFAULT_OUTLET_DRINK_MENU.find((d) => d.id === BOOKING_COMMISSION_MENU_ID);
+      if (bookingDefault) {
+        menu = [...menu, { ...bookingDefault }];
+      }
+    }
+    if (menu.length === 0) {
+      menu = DEFAULT_OUTLET_DRINK_MENU.map((d) => ({ ...d }));
+    }
+    return sortOutletDrinkMenuByPrice(menu);
+  })();
   const merged = {
     ...DEFAULT_OUTLET_WORKSPACE,
     ...ws,
     drinkMenu,
   };
-  const tierRates = normalizeTierRates(workspaceBaseRates(merged), ws?.tierRates);
+  const tierRates = normalizeWorkspaceTierRates(workspaceBaseRates(merged), ws?.tierRates);
   const baseTier = tierRates[OUTLET_BASE_TIER];
   const migratedTierRates = (() => {
     if (merged.outletName === "Velvet 23" && baseTier.wagePerHour === 50) {
@@ -234,9 +327,33 @@ export function normalizeOutletWorkspace(
     if (baseTier.wagePerHour === 500 && t2 === 540) {
       return normalizeTierRates(baseTier, undefined);
     }
+    if (tierRates[OUTLET_SERVANT_TIER] == null) {
+      return normalizeTierRates(baseTier, tierRates);
+    }
+    if (baseTier.wagePerHour === 500 && tierRates[OUTLET_SERVANT_TIER]?.wagePerHour === 400) {
+      return normalizeTierRates(baseTier, {
+        ...tierRates,
+        [OUTLET_SERVANT_TIER]: { ...tierRates[OUTLET_SERVANT_TIER]!, wagePerHour: 200 },
+      });
+    }
+    if (baseTier.drinkPct === 8 && tierHappyHourDrinkPct(baseTier) === 7) {
+      const newBase = { ...baseTier, drinkPct: 10, happyHourDrinkPct: 5 };
+      const rebuilt = buildDefaultTierRates(newBase);
+      const out = { ...tierRates };
+      for (const tier of OUTLET_PR_TIERS) {
+        out[tier] = {
+          ...out[tier],
+          drinkPct: rebuilt[tier].drinkPct,
+          happyHourDrinkPct: rebuilt[tier].happyHourDrinkPct,
+          tipPct: rebuilt[tier].tipPct,
+        };
+      }
+      return out;
+    }
     return tierRates;
   })();
-  const migratedBaseTier = migratedTierRates[OUTLET_BASE_TIER];
+  const happyHourTierRates = migrateTierRatesHappyHourDrinks(migratedTierRates);
+  const migratedBaseTier = happyHourTierRates[OUTLET_BASE_TIER];
   const legacyCommissionOnly =
     ws?.commissionOnlyRates?.drinkPct === 14 && ws?.commissionOnlyRates?.tipPct === 28;
   const commissionOnlyRates = legacyCommissionOnly
@@ -245,21 +362,53 @@ export function normalizeOutletWorkspace(
         ...defaultCommissionOnlyRateSettings(),
         ...ws?.commissionOnlyRates,
       };
-  if (commissionOnlyRates.targetSalesRm == null || commissionOnlyRates.targetSalesRm <= 0) {
-    commissionOnlyRates.targetSalesRm = defaultCommissionOnlyRateSettings().targetSalesRm;
+  if (
+    commissionOnlyRates.targetSalesRm === COMMISSION_ONLY_DEFAULT_TARGET_SALES_RM
+  ) {
+    commissionOnlyRates.targetSalesRm = undefined;
+  }
+  if (
+    commissionOnlyRates.drinkPct === COMMISSION_ONLY_DEFAULT_DRINK_PCT &&
+    commissionOnlyRates.tipPct === 86
+  ) {
+    commissionOnlyRates.tipPct = COMMISSION_ONLY_DEFAULT_TIP_PCT;
+  }
+  if (
+    commissionOnlyRates.happyHourDrinkPct == null ||
+    commissionOnlyRates.happyHourDrinkPct === commissionOnlyRates.drinkPct
+  ) {
+    commissionOnlyRates.happyHourDrinkPct = defaultHappyHourDrinkPct(commissionOnlyRates.drinkPct);
   }
   return {
     ...merged,
     drinkMenu,
     perDrinkRm: ws?.perDrinkRm ?? averageDrinkPrice(drinkMenu),
-    tierRates: migratedTierRates,
+    tierRates: happyHourTierRates,
     commissionOnlyRates,
     basePayPerHour: migratedBaseTier.wagePerHour,
     drinkPct: migratedBaseTier.drinkPct,
     tipPct: migratedBaseTier.tipPct,
     tablePct: migratedBaseTier.tablePct,
     otAfterHours: migratedBaseTier.otAfterHours ?? merged.otAfterHours ?? 6,
+    happyHourStart: ws?.happyHourStart ?? merged.happyHourStart ?? "20:00",
+    happyHourEnd: ws?.happyHourEnd ?? merged.happyHourEnd ?? "22:00",
+    happyHourDrinkDiscountPct: resolveHappyHourDrinkDiscountPct(ws),
   };
+}
+
+/** Backfill tiers missing from persisted shift snapshots (e.g. after adding Servant). */
+function mergeShiftTierRatesWithWorkspace(
+  shiftRates: Partial<Record<OutletPrTier, OutletTierRateSettings>>,
+  workspaceRates: Record<OutletPrTier, OutletTierRateSettings>,
+): Record<OutletPrTier, OutletTierRateSettings> {
+  const out = cloneTierRates(workspaceRates);
+  for (const tier of OUTLET_PR_TIERS) {
+    const shiftTier = shiftRates[tier];
+    if (shiftTier) {
+      out[tier] = { ...out[tier], ...shiftTier };
+    }
+  }
+  return out;
 }
 
 export function resolveShiftTierRates(
@@ -277,7 +426,7 @@ export function resolveShiftTierRates(
     });
   }
   const wsBase = workspace.tierRates[OUTLET_BASE_TIER].wagePerHour;
-  const shiftBase = shift.tierRates[OUTLET_BASE_TIER].wagePerHour;
+  const shiftBase = shift.tierRates[OUTLET_BASE_TIER]?.wagePerHour ?? shift.payPerHour;
   if (wsBase >= 500 && shiftBase <= 80) {
     const out = cloneTierRates(workspace.tierRates);
     for (const tier of OUTLET_PR_TIERS) {
@@ -288,7 +437,7 @@ export function resolveShiftTierRates(
     }
     return out;
   }
-  return shift.tierRates;
+  return mergeShiftTierRatesWithWorkspace(shift.tierRates, workspace.tierRates);
 }
 
 export function patchShiftTierWages(
@@ -465,8 +614,28 @@ export interface OutletWorkspaceSettings {
   drinkMenu: OutletDrinkPrice[];
   happyHourStart: string;
   happyHourEnd: string;
-  /** Multiplier applied to drink commission during happy hour (e.g. 1.15 = +15%) */
-  happyHourDrinkBoost: number;
+  /** % discount off menu drink prices during happy hour (e.g. 15 = 15% off). */
+  happyHourDrinkDiscountPct: number;
+}
+
+export const DEFAULT_HAPPY_HOUR_DRINK_DISCOUNT_PCT = 15;
+
+export function resolveHappyHourDrinkDiscountPct(
+  ws?: Partial<OutletWorkspaceSettings> & { happyHourDrinkBoost?: number },
+): number {
+  if (ws?.happyHourDrinkDiscountPct != null && !Number.isNaN(ws.happyHourDrinkDiscountPct)) {
+    return Math.min(100, Math.max(0, Math.round(ws.happyHourDrinkDiscountPct)));
+  }
+  const legacyBoost = ws?.happyHourDrinkBoost;
+  if (legacyBoost != null && legacyBoost > 1) {
+    return Math.min(100, Math.max(0, Math.round((legacyBoost - 1) * 100)));
+  }
+  return DEFAULT_HAPPY_HOUR_DRINK_DISCOUNT_PCT;
+}
+
+export function happyHourDrinkPrice(priceRm: number, discountPct: number): number {
+  const pct = Math.min(100, Math.max(0, discountPct));
+  return Math.round(priceRm * (1 - pct / 100) * 100) / 100;
 }
 
 export interface OutletSettings {
@@ -584,17 +753,28 @@ export const OUTLET_SUBSCRIPTION_PLANS: OutletSubscriptionPlan[] = [
     capacityLabel: "101+ PRs / day",
     description: "Flagship venues · choose more than 100 PRs per shift",
   },
+];
+
+export type OutletSubscriptionAddonId = "pos_integration";
+
+export interface OutletSubscriptionAddon {
+  id: OutletSubscriptionAddonId;
+  label: string;
+  priceLabel: string;
+  capacityLabel: string;
+  description: string;
+  negotiateWithAdmin: true;
+}
+
+/** Add-ons billed separately — price negotiated with InnocenZ admin */
+export const OUTLET_SUBSCRIPTION_ADDONS: OutletSubscriptionAddon[] = [
   {
     id: "pos_integration",
     label: "Integrate with POS",
-    monthlyRm: 0,
     priceLabel: "Call to get price",
-    renegotiate: true,
-    prPerDayMax: 0,
-    prPoolSize: 0,
-    prSelectMax: 0,
     capacityLabel: "POS sync",
-    description: "Sync sales & commissions from your point-of-sale",
+    description: "Sync floor sales with your POS — InnocenZ admin will quote for your venue",
+    negotiateWithAdmin: true,
   },
 ];
 
@@ -818,7 +998,7 @@ export const DEFAULT_OUTLET_WORKSPACE: OutletWorkspaceSettings = {
   drinkMenu: DEFAULT_OUTLET_DRINK_MENU.map((d) => ({ ...d })),
   happyHourStart: "20:00",
   happyHourEnd: "22:00",
-  happyHourDrinkBoost: 1.15,
+  happyHourDrinkDiscountPct: DEFAULT_HAPPY_HOUR_DRINK_DISCOUNT_PCT,
 };
 
 export const DEFAULT_OUTLET_SETTINGS: OutletSettings = {
@@ -871,6 +1051,20 @@ export function shiftHoursFromLabel(shift: string): number {
   let end = parse(segments[1]);
   if (end <= start) end += 24 * 60;
   return Math.max(1, Math.round((end - start) / 60));
+}
+
+function clockLabelToMinutes(clock: string): number {
+  const m = clock.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return 0;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+/** Happy-hour window length in hours (handles overnight end times). */
+export function happyHourWindowHours(start: string, end: string): number {
+  let s = clockLabelToMinutes(start);
+  let e = clockLabelToMinutes(end);
+  if (e <= s) e += 24 * 60;
+  return Math.max(0, (e - s) / 60);
 }
 
 export function shiftStartTimeFromLabel(shiftLabel: string): string | null {

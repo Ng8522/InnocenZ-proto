@@ -146,6 +146,14 @@ function demoShiftDateLabel(daysFromToday: number): string {
   return fmtDateLabelFromIso(addDaysToIso(DEFAULT_ROSTER_DATE_ISO, daysFromToday));
 }
 
+/** Calendar backfill — ISO date N days before demo today. */
+function demoShiftDateDaysAgo(daysAgo: number): { date: string; dateIso: string } {
+  const dateIso = addDaysToIso(DEFAULT_ROSTER_DATE_ISO, -daysAgo);
+  return { date: fmtDateLabelFromIso(dateIso), dateIso };
+}
+
+export const CALENDAR_PAST_SHIFT_IDS = ["s18", "s19", "s20", "s21", "s22", "s23"] as const;
+
 /** Next occurrence of a weekday (0=Sun … 6=Sat) — keeps event names like "Friday lounge" aligned. */
 function demoShiftDateOnWeekday(weekday: number, allowToday = false): string {
   const todayIso = DEFAULT_ROSTER_DATE_ISO;
@@ -209,6 +217,19 @@ export function mergeDemoShiftStaffing(
       anchorLiveSales: seed?.anchorLiveSales ?? 0,
     };
   });
+}
+
+/** Inject past-month calendar examples when missing from persisted demo state. */
+export function mergeDemoCalendarPastShifts(
+  shifts: ShiftRequest[],
+  seedShifts: ShiftRequest[],
+): ShiftRequest[] {
+  const existing = new Set(shifts.map((s) => s.id));
+  const toAdd = seedShifts.filter(
+    (s) =>
+      (CALENDAR_PAST_SHIFT_IDS as readonly string[]).includes(s.id) && !existing.has(s.id),
+  );
+  return toAdd.length === 0 ? shifts : [...shifts, ...toAdd];
 }
 
 /** Re-apply demo shift dates after localStorage hydrate — keeps weekday event names aligned. */
@@ -294,14 +315,14 @@ function velvetTonightRosterSlot(
 }
 
 const HENNESSY_FLOOR_BY_PR: Record<string, { floorDrinks: number; floorTips?: number }> = {
-  p1: { floorDrinks: 6, floorTips: 150 },
-  "pr-comcard-alice": { floorDrinks: 4, floorTips: 90 },
-  "pr-comcard-angie": { floorDrinks: 3, floorTips: 60 },
-  "pr-comcard-ava": { floorDrinks: 2, floorTips: 40 },
-  "pr-comcard-bernice": { floorDrinks: 5, floorTips: 75 },
-  "pr-comcard-charlotte": { floorDrinks: 2 },
-  "pr-comcard-grace": { floorDrinks: 4, floorTips: 55 },
-  "pr-comcard-hazel": { floorDrinks: 3, floorTips: 45 },
+  p1: { floorDrinks: 12, floorTips: 150 },
+  "pr-comcard-alice": { floorDrinks: 8, floorTips: 90 },
+  "pr-comcard-angie": { floorDrinks: 7, floorTips: 60 },
+  "pr-comcard-ava": { floorDrinks: 5, floorTips: 40 },
+  "pr-comcard-bernice": { floorDrinks: 10, floorTips: 75 },
+  "pr-comcard-charlotte": { floorDrinks: 5 },
+  "pr-comcard-grace": { floorDrinks: 8, floorTips: 55 },
+  "pr-comcard-hazel": { floorDrinks: 5, floorTips: 45 },
 };
 
 function buildDemoShifts(): ShiftRequest[] {
@@ -693,6 +714,97 @@ function buildDemoShifts(): ShiftRequest[] {
       tierRates: mermateThuTiers,
       dressCode: "Cocktail attire",
       destination: "agency",
+    }),
+    ...(
+      [
+        {
+          id: "s18",
+          daysAgo: 3,
+          event: "Friday lounge",
+          shift: "22:00 — 04:00",
+          quantity: 14,
+          prs: ["p1", "pr-comcard-alice", "pr-comcard-angie", "pr-comcard-charlotte", "pr-comcard-grace"],
+          tierRates: tonightTiers,
+        },
+        {
+          id: "s19",
+          daysAgo: 8,
+          event: "Sunday brunch floor",
+          shift: "14:00 — 20:00",
+          quantity: 10,
+          prs: ["pr-comcard-ava", "pr-comcard-hazel", "pr-comcard-charlotte", "pr-comcard-grace"],
+          tierRates: ladiesTiers,
+        },
+        {
+          id: "s20",
+          daysAgo: 12,
+          event: "Wednesday VIP tables",
+          shift: "21:00 — 03:00",
+          quantity: 12,
+          prs: ["pr-comcard-alice", "pr-comcard-bernice", "pr-comcard-angie"],
+          tierRates: corporateTiers,
+          eventKind: "special" as const,
+          specialEventType: "vip" as const,
+        },
+        {
+          id: "s21",
+          daysAgo: 17,
+          event: "Friday party night",
+          shift: "21:00 — 03:00",
+          quantity: 16,
+          prs: [
+            "p1",
+            "pr-comcard-alice",
+            "pr-comcard-angie",
+            "pr-comcard-ava",
+            "pr-comcard-bernice",
+            "pr-comcard-charlotte",
+          ],
+          tierRates: ladiesTiers,
+        },
+        {
+          id: "s22",
+          daysAgo: 22,
+          event: "Sunday closing",
+          shift: "20:00 — 02:00",
+          quantity: 12,
+          prs: ["pr-comcard-sarah", "pr-comcard-victoria", "pr-comcard-moon", "pr-comcard-grace"],
+          tierRates: tonightTiers,
+        },
+        {
+          id: "s23",
+          daysAgo: 28,
+          event: "Tuesday lounge",
+          shift: "21:00 — 02:00",
+          quantity: 10,
+          prs: ["pr-comcard-charlotte", "pr-comcard-hazel", "pr-comcard-ava"],
+          tierRates: corporateTiers,
+        },
+      ] as const
+    ).map((row) => {
+      const { date, dateIso } = demoShiftDateDaysAgo(row.daysAgo);
+      return withShiftFinancialDefaults({
+        id: row.id,
+        outletName: "Velvet 23",
+        date,
+        dateIso,
+        shift: row.shift,
+        quantity: row.quantity,
+        filled: row.prs.length,
+        languages: "English / Mandarin",
+        event: row.event,
+        eventKind: "eventKind" in row ? row.eventKind : "normal",
+        specialEventType: "specialEventType" in row ? row.specialEventType : undefined,
+        preferredRating: 4.2,
+        estimatedCost: row.quantity * 180,
+        liveSales: 0,
+        status: "sealed",
+        prs: [...row.prs],
+        payPerHour: row.tierRates["Tier I"].wagePerHour,
+        tierRates: row.tierRates,
+        dressCode: "Smart casual",
+        destination: "both",
+      });
     }),
   ];
   return raw.map((s) => ({

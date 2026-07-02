@@ -498,6 +498,7 @@ interface StoreState {
   markAdminNotificationRead: (id: string) => void;
   requestPosIntegrationQuote: () => void;
   cancelPosIntegrationQuoteRequest: () => void;
+  markPosIntegrationQuoteContacted: (requestId: string) => void;
   prDeclinedOfferIds: string[];
   prMarketplaceApplication: {
     listingId: string;
@@ -1474,6 +1475,7 @@ export const useStore = create<StoreState>()(
           ownerName: st.outletOwner.ownerName,
           email: st.outletOwner.email,
           mobile: st.outletOwner.mobile,
+          currentPlanId: st.outletOwner.subscriptionPlanId ?? "pro",
           at,
           status: "pending",
         };
@@ -1505,6 +1507,14 @@ export const useStore = create<StoreState>()(
           ),
         });
         get().toast("POS quote request cancelled", "success");
+      },
+      markPosIntegrationQuoteContacted: (requestId) => {
+        set((st) => ({
+          posIntegrationQuoteRequests: st.posIntegrationQuoteRequests.map((r) =>
+            r.id === requestId ? { ...r, status: "contacted" as const } : r,
+          ),
+        }));
+        get().toast("Marked as contacted", "success");
       },
       prDeclinedOfferIds: [],
       prMarketplaceApplication: null,

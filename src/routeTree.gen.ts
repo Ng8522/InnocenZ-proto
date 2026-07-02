@@ -49,6 +49,7 @@ import { Route as AgencyPendingRouteImport } from './routes/agency.pending'
 import { Route as AgencyOutletsRouteImport } from './routes/agency.outlets'
 import { Route as AgencyLiveRouteImport } from './routes/agency.live'
 import { Route as AgencyHistoryRouteImport } from './routes/agency.history'
+import { Route as AdminSubscriptionsRouteImport } from './routes/admin.subscriptions'
 import { Route as AdminJobsRouteImport } from './routes/admin.jobs'
 
 const SigninRoute = SigninRouteImport.update({
@@ -251,6 +252,11 @@ const AgencyHistoryRoute = AgencyHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => AgencyRoute,
 } as any)
+const AdminSubscriptionsRoute = AdminSubscriptionsRouteImport.update({
+  id: '/subscriptions',
+  path: '/subscriptions',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminJobsRoute = AdminJobsRouteImport.update({
   id: '/jobs',
   path: '/jobs',
@@ -267,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
   '/admin/jobs': typeof AdminJobsRoute
+  '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
   '/agency/outlets': typeof AgencyOutletsRoute
@@ -306,6 +313,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
   '/admin/jobs': typeof AdminJobsRoute
+  '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
   '/agency/outlets': typeof AgencyOutletsRoute
@@ -350,6 +358,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
   '/admin/jobs': typeof AdminJobsRoute
+  '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/agency/history': typeof AgencyHistoryRoute
   '/agency/live': typeof AgencyLiveRoute
   '/agency/outlets': typeof AgencyOutletsRoute
@@ -395,6 +404,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signin'
     | '/admin/jobs'
+    | '/admin/subscriptions'
     | '/agency/history'
     | '/agency/live'
     | '/agency/outlets'
@@ -434,6 +444,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signin'
     | '/admin/jobs'
+    | '/admin/subscriptions'
     | '/agency/history'
     | '/agency/live'
     | '/agency/outlets'
@@ -477,6 +488,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signin'
     | '/admin/jobs'
+    | '/admin/subscriptions'
     | '/agency/history'
     | '/agency/live'
     | '/agency/outlets'
@@ -804,6 +816,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgencyHistoryRouteImport
       parentRoute: typeof AgencyRoute
     }
+    '/admin/subscriptions': {
+      id: '/admin/subscriptions'
+      path: '/subscriptions'
+      fullPath: '/admin/subscriptions'
+      preLoaderRoute: typeof AdminSubscriptionsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/jobs': {
       id: '/admin/jobs'
       path: '/jobs'
@@ -816,11 +835,13 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminJobsRoute: typeof AdminJobsRoute
+  AdminSubscriptionsRoute: typeof AdminSubscriptionsRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminJobsRoute: AdminJobsRoute,
+  AdminSubscriptionsRoute: AdminSubscriptionsRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 

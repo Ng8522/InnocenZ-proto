@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Bell, Plug } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzCard, IzPill } from "@/components/iz/ui";
@@ -18,11 +19,16 @@ export function AdminNotificationBell() {
   const notifications = useStore((s) => s.adminNotifications);
   const markAdminNotificationRead = useStore((s) => s.markAdminNotificationRead);
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
   const unread = notifications.filter((n) => !n.read).length;
 
   const openNotification = (n: AdminNotification) => {
     markAdminNotificationRead(n.id);
+    setOpen(false);
+    if (n.href) {
+      void navigate({ to: n.href });
+    }
   };
 
   return (

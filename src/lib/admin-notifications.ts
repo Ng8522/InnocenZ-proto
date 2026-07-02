@@ -1,5 +1,7 @@
 /** InnocenZ admin portal notifications (hidden ops console) */
 
+import type { OutletSubscriptionPlanId } from "@/lib/outlet-demo";
+
 export type AdminNotificationKind = "pos_integration_quote";
 
 export interface AdminNotification {
@@ -9,9 +11,13 @@ export interface AdminNotification {
   body: string;
   at: string;
   read: boolean;
+  href?: string;
+  requestId?: string;
   outlet: string;
   contactLine?: string;
 }
+
+export type PosIntegrationQuoteRequestStatus = "pending" | "contacted";
 
 export interface PosIntegrationQuoteRequest {
   id: string;
@@ -19,8 +25,9 @@ export interface PosIntegrationQuoteRequest {
   ownerName: string;
   email: string;
   mobile: string;
+  currentPlanId: OutletSubscriptionPlanId;
   at: string;
-  status: "pending";
+  status: PosIntegrationQuoteRequestStatus;
 }
 
 export function buildPosIntegrationAdminNotification(
@@ -34,6 +41,8 @@ export function buildPosIntegrationAdminNotification(
     body: `${req.outlet} requested POS sync pricing`,
     at: req.at,
     read: false,
+    href: "/admin/subscriptions",
+    requestId: req.id,
     outlet: req.outlet,
     contactLine: contact,
   };
@@ -42,4 +51,10 @@ export function buildPosIntegrationAdminNotification(
 export function adminNotificationKindLabel(kind: AdminNotificationKind): string {
   if (kind === "pos_integration_quote") return "POS integration";
   return "Admin alert";
+}
+
+export function pendingPosIntegrationQuoteRequests(
+  requests: PosIntegrationQuoteRequest[],
+): PosIntegrationQuoteRequest[] {
+  return requests.filter((r) => r.status === "pending");
 }

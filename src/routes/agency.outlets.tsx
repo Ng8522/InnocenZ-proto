@@ -158,8 +158,8 @@ function AgencyManageOutlets() {
       </IzCard>
 
       <IzCard flat className="iz-outlet-manage-filters-card">
-        <div className="flex items-center gap-2 iz-tiny iz-muted mb-2">
-          <Filter className="h-3.5 w-3.5" /> Filter outlets
+        <div className="flex items-center gap-2 iz-sm iz-muted mb-2">
+          <Filter className="h-4 w-4" /> Filter outlets
         </div>
         <AgencyOutletFilters
           filters={filters}

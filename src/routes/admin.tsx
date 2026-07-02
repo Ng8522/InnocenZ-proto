@@ -25,13 +25,13 @@ function AdminLayout() {
             <p className="iz-tiny iz-muted mt-0.5">Hidden operations portal</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link to="/admin/jobs" className="iz-chip !text-[11px]">
+            <Link to="/admin/jobs" className="iz-chip">
               Job postings
             </Link>
-            <Link to="/admin/subscriptions" className="iz-chip relative !text-[11px]">
+            <Link to="/admin/subscriptions" className="iz-chip relative">
               Subscriptions
               {pendingCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--iz-red)] px-0.5 text-[8px] font-bold text-white">
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--iz-red)] px-0.5 text-[10px] font-bold text-white">
                   {pendingCount}
                 </span>
               )}

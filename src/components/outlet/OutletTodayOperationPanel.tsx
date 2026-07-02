@@ -372,7 +372,7 @@ export function OutletTodayOperationPanel({
                 return (
                   <div
                     key={pr.id}
-                    className="flex flex-col gap-1 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-2"
+                    className="iz-outlet-pr-tonight-card flex flex-col gap-1.5 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-2"
                   >
                     <button
                       type="button"
@@ -382,7 +382,7 @@ export function OutletTodayOperationPanel({
                     >
                       <IzPill
                         variant={workforceStatusVariant(displayStatus)}
-                        className="absolute right-1 top-1 z-10 !py-0 !text-[8px] shadow-sm"
+                        className="absolute right-1 top-1 z-10 !py-0.5 shadow-sm"
                       >
                         {workforceStatusLabel(displayStatus)}
                       </IzPill>
@@ -396,7 +396,7 @@ export function OutletTodayOperationPanel({
                     </button>
 
                     {opsLine && (
-                      <p className="text-[10px] leading-tight text-[var(--iz-muted2)] line-clamp-2">
+                      <p className="iz-outlet-pr-tonight-card__ops iz-muted2 line-clamp-2">
                         {opsLine}
                       </p>
                     )}
@@ -404,7 +404,7 @@ export function OutletTodayOperationPanel({
                     <button
                       type="button"
                       onClick={() => setLiveSalesPrId(pr.id)}
-                      className="iz-btn iz-btn-soft iz-btn-sm w-full !py-1.5 !text-[10px]"
+                      className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
                     >
                       Live sales
                     </button>
@@ -412,7 +412,7 @@ export function OutletTodayOperationPanel({
                     <button
                       type="button"
                       onClick={() => setHistoryPrId(pr.id)}
-                      className="iz-btn iz-btn-soft iz-btn-sm w-full !py-1.5 !text-[10px]"
+                      className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
                     >
                       Shift history
                     </button>
@@ -420,7 +420,7 @@ export function OutletTodayOperationPanel({
                     <button
                       type="button"
                       onClick={() => setOpenPr(pr.id)}
-                      className="iz-btn iz-btn-soft iz-btn-sm w-full !py-1.5 !text-[10px]"
+                      className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
                     >
                       Rate
                     </button>

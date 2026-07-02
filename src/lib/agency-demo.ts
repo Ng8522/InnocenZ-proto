@@ -138,10 +138,6 @@ export function tierOtRmPerHour(
   return base > 0 ? base * OT_HOURLY_PREMIUM : 0;
 }
 
-export function defaultTierWageMultipliers(): Record<OutletPrTier, number> {
-  return { ...TIER_WAGE_MULTIPLIERS };
-}
-
 export const TIER_WAGE_STEP = 5;
 export const TIER_WAGE_MIN = 40;
 export const TIER_WAGE_MAX = 1000;
@@ -451,13 +447,6 @@ export function normalizeOutletTierMultipliers(
   partial?: Partial<Record<OutletPrTier, number>>,
 ): Record<OutletPrTier, number> {
   return { ...DEFAULT_TIER_MULTIPLIERS, ...partial };
-}
-
-export function getTierWageForRule(rule: OutletCommissionRule, tier: OutletPrTier): number {
-  const tierRate = rule.tierRates?.[tier];
-  if (tierRate?.wagePerHour != null) return snapTierWage(tierRate.wagePerHour);
-  const mult = normalizeOutletTierMultipliers(rule.tierMultipliers)[tier];
-  return tierWageFromMultiplier(rule.wagePerHour, mult);
 }
 
 export function getEffectiveOutletRule(
@@ -775,7 +764,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
     shiftEnd: "04:00",
-    status: "assignment-pending",
+    status: "scheduled",
     agencyAssignment: {
       agencyName: "Atlas Agency",
       agencyNote: "You are needed at Mermate — Friday lounge relaunch coverage",
@@ -805,7 +794,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     shift: "22:30 — 04:30",
     shiftStart: "22:30",
     shiftEnd: "04:30",
-    status: "assignment-pending",
+    status: "scheduled",
     agencyAssignment: {
       agencyName: "Atlas Agency",
       agencyNote: "Bear Lounge launch — host table coverage needed",
@@ -824,10 +813,10 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     shift: "20:00 — 02:00",
     shiftStart: "20:00",
     shiftEnd: "02:00",
-    status: "assignment-pending",
+    status: "scheduled",
     agencyAssignment: {
       agencyName: "Atlas Agency",
-      agencyNote: "Onyx KL rooftop — VIP host slot awaiting PR",
+      agencyNote: "Onyx KL rooftop — VIP host slot",
       assignedAt: "18 Jun 2026 · 14:05",
       assignedAtMs: Date.now() - 90 * 60 * 1000,
       eventDemand: 15,
@@ -843,7 +832,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     shift: "20:00 — 01:00",
     shiftStart: "20:00",
     shiftEnd: "01:00",
-    status: "assignment-pending",
+    status: "scheduled",
     agencyAssignment: {
       agencyName: "Atlas Agency",
       agencyNote: "Urban Soul — Friday party floor PR needed",
@@ -1121,9 +1110,6 @@ export interface LiveWorkforceEntry {
   tips: number;
 }
 
-/** @deprecated Use deriveLiveWorkforce(agencyRoster) from portal-sync — kept for tip fallback only */
-export const SEED_LIVE_WORKFORCE: LiveWorkforceEntry[] = [];
-
 export interface OutletPnlRow {
   outlet: string;
   grossRevenue: number;
@@ -1219,22 +1205,6 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
 /** Demo billing: 1 PV issued per active PR per payroll week. */
 export const AGENCY_PVS_PER_PR_PER_WEEK = 1;
 
-/** @deprecated use AGENCY_PVS_PER_PR_PER_WEEK */
-export const AGENCY_PVS_PER_PR_PER_MONTH = AGENCY_PVS_PER_PR_PER_WEEK;
-
-export function agencyActivePrCount(
-  agencyPRs: Pick<AgencyManagedPR, "detached">[],
-): number {
-  return agencyPRs.filter((p) => !p.detached).length;
-}
-
-export function agencyExpectedWeeklyPvFromPrCount(prCount: number): number {
-  return Math.max(0, prCount) * AGENCY_PVS_PER_PR_PER_WEEK;
-}
-
-/** @deprecated use agencyExpectedWeeklyPvFromPrCount */
-export const agencyExpectedMonthlyPvFromPrCount = agencyExpectedWeeklyPvFromPrCount;
-
 export function resolveAgencySubscriptionPlanForWeeklyPv(
   weeklyPv: number,
 ): AgencySubscriptionPlan {
@@ -1269,25 +1239,6 @@ export function agencySubscriptionBillingForWeeklyPv(weeklyPv: number): {
   };
 }
 
-/** @deprecated use resolveAgencySubscriptionPlanForWeeklyPv */
-export const resolveAgencySubscriptionPlanForMonthlyPv = resolveAgencySubscriptionPlanForWeeklyPv;
-
-export function resolveAgencySubscriptionPlanForRoster(
-  agencyPRs: Pick<AgencyManagedPR, "detached">[],
-): AgencySubscriptionPlan {
-  return resolveAgencySubscriptionPlanForWeeklyPv(
-    agencyExpectedWeeklyPvFromPrCount(agencyActivePrCount(agencyPRs)),
-  );
-}
-
-export function agencySubscriptionAllowsWeeklyPv(
-  plan: AgencySubscriptionPlan,
-  weeklyPv: number,
-): boolean {
-  if (plan.renegotiate) return true;
-  return weeklyPv <= plan.pvLimit;
-}
-
 export function syncAgencyOwnerSubscriptionPlan(
   owner: AgencyOwnerSettings,
   managedWeekPvs: { weekStartIso?: string; issued: string }[],
@@ -1304,16 +1255,6 @@ export function agencyWeeklyPvCount(
   weekStartIso: string,
 ): number {
   return pvs.filter((pv) => pv.weekStartIso === weekStartIso).length;
-}
-
-/** @deprecated use agencyWeeklyPvCount */
-export function agencyMonthlyPvCount(
-  pvs: { weekStartIso?: string; issued: string }[],
-  _agencyPRs: { id: string; name: string; ic?: string }[] = [],
-  reference = new Date(),
-): number {
-  void reference;
-  return pvs.filter((pv) => Boolean(pv.weekStartIso)).length;
 }
 
 export function getAgencySubscriptionPlan(id?: AgencySubscriptionPlanId | null): AgencySubscriptionPlan {

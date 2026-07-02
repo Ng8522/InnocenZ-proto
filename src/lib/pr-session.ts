@@ -160,7 +160,8 @@ export function defaultPrShiftSessionForRole(role: PrSubRole, ctx: PrSessionCont
   const slot = findAgencyRosterTonight(ctx.agencyRoster, TIED_DEMO_ROSTER_PR_ID);
   if (!slot) return { ...EMPTY_PR_SHIFT_SESSION };
 
-  const pending = slot.status === "assignment-pending";
+  const pending =
+    slot.status === "outlet-pending" || slot.status === "outlet-request-pending";
 
   return {
     shiftAccepted: !pending,

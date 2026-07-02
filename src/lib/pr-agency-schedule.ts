@@ -14,11 +14,6 @@ export function getAgencyScheduleToIso(fromIso = getLiveTodayIso()): string {
   return addDaysToIso(fromIso, 21);
 }
 
-/** @deprecated use getAgencyScheduleFromIso() */
-export const AGENCY_SCHEDULE_FROM_ISO = "2026-05-04";
-/** @deprecated use getAgencyScheduleToIso() */
-export const AGENCY_SCHEDULE_TO_ISO = "2026-06-10";
-
 export type PrUpcomingEventKind = "confirmed" | "pending" | "swap" | "assignment";
 
 export type PrUpcomingEvent = {
@@ -232,31 +227,6 @@ export function buildPrScheduleDays(
   });
 }
 
-export function scheduleDaysInMonth(days: PrScheduleDay[], viewMonth: Date): PrScheduleDay[] {
-  const y = viewMonth.getFullYear();
-  const m = viewMonth.getMonth();
-  return days.filter((d) => {
-    const [dy, dm] = d.dateIso.split("-").map(Number);
-    return dy === y && dm - 1 === m;
-  });
-}
-
-export function primarySlotForDay(day: PrScheduleDay): AgencyRosterSlot | undefined {
-  if (day.slots.length === 0) return undefined;
-  const priority: AgencyRosterSlot["status"][] = [
-    "on-duty",
-    "en-route",
-    "scheduled",
-    "assignment-pending",
-    "outlet-pending",
-    "swap-pending",
-    "unavailable",
-  ];
-  return [...day.slots].sort(
-    (a, b) => priority.indexOf(a.status) - priority.indexOf(b.status),
-  )[0];
-}
-
 export function dayCanMarkUnavailable(day: PrScheduleDay): boolean {
   if (day.kind === "past" || day.kind === "active") return false;
   if (day.kind === "unavailable" || day.kind === "open") return true;
@@ -266,13 +236,6 @@ export function dayCanMarkUnavailable(day: PrScheduleDay): boolean {
 /** Tap-to-toggle only on open or unavailable days (not booked/pending shifts). */
 export function dayCanToggleAvailability(day: PrScheduleDay): boolean {
   return dayCanMarkUnavailable(day);
-}
-
-export function dayCanCancelShift(day: PrScheduleDay): boolean {
-  if (day.kind === "past" || day.kind === "active" || day.kind === "open" || day.kind === "unavailable") {
-    return false;
-  }
-  return Boolean(primarySlotForDay(day) || day.upcoming);
 }
 
 function slotHasRosterCoverage(slot: AgencyRosterSlot, upcoming: PrUpcomingShift): boolean {
@@ -292,15 +255,15 @@ function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
       dateLabel: fmtHistDate(y, m, d),
       outlet: slot.outlet,
       time: slot.shift,
-      statusLabel: outletRequested ? "Outlet shift offer" : "Agency assignment",
-      statusVariant: "amber",
+      statusLabel: "Scheduled",
+      statusVariant: "green",
       source: outletRequested ? "outlet" : "agency",
       sourceLabel: outletRequested ? slot.outlet : agency,
       sourceDetail:
         slot.agencyAssignment?.agencyNote ??
         (outletRequested
-          ? `${slot.outlet} requested you — Atlas approved · accept or decline`
-          : "Atlas assigned you — approve or decline"),
+          ? `${slot.outlet} requested you — Atlas confirmed`
+          : "Atlas assigned you — cancel per agency policy if needed"),
       slot,
     };
   }
@@ -464,21 +427,6 @@ export function buildUpcomingWeekTimetableEntries(
   return buildTimetableEntriesInRange(prId, roster, upcoming, fromIso, toIso, baselineIso);
 }
 
-export function buildTimetableEntries(
-  prId: string,
-  roster: AgencyRosterSlot[],
-  upcoming: PrUpcomingShift[],
-  viewMonth: Date,
-  baselineIso = DEFAULT_ROSTER_DATE_ISO,
-): TimetableEntry[] {
-  const y = viewMonth.getFullYear();
-  const m = viewMonth.getMonth();
-  const fromIso = `${y}-${String(m + 1).padStart(2, "0")}-01`;
-  const lastDay = new Date(y, m + 1, 0).getDate();
-  const toIso = `${y}-${String(m + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-  return buildTimetableEntriesInRange(prId, roster, upcoming, fromIso, toIso, baselineIso);
-}
-
 export function entryCanCancel(entry: TimetableEntry, baselineIso = getLiveTodayIso()): boolean {
   if (entry.dateIso < baselineIso) return false;
   if (entry.slot) {
@@ -487,9 +435,4 @@ export function entryCanCancel(entry: TimetableEntry, baselineIso = getLiveToday
     return ["scheduled", "assignment-pending", "outlet-pending", "swap-pending"].includes(s);
   }
   return Boolean(entry.upcoming);
-}
-
-/** @deprecated use entryCanCancel */
-export function entryCanDecline(entry: TimetableEntry): boolean {
-  return entryCanCancel(entry);
 }

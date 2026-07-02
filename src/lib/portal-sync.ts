@@ -3,7 +3,6 @@
  */
 
 import type {
-  AgencyCollectionInvoice,
   AgencyReconciliationDay,
   AgencyRosterSlot,
   LiveWorkforceEntry,
@@ -55,10 +54,6 @@ export function outletMatches(a: string, b: string): boolean {
   return canonicalOutlet(a) === canonicalOutlet(b);
 }
 
-export function isDefaultOutlet(name: string): boolean {
-  return outletMatches(name, DEFAULT_OUTLET_CANONICAL);
-}
-
 export type RosterPayoutEstimateOpts = {
   trainingLevel?: string;
   rules?: OutletCommissionRule[];
@@ -90,17 +85,6 @@ export function estimateRosterSlotPayout(
   ).total;
 }
 
-/** @deprecated Prefer estimateRosterSlotPayout with trainingLevel */
-export function estimateRosterPayout(
-  slot: AgencyRosterSlot,
-  rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
-  perDrinkRm = 12,
-  trainingLevel?: string,
-  shiftTierRates?: Record<OutletPrTier, OutletTierRateSettings>,
-): number {
-  return estimateRosterSlotPayout(slot, { trainingLevel, rules, perDrinkRm, shiftTierRates });
-}
-
 export function estimateRosterSlotPayoutForPr(
   slot: AgencyRosterSlot,
   agencyPRs: { id: string; trainingLevel?: string }[] | undefined,
@@ -118,7 +102,7 @@ export function estimateRosterSlotPayoutForPr(
   });
 }
 
-/** Live floor cards derived from roster — replaces static SEED_LIVE_WORKFORCE in UI */
+/** Live floor cards derived from agency roster (on-duty / en-route with check-in). */
 export function deriveLiveWorkforce(
   roster: AgencyRosterSlot[],
   dateIso: string = DEFAULT_ROSTER_DATE_ISO,
@@ -193,6 +177,76 @@ function fillOutletShiftSlot<T extends OutletShiftSlot>(shifts: T[], idx: number
   });
 }
 
+/** Remove a PR from all matching outlet shifts (e.g. PR cancellation). */
+export function removePrFromOutletShifts<T extends OutletShiftSlot>(
+  shifts: T[],
+  outlet: string,
+  prId: string,
+): T[] {
+  return shifts.map((sh) => {
+    if (!outletMatches(sh.outletName, outlet) || !sh.prs.includes(prId)) return sh;
+    const prs = sh.prs.filter((id) => id !== prId);
+    return { ...sh, prs, filled: prs.length };
+  });
+}
+
+const ROSTER_BOOKED_FOR_OUTLET = new Set<AgencyRosterSlot["status"]>([
+  "scheduled",
+  "on-duty",
+  "en-route",
+  "swap-pending",
+  "assignment-pending",
+]);
+
+function postedShiftIdFromAssignment(outletShiftId?: string): string | undefined {
+  if (!outletShiftId?.trim()) return undefined;
+  return outletShiftId.startsWith("posted-")
+    ? outletShiftId.slice("posted-".length)
+    : outletShiftId;
+}
+
+function rosterSlotMatchesOutletShift<
+  T extends { id: string; outletName: string; date: string; dateIso?: string; shift: string; status: string },
+>(slot: AgencyRosterSlot, shift: T): boolean {
+  if (!ROSTER_BOOKED_FOR_OUTLET.has(slot.status)) return false;
+  if (!outletMatches(slot.outlet, shift.outletName)) return false;
+
+  const linkedId = postedShiftIdFromAssignment(slot.agencyAssignment?.outletShiftId);
+  if (linkedId && linkedId === shift.id) return true;
+
+  const shiftIso = shiftDateIso(shift.date, shift.dateIso);
+  return slot.dateIso === shiftIso && slot.shift === shift.shift;
+}
+
+/** Keep outlet shift.prs aligned with agency roster bookings (assign, hydrate, cancel). */
+export function syncAgencyRosterToOutletShifts<
+  T extends OutletShiftSlot & {
+    id: string;
+    date: string;
+    dateIso?: string;
+    shift: string;
+    releasedEarlyPrIds?: string[];
+  },
+>(shifts: T[], roster: AgencyRosterSlot[], todayIso = DEFAULT_ROSTER_DATE_ISO): T[] {
+  if (roster.length === 0) return shifts;
+
+  return shifts.map((shift) => {
+    if (shift.status === "sealed") return shift;
+    const released = new Set(shift.releasedEarlyPrIds ?? []);
+    const rosterPrIds = roster
+      .filter((slot) => rosterSlotMatchesOutletShift(slot, shift))
+      .map((slot) => slot.prId);
+    const prs = [...new Set([...(shift.prs ?? []), ...rosterPrIds])].filter((id) => !released.has(id));
+    if (
+      prs.length === (shift.prs ?? []).length &&
+      prs.every((id, i) => id === (shift.prs ?? [])[i])
+    ) {
+      return shift;
+    }
+    return { ...shift, prs, filled: prs.length };
+  });
+}
+
 /** Fill a specific posted outlet shift (agency roster planning) */
 export function addPrToPostedOutletShift<T extends OutletShiftSlot & { id: string }>(
   shifts: T[],
@@ -222,18 +276,6 @@ export function floorTipsForOutletFromRoster(
     .reduce((sum, s) => sum + (s.floorTips ?? 0), 0);
 }
 
-/** Outlet billing view of agency collections (same amounts, INV id prefix) */
-export function collectionsForOutlet(
-  collections: AgencyCollectionInvoice[],
-  outletName: string,
-): AgencyCollectionInvoice[] {
-  return collections.filter((c) => outletMatches(c.outlet, outletName));
-}
-
-export function collectionToInvoiceId(colId: string): string {
-  return colId.replace(/^COL-/, "INV-");
-}
-
 /** Recompute reconciliation totals from outlet gross + PV net (variance = outlet − PV). */
 export function recomputeReconciliation(input: {
   outletGross: number;
@@ -257,14 +299,6 @@ export function recomputeReconciliation(input: {
 
 export function sumPvNetForCycle(pvs: PrPaymentVoucher[]): number {
   return Math.round(pvs.reduce((s, p) => s + p.net, 0) * 100) / 100;
-}
-
-export function outletGrossFromPnl(
-  outletPnl: { outlet: string; grossRevenue: number }[],
-  outletName: string,
-): number {
-  const row = outletPnl.find((r) => outletMatches(r.outlet, outletName));
-  return row?.grossRevenue ?? 0;
 }
 
 /** PR history shifts tab — same log as agency/outlet */

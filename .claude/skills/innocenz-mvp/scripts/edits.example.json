@@ -1,0 +1,21 @@
+{
+  "workbook": "C:/Users/jinkg/Downloads/InnocenZ/InnocenZ_MVP_v8_Jul2026.xlsx",
+  "edits": [
+    {
+      "sheet": "E2E Flow",
+      "cell": "G27",
+      "value": "1. Seal-shift review flow wired on the home live shift.\n2. No pre-seal variance gate.\n🔗 OutletTodayOperationPanel.tsx, OutletShiftDetailPanel.tsx"
+    }
+  ],
+  "appendRows": [
+    {
+      "sheet": "Changelog",
+      "cloneStyleFromRow": 10,
+      "row": 11,
+      "cells": {
+        "A": "Jul 2026 v8.2",
+        "B": "Re-audit pass: <summary of what changed vs src/>."
+      }
+    }
+  ]
+}

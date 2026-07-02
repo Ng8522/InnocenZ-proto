@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
-import { outletHomeShiftRequests } from "@/lib/agency-outlet-shifts";
+import { outletHomeShiftRequests, resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
 import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
 import { outletCan } from "@/lib/outlet-rbac";
 import { IzSheet } from "@/components/iz/Sheet";
@@ -15,6 +15,9 @@ import {
 import { outletShiftDisplayLiveSales } from "@/lib/outlet-financial-sync";
 import { formatTierSalesTargets, formatTierWageRange } from "@/lib/agency-demo";
 import { OutletCutLossActions } from "@/components/outlet/OutletCutLossActions";
+import { specialServicesForOutlet } from "@/lib/special-service-actions";
+import { outletMatches } from "@/lib/portal-sync";
+import { getLiveTodayIso } from "@/lib/demo-clock";
 import {
   OutletShiftDetailPanel,
   OutletShiftStatusBadge,
@@ -27,6 +30,8 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const agencyRoster = useStore((s) => s.agencyRoster);
+  const prReceiptScans = useStore((s) => s.prReceiptScans);
+  const specialServiceOrders = useStore((s) => s.specialServiceOrders);
   const { shifts, deleteShift } = useStore();
   const canDelete = outletCan(outletSubRole, "postJob");
   const canStaff = outletCan(outletSubRole, "manageShiftStaffing");
@@ -78,7 +83,27 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
     const tierRates = resolveShiftTierRates(s, outletWorkspace);
     const targetPay = formatTierWageRange(tierRates);
     const salesTargets = formatTierSalesTargets(tierRates);
-    const displaySales = outletShiftDisplayLiveSales(s);
+    const todayIso = getLiveTodayIso();
+    const shiftDateIso = resolveOutletShiftDateIso(s.date, s.dateIso, todayIso);
+    const rosterTonight = agencyRoster.filter(
+      (slot) =>
+        outletMatches(slot.outlet, s.outletName) &&
+        slot.dateIso === shiftDateIso &&
+        (s.prs ?? []).includes(slot.prId),
+    );
+    const tonightSpecialServiceRm = specialServicesForOutlet(specialServiceOrders, s.outletName)
+      .filter(
+        (r) =>
+          r.dateIso === shiftDateIso && r.status !== "declined" && r.status !== "rejected",
+      )
+      .reduce((sum, r) => sum + r.amountIn, 0);
+    const displaySales = outletShiftDisplayLiveSales(s, {
+      outletName: s.outletName,
+      drinkMenu: outletWorkspace.drinkMenu ?? [],
+      rosterSlots: rosterTonight,
+      receiptScans: prReceiptScans,
+      specialServiceRm: tonightSpecialServiceRm,
+    });
     const { demand, supplied } = outletShiftDemandSupplied(s);
 
     return (

@@ -153,7 +153,11 @@ function HostShifts() {
     () => outletPendingShiftsForPr(agencyRoster, myRosterId),
     [agencyRoster, myRosterId],
   );
-  const rosterBooked = !!agencyTonight && agencyTonight.status !== "assignment-pending";
+  const rosterBooked =
+    !!agencyTonight &&
+    ["scheduled", "on-duty", "en-route", "swap-pending", "assignment-pending"].includes(
+      agencyTonight.status,
+    );
   const effectiveShiftAccepted = (shiftAccepted || rosterBooked) && !blockingSwap;
   const activeShift = useMemo(() => {
     if (!effectiveShiftAccepted) return null;
@@ -393,9 +397,15 @@ function HostShifts() {
                   time={agencyTonight.shift}
                   badge={
                     <PrStatusPill
-                      variant={agencyTonight.status === "assignment-pending" ? "amber" : "green"}
+                      variant={
+                        ["scheduled", "on-duty", "en-route"].includes(agencyTonight.status)
+                          ? "green"
+                          : "amber"
+                      }
                     >
-                      {agencyTonight.status === "assignment-pending" ? "Pending" : "Scheduled"}
+                      {["scheduled", "on-duty", "en-route"].includes(agencyTonight.status)
+                        ? "Scheduled"
+                        : "Pending"}
                     </PrStatusPill>
                   }
                 />

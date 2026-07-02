@@ -201,7 +201,9 @@ export function mergeDemoShiftStaffing(
   return shifts.map((sh) => {
     if (sh.id !== HENNESSY_LAUNCH_SHIFT_ID) return sh;
     const releasedEarly = [...new Set(sh.releasedEarlyPrIds ?? [])];
-    const activePrs = rosterPrIds.filter((id) => !releasedEarly.includes(id));
+    const seedSet = new Set<string>(rosterPrIds);
+    const extras = (sh.prs ?? []).filter((id) => !seedSet.has(id) && !releasedEarly.includes(id));
+    const activePrs = [...new Set([...rosterPrIds.filter((id) => !releasedEarly.includes(id)), ...extras])];
     return {
       ...sh,
       quantity: seed?.quantity ?? sh.quantity,
@@ -246,6 +248,17 @@ export function mergeDemoShiftDates(
       resolveOutletShiftDateIso(seed.date, seed.dateIso, DEFAULT_ROSTER_DATE_ISO);
     return { ...sh, date: seed.date, dateIso, event: seed.event, payTierRows: seed.payTierRows };
   });
+}
+
+/** Legacy: assignment-pending → scheduled (agency assign is now immediate). */
+export function mergeAutoConfirmAgencyAssignments(
+  roster: AgencyRosterSlot[],
+): AgencyRosterSlot[] {
+  return roster.map((slot) =>
+    slot.status === "assignment-pending"
+      ? { ...slot, status: "scheduled" as const }
+      : slot,
+  );
 }
 
 /** Re-apply assignment-pending roster dates & notes after localStorage hydrate. */

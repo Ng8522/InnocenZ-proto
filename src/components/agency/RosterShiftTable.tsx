@@ -353,11 +353,6 @@ function RosterShiftCard({
           </button>
         </div>
       )}
-      {slot.status === "assignment-pending" && (
-        <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2 py-1.5">
-          Awaiting {slot.prName} to approve outlet assignment
-        </p>
-      )}
       {canAssign && (
         <div className="iz-roster-actions">
           {slot.status !== "swap-pending" && slot.status !== "assignment-pending" && (

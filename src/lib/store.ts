@@ -112,7 +112,7 @@ import {
   LEGACY_FINANCE_HEAD_SIGNER,
   buildDemoESignatureDataUrl,
 } from "@/lib/finance-head-stamp";
-import { validateReceiptScan } from "@/lib/receipt-scan-utils";
+import { validateReceiptScan, receiptDateIso } from "@/lib/receipt-scan-utils";
 import {
   applyDisputeTargetsToRows,
   clearDisputeTargetsFromRows,
@@ -164,6 +164,8 @@ import {
   outletMatches,
   addPrToOutletShift,
   addPrToPostedOutletShift,
+  removePrFromOutletShifts,
+  syncAgencyRosterToOutletShifts,
   parseShiftWindow,
   patchPrRosterAttendanceFlags,
   mergeOutletRequestRosterSlots,
@@ -217,7 +219,7 @@ import {
 import type { PendingCutlostRequest } from "@/lib/outlet-cutlost-requests";
 import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import type { PostJobPayTierRow } from "@/lib/post-job-pay-tiers";
-import { buildDemoStoreReset, buildPrDemoReset, mergeDemoCalendarPastShifts, mergeDemoHennessyRosterFloor, mergeDemoRosterAssignmentSlots, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
+import { buildDemoStoreReset, buildPrDemoReset, mergeAutoConfirmAgencyAssignments, mergeDemoCalendarPastShifts, mergeDemoHennessyRosterFloor, mergeDemoRosterAssignmentSlots, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
 import {
   SEED_SPECIAL_SERVICES,
   mergeSpecialServiceOrders,
@@ -875,6 +877,37 @@ function receiptQtyDelta(items: PrReceiptScan["items"]) {
     drinks: items.filter((i) => i.category === "drinks").reduce((s, i) => s + i.qty, 0),
     tables: items.filter((i) => i.category === "tables").reduce((s, i) => s + i.qty, 0),
   };
+}
+
+function receiptTipRmTotal(items: PrReceiptScan["items"]) {
+  return items.filter((i) => i.category === "tips").reduce((s, i) => s + i.amount, 0);
+}
+
+function patchRosterFloorFromReceiptDelta(
+  roster: AgencyRosterSlot[],
+  prId: string,
+  outlet: string,
+  dateIso: string,
+  oldQty: { drinks: number; tables: number },
+  newQty: { drinks: number; tables: number },
+  oldTipRm: number,
+  newTipRm: number,
+): AgencyRosterSlot[] {
+  const drinkDelta = newQty.drinks - oldQty.drinks;
+  const tipDelta = Math.round((newTipRm - oldTipRm) * 100) / 100;
+  if (drinkDelta === 0 && tipDelta === 0) return roster;
+  return roster.map((slot) => {
+    if (slot.prId !== prId || !outletMatches(slot.outlet, outlet) || slot.dateIso !== dateIso) {
+      return slot;
+    }
+    return {
+      ...slot,
+      ...(drinkDelta !== 0
+        ? { floorDrinks: Math.max(0, (slot.floorDrinks ?? 0) + drinkDelta) }
+        : {}),
+      ...(tipDelta !== 0 ? { floorTips: Math.max(0, (slot.floorTips ?? 0) + tipDelta) } : {}),
+    };
+  });
 }
 
 function activePrShiftOffer(
@@ -2636,14 +2669,28 @@ export const useStore = create<StoreState>()(
             : allScans;
           const oldQty = replaced ? receiptQtyDelta(replaced.items) : { drinks: 0, tables: 0 };
           const newQty = receiptQtyDelta(items);
+          const oldTipRm = replaced ? receiptTipRmTotal(replaced.items) : 0;
+          const newTipRm = receiptTipRmTotal(items);
           const receiptIds = replaced
             ? shift.receiptIds.map((rid) => (rid === replaced.id ? id : rid))
             : [...shift.receiptIds, id];
+          const [y, m, d] = shift.date;
+          const dateIso = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
           return {
             prReceiptScans: [scan, ...withoutReplaced],
             prActiveShift: shift ? { ...shift, receiptIds } : null,
             drinks: st.drinks - oldQty.drinks + newQty.drinks,
             tables: st.tables - oldQty.tables + newQty.tables,
+            agencyRoster: patchRosterFloorFromReceiptDelta(
+              st.agencyRoster,
+              draft.prId,
+              outlet,
+              dateIso,
+              oldQty,
+              newQty,
+              oldTipRm,
+              newTipRm,
+            ),
           };
         });
         if (manual) {
@@ -2725,6 +2772,9 @@ export const useStore = create<StoreState>()(
         const comm = calcReceiptCommissions(items);
         const oldQty = receiptQtyDelta(scan.items);
         const newQty = receiptQtyDelta(items);
+        const oldTipRm = receiptTipRmTotal(scan.items);
+        const newTipRm = receiptTipRmTotal(items);
+        const dateIso = receiptDateIso(scan);
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -2752,6 +2802,18 @@ export const useStore = create<StoreState>()(
           ),
           drinks: st.drinks - oldQty.drinks + newQty.drinks,
           tables: st.tables - oldQty.tables + newQty.tables,
+          agencyRoster: scan.prId
+            ? patchRosterFloorFromReceiptDelta(
+                st.agencyRoster,
+                scan.prId,
+                outlet,
+                dateIso,
+                oldQty,
+                newQty,
+                oldTipRm,
+                newTipRm,
+              )
+            : st.agencyRoster,
         }));
         if (scan.prId) {
           get().pushNotify({
@@ -2789,6 +2851,9 @@ export const useStore = create<StoreState>()(
           return;
         }
         const oldQty = receiptQtyDelta(scan.items);
+        const oldTipRm = receiptTipRmTotal(scan.items);
+        const outlet = scan.outlet.replace(/\s+KL$/i, "").trim() || scan.outlet;
+        const dateIso = receiptDateIso(scan);
         set((st) => ({
           prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).filter((s) => s.id !== scanId),
           prActiveShift: st.prActiveShift
@@ -2799,6 +2864,18 @@ export const useStore = create<StoreState>()(
             : null,
           drinks: Math.max(0, st.drinks - oldQty.drinks),
           tables: Math.max(0, st.tables - oldQty.tables),
+          agencyRoster: scan.prId
+            ? patchRosterFloorFromReceiptDelta(
+                st.agencyRoster,
+                scan.prId,
+                outlet,
+                dateIso,
+                oldQty,
+                { drinks: 0, tables: 0 },
+                oldTipRm,
+                0,
+              )
+            : st.agencyRoster,
         }));
         get().toast(`Self-log deleted · ${scan.receiptRef}`, "success");
       },
@@ -3294,16 +3371,33 @@ export const useStore = create<StoreState>()(
         event,
         payEstimate,
       }) => {
-        const pr = get().agencyPRs.find((p) => p.id === prId);
+        const st = get();
+        const pr = st.agencyPRs.find((p) => p.id === prId);
         if (!pr) return;
         if (pr.suspended || pr.detached) {
           get().toast(`${pr.name} is suspended or detached`, "warn");
           return;
         }
-        const existing = get().agencyRoster.find((s) => s.prId === prId && s.dateIso === dateIso);
+        const postedShiftId = outletShiftId?.startsWith("posted-")
+          ? outletShiftId.slice("posted-".length)
+          : outletShiftId;
+        const postedShift = postedShiftId
+          ? st.shifts.find((s) => s.id === postedShiftId)
+          : undefined;
+        const linkedDateIso = postedShift
+          ? shiftDateIso(postedShift.date, postedShift.dateIso)
+          : dateIso;
+        const linkedDateLabel = postedShift
+          ? postedShift.date === "Tonight" || postedShift.date === "Tomorrow"
+            ? fmtDateLabelFromIso(linkedDateIso)
+            : postedShift.date
+          : dateLabel;
+        const existing = st.agencyRoster.find(
+          (s) => s.prId === prId && s.dateIso === linkedDateIso,
+        );
         if (existing && isPrMarkedDayOff(existing)) {
           get().toast(
-            `${pr.name} marked ${dateLabel} unavailable on their schedule — they must reopen the day first`,
+            `${pr.name} marked ${linkedDateLabel} unavailable on their schedule — they must reopen the day first`,
             "warn",
           );
           return;
@@ -3311,7 +3405,6 @@ export const useStore = create<StoreState>()(
         if (
           existing &&
           existing.status !== "unavailable" &&
-          existing.status !== "assignment-pending" &&
           existing.status !== "outlet-request-pending"
         ) {
           get().toast(`${pr.name} already has a shift on this date`, "warn");
@@ -3325,20 +3418,18 @@ export const useStore = create<StoreState>()(
         });
         const id = existing?.id ?? "rs" + Date.now().toString(36).slice(-6);
         const shift = shiftLabel ?? `${shiftStart} — ${shiftEnd}`;
-        const postedShiftId = outletShiftId?.startsWith("posted-")
-          ? outletShiftId.slice("posted-".length)
-          : undefined;
+        const isTonight = linkedDateIso === DEFAULT_ROSTER_DATE_ISO;
         const slot: AgencyRosterSlot = {
           id,
           prId,
           prName: pr.name,
           outlet,
-          date: dateLabel,
-          dateIso,
+          date: linkedDateLabel,
+          dateIso: linkedDateIso,
           shift,
           shiftStart,
           shiftEnd,
-          status: "assignment-pending",
+          status: "scheduled",
           estPayout: payEstimate,
           agencyAssignment: {
             agencyName: "Atlas Agency",
@@ -3348,29 +3439,42 @@ export const useStore = create<StoreState>()(
             outletShiftId,
           },
         };
-        set((st) => ({
-          agencyRoster: existing
-            ? st.agencyRoster.map((s) => (s.id === existing.id ? slot : s))
-            : [slot, ...st.agencyRoster],
-          shifts: postedShiftId
-            ? addPrToPostedOutletShift(st.shifts, postedShiftId, prId, outlet)
-            : addPrToOutletShift(st.shifts, outlet, prId),
-        }));
-        get().toast(
-          `Assignment sent to ${pr.name} — awaiting Approve or Reject on Shifts`,
-          "success",
-        );
+        set((cur) => {
+          const nextRoster = existing
+            ? cur.agencyRoster.map((s) => (s.id === existing.id ? slot : s))
+            : [slot, ...cur.agencyRoster];
+          const nextShifts = postedShiftId
+            ? addPrToPostedOutletShift(cur.shifts, postedShiftId, prId, outlet)
+            : addPrToOutletShift(cur.shifts, outlet, prId);
+          return {
+            agencyRoster: nextRoster,
+            shifts: syncAgencyRosterToOutletShifts(nextShifts, nextRoster),
+            ...(prId === TIED_DEMO_ROSTER_PR_ID && isTonight
+              ? patchPrSessionForRole(cur, "pr_tied", {
+                  shiftAccepted: true,
+                  pendingApproval: false,
+                  acceptedShiftIndex: shiftIndexForOutlet(outlet),
+                  checkedIn: false,
+                  checkedOut: false,
+                })
+              : {}),
+          };
+        });
+        get().toast(`${pr.name} scheduled at ${outlet} · ${dateLabel}`, "success");
         get().pushNotify({
           type: "shift_assigned",
           prId,
           prName: pr.name,
           outlet,
+          detail: `${outlet} · ${event ?? shift} — cancel per agency policy if needed`,
         });
       },
       approveAgencyAssignmentByPr: (rosterSlotId) => {
         const st = get();
         const slot = st.agencyRoster.find((s) => s.id === rosterSlotId);
-        if (!slot || slot.status !== "assignment-pending") return;
+        if (!slot) return;
+        if (slot.status === "scheduled") return;
+        if (slot.status !== "assignment-pending") return;
         const applicantId = slot.agencyAssignment?.shiftApplicantId;
         const outletRequested = slot.agencyAssignment?.requestedByOutlet;
         const app = applicantId ? st.shiftApplicants.find((a) => a.id === applicantId) : undefined;
@@ -3573,7 +3677,7 @@ export const useStore = create<StoreState>()(
         }
 
         if (!canTogglePrDayAvailability(daySlots)) {
-          get().toast("Cancel or decline booked shifts on this day first", "warn");
+          get().toast("Cancel booked shifts on this day first", "warn");
           return;
         }
 
@@ -3623,7 +3727,7 @@ export const useStore = create<StoreState>()(
         const daySlots = st.agencyRoster.filter((s) => s.prId === prId && s.dateIso === dateIso);
         if (prDayIsUnavailable(daySlots)) return;
         if (!canTogglePrDayAvailability(daySlots)) {
-          get().toast("Cancel or decline the shift first — then mark the day unavailable", "warn");
+          get().toast("Cancel the shift first — then mark the day unavailable", "warn");
           return;
         }
         get().togglePrDayAvailability(dateIso);
@@ -3668,32 +3772,47 @@ export const useStore = create<StoreState>()(
           hour: "2-digit",
           minute: "2-digit",
         });
-        set((cur) => ({
-          agencyRoster: cur.agencyRoster.map((s) =>
-            s.id === rosterSlotId
+        set((cur) => {
+          const applicantId = slot.agencyAssignment?.shiftApplicantId;
+          const app = applicantId
+            ? cur.shiftApplicants.find((a) => a.id === applicantId)
+            : undefined;
+          let shiftApplicants = cur.shiftApplicants;
+          let shifts = removePrFromOutletShifts(cur.shifts, slot.outlet, slot.prId);
+          if (app?.status === "accepted") {
+            shiftApplicants = cur.shiftApplicants.map((a) =>
+              a.id === applicantId ? { ...a, status: "pending" as const } : a,
+            );
+          }
+          return {
+            agencyRoster: cur.agencyRoster.map((s) =>
+              s.id === rosterSlotId
+                ? {
+                    ...s,
+                    status: "unavailable" as const,
+                    payDeductionRm: evalResult.deductionRm,
+                    cancelledAt: stamp,
+                    prUnavailableNote: "Shift cancelled by PR",
+                  }
+                : s,
+            ),
+            shiftApplicants,
+            shifts,
+            prUpcomingShifts: cur.prUpcomingShifts.filter((u) => {
+              const key = `${u.date[0]}-${String(u.date[1]).padStart(2, "0")}-${String(u.date[2]).padStart(2, "0")}`;
+              return !(key === slot.dateIso && u.outlet === slot.outlet);
+            }),
+            ...(slot.dateIso === DEFAULT_ROSTER_DATE_ISO && slot.prId === getPrRosterId(cur.prSubRole)
               ? {
-                  ...s,
-                  status: "unavailable" as const,
-                  payDeductionRm: evalResult.deductionRm,
-                  cancelledAt: stamp,
-                  prUnavailableNote: "Shift cancelled by PR",
+                  shiftAccepted: false,
+                  pendingApproval: false,
+                  acceptedShiftIndex: null,
+                  checkedIn: false,
+                  checkedOut: false,
                 }
-              : s,
-          ),
-          prUpcomingShifts: cur.prUpcomingShifts.filter((u) => {
-            const key = `${u.date[0]}-${String(u.date[1]).padStart(2, "0")}-${String(u.date[2]).padStart(2, "0")}`;
-            return !(key === slot.dateIso && u.outlet === slot.outlet);
-          }),
-          ...(slot.dateIso === DEFAULT_ROSTER_DATE_ISO && slot.prId === getPrRosterId(cur.prSubRole)
-            ? {
-                shiftAccepted: false,
-                pendingApproval: false,
-                acceptedShiftIndex: null,
-                checkedIn: false,
-                checkedOut: false,
-              }
-            : {}),
-        }));
+              : {}),
+          };
+        });
         const penalty =
           evalResult.deductionRm > 0
             ? ` · −RM ${evalResult.deductionRm} on next PV`
@@ -3702,6 +3821,13 @@ export const useStore = create<StoreState>()(
           `Shift cancelled at ${slot.outlet}${penalty}`,
           evalResult.tier === "safe" ? "info" : "warn",
         );
+        get().pushNotify({
+          type: "shift_edit",
+          prId: slot.prId,
+          prName: slot.prName,
+          outlet: slot.outlet,
+          detail: `PR cancelled shift${evalResult.deductionRm > 0 ? ` · −RM ${evalResult.deductionRm}` : ""}`,
+        });
       },
       declineOutletSwapByPr: (rosterSlotId) => {
         const slot = get().agencyRoster.find((s) => s.id === rosterSlotId);
@@ -5031,34 +5157,64 @@ export const useStore = create<StoreState>()(
           hour: "2-digit",
           minute: "2-digit",
         });
-        set((cur) => ({
-          agencyRoster: cur.agencyRoster.map((s) =>
+        const isTonight = slot.dateIso === DEFAULT_ROSTER_DATE_ISO;
+        set((cur) => {
+          const nextRoster = cur.agencyRoster.map((s) =>
             s.id === rosterSlotId
               ? {
                   ...s,
-                  status: "assignment-pending" as const,
+                  status: "scheduled" as const,
                   agencyAssignment: s.agencyAssignment
                     ? {
                         ...s.agencyAssignment,
                         assignedAt: stamp,
                         assignedAtMs: Date.now(),
                         requestedByOutlet: true,
+                        respondedAt: stamp,
+                        outletShiftId: s.agencyAssignment.outletShiftId ?? shift.id,
                       }
-                    : { assignedAt: stamp, assignedAtMs: Date.now() },
+                    : {
+                        assignedAt: stamp,
+                        assignedAtMs: Date.now(),
+                        respondedAt: stamp,
+                        outletShiftId: shift.id,
+                      },
                 }
               : s,
-          ),
-        }));
-        get().toast(
-          `Approved ${app.prName} for ${shift.outletName} — awaiting PR confirm`,
-          "success",
-        );
+          );
+          const nextShifts = cur.shifts.map((sh) =>
+            sh.id === app.shiftId
+              ? {
+                  ...sh,
+                  prs: [...sh.prs, app.prId],
+                  filled: sh.prs.length + 1,
+                }
+              : sh,
+          );
+          return {
+            agencyRoster: nextRoster,
+            shiftApplicants: cur.shiftApplicants.map((a) =>
+              a.id === applicantId ? { ...a, status: "accepted" as const } : a,
+            ),
+            shifts: syncAgencyRosterToOutletShifts(nextShifts, nextRoster),
+            ...(slot.prId === TIED_DEMO_ROSTER_PR_ID && isTonight
+              ? patchPrSessionForRole(cur, "pr_tied", {
+                  shiftAccepted: true,
+                  pendingApproval: false,
+                  acceptedShiftIndex: shiftIndexForOutlet(shift.outletName),
+                  checkedIn: false,
+                  checkedOut: false,
+                })
+              : {}),
+          };
+        });
+        get().toast(`${app.prName} scheduled at ${shift.outletName}`, "success");
         get().pushNotify({
           type: "shift_assigned",
           prId: app.prId,
           prName: app.prName,
           outlet: shift.outletName,
-          detail: `${shift.outletName} · ${shift.event} — outlet requested you · accept or decline on Shifts`,
+          detail: `${shift.outletName} · ${shift.event} — cancel per agency policy if needed`,
         });
       },
       declineOutletPrRequest: (rosterSlotId) => {
@@ -6136,12 +6292,14 @@ export const useStore = create<StoreState>()(
           ),
           prs: marketplacePrsFromAgency(mergedAgencyPRs),
           agencyRoster: rosterWithTiedPrAttendance(
-            mergeDemoHennessyRosterFloor(
-              mergeDemoRosterAssignmentSlots(
-                mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
+            mergeAutoConfirmAgencyAssignments(
+              mergeDemoHennessyRosterFloor(
+                mergeDemoRosterAssignmentSlots(
+                  mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
+                  demoSnapshot.agencyRoster,
+                ),
                 demoSnapshot.agencyRoster,
               ),
-              demoSnapshot.agencyRoster,
             ),
             {
               prSubRole: p?.prSubRole ?? current.prSubRole,
@@ -6174,6 +6332,29 @@ export const useStore = create<StoreState>()(
           shifts: (() => {
             const ws = normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace);
             const menu = ws.drinkMenu;
+            const mergedRoster = rosterWithTiedPrAttendance(
+              mergeAutoConfirmAgencyAssignments(
+                mergeDemoHennessyRosterFloor(
+                  mergeDemoRosterAssignmentSlots(
+                    mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
+                    demoSnapshot.agencyRoster,
+                  ),
+                  demoSnapshot.agencyRoster,
+                ),
+              ),
+              {
+                prSubRole: p?.prSubRole ?? current.prSubRole,
+                checkedIn: p?.checkedIn ?? current.checkedIn,
+                checkedOut: p?.checkedOut ?? current.checkedOut,
+                prActiveShift: p?.prActiveShift ?? current.prActiveShift,
+                prSessionByRole: p?.prSessionByRole ?? current.prSessionByRole ?? {},
+                prCheckInMeta: p?.prCheckInMeta ?? current.prCheckInMeta ?? {},
+                agencyPRs: mergedAgencyPRs,
+                acceptedShiftIndex: p?.acceptedShiftIndex ?? current.acceptedShiftIndex,
+                agencyRoster: p?.agencyRoster ?? current.agencyRoster,
+                shifts: p?.shifts ?? current.shifts,
+              },
+            );
             const merged = mergeDemoShiftDates(
               mergeDemoShiftStaffing(
                 mergeDemoCalendarPastShifts(
@@ -6186,7 +6367,7 @@ export const useStore = create<StoreState>()(
               ),
               demoSnapshot.shifts,
             );
-            return merged;
+            return syncAgencyRosterToOutletShifts(merged, mergedRoster);
           })(),
           outletPnl: (() => {
             const ws = normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace);

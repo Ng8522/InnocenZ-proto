@@ -13,21 +13,19 @@ import { cn } from "@/lib/utils";
 
 export function OutletTonightSummaryTable({
   floorTotals,
-  specialServiceRm,
   outletSubRole,
   drinkMenu = [],
   shift,
   variant = "standalone",
 }: {
   floorTotals: OutletTonightFloorTotals;
-  specialServiceRm: number;
   outletSubRole: Parameters<typeof outletCan>[0];
   drinkMenu?: OutletDrinkPrice[];
   shift?: ShiftRequest;
   /** standalone = legacy; embedded = inside expanded live sales; collapsed = live sales header when closed */
   variant?: "standalone" | "embedded" | "collapsed";
 }) {
-  const grandTotal = floorTotals.totalSalesRm + specialServiceRm;
+  const grandTotal = floorTotals.totalSalesRm;
   const canViewReport = outletCan(outletSubRole, "viewBilling") || outletCan(outletSubRole, "viewSalesDashboard");
   const menu = shift ? effectiveShiftDrinkMenu(shift, drinkMenu) : drinkMenu;
   const typicalPerDrink = typicalDrinkPrice(menu);
@@ -55,7 +53,6 @@ export function OutletTonightSummaryTable({
             <th scope="col">Total Sales Report</th>
             <th scope="col">Total Drinks</th>
             <th scope="col">Total Tips</th>
-            <th scope="col">Special Service</th>
           </tr>
         </thead>
         <tbody>
@@ -81,7 +78,6 @@ export function OutletTonightSummaryTable({
               </span>
             </td>
             <td>{formatRM(floorTotals.totalTipsRm)}</td>
-            <td>{formatRM(specialServiceRm)}</td>
           </tr>
         </tbody>
       </table>

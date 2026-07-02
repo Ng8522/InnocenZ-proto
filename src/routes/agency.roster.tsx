@@ -117,7 +117,6 @@ function AgencyRoster() {
     [prSwapRequests, agencyRoster],
   );
   const swapCount = pendingPrSwaps.length;
-  const assignCount = agencyRoster.filter((s) => s.status === "assignment-pending").length;
   const outletRequestCount = agencyRoster.filter((s) => s.status === "outlet-request-pending").length;
   const swapToApprove = approveSwapId
     ? prSwapRequests.find((s) => s.id === approveSwapId && s.status === "pending_agency")
@@ -208,7 +207,6 @@ function AgencyRoster() {
           {outletRequestCount > 0 && (
             <IzPill variant="amber">{outletRequestCount} outlet request{outletRequestCount !== 1 ? "s" : ""}</IzPill>
           )}
-          {assignCount > 0 && <IzPill variant="amber">{assignCount} assign</IzPill>}
           {swapCount > 0 && (
             <IzPill variant="violet">
               {swapCount} swap{swapCount > 1 ? "s" : ""}
@@ -309,7 +307,8 @@ function AgencyRoster() {
             <IzCard flat className="iz-roster-planning-hint">
               <p className="iz-tiny iz-muted">
                 Weekly planning — assign outlet-posted shifts to PRs per day. Only open shifts from
-                outlets appear; each assignment awaits PR approval. Days without a posted shift still
+                outlets appear; assignments are confirmed immediately — PRs can cancel per agency policy.
+                Days without a posted shift still
                 open the picker so you can see what is available.
               </p>
               <button

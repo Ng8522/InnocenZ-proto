@@ -8,7 +8,6 @@ import {
   outletTonightLiveEarningsRows,
   outletShiftFloorSalesStarted,
 } from "@/lib/outlet-financial-sync";
-import { specialServicesForOutlet } from "@/lib/special-service-actions";
 import {
   resolveShiftTierRates,
   PR_RATING_TAGS,
@@ -111,7 +110,6 @@ export function OutletTodayOperationPanel({
   const outletSubRole = useStore((s) => s.outletSubRole);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
-  const specialServiceOrders = useStore((s) => s.specialServiceOrders);
   const { prs, ratePr, agencyRoster, agencyPRs, postSealRatePrompt, clearPostSealRatePrompt } =
     useStore();
   const prSubRole = useStore((s) => s.prSubRole);
@@ -181,10 +179,33 @@ export function OutletTodayOperationPanel({
 
   const staffTonight = useMemo((): StaffEntry[] => {
     const rosterByPr = new Map(rosterTonight.map((s) => [s.prId, s]));
-    return (shift.prs ?? [])
+    const bookedIds = new Set(shift.prs ?? []);
+    for (const slot of rosterTonight) {
+      if (
+        ["scheduled", "on-duty", "en-route", "swap-pending"].includes(slot.status) &&
+        slot.shift === shift.shift
+      ) {
+        bookedIds.add(slot.prId);
+      }
+    }
+    return [...bookedIds]
       .flatMap((id): StaffEntry[] => {
-        const pr = prs.find((p) => p.id === id);
-        if (!pr) return [];
+        const marketplacePr = prs.find((p) => p.id === id);
+        const agencyPr = agencyPrById.get(id);
+        if (!marketplacePr && !agencyPr) return [];
+        const pr =
+          marketplacePr ??
+          ({
+            id: agencyPr!.id,
+            name: agencyPr!.name,
+            rating: agencyPr!.rating,
+            languages: agencyPr!.languages.map((l) =>
+              l.length <= 3 ? l : l.slice(0, 2).toUpperCase(),
+            ),
+            status: "booked" as const,
+            avatar: "✨",
+            comcardImageUrl: agencyPr!.comcardImageUrl ?? null,
+          } satisfies PR);
         const slot = rosterByPr.get(id);
         const displayStatus = resolveStaffFloorStatus(id, slot, tiedLive);
         return slot ? [{ pr, slot, displayStatus }] : [{ pr, displayStatus }];
@@ -194,7 +215,7 @@ export function OutletTodayOperationPanel({
           STATUS_SORT[a.displayStatus] - STATUS_SORT[b.displayStatus] ||
           a.pr.name.localeCompare(b.pr.name),
       );
-  }, [shift.prs, prs, rosterTonight, tiedLive]);
+  }, [shift.prs, shift.shift, prs, rosterTonight, tiedLive, agencyPrById]);
 
   const statusCounts = useMemo(() => {
     const counts = { onDuty: 0, enRoute: 0, booked: 0, checkedOut: 0 };
@@ -263,7 +284,12 @@ export function OutletTodayOperationPanel({
     ? (liveEarningsRows.find((row) => row.prId === liveSalesPrId) ?? null)
     : null;
 
-  const floorSalesStarted = outletShiftFloorSalesStarted(shift);
+  const floorSalesStarted = outletShiftFloorSalesStarted(shift, new Date(), {
+    outletName,
+    rosterSlots: rosterTonight,
+    receiptScans: prReceiptScans,
+    prIds: shift.prs ?? [],
+  });
 
   const tonightFloorTotals = useMemo(
     () => {
@@ -280,21 +306,6 @@ export function OutletTodayOperationPanel({
       });
     },
     [floorSalesStarted, shift, outletName, outletWorkspace.drinkMenu, rosterTonight, prReceiptScans],
-  );
-
-  const tonightSpecialServiceRm = useMemo(
-    () => {
-      if (!floorSalesStarted) return 0;
-      return specialServicesForOutlet(specialServiceOrders, outletName)
-        .filter(
-          (r) =>
-            r.dateIso === DEFAULT_ROSTER_DATE_ISO &&
-            r.status !== "declined" &&
-            r.status !== "rejected",
-        )
-        .reduce((sum, r) => sum + r.amountIn, 0);
-    },
-    [floorSalesStarted, specialServiceOrders, outletName],
   );
 
   const toggleTag = (tag: string) => {
@@ -428,7 +439,6 @@ export function OutletTodayOperationPanel({
             collapsedPreview={
               <OutletTonightSummaryTable
                 floorTotals={tonightFloorTotals}
-                specialServiceRm={tonightSpecialServiceRm}
                 outletSubRole={outletSubRole}
                 drinkMenu={outletWorkspace.drinkMenu ?? []}
                 shift={shift}
@@ -438,7 +448,6 @@ export function OutletTodayOperationPanel({
           >
             <OutletTonightSummaryTable
               floorTotals={tonightFloorTotals}
-              specialServiceRm={tonightSpecialServiceRm}
               outletSubRole={outletSubRole}
               drinkMenu={outletWorkspace.drinkMenu ?? []}
               shift={shift}

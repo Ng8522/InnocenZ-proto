@@ -39,7 +39,7 @@ const STATUS_CELL: Record<
   { className: string; label: string }
 > = {
   scheduled: { className: "iz-roster-week-cell--scheduled", label: "Scheduled" },
-  "assignment-pending": { className: "iz-roster-week-cell--pending", label: "Awaiting PR" },
+  "assignment-pending": { className: "iz-roster-week-cell--scheduled", label: "Scheduled" },
   "outlet-request-pending": { className: "iz-roster-week-cell--pending", label: "Outlet request" },
   "outlet-pending": { className: "iz-roster-week-cell--pending", label: "Awaiting outlet" },
   "on-duty": { className: "iz-roster-week-cell--live", label: "On duty" },
@@ -456,7 +456,7 @@ function AssignWeekCellSheet({
         {isFreelancerPrId(pr.id) ? " · Freelancer" : " · Agency-tied"} · {formatDateLabel(dateIso)}
       </p>
       <p className="iz-tiny iz-muted2 mt-1">
-        Pick a posted outlet shift — assignment awaits PR approval before it locks.
+        Pick a posted outlet shift — PR is scheduled immediately and can cancel per agency policy.
       </p>
 
       <div className="iz-roster-assign-filters mt-3">
@@ -546,7 +546,7 @@ function AssignWeekCellSheet({
             disabled={busy || !picked}
             onClick={confirm}
           >
-            {busy ? "Assigning…" : "Send assignment to PR"}
+            {busy ? "Assigning…" : "Schedule PR"}
           </button>
         </>
       )}

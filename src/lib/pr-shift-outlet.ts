@@ -68,8 +68,8 @@ export function getPrCheckInAssignmentLabel(slot: AgencyRosterSlot | undefined):
   if (slot.status === "outlet-pending") {
     return "Outlet requested you · pending agency & PR approval";
   }
-  if (slot.status === "assignment-pending") {
-    return `Agency assigned · ${agency} · pending approval`;
+  if (slot.status === "assignment-pending" || slot.status === "scheduled") {
+    return `Agency assigned · ${agency}`;
   }
   return `Agency assigned · ${agency}`;
 }

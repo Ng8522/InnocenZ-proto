@@ -98,12 +98,53 @@ export function computeShiftLiveSales(
   return Math.round(drinkSales * 100) / 100;
 }
 
-/** Floor sales count only after shift start — confirmed/live before opening shows RM 0. */
+export type OutletShiftFloorActivity = {
+  outletName: string;
+  rosterSlots?: AgencyRosterSlot[];
+  receiptScans?: PrReceiptScan[];
+  prIds?: string[];
+};
+
+function outletShiftHasLiveFloorActivity(
+  shift: Pick<ShiftRequest, "date" | "dateIso" | "shift" | "status">,
+  activity: OutletShiftFloorActivity,
+): boolean {
+  const dateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso);
+  const prSet = activity.prIds?.length ? new Set(activity.prIds) : null;
+
+  if (
+    activity.rosterSlots?.some(
+      (slot) =>
+        slot.dateIso === dateIso &&
+        outletMatches(slot.outlet, activity.outletName) &&
+        (!prSet || prSet.has(slot.prId)) &&
+        slot.status === "on-duty" &&
+        !!slot.checkedInAt,
+    )
+  ) {
+    return true;
+  }
+
+  return (activity.receiptScans ?? []).some(
+    (scan) =>
+      outletMatches(scan.outlet, activity.outletName) &&
+      receiptDateIso(scan) === dateIso &&
+      (!prSet || (scan.prId != null && prSet.has(scan.prId))) &&
+      !isPayrollCommissionReceiptScan(scan),
+  );
+}
+
+/**
+ * Floor sales count after shift start — or once PRs are on duty / receipts are logged
+ * (demo-friendly for daytime check-in testing before opening).
+ */
 export function outletShiftFloorSalesStarted(
   shift: Pick<ShiftRequest, "date" | "dateIso" | "shift" | "status">,
   now = new Date(),
+  activity?: OutletShiftFloorActivity,
 ): boolean {
   if (shift.status === "sealed") return true;
+  if (activity && outletShiftHasLiveFloorActivity(shift, activity)) return true;
   const dateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso);
   const start = shiftStartTimeFromLabel(shift.shift);
   if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return false;
@@ -129,7 +170,16 @@ export function outletShiftLiveSalesTotal(
   shift: ShiftRequest,
   ctx: OutletShiftLiveSalesContext,
 ): number {
-  if (!outletShiftFloorSalesStarted(shift, ctx.now)) return 0;
+  if (
+    !outletShiftFloorSalesStarted(shift, ctx.now, {
+      outletName: ctx.outletName,
+      rosterSlots: ctx.rosterSlots,
+      receiptScans: ctx.receiptScans,
+      prIds: shift.prs ?? [],
+    })
+  ) {
+    return 0;
+  }
   const floor = outletTonightFloorTotals({
     shift,
     outletName: ctx.outletName,
@@ -164,7 +214,16 @@ export function outletPrLiveFloorSales(opts: {
   now?: Date;
 }): OutletPrLiveSales {
   const empty = { salesRm: 0, drinkSalesRm: 0, drinkUnits: 0, tipRm: 0 };
-  if (!outletShiftFloorSalesStarted(opts.shift, opts.now)) return empty;
+  if (
+    !outletShiftFloorSalesStarted(opts.shift, opts.now, {
+      outletName: opts.outletName,
+      rosterSlots: opts.slot ? [opts.slot] : undefined,
+      receiptScans: opts.receiptScans,
+      prIds: [opts.prId],
+    })
+  ) {
+    return empty;
+  }
   const shiftDateIso = resolveOutletShiftDateIso(opts.shift.date, opts.shift.dateIso);
   const scans = (opts.receiptScans ?? []).filter(
     (scan) =>

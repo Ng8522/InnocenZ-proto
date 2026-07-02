@@ -173,8 +173,8 @@ function AgencyManagePRs() {
       </IzCard>
 
       <IzCard flat className="iz-pr-manage-filters-card">
-        <div className="flex items-center gap-2 iz-tiny iz-muted mb-2">
-          <Filter className="h-3.5 w-3.5" /> Filter PRs
+        <div className="flex items-center gap-2 iz-sm iz-muted mb-2">
+          <Filter className="h-4 w-4" /> Filter PRs
         </div>
         <div className="iz-pr-manage-filters-grid">
           <label className="iz-pr-manage-filter-field">

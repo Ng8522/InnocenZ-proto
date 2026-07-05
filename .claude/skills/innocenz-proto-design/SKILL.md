@@ -70,6 +70,61 @@ Colour / surface tokens (`--iz-bg`, `--iz-panel`, `--iz-txt`, `--iz-muted`,
 `--iz-grad*`, traffic colours) live in the same `:root` block — recolour there,
 never by hardcoding hexes in components.
 
+### Warm secondary accent (already established)
+
+The base palette was one-note violet (`--iz-gold` === `--iz-violet` === `#b79ce8`),
+which made everything read flat. A contained **champagne-gold** accent now lives
+in `:root` and is the signature "pop" against the violet:
+
+```css
+--iz-accent:   #e3b877;
+--iz-accent-d: #c99b4e;
+--iz-accent-l: #f2d9a0;
+--iz-grad-accent: linear-gradient(135deg, #f2d9a0 0%, #e3b877 46%, #c99b4e 100%);
+```
+
+Do **not** repurpose `--iz-gold` (335 usages across 65 files — flipping it is
+chaos). Use `--iz-accent*` and apply it **sparingly**, only on the elements
+that should earn attention.
+
+## The "design the whole page" recipe
+
+When asked to design/polish a screen (or all screens), apply this consistent
+treatment by editing the **shared theme classes** below — never per-page inline
+styles. Because these classes are reused everywhere, editing them restyles
+every screen that uses them at once. This is the established InnocenZ look:
+
+| Element | Class(es) in `prototype-theme.css` | Treatment |
+|---|---|---|
+| Primary CTA buttons | `.iz-btn-primary` | `background: var(--iz-grad-accent)`, dark ink text, warm glow |
+| Brand wordmark "Z" | `.iz-wordmark-z` | `var(--iz-grad-accent)` |
+| Section headers | `.iz-sect-label` (+ `::before` tick) | `color: var(--iz-accent-l)`, weight 700, warm 2px tick, roomy top margin |
+| Form field labels | `.iz-field-label` | `color: var(--iz-accent-d)`, uppercase eyebrow |
+| Dashboard KPI tiles | `.iz-portal-kpi` `.l` / `.n` | `.l` → `var(--iz-accent-d)` uppercase eyebrow; tile gets a warm inset top-edge; `.n` bigger (agency 42px, generic 42px) + tabular numerals |
+| Outlet report hero label | `.iz-outlet-report-hero__label` | `color: var(--iz-accent-d)`, uppercase eyebrow |
+| Cards / containers | `.iz-card`, `.iz-portal-kpi` padding | more padding + bottom margin for breathing room |
+| Body type scale | `--iz-fs-*` + all four `--iz-portal-fs` | 20px base (see Typography above) |
+
+**Principles for any new screen:**
+1. **Accent = highlights only** — CTAs, eyebrow labels, key marks. Never flood
+   a screen with gold; violet stays the identity.
+2. **Hierarchy via relationships, not uniform scale** — make primary numbers
+   bigger/bolder and labels quieter; don't just enlarge everything equally
+   (that changes nothing perceptually).
+3. **Breathing room** — prefer more padding/gaps over cramming.
+4. **Tabular numerals** (`font-variant-numeric: tabular-nums`) on any figure
+   that sits in a column or updates live.
+5. **Verify text fit** — long currency/labels must not clip; dial size back if
+   a figure overflows its tile (e.g. keep KPI `.n` ≤ 42px so `RM 55,253.00`
+   fits).
+
+**Reaching a screen that looks unchanged:** some dashboards use bespoke inline
+Tailwind, not these shared classes. Confirm which class actually renders (grep
+the route/component for `className`, then find that selector — remember the
+theme redefines many selectors in more-specific scoped blocks like
+`[data-portal="agency"] .iz-portal-main …`, which win over `:root`). Edit the
+**most specific** rule that actually applies, then verify the computed value.
+
 ## Workflow
 
 1. **Confirm scope with the user** if unclear: token polish only (safest,

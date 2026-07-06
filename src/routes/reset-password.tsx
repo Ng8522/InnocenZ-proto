@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { PhoneFrame } from "@/components/Brand";
+import { PhoneFrame, InnocenZLogoMark } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
 import { useStore } from "@/lib/store";
 import { ArrowLeft, Lock, Eye, EyeOff } from "lucide-react";
@@ -45,9 +45,7 @@ function ResetPassword() {
           <ArrowLeft className="h-3.5 w-3.5" /> Back
         </button>
 
-        <div className="iz-logo-tile mt-8">
-          <span>Z</span>
-        </div>
+        <InnocenZLogoMark className="mt-8" />
 
         <div className="text-center">
           <h1 className="font-sora mt-6 text-[27px] font-extrabold text-[var(--iz-txt)]">

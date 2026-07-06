@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
-import { PhoneFrame } from "@/components/Brand";
+import { PhoneFrame, InnocenZLogoHorizontal, InnocenZLogoMark } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
 import { isValidDemoOtp, OtpVerifySheet } from "@/components/auth/OtpVerifySheet";
 import { PortalAuthFrame } from "@/components/auth/PortalAuthFrame";
@@ -218,18 +218,15 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
         <ArrowLeft className="h-3.5 w-3.5" /> Back
       </button>
 
-      <div className="iz-logo-tile mt-8">
-        <span>Z</span>
-      </div>
+      {portal === "pr" ? (
+        <InnocenZLogoMark size="lg" className="mt-8" />
+      ) : (
+        <InnocenZLogoHorizontal className="iz-portal-auth-card-logo mt-8" />
+      )}
 
       <div className={emailOnly ? "mt-2" : "text-center"}>
-        {!emailOnly && (
-          <h1 className="font-sora mt-6 text-[27px] font-extrabold text-[var(--iz-txt)]">
-            Innocen<span className="iz-wordmark-z">Z</span>
-          </h1>
-        )}
         <p
-          className={`iz-tiny iz-muted ${emailOnly ? "mt-0 text-[15px] font-semibold text-[var(--iz-txt)]" : "mt-1.5"}`}
+          className={`iz-tiny ${emailOnly ? "mt-0 text-[15px] font-semibold text-[var(--iz-txt)]" : "iz-muted mt-4"}`}
         >
           {portalLabel} sign in
         </p>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { InnocenZLogoHorizontal } from "@/components/Brand";
 import { PORTAL_AUTH_TAGLINES, PORTAL_SIGNIN_LABELS, type SignInPortal } from "@/lib/portal-signin";
 
 export function PortalAuthFrame({
@@ -16,16 +17,10 @@ export function PortalAuthFrame({
     <div className="iz-portal-auth" data-portal={portal}>
       <aside className="iz-portal-auth-brand">
         <div className="iz-portal-auth-brand-inner">
-          <div className="iz-wordmark text-[26px]">
-            Innocen<span className="iz-wordmark-z">Z</span>
-          </div>
-          <p className="iz-tiny iz-muted mt-1.5">{label} portal</p>
+          <p className="iz-tiny iz-muted">{label} portal</p>
+          <InnocenZLogoHorizontal className="iz-portal-auth-brand-logo" />
 
-          <div className="iz-logo-tile iz-portal-auth-logo !mt-8 !mb-0">
-            <span>Z</span>
-          </div>
-
-          <h1 className="font-sora mt-6 text-[32px] font-extrabold leading-tight text-[var(--iz-txt)]">
+          <h1 className="font-sora mt-8 text-[32px] font-extrabold leading-tight text-[var(--iz-txt)]">
             Sign in to {label}
           </h1>
           <p className="iz-sm iz-muted mt-3 max-w-sm leading-relaxed">

@@ -6716,29 +6716,36 @@
   color: var(--iz-txt);
 }
 
-/* Agency home — tabbed hub strip */
-.iz-agency-home-tabs {
-  display: grid;
-  gap: 1px;
+/* Agency home — underline tab strip inside hub panel */
+.iz-agency-home-hub {
   overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid var(--iz-line);
-  background: var(--iz-line);
+}
+.iz-agency-home-tabs {
+  display: flex;
+  gap: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--iz-line);
+  background: transparent;
 }
 .iz-agency-home-tab {
-  background: var(--iz-grad-card);
-  padding: 12px 6px;
+  flex: 1 1 0;
+  min-width: 0;
+  background: transparent;
+  padding: 14px 8px 12px;
   text-align: center;
   border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   cursor: pointer;
   color: inherit;
-  transition: background 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
 .iz-agency-home-tab:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.02);
 }
 .iz-agency-home-tab.on {
-  background: rgba(232, 194, 122, 0.12);
+  background: transparent;
+  border-bottom-color: var(--iz-violet);
 }
 .iz-agency-home-tab .l {
   font-size: 15px;
@@ -6749,7 +6756,7 @@
   line-height: 1.3;
 }
 .iz-agency-home-tab.on .l {
-  color: var(--iz-gold-l);
+  color: var(--iz-txt);
 }
 .iz-agency-home-tab .n {
   margin-top: 6px;
@@ -6758,6 +6765,28 @@
   font-weight: 800;
   line-height: 1.2;
   color: var(--iz-txt);
+}
+.iz-agency-home-hub .iz-portal-panel-head {
+  border-bottom: 1px solid var(--iz-line);
+}
+.iz-portal-hub-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "Sora", sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--iz-violet);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+}
+.iz-portal-hub-link svg {
+  width: 16px;
+  height: 16px;
+}
+.iz-portal-hub-link:hover {
+  opacity: 0.85;
 }
 
 .iz-outlet-quick-chip {
@@ -7155,19 +7184,39 @@ button.iz-pr-offer-row:hover {
   border-color: rgba(183, 156, 232, 0.35);
 }
 .iz-logo-tile {
-  width: 68px;
-  height: 68px;
-  border-radius: 20px;
-  background: var(--iz-grad-gold);
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 6px auto 14px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 0 0 1px rgba(183, 156, 232, 0.4),
-    0 0 38px -2px rgba(183, 156, 232, 0.55),
-    0 16px 40px -10px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.iz-logo-tile--sm {
+  width: 58px;
+  height: 58px;
+}
+.iz-logo-tile--lg {
+  width: 112px;
+  height: 112px;
+}
+.iz-logo-tile__img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.iz-logo-horizontal {
+  width: min(100%, 280px);
+}
+.iz-logo-horizontal__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 .iz-logo-tile span {
   font-family: "Sora", sans-serif;
@@ -13103,11 +13152,18 @@ html:has(.iz-pr-app) {
 
 .iz-portal-header {
   display: none;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 24px 8px;
+  padding: 20px 24px 12px;
   flex-shrink: 0;
+}
+
+.iz-portal-header-datetime {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
 }
 
 .iz-portal-header-profile {
@@ -13290,6 +13346,27 @@ html:has(.iz-pr-app) {
   box-shadow:
     inset 0 2px 0 rgba(227, 184, 119, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.iz-portal-kpi-payout {
+  border-color: rgba(159, 122, 234, 0.38);
+  box-shadow:
+    0 0 0 1px rgba(159, 122, 234, 0.12),
+    0 8px 28px rgba(124, 58, 237, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.iz-portal-kpi-payout:hover {
+  border-color: rgba(159, 122, 234, 0.52);
+  box-shadow:
+    0 0 0 1px rgba(159, 122, 234, 0.18),
+    0 10px 32px rgba(124, 58, 237, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.iz-portal-kpi-payout .l {
+  color: var(--iz-violet);
 }
 
 .iz-portal-kpi .l {
@@ -13551,6 +13628,43 @@ html:has(.iz-pr-app) {
 
 .iz-portal-roster-row:last-child {
   border-bottom: none;
+}
+
+.iz-portal-ai-btn {
+  display: block;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(159, 122, 234, 0.35);
+  background: rgba(124, 58, 237, 0.08);
+  box-shadow: 0 8px 28px rgba(124, 58, 237, 0.12);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.iz-portal-ai-btn:hover {
+  border-color: rgba(159, 122, 234, 0.52);
+  background: rgba(124, 58, 237, 0.12);
+  box-shadow: 0 10px 32px rgba(124, 58, 237, 0.16);
+}
+
+.iz-portal-ai-btn__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-family: "Sora", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--iz-violet);
+}
+
+.iz-portal-ai-btn__body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .iz-portal-ai-card {
@@ -13942,8 +14056,15 @@ html:has(.iz-pr-app) {
   max-width: 420px;
 }
 
-.iz-portal-auth-logo {
-  margin-left: 0 !important;
+.iz-portal-auth-brand-inner .iz-logo-horizontal,
+.iz-portal-auth-brand-inner .iz-portal-auth-brand-logo {
+  width: min(100%, 360px);
+  margin-top: 12px;
+}
+
+.iz-portal-auth-card .iz-portal-auth-card-logo {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .iz-portal-auth-main {
@@ -13960,7 +14081,9 @@ html:has(.iz-pr-app) {
   animation: iz-fade 0.4s ease;
 }
 
-.iz-portal-auth-card .iz-logo-tile {
+.iz-portal-auth-card .iz-logo-tile,
+.iz-portal-auth-card .iz-logo-horizontal,
+.iz-portal-auth-card .iz-portal-auth-card-logo {
   display: none;
 }
 
@@ -13978,8 +14101,10 @@ html:has(.iz-pr-app) {
     padding: 28px 22px 32px;
   }
 
-  .iz-portal-auth-card .iz-logo-tile {
-    display: flex;
+  .iz-portal-auth-card .iz-logo-tile,
+  .iz-portal-auth-card .iz-logo-horizontal,
+  .iz-portal-auth-card .iz-portal-auth-card-logo {
+    display: block;
   }
 }
 
@@ -14014,6 +14139,13 @@ html:has(.iz-pr-app) {
 }
 [data-portal="agency"] .iz-portal-main .iz-agency-home-tab .n {
   font-size: 22px;
+}
+[data-portal="agency"] .iz-portal-main .iz-portal-hub-link {
+  font-size: 18px;
+}
+[data-portal="agency"] .iz-portal-main .iz-portal-hub-link svg {
+  width: 18px;
+  height: 18px;
 }
 [data-portal="agency"] .iz-portal-main .iz-roster-table {
   font-size: 18px;

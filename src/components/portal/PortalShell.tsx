@@ -3,6 +3,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { CreditCard, LogOut, Settings, SlidersHorizontal, Store, Users } from "lucide-react";
 import { BottomNav, type NavItem, navIsActive } from "@/components/Nav";
 import { AGENCY_SUB_ROLE_LABELS, agencyCan } from "@/lib/agency-rbac";
+import { nowAgencyDateTime } from "@/lib/agency-demo";
 import { signOutToWelcome } from "@/lib/go-welcome";
 import { OUTLET_SUB_ROLE_LABELS, outletCan } from "@/lib/outlet-rbac";
 import { OpsNotificationBell } from "@/components/portal/OpsNotificationBell";
@@ -159,6 +160,10 @@ function PortalSidebar({
   );
 }
 
+function isAgencyHomePath(pathname: string) {
+  return /\/agency\/?$/.test(pathname);
+}
+
 function PortalHeader({
   portal,
   orgName,
@@ -172,12 +177,24 @@ function PortalHeader({
   avatarPhoto?: string | null;
   subLabel: string;
 }) {
+  const { pathname } = useLocation();
+  const showToday = portal === "agency" && isAgencyHomePath(pathname);
+  const { date, time } = showToday ? nowAgencyDateTime() : { date: "", time: "" };
+
   return (
     <header className="iz-portal-header">
       <div className="min-w-0">
         <h1 className="font-sora text-xl font-extrabold tracking-tight text-[var(--iz-txt)] md:text-2xl">
           {portalGreeting()}, <span className="text-[var(--iz-gold-l)]">{orgName}</span>
         </h1>
+        {showToday && (
+          <p className="iz-portal-header-datetime">
+            <span className="iz-tiny iz-muted2 uppercase tracking-widest">Today</span>
+            <span className="font-sora text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
+              {date} · {time}
+            </span>
+          </p>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <OpsNotificationBell portal={portal} />

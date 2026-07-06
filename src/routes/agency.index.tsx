@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useStore } from "@/lib/store";
-import { nowAgencyDateTime, OUTLET_NAMES } from "@/lib/agency-demo";
+import { OUTLET_NAMES } from "@/lib/agency-demo";
 import { agencyPendingPayoutDeadline, agencyPrToPayTotal } from "@/lib/agency-payroll";
 import { LIVE_SEED_PR_PVS } from "@/lib/pr-demo";
 import { agencyCan } from "@/lib/agency-rbac";
@@ -27,7 +27,6 @@ function AgencyHub() {
   }, [prPaymentVouchers, agencyPRs]);
   const totalPrs = agencyPRs.filter((p) => !p.detached).length;
   const totalOutlets = OUTLET_NAMES.length;
-  const { date, time } = nowAgencyDateTime();
   const isFinance = agencySubRole === "agency_finance";
   const showWorkforce = agencyCan(agencySubRole, "viewWorkforce");
 
@@ -42,9 +41,13 @@ function AgencyHub() {
           <div className="l">Total outlets</div>
           <div className="n">{totalOutlets}</div>
         </div>
-        <Link to="/agency/pv" search={{ status: "TO_PAY" }} className="iz-portal-kpi no-underline">
+        <Link
+          to="/agency/pv"
+          search={{ status: "TO_PAY" }}
+          className="iz-portal-kpi iz-portal-kpi-payout no-underline"
+        >
           <div className="l">Pending payout</div>
-          <div className="n text-[var(--iz-gold-l)]">{formatRM(prToPayTotal)}</div>
+          <div className="n">{formatRM(prToPayTotal)}</div>
           {payoutDeadline && prToPayTotal > 0 && (
             <p
               className={`iz-tiny mt-1 leading-snug ${
@@ -61,17 +64,11 @@ function AgencyHub() {
 
       <div className="iz-portal-home-grid">
         <div className="iz-portal-home-main">
-          <header className="pt-1">
-            <p className="iz-tiny iz-muted2 uppercase tracking-widest">Today</p>
-            <p className="font-sora mt-0.5 text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
-              {date} · {time}
+          {isFinance && (
+            <p className="iz-tiny iz-muted mb-3 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
+              Read-only overview — payroll &amp; PV only
             </p>
-            {isFinance && (
-              <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
-                Read-only overview — payroll &amp; PV only
-              </p>
-            )}
-          </header>
+          )}
 
           <AgencyHomeHubTabs agencySubRole={agencySubRole} />
         </div>

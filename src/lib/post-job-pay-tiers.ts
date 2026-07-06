@@ -19,6 +19,43 @@ export const POST_JOB_PAY_TIER_OPTIONS = [
 
 export type PostJobPayTierId = (typeof POST_JOB_PAY_TIER_OPTIONS)[number]["id"];
 
+/** Tier I–V — primary pay ladder columns in the composer grid. */
+export const RANKED_POST_JOB_PAY_TIER_IDS: PostJobPayTierId[] = [
+  "tier_1",
+  "tier_2",
+  "tier_3",
+  "tier_4",
+  "tier_5",
+];
+
+/** All composer columns — ranked tiers first, then Servant and Commission only. */
+export const ALL_POST_JOB_PAY_TIER_IDS: PostJobPayTierId[] = POST_JOB_PAY_TIER_OPTIONS.map(
+  (option) => option.id,
+);
+
+export function payTierDisplayOrder(payTierId: PostJobPayTierId): number {
+  const idx = POST_JOB_PAY_TIER_OPTIONS.findIndex((option) => option.id === payTierId);
+  return idx >= 0 ? idx : 999;
+}
+
+/** Ensure every pay tier column exists (fixed order, prCount preserved). */
+export function ensureAllPayTierRows(
+  rows: PostJobPayTierRow[],
+  workspaceTierRates?: Record<OutletPrTier, OutletTierRateSettings>,
+  commissionOnlyRates?: CommissionOnlyRateSettings,
+): PostJobPayTierRow[] {
+  const byTierId = new Map(rows.map((row) => [row.payTierId, row]));
+  return ALL_POST_JOB_PAY_TIER_IDS.map((payTierId) => {
+    const existing = byTierId.get(payTierId);
+    if (existing) return existing;
+    return newPostJobPayTierRow(
+      { payTierId, prCount: 0 },
+      workspaceTierRates,
+      commissionOnlyRates,
+    );
+  });
+}
+
 export type PostJobPayTierRow = {
   id: string;
   payTierId: PostJobPayTierId;
@@ -273,8 +310,19 @@ export function workspaceTierRatesSignature(
 export function syncPayTierRowsFromWorkspace(
   rows: PostJobPayTierRow[],
   workspaceTierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  commissionOnlyRates?: CommissionOnlyRateSettings,
 ): PostJobPayTierRow[] {
+  const coDefaults = commissionOnlyRates ?? defaultCommissionOnlyRateSettings();
   return rows.map((row) => {
+    if (isCommissionOnlyPayTier(row.payTierId)) {
+      return {
+        ...row,
+        wagePerHour: 0,
+        drinkPct: coDefaults.drinkPct,
+        tipPct: coDefaults.tipPct,
+        targetSalesRm: coDefaults.targetSalesRm,
+      };
+    }
     const outletTier = outletTierForPostJobPayTier(row.payTierId);
     if (!outletTier) return row;
     const ws = workspaceTierRates[outletTier];

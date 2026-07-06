@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
-import { OutletPrHistoryCard } from "@/components/outlet/outlet-history-ui";
+import { OutletPrHistoryCard, OutletShiftLogRatingBlock, OutletShiftLogShiftCard, OutletShiftLogSummaryCard, findOutletRatingForPr } from "@/components/outlet/outlet-history-ui";
 import {
   aggregateShiftHistoryByPr,
   aggregateShiftHistoryByVenue,
@@ -49,6 +49,7 @@ export function ShiftHistoryLog({
   const [detailPrId, setDetailPrId] = useState<string | null>(null);
   const [detailPrVenue, setDetailPrVenue] = useState<string | null>(null);
   const [detailVenue, setDetailVenue] = useState<string | null>(null);
+  const outletRatings = useStore((s) => s.ratings);
 
   const agencyByVenue = portal === "agency" && groupBy === "venue";
 
@@ -151,6 +152,10 @@ export function ShiftHistoryLog({
   );
   const detailPrShifts = useMemo(() => sortShiftHistoryDesc(detailPrRows), [detailPrRows]);
   const detailOutletName = detailPrRows[0]?.outlet ?? "";
+  const detailPrRating = useMemo(
+    () => (detailPr ? findOutletRatingForPr(detailPr.prName, outletRatings) : undefined),
+    [detailPr, outletRatings],
+  );
 
   const openPrDetail = (prId: string) => {
     setDetailPrVenue(null);
@@ -286,6 +291,7 @@ export function ShiftHistoryLog({
               rollup={rollup}
               rank={index + 1}
               topPayout={topPrPayout}
+              rating={findOutletRatingForPr(rollup.prName, outletRatings)}
               onTap={showPrDetail ? () => openPrDetail(rollup.prId) : undefined}
             />
           ))
@@ -330,31 +336,21 @@ export function ShiftHistoryLog({
 
           {portal === "outlet" ? (
             <>
-              <IzCard flat className="!mb-3">
-                <p className="iz-tiny iz-muted">
-                  {detailPrShifts.length} shift{detailPrShifts.length !== 1 ? "s" : ""} at{" "}
-                  {detailOutletName} · {detailPr.prName}
-                  {detailPr.venues.length === 1 ? ` · ${detailPr.venues[0]}` : ""}
-                </p>
-                <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet mt-2">
-                  <div className="iz-txn-metric earned">
-                    <div className="label">Total earned</div>
-                    <div className="value iz-ledger">{formatRM(detailTotals.totalPayout)}</div>
-                  </div>
-                  <div className="iz-txn-metric">
-                    <div className="label">Total drinks</div>
-                    <div className="value">{detailTotals.totalDrinks}</div>
-                  </div>
-                  <div className="iz-txn-metric">
-                    <div className="label">Total tips</div>
-                    <div className="value iz-ledger">{formatRM(detailTotals.totalTips)}</div>
-                  </div>
-                </div>
-              </IzCard>
+              <OutletShiftLogSummaryCard
+                shiftCount={detailPrShifts.length}
+                outletName={detailOutletName}
+                prName={detailPr.prName}
+                agencyLabel={detailPr.venues.length === 1 ? detailPr.venues[0] : undefined}
+                totalPayout={detailTotals.totalPayout}
+                totalDrinks={detailTotals.totalDrinks}
+                totalTips={detailTotals.totalTips}
+              />
 
-              <div className="space-y-2">
+              {detailPrRating && <OutletShiftLogRatingBlock rating={detailPrRating} />}
+
+              <div className="iz-outlet-shift-log-list">
                 {detailPrShifts.map((shift) => (
-                  <ShiftHistoryShiftCard key={shift.id} row={shift} portal={portal} />
+                  <OutletShiftLogShiftCard key={shift.id} row={shift} />
                 ))}
               </div>
 
@@ -588,6 +584,7 @@ export function OutletPrShiftHistorySheet({
   agencyName?: string;
 }) {
   const shiftHistory = useStore((s) => s.shiftHistory) ?? [];
+  const outletRatings = useStore((s) => s.ratings);
   const rows = useMemo(
     () =>
       sortShiftHistoryDesc(
@@ -608,6 +605,10 @@ export function OutletPrShiftHistorySheet({
     const names = [...new Set(rows.map((r) => r.agencyName))].filter(Boolean);
     return names.length === 1 ? names[0] : names.join(" · ");
   }, [rows, agencyName]);
+  const prRating = useMemo(
+    () => findOutletRatingForPr(prName, outletRatings),
+    [prName, outletRatings],
+  );
 
   return (
     <IzSheet open={open} wide onClose={onClose}>
@@ -636,30 +637,21 @@ export function OutletPrShiftHistorySheet({
         </IzCard>
       ) : (
         <>
-          <IzCard flat className="!mb-3">
-            <p className="iz-tiny iz-muted">
-              {rows.length} shift{rows.length !== 1 ? "s" : ""} at {outletName} · {prName}
-              {agencyLabel ? ` · ${agencyLabel}` : ""}
-            </p>
-            <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet mt-2">
-              <div className="iz-txn-metric earned">
-                <div className="label">Total earned</div>
-                <div className="value iz-ledger">{formatRM(totals.totalPayout)}</div>
-              </div>
-              <div className="iz-txn-metric">
-                <div className="label">Total drinks</div>
-                <div className="value">{totals.totalDrinks}</div>
-              </div>
-              <div className="iz-txn-metric">
-                <div className="label">Total tips</div>
-                <div className="value iz-ledger">{formatRM(totals.totalTips)}</div>
-              </div>
-            </div>
-          </IzCard>
+          <OutletShiftLogSummaryCard
+            shiftCount={rows.length}
+            outletName={outletName}
+            prName={prName}
+            agencyLabel={agencyLabel || undefined}
+            totalPayout={totals.totalPayout}
+            totalDrinks={totals.totalDrinks}
+            totalTips={totals.totalTips}
+          />
 
-          <div className="space-y-2">
+          {prRating && <OutletShiftLogRatingBlock rating={prRating} />}
+
+          <div className="iz-outlet-shift-log-list">
             {rows.map((shift) => (
-              <ShiftHistoryShiftCard key={shift.id} row={shift} portal="outlet" />
+              <OutletShiftLogShiftCard key={shift.id} row={shift} />
             ))}
           </div>
 

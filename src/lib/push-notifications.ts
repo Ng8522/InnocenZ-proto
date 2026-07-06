@@ -556,21 +556,6 @@ export function applyPushEvent(
       break;
     }
     case "rating_prompt": {
-      if (event.audience === "pr" && prefOn(prefs, "rating_prompt", "pr") && event.prId) {
-        prNotifications = prependPr(
-          {
-            id: nid("n-rate"),
-            kind: "rating",
-            title: `Rate ${event.outlet}`,
-            body: "Mutual rating window — 24h after shift",
-            at,
-            read: false,
-            prId: event.prId,
-            href: "/host/profile",
-          },
-          prNotifications,
-        );
-      }
       if (event.audience === "outlet" && prefOn(prefs, "rating_prompt", "outlet")) {
         opsNotifications = prependOps(
           {
@@ -581,7 +566,7 @@ export function applyPushEvent(
             body: `${event.prName} · ${event.outlet} — post-seal window`,
             at,
             read: false,
-            href: "/outlet/ratings",
+            href: "/outlet/history",
             prName: event.prName,
             outlet: event.outlet,
           },

@@ -169,6 +169,201 @@ export const PR_RATING_TAGS = [
   "Needs coaching",
 ] as const;
 
+export const PR_RATING_NOTE_PLACEHOLDERS: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: "Serious issue — late, attitude, guest complaint, or floor impact…",
+  2: "Below standard — drinks, upsell, dress code, or table engagement…",
+  3: "Acceptable shift — one coaching note for next booking…",
+  4: "Good shift — what would make this a 5 next time?",
+  5: "Standout moment — VIP upsell, bottle push, teamwork, or vibe…",
+};
+
+export type OutletSubmittedRating = {
+  id: string;
+  pr: string;
+  stars: number;
+  note: string;
+  date: string;
+  tags?: string[];
+};
+
+type OutletRatingSeed = Omit<OutletSubmittedRating, "id" | "pr">;
+
+const OUTLET_RATING_BY_PR: Record<string, OutletRatingSeed> = {
+  Victoria: {
+    stars: 5,
+    note: "Closed two VIP booths — strong bottle recommendations all night.",
+    tags: ["Great upsell", "Professional"],
+    date: "3 Jun 2026",
+  },
+  Vicky: {
+    stars: 4,
+    note: "Strong closer on a busy Friday — minor dress-code reminder needed.",
+    tags: ["Professional"],
+    date: "5 Jun 2026",
+  },
+  Alice: {
+    stars: 5,
+    note: "Consistent upsell on champagne packages — guests asked for her by name.",
+    tags: ["Great upsell", "Friendly"],
+    date: "29 Jun 2026",
+  },
+  Moon: {
+    stars: 5,
+    note: "Top drinks on the floor — covered a short-staffed section without being asked.",
+    tags: ["Great upsell", "Team player"],
+    date: "4 Jul 2026",
+  },
+  Angie: {
+    stars: 5,
+    note: "High energy on peak nights — guests stayed longer at her tables.",
+    tags: ["Friendly", "Great upsell"],
+    date: "2 Jul 2026",
+  },
+  Bernice: {
+    stars: 4,
+    note: "Solid drinks count — quick reminder on uniform before peak hour.",
+    tags: ["Professional", "Punctual"],
+    date: "26 Jun 2026",
+  },
+  Ava: {
+    stars: 4,
+    note: "Reliable floor coverage; could push harder on premium spirits.",
+    tags: ["Professional", "Team player"],
+    date: "28 Jun 2026",
+  },
+  Yvon: {
+    stars: 4,
+    note: "Positive guest feedback — steady drink count and on-time arrival.",
+    tags: ["Punctual", "Friendly"],
+    date: "1 Jul 2026",
+  },
+  Sarah: {
+    stars: 4,
+    note: "Reliable closer — good tips, room to push premium bottles.",
+    tags: ["Professional"],
+    date: "22 Jun 2026",
+  },
+  Veron: {
+    stars: 4,
+    note: "Warm with regulars — upsell on top-shelf could be more proactive.",
+    tags: ["Friendly"],
+    date: "24 Jun 2026",
+  },
+  Hazel: {
+    stars: 4,
+    note: "Consistent on brunch shifts — works well alongside senior PRs.",
+    tags: ["Team player", "Punctual"],
+    date: "25 Jun 2026",
+  },
+  KarYan: {
+    stars: 4,
+    note: "Strong Mandarin guest rapport — helped land a walk-in VIP table.",
+    tags: ["Great upsell", "Professional"],
+    date: "20 Jun 2026",
+  },
+  Gin: {
+    stars: 4,
+    note: "Stepped up when we were short — drinks slightly below target.",
+    tags: ["Team player"],
+    date: "18 Jun 2026",
+  },
+  Grace: {
+    stars: 3,
+    note: "Hit minimums but quiet on upsell — coach on table engagement.",
+    tags: ["Needs coaching"],
+    date: "30 Jun 2026",
+  },
+  Zoe: {
+    stars: 3,
+    note: "Met shift requirements — needs louder presence during peak hour.",
+    tags: ["Needs coaching"],
+    date: "23 Jun 2026",
+  },
+  Winnie: {
+    stars: 3,
+    note: "Punctual and polite — drinks target hit on a quieter night.",
+    tags: ["Punctual"],
+    date: "21 Jun 2026",
+  },
+  "Wei Qi": {
+    stars: 3,
+    note: "Average shift — coaching on champagne packages recommended.",
+    tags: ["Needs coaching"],
+    date: "19 Jun 2026",
+  },
+  "Xiao Bao": {
+    stars: 3,
+    note: "Still finding floor rhythm — polite with guests, upsell improving.",
+    tags: ["Friendly"],
+    date: "17 Jun 2026",
+  },
+  Charlotte: {
+    stars: 2,
+    note: "Late check-in and slow to open tables — discuss before next booking.",
+    tags: ["Needs coaching"],
+    date: "27 Jun 2026",
+  },
+  Jes: {
+    stars: 2,
+    note: "On time but left sections unattended twice during peak.",
+    tags: ["Needs coaching"],
+    date: "16 Jun 2026",
+  },
+};
+
+const OUTLET_RATING_FALLBACK: OutletRatingSeed[] = [
+  {
+    stars: 4,
+    note: "Good shift at Velvet 23 — steady drinks and professional on the floor.",
+    tags: ["Professional"],
+    date: "15 Jun 2026",
+  },
+  {
+    stars: 3,
+    note: "Acceptable shift — one coaching note logged for next booking.",
+    tags: ["Needs coaching"],
+    date: "14 Jun 2026",
+  },
+];
+
+/** One outlet rating per agency PR — used on History cards and shift-log detail. */
+export function buildSeedOutletRatings(prNames: string[]): OutletSubmittedRating[] {
+  return prNames.map((name, index) => {
+    const seed =
+      OUTLET_RATING_BY_PR[name] ??
+      OUTLET_RATING_FALLBACK[index % OUTLET_RATING_FALLBACK.length]!;
+    return {
+      id: `r-demo-${index + 1}`,
+      pr: name,
+      ...seed,
+    };
+  });
+}
+
+/** Default demo ratings for full agency roster. */
+export const SEED_OUTLET_RATINGS: OutletSubmittedRating[] = buildSeedOutletRatings([
+  "Vicky",
+  "Alice",
+  "Angie",
+  "Ava",
+  "Bernice",
+  "Charlotte",
+  "Gin",
+  "Grace",
+  "Hazel",
+  "Jes",
+  "KarYan",
+  "Moon",
+  "Sarah",
+  "Veron",
+  "Victoria",
+  "Wei Qi",
+  "Winnie",
+  "Xiao Bao",
+  "Yvon",
+  "Zoe",
+]);
+
 export interface OutletDrinkPrice {
   id: string;
   name: string;

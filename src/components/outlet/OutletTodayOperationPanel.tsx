@@ -7,10 +7,12 @@ import {
   outletTonightFloorTotals,
   outletTonightLiveEarningsRows,
   outletShiftFloorSalesStarted,
+  outletPrLiveFloorSales,
 } from "@/lib/outlet-financial-sync";
 import {
   resolveShiftTierRates,
   PR_RATING_TAGS,
+  PR_RATING_NOTE_PLACEHOLDERS,
   OUTLET_PR_TONIGHT_SECTION_ID,
   OUTLET_LIVE_SALES_SECTION_ID,
   OUTLET_OPEN_LIVE_SALES_EVENT,
@@ -124,7 +126,7 @@ export function OutletTodayOperationPanel({
   const [historyPrId, setHistoryPrId] = useState<string | null>(null);
   const [liveSalesPrId, setLiveSalesPrId] = useState<string | null>(null);
   const [liveSalesOpen, setLiveSalesOpen] = useState(false);
-  const [stars, setStars] = useState(5);
+  const [stars, setStars] = useState<1 | 2 | 3 | 4 | 5>(5);
   const [note, setNote] = useState("");
   const [tags, setTags] = useState<string[]>([]);
 
@@ -229,6 +231,10 @@ export function OutletTodayOperationPanel({
   }, [staffTonight]);
 
   const openPrData = openPr ? prs.find((p) => p.id === openPr) : null;
+  const openPrCheckedOut = useMemo(
+    () => staffTonight.find((e) => e.pr.id === openPr)?.displayStatus === "checked-out",
+    [openPr, staffTonight],
+  );
   const comcardPreviewProfile = comcardPreviewId ? agencyPrById.get(comcardPreviewId) : null;
   const comcardPreviewPr = comcardPreviewProfile
     ? toComcardPreview(comcardPreviewProfile)
@@ -290,6 +296,31 @@ export function OutletTodayOperationPanel({
     receiptScans: prReceiptScans,
     prIds: shift.prs ?? [],
   });
+
+  const liveDrinkUnitsByPrId = useMemo(() => {
+    if (!floorSalesStarted) return new Map<string, number>();
+    const map = new Map<string, number>();
+    const rosterByPr = new Map(rosterTonight.map((slot) => [slot.prId, slot]));
+    for (const prId of shift.prs ?? []) {
+      const { drinkUnits } = outletPrLiveFloorSales({
+        prId,
+        outletName,
+        shift,
+        slot: rosterByPr.get(prId),
+        drinkMenu: outletWorkspace.drinkMenu ?? [],
+        receiptScans: prReceiptScans,
+      });
+      if (drinkUnits > 0) map.set(prId, drinkUnits);
+    }
+    return map;
+  }, [
+    floorSalesStarted,
+    shift,
+    outletName,
+    rosterTonight,
+    outletWorkspace.drinkMenu,
+    prReceiptScans,
+  ]);
 
   const tonightFloorTotals = useMemo(
     () => {
@@ -357,13 +388,14 @@ export function OutletTodayOperationPanel({
                   ? toComcardPreview(agencyProfile)
                   : comcardPreviewFromSlot({ prId: pr.id, prName: pr.name });
                 const langs = agencyProfile ? languagesFromPr(agencyProfile) : pr.languages;
+                const drinkUnits = liveDrinkUnitsByPrId.get(pr.id);
                 const opsLine = [
                   displayStatus === "on-duty" && slot?.checkedInAt
                     ? `In ${slot.checkedInAt}`
                     : displayStatus === "checked-out" && slot?.checkedOutAt
                       ? `Out ${slot.checkedOutAt}`
                       : null,
-                  (slot?.floorDrinks ?? 0) > 0 ? `${slot?.floorDrinks} drinks` : null,
+                  drinkUnits ? `${drinkUnits} drinks` : null,
                   slot ? rosterSlotAgencyName(slot) : null,
                 ]
                   .filter(Boolean)
@@ -417,13 +449,15 @@ export function OutletTodayOperationPanel({
                       Shift history
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setOpenPr(pr.id)}
-                      className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
-                    >
-                      Rate
-                    </button>
+                    {displayStatus === "checked-out" && (
+                      <button
+                        type="button"
+                        onClick={() => setOpenPr(pr.id)}
+                        className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
+                      >
+                        Rate
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -514,7 +548,7 @@ export function OutletTodayOperationPanel({
         />
       )}
 
-      {openPr && openPrData && canRate && (
+      {openPr && openPrData && openPrCheckedOut && canRate && (
         <IzSheet open onClose={() => setOpenPr(null)} rating>
           <div className="iz-outlet-rate-sheet">
             <div className="mb-4 flex items-center gap-3">
@@ -529,7 +563,7 @@ export function OutletTodayOperationPanel({
             </div>
             <div className="flex justify-center gap-2">
               {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} type="button" onClick={() => setStars(n)}>
+                <button key={n} type="button" onClick={() => setStars(n as 1 | 2 | 3 | 4 | 5)}>
                   <Star
                     className={`h-8 w-8 ${n <= stars ? "fill-[var(--iz-gold)] text-[var(--iz-gold)]" : "text-[var(--iz-muted2)]"}`}
                   />
@@ -551,7 +585,7 @@ export function OutletTodayOperationPanel({
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Optional note"
+              placeholder={PR_RATING_NOTE_PLACEHOLDERS[stars]}
               className="mt-4 h-24 w-full rounded-xl border border-[var(--iz-line2)] bg-white/[0.03] p-3.5 text-sm outline-none"
             />
             <button

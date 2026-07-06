@@ -30,6 +30,7 @@ import {
   DEFAULT_OUTLET_OPS_HEAD,
   patchShiftTierSalesTargets,
   DEMO_SHIFT_TIER_SALES_TARGETS,
+  buildSeedOutletRatings,
   type ShiftApplicant,
 } from "@/lib/outlet-demo";
 import { mergeHistoryDemoLedger } from "@/lib/history-demo-sync";
@@ -326,17 +327,6 @@ function velvetTonightRosterSlot(
     estPayout,
   };
 }
-
-const HENNESSY_FLOOR_BY_PR: Record<string, { floorDrinks: number; floorTips?: number }> = {
-  p1: { floorDrinks: 12, floorTips: 150 },
-  "pr-comcard-alice": { floorDrinks: 8, floorTips: 90 },
-  "pr-comcard-angie": { floorDrinks: 7, floorTips: 60 },
-  "pr-comcard-ava": { floorDrinks: 5, floorTips: 40 },
-  "pr-comcard-bernice": { floorDrinks: 10, floorTips: 75 },
-  "pr-comcard-charlotte": { floorDrinks: 5 },
-  "pr-comcard-grace": { floorDrinks: 8, floorTips: 55 },
-  "pr-comcard-hazel": { floorDrinks: 5, floorTips: 45 },
-};
 
 function buildDemoShifts(): ShiftRequest[] {
   const wsTierRates = DEFAULT_OUTLET_WORKSPACE.tierRates;
@@ -949,15 +939,9 @@ function buildDemoRoster(): AgencyRosterSlot[] {
     }
     return slot;
   });
-  const velvetTonight: AgencyRosterSlot[] = HENNESSY_LAUNCH_PR_IDS.map((prId, index) => {
-    const floor = HENNESSY_FLOOR_BY_PR[prId];
-    return velvetTonightRosterSlot(
-      `rs-hennessy-${index + 1}`,
-      prId,
-      floor?.floorDrinks ?? 0,
-      floor?.floorTips ?? 0,
-    );
-  });
+  const velvetTonight: AgencyRosterSlot[] = HENNESSY_LAUNCH_PR_IDS.map((prId, index) =>
+    velvetTonightRosterSlot(`rs-hennessy-${index + 1}`, prId),
+  );
   return [...patched, ...velvetTonight];
 }
 
@@ -1060,16 +1044,7 @@ export function buildDemoStoreReset() {
     prs: marketplacePrsFromAgency(SEED_AGENCY_PRS.map(cloneAgencyPr)),
     shiftHistory,
     shiftApplicants: [...DEMO_APPLICANTS],
-    ratings: [
-      {
-        id: "r-demo-1",
-        pr: "Vicky",
-        stars: 5,
-        note: "Strong upsell on VIP tables",
-        tags: ["Great upsell", "Professional"],
-        date: "3 Jun 2026",
-      },
-    ],
+    ratings: buildSeedOutletRatings(agencyPRs.map((p) => p.name)),
     agencyReconciliation: buildDemoReconciliation(shiftHistory),
     agencyCollections: DEMO_COLLECTIONS.map((c) => ({ ...c })),
     agencyOwner: { ...DEFAULT_AGENCY_OWNER },

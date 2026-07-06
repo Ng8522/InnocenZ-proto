@@ -15,6 +15,7 @@ import {
 } from "@/components/outlet/post-job-shift-ui";
 import { JobPostingMicroLabel } from "@/components/special-service/job-posting-ui";
 import {
+  ALL_POST_JOB_PAY_TIER_IDS,
   basePayFromPayTierRows,
   clonePostJobPayTierRow,
   estimatePayTierRowsLaborCost,
@@ -22,12 +23,15 @@ import {
   payTierRowsFromLegacy,
   adjustPayTierRowsToTotal,
   clampPayTierRowsToMax,
+  ensureAllPayTierRows,
   syncPayTierRowsFromWorkspace,
   syncTierRatesFromPayTierRows,
   totalPrCountFromPayTierRows,
   workspaceTierRatesSignature,
+  RANKED_POST_JOB_PAY_TIER_IDS,
   type PostJobPayTierRow,
   type PostJobPayTierId,
+  type CommissionOnlyRateSettings,
   isCommissionOnlyPayTier,
   newPostJobPayTierRow,
 } from "@/lib/post-job-pay-tiers";
@@ -140,11 +144,15 @@ export function draftTierRatesFromWorkspace(
 /** Sync post-job pay rows from saved workspace rates while keeping tier rows and PR counts. */
 export function applyWorkspaceRatesToDraftShift(
   shift: Pick<DraftShift, "payTierRows" | "prIds" | "quantity">,
-  workspace: Pick<OutletWorkspaceSettings, "tierRates">,
+  workspace: Pick<OutletWorkspaceSettings, "tierRates" | "commissionOnlyRates">,
 ): Pick<DraftShift, "tierRates" | "payTierRows" | "payPerHour" | "quantity" | "prIds"> {
   const tierRates = draftTierRatesFromWorkspace(workspace);
   const payTierRows = clampPayTierRowsToMax(
-    syncPayTierRowsFromWorkspace(shift.payTierRows, tierRates),
+    syncPayTierRowsFromWorkspace(
+      ensureAllPayTierRows(shift.payTierRows, tierRates, workspace.commissionOnlyRates),
+      tierRates,
+      workspace.commissionOnlyRates,
+    ),
     shift.quantity,
   );
   return {
@@ -192,15 +200,6 @@ export type DraftShift = {
   destination: ShiftDestination;
 };
 
-const COMPOSER_TIER_IDS: PostJobPayTierId[] = [
-  "tier_1",
-  "tier_2",
-  "tier_3",
-  "tier_4",
-  "tier_5",
-  "servant",
-];
-
 function distributePrCounts(total: number, slots: number): number[] {
   const result = Array(slots).fill(0);
   if (total <= 0) return result;
@@ -214,15 +213,18 @@ function distributePrCounts(total: number, slots: number): number[] {
   return result;
 }
 
-/** Five tier columns (I–V) with PR counts spread across — Post Job composer default. */
+/** All tier columns (I–V + Servant + Commission only) — PR counts spread across Tier I–V only. */
 export function defaultComposerPayTierRows(
   workspaceTierRates: Record<OutletPrTier, OutletTierRateSettings>,
   totalQuantity = 6,
+  commissionOnlyRates?: CommissionOnlyRateSettings,
 ): PostJobPayTierRow[] {
-  const counts = distributePrCounts(totalQuantity, COMPOSER_TIER_IDS.length);
-  return COMPOSER_TIER_IDS.map((payTierId, index) =>
-    newPostJobPayTierRow({ payTierId, prCount: counts[index]! }, workspaceTierRates),
-  );
+  const rankedCounts = distributePrCounts(totalQuantity, RANKED_POST_JOB_PAY_TIER_IDS.length);
+  return ALL_POST_JOB_PAY_TIER_IDS.map((payTierId) => {
+    const rankedIndex = RANKED_POST_JOB_PAY_TIER_IDS.indexOf(payTierId);
+    const prCount = rankedIndex >= 0 ? rankedCounts[rankedIndex]! : 0;
+    return newPostJobPayTierRow({ payTierId, prCount }, workspaceTierRates, commissionOnlyRates);
+  });
 }
 
 export function newDraftShift(
@@ -245,9 +247,15 @@ export function newDraftShift(
   const defaultQuantity = partial?.quantity ?? 6;
   const legacyPayTierIds = (partial as { payTierIds?: OutletPrTier[] } | undefined)?.payTierIds;
   const payTierRows = partial?.payTierRows?.length
-    ? partial.payTierRows.map(clonePostJobPayTierRow)
+    ? ensureAllPayTierRows(
+        partial.payTierRows.map(clonePostJobPayTierRow),
+        tierRates,
+      )
     : legacyPayTierIds?.length
-      ? payTierRowsFromLegacy(legacyPayTierIds, tierRates, defaultQuantity)
+      ? ensureAllPayTierRows(
+          payTierRowsFromLegacy(legacyPayTierIds, tierRates, defaultQuantity),
+          tierRates,
+        )
       : defaultComposerPayTierRows(tierRates, defaultQuantity);
   const quantity = partial?.quantity ?? totalPrCountFromPayTierRows(payTierRows);
   return {
@@ -1184,11 +1192,37 @@ export function DraftShiftEditor({
 
   useEffect(() => {
     if (didExpandTierColumns.current) return;
-    const onlyRow = shift.payTierRows.length === 1 ? shift.payTierRows[0] : null;
-    if (!onlyRow || isCommissionOnlyPayTier(onlyRow.payTierId)) return;
+    const complete =
+      shift.payTierRows.length === ALL_POST_JOB_PAY_TIER_IDS.length &&
+      ALL_POST_JOB_PAY_TIER_IDS.every((payTierId) =>
+        shift.payTierRows.some((row) => row.payTierId === payTierId),
+      );
+    if (complete) {
+      const ordered = ensureAllPayTierRows(
+        shift.payTierRows,
+        outletWorkspace.tierRates,
+        outletWorkspace.commissionOnlyRates,
+      );
+      const sameOrder = ordered.every(
+        (row, index) => row.payTierId === shift.payTierRows[index]?.payTierId,
+      );
+      if (sameOrder) return;
+    }
     didExpandTierColumns.current = true;
+    const onlyRow = shift.payTierRows.length === 1 ? shift.payTierRows[0] : null;
     const total = Math.max(1, shift.quantity || totalPrCountFromPayTierRows(shift.payTierRows));
-    const payTierRows = defaultComposerPayTierRows(outletWorkspace.tierRates, total);
+    const payTierRows =
+      onlyRow && !isCommissionOnlyPayTier(onlyRow.payTierId)
+        ? defaultComposerPayTierRows(
+            outletWorkspace.tierRates,
+            total,
+            outletWorkspace.commissionOnlyRates,
+          )
+        : ensureAllPayTierRows(
+            shift.payTierRows,
+            outletWorkspace.tierRates,
+            outletWorkspace.commissionOnlyRates,
+          );
     onChange({
       payTierRows,
       tierRates: syncTierRatesFromPayTierRows(payTierRows, shift.tierRates),
@@ -1196,7 +1230,7 @@ export function DraftShiftEditor({
       payPerHour: basePayFromPayTierRows(payTierRows),
       prIds: shift.prIds.slice(0, total),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time expand single-tier composer to I–V columns
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time expand composer to all tier columns
   }, []);
 
   const subscriptionPlan = getOutletSubscriptionPlan(outletOwner.subscriptionPlanId);
@@ -1235,18 +1269,14 @@ export function DraftShiftEditor({
       }
       const total = totalPrCountFromPayTierRows(shift.payTierRows);
       if (total > peopleRemaining) {
-        let remaining = peopleRemaining;
-        patches.payTierRows = shift.payTierRows.map((row, index) => {
-          if (remaining <= 0) return { ...row, prCount: 0 };
-          if (index === shift.payTierRows.length - 1) {
-            const prCount = remaining;
-            remaining = 0;
-            return { ...row, prCount };
-          }
-          const prCount = Math.min(row.prCount, Math.max(1, remaining - (shift.payTierRows.length - index - 1)));
-          remaining -= prCount;
-          return { ...row, prCount };
-        });
+        patches.payTierRows = adjustPayTierRowsToTotal(
+          ensureAllPayTierRows(
+            shift.payTierRows,
+            outletWorkspace.tierRates,
+            outletWorkspace.commissionOnlyRates,
+          ),
+          peopleRemaining,
+        );
       }
     }
     if (Object.keys(patches).length > 0) onChange(patches);
@@ -1272,7 +1302,10 @@ export function DraftShiftEditor({
   }, [shift.langs, pickerOptions, shift.prIds.length]);
 
   const updatePayTierRows = (rows: PostJobPayTierRow[]) => {
-    const payTierRows = clampPayTierRowsToMax(rows, shift.quantity);
+    const payTierRows = clampPayTierRowsToMax(
+      ensureAllPayTierRows(rows, outletWorkspace.tierRates, outletWorkspace.commissionOnlyRates),
+      shift.quantity,
+    );
     const tierRates = syncTierRatesFromPayTierRows(payTierRows, shift.tierRates);
     onChange({
       payTierRows,
@@ -1518,6 +1551,7 @@ export function DraftShiftEditor({
                   const payTierRows = defaultComposerPayTierRows(
                     wsRates,
                     Math.max(1, shift.quantity || 6),
+                    outletWorkspace.commissionOnlyRates,
                   );
                   onChange({
                     tierRates: syncTierRatesFromPayTierRows(payTierRows, wsRates),

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { AgencyGpsPanel } from "@/components/agency/AgencyGpsPanel";
 import { RosterTimetableFilters } from "@/components/agency/RosterTimetableFilters";
@@ -33,10 +33,6 @@ import { agencyCan } from "@/lib/agency-rbac";
 import { mondayOfWeek, weekDayIsos, weekRangeLabel, dedupeLiveRosterByPr } from "@/lib/roster-week-plan";
 import { ArrowLeftRight, Calendar, ChevronRight, MapPin, Trash2, Users, X } from "lucide-react";
 
-export const Route = createFileRoute("/agency/roster")({
-  component: AgencyRoster,
-});
-
 const EDITABLE_STATUSES: RosterSlotStatus[] = ["scheduled", "on-duty", "unavailable"];
 
 const STATUS_LABEL: Record<RosterSlotStatus, { label: string; variant: "green" | "amber" | "red" | "violet" | "ink" }> = {
@@ -52,7 +48,17 @@ const STATUS_LABEL: Record<RosterSlotStatus, { label: string; variant: "green" |
 
 type ViewMode = "live" | "planning";
 
+export const Route = createFileRoute("/agency/roster")({
+  validateSearch: (search: Record<string, unknown>): { view?: ViewMode } =>
+    search.view === "planning" ? { view: "planning" } : {},
+  component: AgencyRoster,
+});
+
 function AgencyRoster() {
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { view } = Route.useSearch();
+  const viewMode: ViewMode = view ?? "live";
+  const setViewMode = (next: ViewMode) => navigate({ search: next === "live" ? {} : { view: next } });
   const agencyRoster = useStore((s) => s.agencyRoster);
   const agencyPRs = useStore((s) => s.agencyPRs);
   const prCheckInMeta = useStore((s) => s.prCheckInMeta);
@@ -77,7 +83,6 @@ function AgencyRoster() {
   const [editId, setEditId] = useState<string | null>(null);
   const [approveSwapId, setApproveSwapId] = useState<string | null>(null);
   const [replacementPick, setReplacementPick] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("live");
   const canAssign = agencyCan(agencySubRole, "assignShifts");
 
   useEffect(() => {

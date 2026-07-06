@@ -82,6 +82,7 @@ export function LiveWorkforceTable({
   outletFilter,
   linkPrProfiles = false,
   hideHeaderLink = false,
+  embedded = false,
   className,
 }: {
   dateIso?: string;
@@ -90,6 +91,7 @@ export function LiveWorkforceTable({
   outletFilter?: string;
   linkPrProfiles?: boolean;
   hideHeaderLink?: boolean;
+  embedded?: boolean;
   className?: string;
 }) {
   const agencyRoster = useStore((s) => s.agencyRoster);
@@ -121,55 +123,77 @@ export function LiveWorkforceTable({
   }, [agencyRoster]);
 
   const panelClass = ["iz-portal-panel", className].filter(Boolean).join(" ");
+  const wrapClass = embedded ? className : panelClass;
+
+  const headerLink = !hideHeaderLink && (
+    <Link to={rosterLink} className="iz-portal-hub-link">
+      Full roster <ChevronRight className="shrink-0" />
+    </Link>
+  );
+
+  const panelHead = (
+    <div className="iz-portal-panel-head">
+      <h3 className="font-sora text-base font-bold">{title}</h3>
+      {headerLink}
+    </div>
+  );
 
   if (filtered.length === 0) {
+    if (embedded) {
+      return (
+        <>
+          {panelHead}
+          <p className="iz-tiny iz-muted px-4 py-6 text-center">No PRs on floor right now.</p>
+        </>
+      );
+    }
+
     return (
-      <section className={panelClass}>
-        <div className="iz-portal-panel-head">
-          <h3 className="font-sora text-base font-bold">{title}</h3>
-          {!hideHeaderLink && (
-            <Link to={rosterLink} className="iz-tiny flex items-center gap-0.5 text-[var(--iz-gold-l)]">
-              Full roster <ChevronRight className="h-3 w-3" />
-            </Link>
-          )}
-        </div>
+      <section className={wrapClass}>
+        {panelHead}
         <p className="iz-tiny iz-muted px-4 py-6 text-center">No PRs on floor right now.</p>
       </section>
     );
   }
 
+  const tableBody = (
+    <div className="iz-portal-table-wrap">
+      <table className="iz-portal-table">
+        <thead>
+          <tr>
+            <th>PR</th>
+            <th>Outlet</th>
+            <th>Shift</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map((w) => (
+            <WorkforceRow
+              key={w.id}
+              entry={w}
+              shift={shiftById.get(w.id)}
+              prId={linkPrProfiles ? prIdBySlotId.get(w.id) : undefined}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {panelHead}
+        {tableBody}
+      </>
+    );
+  }
+
   return (
-    <section className={panelClass}>
-      <div className="iz-portal-panel-head">
-        <h3 className="font-sora text-base font-bold">{title}</h3>
-        {!hideHeaderLink && (
-          <Link to={rosterLink} className="iz-tiny flex items-center gap-0.5 text-[var(--iz-gold-l)]">
-            Full roster <ChevronRight className="h-3 w-3" />
-          </Link>
-        )}
-      </div>
-      <div className="iz-portal-table-wrap">
-        <table className="iz-portal-table">
-          <thead>
-            <tr>
-              <th>PR</th>
-              <th>Outlet</th>
-              <th>Shift</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((w) => (
-              <WorkforceRow
-                key={w.id}
-                entry={w}
-                shift={shiftById.get(w.id)}
-                prId={linkPrProfiles ? prIdBySlotId.get(w.id) : undefined}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <section className={wrapClass}>
+      {panelHead}
+      {tableBody}
     </section>
   );
 }

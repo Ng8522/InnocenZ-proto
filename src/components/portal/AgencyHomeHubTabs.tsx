@@ -6,22 +6,25 @@ import { PortalClickableTableRow } from "@/components/portal/PortalClickableTabl
 import { IzPill, formatRM } from "@/components/iz/ui";
 import { useStore } from "@/lib/store";
 import { agencyCan, type AgencySubRole } from "@/lib/agency-rbac";
-import { AGENCY_PV_STATUS_LABELS, agencyPvStatusLabel } from "@/lib/agency-payroll";
+import { agencyPvStatusLabel } from "@/lib/agency-payroll";
 import { pvStatusPillVariant } from "@/lib/pr-demo";
 import { deriveLiveWorkforce } from "@/lib/portal-sync";
 import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+
 type HubTab = "on-duty" | "approvals" | "review" | "disputes";
 
-function HubPanelLink({ to, search, label }: { to: string; search?: Record<string, string>; label: string }) {  return (
-    <Link to={to} search={search} className="iz-tiny flex items-center gap-0.5 text-[var(--iz-gold-l)]">
-      {label} <ChevronRight className="h-3 w-3" />
+function HubPanelLink({ to, search, label }: { to: string; search?: Record<string, string>; label: string }) {
+  return (
+    <Link to={to} search={search} className="iz-portal-hub-link">
+      {label} <ChevronRight className="shrink-0" />
     </Link>
   );
 }
 
 export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubRole | null }) {
-  const agencyRoster = useStore((s) => s.agencyRoster);  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const agencyRoster = useStore((s) => s.agencyRoster);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
   const pendingPRs = useStore((s) => s.pendingPRs);
   const pendingCutlostRequests = useStore((s) => s.pendingCutlostRequests);
@@ -66,11 +69,8 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
   if (tabs.length === 0) return null;
 
   return (
-    <div className="mt-3">
-      <div
-        className="iz-agency-home-tabs"
-        style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
-      >
+    <section className="iz-portal-panel iz-agency-home-hub">
+      <div className="iz-agency-home-tabs">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -81,13 +81,13 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
             <div className="l">{t.label}</div>
             <div
               className={`n${
-                t.id === "approvals" && counts.approvals
+                activeTab !== t.id && t.id === "approvals" && counts.approvals
                   ? " text-[var(--iz-amber)]"
-                  : t.id === "on-duty" && counts["on-duty"]
+                  : activeTab !== t.id && t.id === "on-duty" && counts["on-duty"]
                     ? " text-[var(--iz-green)]"
-                    : t.id === "disputes" && counts.disputes
+                    : activeTab !== t.id && t.id === "disputes" && counts.disputes
                       ? " text-[var(--iz-red)]"
-                      : t.id === "review" && counts.review
+                      : activeTab !== t.id && t.id === "review" && counts.review
                         ? " text-[var(--iz-amber)]"
                         : ""
               }`}
@@ -99,11 +99,11 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
       </div>
 
       {activeTab === "on-duty" && showWorkforce && (
-        <LiveWorkforceTable linkPrProfiles className="!mt-3" />
+        <LiveWorkforceTable embedded linkPrProfiles />
       )}
 
       {activeTab === "approvals" && showApprovals && (
-        <section className="iz-portal-panel mt-3">
+        <>
           <div className="iz-portal-panel-head">
             <h3 className="font-sora text-base font-bold">Pending approvals</h3>
             <HubPanelLink to="/agency/pending" label="Open approvals" />
@@ -154,11 +154,11 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
               </table>
             </div>
           )}
-        </section>
+        </>
       )}
 
       {activeTab === "review" && showPayroll && (
-        <section className="iz-portal-panel mt-3">
+        <>
           <div className="iz-portal-panel-head">
             <h3 className="font-sora text-base font-bold">PV pending review</h3>
             <HubPanelLink to="/agency/pv" search={{ status: "PENDING_REVIEW" }} label="Open payroll" />
@@ -196,15 +196,16 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
                         </IzPill>
                       </td>
                     </PortalClickableTableRow>
-                  ))}                </tbody>
+                  ))}
+                </tbody>
               </table>
             </div>
           )}
-        </section>
+        </>
       )}
 
       {activeTab === "disputes" && showPayroll && (
-        <section className="iz-portal-panel mt-3">
+        <>
           <div className="iz-portal-panel-head">
             <h3 className="font-sora text-base font-bold">Disputed PVs</h3>
             <HubPanelLink to="/agency/pv" search={{ status: "DISPUTED" }} label="Open payroll" />
@@ -242,12 +243,13 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
                         </IzPill>
                       </td>
                     </PortalClickableTableRow>
-                  ))}                </tbody>
+                  ))}
+                </tbody>
               </table>
             </div>
           )}
-        </section>
+        </>
       )}
-    </div>
+    </section>
   );
 }

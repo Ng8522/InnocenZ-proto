@@ -1,4 +1,37 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { publicAssetPath } from "@/lib/public-asset";
+
+export const INNOCENZ_LOGO_PATH = "/assets/innocenz-logo.png";
+export const INNOCENZ_LOGO_HORIZONTAL_PATH = "/assets/innocenz-logo-horizontal.png";
+
+export function InnocenZLogoHorizontal({ className }: { className?: string }) {
+  return (
+    <div className={["iz-logo-horizontal", className].filter(Boolean).join(" ")}>
+      <img
+        src={publicAssetPath(INNOCENZ_LOGO_HORIZONTAL_PATH)}
+        alt="InnocenZ"
+        className="iz-logo-horizontal__img"
+      />
+    </div>
+  );
+}
+
+export function InnocenZLogoMark({
+  size = "md",
+  className,
+}: {
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}) {
+  const sizeClass =
+    size === "sm" ? "iz-logo-tile--sm" : size === "lg" ? "iz-logo-tile--lg" : "";
+
+  return (
+    <div className={["iz-logo-tile", sizeClass, className].filter(Boolean).join(" ")}>
+      <img src={publicAssetPath(INNOCENZ_LOGO_PATH)} alt="InnocenZ" className="iz-logo-tile__img" />
+    </div>
+  );
+}
 
 export function Logo({ size = "md", showTagline = true }: { size?: "sm" | "md" | "lg"; showTagline?: boolean }) {
   const wordSize = size === "lg" ? "text-[22px]" : size === "sm" ? "text-lg" : "text-[22px]";

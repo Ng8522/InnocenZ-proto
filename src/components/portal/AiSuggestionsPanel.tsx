@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { deriveLiveWorkforce } from "@/lib/portal-sync";
 import { computeAvailabilityStats, DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
-import { ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight, Layers } from "lucide-react";
 
 export function AiSuggestionsPanel() {
   const agencyRoster = useStore((s) => s.agencyRoster);
@@ -56,25 +56,21 @@ export function AiSuggestionsPanel() {
     });
   }
 
+  const primary = suggestions[0];
+
   return (
-    <section className="iz-portal-panel iz-portal-ai">
-      <div className="iz-portal-panel-head">
-        <h3 className="flex items-center gap-1.5 font-sora text-base font-bold">
-          <Sparkles className="h-4 w-4 text-[var(--iz-violet)]" />
-          AI suggestions
-        </h3>
+    <Link to={primary.to} search={primary.search} className="iz-portal-ai-btn">
+      <div className="iz-portal-ai-btn__label">
+        <Layers className="h-4 w-4 text-[var(--iz-violet)]" strokeWidth={1.8} />
+        <span>AI suggestion</span>
       </div>
-      <div className="space-y-2 p-3 pt-0">
-        {suggestions.slice(0, 3).map((s) => (
-          <Link key={s.title} to={s.to} search={s.search} className="iz-portal-ai-card">
-            <div className="min-w-0 flex-1">
-              <div className="font-sora text-sm font-semibold leading-snug">{s.title}</div>
-              <p className="iz-tiny iz-muted mt-0.5">{s.desc}</p>
-            </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--iz-muted)]" />
-          </Link>
-        ))}
+      <div className="iz-portal-ai-btn__body">
+        <div className="min-w-0 flex-1">
+          <div className="font-sora text-sm font-semibold leading-snug">{primary.title}</div>
+          <p className="iz-tiny iz-muted mt-0.5">{primary.desc}</p>
+        </div>
+        <ChevronRight className="h-4 w-4 shrink-0 text-[var(--iz-muted)]" />
       </div>
-    </section>
+    </Link>
   );
 }

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2, Users, Star, ArrowRight, RotateCcw } from "lucide-react";
 import { useStore, type Role } from "@/lib/store";
 import type { SignInPortal } from "@/lib/portal-signin";
-import { PhoneFrame } from "@/components/Brand";
+import { PhoneFrame, InnocenZLogoMark } from "@/components/Brand";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -67,9 +67,7 @@ function Welcome() {
           Innocen<span className="iz-wordmark-z">Z</span>
         </div>
 
-        <div className="iz-logo-tile !mt-[26px]">
-          <span>Z</span>
-        </div>
+        <InnocenZLogoMark size="lg" className="!mt-[26px]" />
 
         <div className="text-center">
           <h1 className="font-sora mt-3 text-[27px] font-extrabold text-[var(--iz-txt)]">

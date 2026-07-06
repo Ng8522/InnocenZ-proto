@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { PhoneFrame } from "@/components/Brand";
+import { PhoneFrame, LogoMark } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import { useStore } from "@/lib/store";
-import { ArrowLeft, Lock, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Lock, Eye, EyeOff, KeyRound, Mail, Phone, Save } from "lucide-react";
 
 type ResetChannel = "email" | "phone";
 
@@ -46,17 +47,23 @@ function ResetPassword() {
         </button>
 
         <div className="iz-logo-tile mt-8">
-          <span>Z</span>
+          <LogoMark />
         </div>
 
         <div className="text-center">
           <h1 className="font-sora mt-6 text-[27px] font-extrabold text-[var(--iz-txt)]">
             Innocen<span className="iz-wordmark-z">Z</span>
           </h1>
-          <p className="iz-sm iz-muted mt-2">Set your new password</p>
+          <p className="iz-sm iz-muted mt-2">
+            <TitleWithIcon icon={KeyRound}>Set your new password</TitleWithIcon>
+          </p>
           {identifier && (
             <p className="iz-tiny iz-muted2 mt-1">
-              {channel === "email" ? "Email" : "Phone"} · {identifier}
+              <TitleWithIcon icon={channel === "email" ? Mail : Phone}>
+                {channel === "email" ? "Email" : "Phone"}
+              </TitleWithIcon>
+              {" · "}
+              {identifier}
             </p>
           )}
         </div>
@@ -105,7 +112,7 @@ function ResetPassword() {
           </label>
 
           <button type="submit" className="iz-btn iz-btn-primary mt-2">
-            Save password
+            <Save className="h-4 w-4" aria-hidden /> Save password
           </button>
         </form>
       </div>

@@ -1,5 +1,6 @@
 import { useState, type ComponentType, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
+import { ChevronDown, iconForNav } from "@/lib/lucide-label-icons";
 import { cn } from "@/lib/utils";
 
 export function OutletSection({
@@ -40,6 +41,8 @@ export function OutletSection({
     onOpenChange?.(resolved);
   };
 
+  const SectionIcon = Icon ?? iconForNav(title);
+
   if (!collapsible) {
     return (
       <section id={id} className={cn("mt-5", className)}>
@@ -47,8 +50,9 @@ export function OutletSection({
           <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
             <div className="min-w-0">
               <div className="iz-outlet-section-title flex items-center gap-1.5 font-sora text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--iz-muted)]">
-                {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />}
-                {title}
+                <TitleWithIcon icon={SectionIcon} iconClassName="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]">
+                  {title}
+                </TitleWithIcon>
               </div>
               {hint && <p className="iz-tiny iz-muted2 mt-0.5 truncate">{hint}</p>}
             </div>
@@ -70,8 +74,9 @@ export function OutletSection({
       >
         <span className="min-w-0 flex-1">
           <span className="iz-collapsible-section__title inline-flex items-center gap-1.5">
-            {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />}
-            {title}
+            <TitleWithIcon icon={SectionIcon} iconClassName="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]">
+              {title}
+            </TitleWithIcon>
           </span>
           {collapsedPreview && !open ? (
             <div className="iz-collapsible-section__preview">{collapsedPreview}</div>

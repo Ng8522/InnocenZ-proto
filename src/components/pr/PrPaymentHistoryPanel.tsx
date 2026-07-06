@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronDown, FileText, Sheet } from "lucide-react";
 import { useState } from "react";
-import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
+import { IzCard, IzKpiLabel, IzPill, formatRM } from "@/components/iz/ui";
+import { LabelWithIcon } from "@/components/iz/TitleWithIcon";
 import { PrWeeklyPaymentGrid } from "@/components/pr/PrWeeklyPaymentGrid";
 import {
   buildPaymentHistoryRecords,
@@ -104,22 +105,22 @@ function PaymentHistoryCard({
 
       <div className="iz-pay-hist-card__metrics">
         <div>
-          <span className="l">Wages</span>
+          <LabelWithIcon label="Wages" className="l" />
           <span className="v wages">{formatRM(record.wages)}</span>
         </div>
         <div>
-          <span className="l">Commission</span>
+          <LabelWithIcon label="Commission" className="l" />
           <span className="v comm">{formatRM(record.commission)}</span>
         </div>
         {record.earlyWithdrawal > 0 && (
           <div>
-            <span className="l">Early withdrawal</span>
+            <LabelWithIcon label="Early withdrawal" className="l" />
             <span className="v deduct">−{formatRM(record.earlyWithdrawal)}</span>
           </div>
         )}
         {record.deductions > 0 && (
           <div>
-            <span className="l">Other</span>
+            <LabelWithIcon label="Other" className="l" />
             <span className="v deduct">−{formatRM(record.deductions)}</span>
           </div>
         )}
@@ -259,15 +260,15 @@ export function PrPaymentHistoryPanel({
           <div className={cn("iz-grid3", hideHeader && !onStatusFilterChange ? "mt-0" : "mt-2.5")}>
             <div className="iz-stat-tile">
               <div className="n">{records.length}</div>
-              <div className="l">Weeks</div>
+              <IzKpiLabel>Weeks</IzKpiLabel>
             </div>
             <div className="iz-stat-tile">
               <div className="n">{totalShifts}</div>
-              <div className="l">Shifts</div>
+              <IzKpiLabel>Shifts</IzKpiLabel>
             </div>
             <div className="iz-stat-tile">
               <div className={cn("n", netTone)}>{formatRM(netAmount)}</div>
-              <div className="l">{netLabel}</div>
+              <IzKpiLabel>{netLabel}</IzKpiLabel>
             </div>
           </div>
           {!statusFilter && paidRecords.length + signedRecords.length > 0 && (

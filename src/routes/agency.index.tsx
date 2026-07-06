@@ -7,6 +7,7 @@ import { LIVE_SEED_PR_PVS } from "@/lib/pr-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { AiSuggestionsPanel } from "@/components/portal/AiSuggestionsPanel";
 import { AgencyHomeHubTabs } from "@/components/portal/AgencyHomeHubTabs";
+import { IconGuide } from "@/components/iz/IconGuide";
 import { formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/agency/")({
@@ -82,6 +83,8 @@ function AgencyHub() {
           </aside>
         )}
       </div>
+
+      <IconGuide className="iz-icon-guide--portal mt-6" />
     </div>
   );
 }

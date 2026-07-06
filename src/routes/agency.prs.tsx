@@ -11,7 +11,7 @@ import { useStore } from "@/lib/store";
 import type { AgencyManagedPR } from "@/lib/agency-demo";
 import { collectAgencyPrLanguages, languagesFromPr, sortAgencyPrsByName } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { IzCard, IzPill, IzSectionLabel, IzSelect, formatRM } from "@/components/iz/ui";
+import { IzCard, IzCardTitle, IzKpiLabel, IzPageTitle, IzPill, IzSectionLabel, IzSelect, formatRM } from "@/components/iz/ui";
 import { publicAssetPath } from "@/lib/public-asset";
 import { ProfileLanguagePicker } from "@/components/iz/ProfileLanguagePicker";
 import { shiftHistoryForPr } from "@/lib/portal-sync";
@@ -109,7 +109,7 @@ function AgencyManagePRs() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
+          <IzPageTitle>Access restricted</IzPageTitle>
         </header>
         <IzCard className="text-center">
           <p className="iz-sm iz-muted">Finance role cannot manage PR roster.</p>
@@ -156,7 +156,7 @@ function AgencyManagePRs() {
   return (
     <div className="iz-screen">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Manage PR</h2>
+        <IzPageTitle>Manage PR</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">Filter roster · bulk broadcast · auto-flags</p>
       </header>
 
@@ -519,7 +519,7 @@ function AgencyPrDetail({
       />
       <header>
         <p className="iz-tiny iz-muted2 uppercase tracking-widest">Managed PR</p>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">{display.name}</h2>
+        <IzPageTitle>{display.name}</IzPageTitle>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <IzPill variant={isAgencyPrActive(detail) ? "green" : "ink"} className="!py-0.5 !text-[9px]">
             {isAgencyPrActive(detail) ? "Active" : "Inactive"}
@@ -532,7 +532,7 @@ function AgencyPrDetail({
       <IzCard className={`mt-3${editing ? " border-[rgba(217,185,122,.25)]" : ""}`}>
         <div className="flex gap-2.5">
           <div
-            className={`iz-avatar !h-[54px] !w-[54px] shrink-0 text-xl${detail.avatarPhoto ? " iz-avatar-photo" : ""}`}
+            className={`iz-avatar iz-avatar--lg shrink-0${detail.avatarPhoto ? " iz-avatar-photo" : ""}`}
           >
             {detail.avatarPhoto ? <img src={publicAssetPath(detail.avatarPhoto)} alt="" /> : avatarLetter}
           </div>
@@ -564,19 +564,19 @@ function AgencyPrDetail({
 
       <div className="iz-outlet-stat-strip mt-3">
         <div className="iz-outlet-stat-cell">
-          <div className="l">Rating</div>
+          <IzKpiLabel>Rating</IzKpiLabel>
           <div className="n text-[var(--iz-gold)]">{detail.rating}★</div>
         </div>
         <div className="iz-outlet-stat-cell">
-          <div className="l">Attendance</div>
+          <IzKpiLabel>Attendance</IzKpiLabel>
           <div className="n">{detail.attendancePct}%</div>
         </div>
         <div className="iz-outlet-stat-cell">
-          <div className="l">KPI</div>
+          <IzKpiLabel>KPI</IzKpiLabel>
           <div className="n">{detail.kpiScore}</div>
         </div>
         <div className="iz-outlet-stat-cell">
-          <div className="l">Paid</div>
+          <IzKpiLabel>Paid</IzKpiLabel>
           <div className="n text-[var(--iz-gold-l)]">{(detail.totalPaid / 1000).toFixed(1)}k</div>
         </div>
       </div>
@@ -794,7 +794,7 @@ function AgencyPrDetail({
       </div>
 
       <IzSheet open={suspendOpen} onClose={() => setSuspendOpen(false)}>
-        <div className="iz-cardttl">Suspend {detail.name}?</div>
+        <IzCardTitle>Suspend {detail.name}?</IzCardTitle>
         <p className="iz-tiny iz-muted mb-3 leading-relaxed">
           This pauses all shift offers and check-ins for this PR until you lift the suspension. Pending roster slots
           may need to be reassigned.
@@ -806,7 +806,7 @@ function AgencyPrDetail({
       </IzSheet>
 
       <IzSheet open={detachOpen} onClose={() => setDetachOpen(false)}>
-        <div className="iz-cardttl">{tiedUnderOneYear ? "Request detach" : "Detach"} {detail.name}?</div>
+        <IzCardTitle>{tiedUnderOneYear ? "Request detach" : "Detach"} {detail.name}?</IzCardTitle>
         <p className="iz-tiny iz-muted mb-3 leading-relaxed">
           {tiedUnderOneYear ? (
             <>

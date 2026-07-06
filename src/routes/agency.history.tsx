@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { AgencyPaidPvHistory } from "@/components/agency/AgencyPaidPvHistory";
 import { ShiftHistoryLog } from "@/components/iz/ShiftHistoryLog";
+import { IzPageTitle } from "@/components/iz/ui";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import { useStore } from "@/lib/store";
 
 type HistoryTab = "shifts" | "outlets" | "paid";
@@ -45,7 +47,7 @@ function AgencyHistory() {
   return (
     <div className="iz-screen">
       <p className="iz-tiny iz-muted2 uppercase tracking-widest">InnocenZ · Agency</p>
-      <h2 className="font-sora mx-0.5 mt-0.5 text-[22px] font-extrabold text-[var(--iz-txt)]">History</h2>
+      <IzPageTitle size="xl" className="mx-0.5 mt-0.5">History</IzPageTitle>
 
       <div className="iz-payroll-tabs mt-3">
         <button
@@ -53,21 +55,21 @@ function AgencyHistory() {
           className={`iz-payroll-tab${tab === "shifts" ? " on" : ""}`}
           onClick={() => setTab("shifts")}
         >
-          By PR
+          <TitleWithIcon>By PR</TitleWithIcon>
         </button>
         <button
           type="button"
           className={`iz-payroll-tab${tab === "outlets" ? " on" : ""}`}
           onClick={() => setTab("outlets")}
         >
-          By outlet ({outletCount})
+          <TitleWithIcon>By outlet ({outletCount})</TitleWithIcon>
         </button>
         <button
           type="button"
           className={`iz-payroll-tab${tab === "paid" ? " on" : ""}`}
           onClick={() => setTab("paid")}
         >
-          Paid PVs ({paidCount})
+          <TitleWithIcon>Paid PVs ({paidCount})</TitleWithIcon>
         </button>
       </div>
 

@@ -4,7 +4,7 @@ import { outletHomeShiftRequests, resolveOutletShiftDateIso } from "@/lib/agency
 import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
 import { outletCan } from "@/lib/outlet-rbac";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzCard, IzPill } from "@/components/iz/ui";
+import { IzCard, IzCardTitle, IzPill } from "@/components/iz/ui";
 import { OutletTodayOperationPanel } from "@/components/outlet/OutletTodayOperationPanel";
 import { OutletLaborCostReport } from "@/components/outlet/OutletLaborCostReport";
 import {
@@ -170,7 +170,7 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
       </div>
 
       <IzSheet open={deleteTarget !== null} onClose={() => setDeleteTargetId(null)}>
-        <div className="iz-cardttl">Delete this shift?</div>
+        <IzCardTitle>Delete this shift?</IzCardTitle>
         {deleteTarget && (
           <IzCard flat className="mt-2">
             <p className="text-sm font-semibold">{deleteTarget.event}</p>

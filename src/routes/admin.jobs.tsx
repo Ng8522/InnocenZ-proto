@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { SpecialServiceOrderCard } from "@/components/special-service/SpecialServiceOrderCard";
-import { IzCard, IzSectionLabel } from "@/components/iz/ui";
+import { IzCard, IzPageTitle, IzSectionLabel } from "@/components/iz/ui";
+import { IconGuide } from "@/components/iz/IconGuide";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
 import {
@@ -28,7 +29,7 @@ function AdminJobPostings() {
   return (
     <div className="iz-screen !px-0">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Job postings</h2>
+        <IzPageTitle>Job postings</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">Review agency-submitted jobs · accept or reject</p>
       </header>
 
@@ -70,6 +71,8 @@ function AdminJobPostings() {
           </div>
         )}
       </OutletSection>
+
+      <IconGuide className="mt-5" />
     </div>
   );
 }

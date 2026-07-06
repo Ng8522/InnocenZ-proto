@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, History, Home, Plus, Zap } from "lucide-react";
+import { iconForNav } from "@/lib/lucide-label-icons";
 
 /** Matches Module 10 outlet columns: Owner, Finance, Ops Head */
 export type OutletSubRole = "outlet_owner" | "outlet_finance" | "outlet_ops";
@@ -80,11 +80,11 @@ export function outletCan(role: OutletSubRole | null | undefined, permission: Pe
 export type OutletNavItem = { to: string; label: string; icon: LucideIcon; permission: Permission };
 
 const ALL_NAV: OutletNavItem[] = [
-  { to: "/outlet", label: "Today", icon: Home, permission: "viewLiveDashboard" },
-  { to: "/outlet/bookings", label: "Post Job", icon: Plus, permission: "postJob" },
-  { to: "/outlet/ratings", label: "Calendar page", icon: Zap, permission: "viewLiveDashboard" },
-  { to: "/outlet/history", label: "History", icon: History, permission: "viewHistory" },
-  { to: "/outlet/billing", label: "Reports", icon: BarChart3, permission: "viewBilling" },
+  { to: "/outlet", label: "Today", icon: iconForNav("Today"), permission: "viewLiveDashboard" },
+  { to: "/outlet/bookings", label: "Post Job", icon: iconForNav("Post Job"), permission: "postJob" },
+  { to: "/outlet/ratings", label: "Calendar page", icon: iconForNav("Calendar page"), permission: "viewLiveDashboard" },
+  { to: "/outlet/history", label: "History", icon: iconForNav("History"), permission: "viewHistory" },
+  { to: "/outlet/billing", label: "Reports", icon: iconForNav("Reports"), permission: "viewBilling" },
 ];
 
 export function getOutletNavItems(role: OutletSubRole | null | undefined): OutletNavItem[] {

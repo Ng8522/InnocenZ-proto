@@ -9,7 +9,7 @@ import {
 } from "@/components/agency/Comcard3dPreview";
 import { StaticComcardVisual } from "@/components/pr/PortfolioComcardVisual";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzPill } from "@/components/iz/ui";
+import { IzCardTitle, IzPill } from "@/components/iz/ui";
 import { cn } from "@/lib/utils";
 
 const COMCARD_FALLBACK = { height: 165, weight: 52, age: 24 };
@@ -81,7 +81,7 @@ export function PrComcardIdentity({
       </button>
 
       <IzSheet open={open} onClose={() => setOpen(false)}>
-        <div className="iz-cardttl mb-1">{pr.name}</div>
+        <IzCardTitle className="mb-1">{pr.name}</IzCardTitle>
         {agencyName && <p className="iz-tiny iz-muted mb-3">{agencyName}</p>}
         {pr.comcardImageUrl ? (
           <StaticComcardVisual src={pr.comcardImageUrl} />

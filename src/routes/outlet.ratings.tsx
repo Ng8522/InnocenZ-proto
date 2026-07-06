@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { OutletPage, OutletPageHeader } from "@/components/outlet/outlet-portal-ui";
+import { IzPageTitle } from "@/components/iz/ui";
 import { OutletOperationsCalendar } from "@/components/outlet/OutletOperationsCalendar";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { outletCan } from "@/lib/outlet-rbac";
@@ -20,7 +21,7 @@ function CalendarPage() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Calendar page</h2>
+          <IzPageTitle>Calendar page</IzPageTitle>
         </header>
         <p className="iz-tiny iz-muted mt-4 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
           Your role cannot access upcoming shifts.

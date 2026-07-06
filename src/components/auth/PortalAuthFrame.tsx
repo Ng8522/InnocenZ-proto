@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
+import { LogoMark } from "@/components/Brand";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import { PORTAL_AUTH_TAGLINES, PORTAL_SIGNIN_LABELS, type SignInPortal } from "@/lib/portal-signin";
+import { PORTAL_TITLE_ICONS } from "@/lib/title-icons";
+import { LogIn } from "lucide-react";
 
 export function PortalAuthFrame({
   portal,
@@ -11,6 +15,7 @@ export function PortalAuthFrame({
   overlay?: ReactNode;
 }) {
   const label = PORTAL_SIGNIN_LABELS[portal];
+  const PortalIcon = PORTAL_TITLE_ICONS[portal];
 
   return (
     <div className="iz-portal-auth" data-portal={portal}>
@@ -19,14 +24,18 @@ export function PortalAuthFrame({
           <div className="iz-wordmark text-[26px]">
             Innocen<span className="iz-wordmark-z">Z</span>
           </div>
-          <p className="iz-tiny iz-muted mt-1.5">{label} portal</p>
+          <p className="iz-tiny iz-muted mt-1.5">
+            <TitleWithIcon icon={PortalIcon}>{label} portal</TitleWithIcon>
+          </p>
 
           <div className="iz-logo-tile iz-portal-auth-logo !mt-8 !mb-0">
-            <span>Z</span>
+            <LogoMark />
           </div>
 
           <h1 className="font-sora mt-6 text-[32px] font-extrabold leading-tight text-[var(--iz-txt)]">
-            Sign in to {label}
+            <TitleWithIcon icon={LogIn}>
+              Sign in to <TitleWithIcon icon={PortalIcon}>{label}</TitleWithIcon>
+            </TitleWithIcon>
           </h1>
           <p className="iz-sm iz-muted mt-3 max-w-sm leading-relaxed">
             {PORTAL_AUTH_TAGLINES[portal]}

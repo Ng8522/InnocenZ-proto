@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Calendar, FileText, History, Home, Sparkles, UserCheck } from "lucide-react";
+import { iconForNav } from "@/lib/lucide-label-icons";
 
 /** Module 9 · Agency Owner vs Agency Finance */
 export type AgencySubRole = "agency_owner" | "agency_finance";
@@ -65,12 +65,12 @@ export function agencyCan(role: AgencySubRole | null | undefined, permission: Pe
 export type AgencyNavItem = { to: string; label: string; icon: LucideIcon; permission: Permission };
 
 const ALL_NAV: AgencyNavItem[] = [
-  { to: "/agency", label: "Home", icon: Home, permission: "viewHome" },
-  { to: "/agency/roster", label: "Roster", icon: Calendar, permission: "viewWorkforce" },
-  { to: "/agency/pending", label: "Approvals", icon: UserCheck, permission: "approvePrSignups" },
-  { to: "/agency/pv", label: "Payroll", icon: FileText, permission: "viewPv" },
-  { to: "/agency/special-service", label: "Job Posting", icon: Sparkles, permission: "viewPv" },
-  { to: "/agency/history", label: "History", icon: History, permission: "viewHistory" },
+  { to: "/agency", label: "Home", icon: iconForNav("Home"), permission: "viewHome" },
+  { to: "/agency/roster", label: "Roster", icon: iconForNav("Roster"), permission: "viewWorkforce" },
+  { to: "/agency/pending", label: "Approvals", icon: iconForNav("Approvals"), permission: "approvePrSignups" },
+  { to: "/agency/pv", label: "Payroll", icon: iconForNav("Payroll"), permission: "viewPv" },
+  { to: "/agency/special-service", label: "Job Posting", icon: iconForNav("Job Posting"), permission: "viewPv" },
+  { to: "/agency/history", label: "History", icon: iconForNav("History"), permission: "viewHistory" },
 ];
 
 export function getAgencyNavItems(role: AgencySubRole | null | undefined): AgencyNavItem[] {

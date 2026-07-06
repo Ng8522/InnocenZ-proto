@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { ImagePlus, Undo2, X } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
-import { formatRM } from "@/components/iz/ui";
+import { formatRM, IzCardTitle } from "@/components/iz/ui";
 import { PV_DISPUTE_PRESETS } from "@/lib/pr-demo";
 import type { WeeklyDisputeTarget } from "@/lib/pr-weekly-payment";
 
@@ -174,13 +174,13 @@ export function PrPvDisputeSheet({
 
   return (
     <IzSheet open={open} onClose={onClose}>
-      <div className="iz-cardttl">
+      <IzCardTitle>
         {isWithdraw
           ? "Withdraw dispute?"
           : targets.length === 1
             ? "Dispute this amount"
             : "Raise dispute"}
-      </div>
+      </IzCardTitle>
       {isWithdraw ? (
         <p className="iz-tiny iz-muted mb-3">
           Flagged this amount by mistake? Withdraw the dispute and it returns to verified.

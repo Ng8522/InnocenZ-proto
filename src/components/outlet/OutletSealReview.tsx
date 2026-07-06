@@ -4,7 +4,7 @@ import { shiftHoursFromLabel } from "@/lib/outlet-demo";
 import type { ShiftRequest } from "@/lib/store";
 import { useStore } from "@/lib/store";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzCard, formatRM } from "@/components/iz/ui";
+import { IzCard, IzCardTitle, formatRM } from "@/components/iz/ui";
 
 export function OutletSealReview({
   shift,
@@ -56,7 +56,7 @@ export function OutletSealReview({
 
   return (
     <IzSheet open={open} onClose={onClose}>
-      <div className="iz-cardttl">Seal shift · per-PR review</div>
+      <IzCardTitle>Seal shift · per-PR review</IzCardTitle>
       {shift && (
         <p className="iz-tiny iz-muted mt-1">
           {shift.event} · {shift.date} · {shift.shift}

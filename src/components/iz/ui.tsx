@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
+import type { LucideIcon } from "lucide-react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -109,8 +111,96 @@ export function TierBadge({ tier, className }: { tier: string; className?: strin
   );
 }
 
-export function IzSectionLabel({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("iz-sect-label", className)}>{children}</div>;
+export function IzSectionLabel({
+  children,
+  className,
+  icon,
+  hideIcon,
+}: {
+  children: ReactNode;
+  className?: string;
+  icon?: LucideIcon | null;
+  hideIcon?: boolean;
+}) {
+  return (
+    <div className={cn("iz-sect-label", className)}>
+      <TitleWithIcon icon={icon} hideIcon={hideIcon}>
+        {children}
+      </TitleWithIcon>
+    </div>
+  );
+}
+
+export function IzCardTitle({
+  children,
+  className,
+  icon,
+  hideIcon,
+}: {
+  children: ReactNode;
+  className?: string;
+  icon?: LucideIcon | null;
+  hideIcon?: boolean;
+}) {
+  return (
+    <div className={cn("iz-cardttl", className)}>
+      <TitleWithIcon icon={icon} hideIcon={hideIcon} iconClassName="iz-title-icon--card">
+        {children}
+      </TitleWithIcon>
+    </div>
+  );
+}
+
+export function IzPageTitle({
+  children,
+  level = 2,
+  size = "lg",
+  className,
+  icon,
+}: {
+  children: ReactNode;
+  level?: 1 | 2 | 3;
+  size?: "lg" | "xl";
+  className?: string;
+  icon?: LucideIcon | null;
+}) {
+  const Tag = (`h${level}` as "h1" | "h2" | "h3");
+  const sizeClass =
+    size === "xl"
+      ? "text-[22px] tracking-tight"
+      : level === 3
+        ? "text-lg"
+        : "text-lg leading-snug";
+  return (
+    <Tag
+      className={cn(
+        "font-sora font-extrabold text-[var(--iz-txt)]",
+        sizeClass,
+        className,
+      )}
+    >
+      <TitleWithIcon icon={icon}>{children}</TitleWithIcon>
+    </Tag>
+  );
+}
+
+/** KPI / stat tile label — icon + words inside `.l` styling. */
+export function IzKpiLabel({
+  children,
+  className,
+  icon,
+}: {
+  children: ReactNode;
+  className?: string;
+  icon?: LucideIcon | null;
+}) {
+  return (
+    <div className={cn("l", className)}>
+      <TitleWithIcon icon={icon} iconClassName="iz-title-icon--kpi">
+        {children}
+      </TitleWithIcon>
+    </div>
+  );
 }
 
 export function formatRM(n: number) {

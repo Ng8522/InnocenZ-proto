@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { formatRM } from "@/components/iz/ui";
+import { LiveEarningsLabel } from "@/components/outlet/outlet-live-sales-ui";
 import { outletCan } from "@/lib/outlet-rbac";
 import type { OutletTonightFloorTotals } from "@/lib/outlet-financial-sync";
 import type { ShiftRequest } from "@/lib/store";
@@ -50,9 +51,15 @@ export function OutletTonightSummaryTable({
         <thead>
           <tr>
             <th scope="col" className="iz-outlet-tonight-summary-table__today-col" />
-            <th scope="col">Total Sales Report</th>
-            <th scope="col">Total Drinks</th>
-            <th scope="col">Total Tips</th>
+            <th scope="col">
+              <LiveEarningsLabel label="Total Sales Report" />
+            </th>
+            <th scope="col">
+              <LiveEarningsLabel label="Total Drinks" />
+            </th>
+            <th scope="col">
+              <LiveEarningsLabel label="Total Tips" />
+            </th>
           </tr>
         </thead>
         <tbody>

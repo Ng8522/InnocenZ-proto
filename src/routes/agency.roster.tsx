@@ -17,7 +17,8 @@ import {
 } from "@/lib/agency-demo";
 import { deriveLiveWorkforce } from "@/lib/portal-sync";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzCard, IzPill, IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
+import { LabelWithIcon } from "@/components/iz/TitleWithIcon";
+import { IzCard, IzCardTitle, IzPageTitle, IzPill, IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import {
   EMPTY_ROSTER_SHIFT_FILTERS,
@@ -198,7 +199,7 @@ function AgencyRoster() {
 
       <header className="iz-roster-head">
         <div className="min-w-0 flex-1">
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)] md:text-xl">Roster</h2>
+          <IzPageTitle className="md:text-xl">Roster</IzPageTitle>
           <p className="iz-tiny iz-muted mt-0.5">
             {date} · {time}
           </p>
@@ -264,26 +265,26 @@ function AgencyRoster() {
           <>
             <div className="iz-roster-kpi">
               <span className="n">{plannedCount}</span>
-              <span className="l">Planned PRs</span>
+              <LabelWithIcon label="Planned PRs" className="l" />
             </div>
             <div className="iz-roster-kpi">
               <span className="n">{activeCount}</span>
-              <span className="l">Active PRs</span>
+              <LabelWithIcon label="Active PRs" className="l" />
             </div>
             <div className="iz-roster-kpi">
               <span className="n gold">{formatRM(estPayoutLive)}</span>
-              <span className="l">Est payout</span>
+              <LabelWithIcon label="Est payout" className="l" />
             </div>
           </>
         ) : (
           <>
             <div className="iz-roster-kpi">
               <span className="n">{weekScheduled.length}</span>
-              <span className="l">Shifts this week</span>
+              <LabelWithIcon label="Shifts this week" className="l" />
             </div>
             <div className="iz-roster-kpi">
               <span className="n gold">{formatRM(estLabour)}</span>
-              <span className="l">Est. labour cost</span>
+              <LabelWithIcon label="Est. labour cost" className="l" />
             </div>
           </>
         )}
@@ -450,7 +451,7 @@ function AgencyRoster() {
       >
         {swapToApprove && (
           <>
-            <div className="iz-cardttl">Assign replacement</div>
+            <IzCardTitle>Assign replacement</IzCardTitle>
             <p className="iz-tiny iz-muted mb-3">
               {swapToApprove.requestingPrName} wants to leave{" "}
               <strong className="text-[var(--iz-txt)]">{swapToApprove.outlet}</strong> for{" "}
@@ -663,7 +664,7 @@ function EditRosterModal({
       </form>
 
       <IzSheet open={cancelConfirmOpen} onClose={() => !busy && setCancelConfirmOpen(false)}>
-        <div className="iz-cardttl">Cancel this shift?</div>
+        <IzCardTitle>Cancel this shift?</IzCardTitle>
         <p className="iz-tiny iz-muted mb-3">
           {slot.prName} at <strong className="text-[var(--iz-txt)]">{slot.outlet}</strong> · {slot.date} ·{" "}
           {slot.shift}. This cannot be undone.

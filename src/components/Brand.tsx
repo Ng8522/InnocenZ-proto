@@ -1,6 +1,56 @@
 import { useEffect, useState, type ReactNode } from "react";
 
-export function Logo({ size = "md", showTagline = true }: { size?: "sm" | "md" | "lg"; showTagline?: boolean }) {
+/**
+ * InnocenZ brand mark — the warm-gold "Petal Crown". Presentation only.
+ * Mirrors /public/innocenz-mark.svg so the app and favicon stay in sync.
+ */
+export function LogoMark({ className }: { className?: string }) {
+  return (
+    <svg
+      className={`iz-logo-mark ${className ?? ""}`}
+      viewBox="12 16 96 84"
+      fill="none"
+      role="img"
+      aria-label="InnocenZ"
+    >
+      <defs>
+        <linearGradient
+          id="izPetalGoldTile"
+          x1="60"
+          y1="18"
+          x2="60"
+          y2="98"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0" stopColor="#f6d98f" />
+          <stop offset="0.55" stopColor="#d8ab57" />
+          <stop offset="1" stopColor="#a9762b" />
+        </linearGradient>
+      </defs>
+      <g
+        stroke="url(#izPetalGoldTile)"
+        strokeWidth="2.2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        fill="none"
+      >
+        <path d="M60 20 C 69 44 69 71 60 95 C 51 71 51 44 60 20 Z" transform="rotate(-36 60 95)" />
+        <path d="M60 20 C 69 44 69 71 60 95 C 51 71 51 44 60 20 Z" transform="rotate(-18 60 95)" />
+        <path d="M60 20 C 69 44 69 71 60 95 C 51 71 51 44 60 20 Z" />
+        <path d="M60 20 C 69 44 69 71 60 95 C 51 71 51 44 60 20 Z" transform="rotate(18 60 95)" />
+        <path d="M60 20 C 69 44 69 71 60 95 C 51 71 51 44 60 20 Z" transform="rotate(36 60 95)" />
+      </g>
+    </svg>
+  );
+}
+
+export function Logo({
+  size = "md",
+  showTagline = true,
+}: {
+  size?: "sm" | "md" | "lg";
+  showTagline?: boolean;
+}) {
   const wordSize = size === "lg" ? "text-[22px]" : size === "sm" ? "text-lg" : "text-[22px]";
   return (
     <div className="flex flex-col items-center gap-1">
@@ -12,7 +62,7 @@ export function Logo({ size = "md", showTagline = true }: { size?: "sm" | "md" |
           className="font-sora text-[10px] font-bold tracking-[0.3em] text-[var(--iz-gold)]"
           style={{ letterSpacing: "3px" }}
         >
-          CONNECT · ENGAGE · ENTERTAIN
+          WORK · FLOW · ELEGANCE
         </p>
       )}
     </div>
@@ -42,7 +92,10 @@ function StatusBar() {
           <rect x="13.5" y="0" width="3" height="12" rx="1" />
         </svg>
         <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor" aria-hidden>
-          <path d="M8 2.5c2 0 3.8.8 5.1 2l1.1-1.2C13.6 1.7 11 .7 8 .7S2.4 1.7.7 3.3l1.1 1.2C3.2 3.3 6 2.5 8 2.5z" opacity=".5" />
+          <path
+            d="M8 2.5c2 0 3.8.8 5.1 2l1.1-1.2C13.6 1.7 11 .7 8 .7S2.4 1.7.7 3.3l1.1 1.2C3.2 3.3 6 2.5 8 2.5z"
+            opacity=".5"
+          />
           <path d="M8 6c1.1 0 2.1.4 2.9 1.1l1.1-1.2C11 4.9 9.6 4.3 8 4.3s-3 .6-4 1.6l1.1 1.2C5.9 6.4 6.9 6 8 6z" />
           <circle cx="8" cy="9.5" r="1.6" />
         </svg>

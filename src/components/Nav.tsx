@@ -6,6 +6,8 @@ import type { LucideIcon } from "lucide-react";
 
 import { ArrowLeft } from "lucide-react";
 
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
+
 import { getShiftToday, fmtDTopbar, getPrProfile } from "@/lib/pr-demo";
 
 import { AGENCY_SUB_ROLE_LABELS } from "@/lib/agency-rbac";
@@ -367,7 +369,7 @@ export function AppHeader({
           <div className="flex items-start justify-between gap-2">
             {title ? (
               <h1 className="font-sora text-[22px] font-extrabold tracking-tight text-[var(--iz-txt)]">
-                {title}
+                <TitleWithIcon>{title}</TitleWithIcon>
               </h1>
             ) : (
               <span />

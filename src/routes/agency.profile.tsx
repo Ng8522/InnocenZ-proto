@@ -10,7 +10,7 @@ import {
 import { getPreviousWeekSundayIso } from "@/lib/demo-clock";
 import { getAgencyManagedPvs } from "@/lib/agency-payroll";
 import { agencyCan } from "@/lib/agency-rbac";
-import { IzCard, IzSectionLabel } from "@/components/iz/ui";
+import { IzCard, IzPageTitle, IzSectionLabel } from "@/components/iz/ui";
 import { SecuritySettingsSheets } from "@/components/auth/SecuritySettingsSheets";
 import { Building2, Camera, Mail, Pencil, Phone, Shield, User, X } from "lucide-react";
 
@@ -139,9 +139,7 @@ function AgencyProfile() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">
-            Access restricted
-          </h2>
+          <IzPageTitle>Access restricted</IzPageTitle>
         </header>
         <IzCard className="text-center">
           <p className="iz-sm iz-muted">You do not have access to agency settings.</p>
@@ -157,7 +155,7 @@ function AgencyProfile() {
     <div className="iz-screen">
       {editing && <AppTopbar onBack={cancelEdit} backLabel="Cancel edit" />}
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Settings</h2>
+        <IzPageTitle>Settings</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">{owner.orgName}</p>
         {editing && <span className="iz-pill iz-pill-amber mt-2 !text-[10px]">Editing</span>}
         {isFinanceReadOnly && !editing && (
@@ -167,7 +165,7 @@ function AgencyProfile() {
         )}
       </header>
 
-      <div className="flex flex-col items-center py-4">
+      <div className="iz-settings-profile flex flex-col items-center py-5">
         <input
           ref={avatarFileRef}
           type="file"
@@ -177,7 +175,7 @@ function AgencyProfile() {
         />
         <div className="relative">
           <div
-            className={`iz-avatar h-16 w-16 text-xl${owner.avatarPhoto ? " iz-avatar-photo" : ""}`}
+            className={`iz-avatar iz-avatar--xl${owner.avatarPhoto ? " iz-avatar-photo" : ""}`}
             style={owner.avatarPhoto ? undefined : { background: "var(--iz-grad)" }}
           >
             {owner.avatarPhoto ? <img src={owner.avatarPhoto} alt="" /> : avatarLetter}

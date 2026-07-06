@@ -192,6 +192,7 @@ import {
   DEFAULT_OUTLET_SETTINGS,
   DEFAULT_OUTLET_WORKSPACE,
   DEFAULT_OUTLET_OWNER,
+  VELVET_23_OUTLET_LOGO,
   DEFAULT_OUTLET_FINANCE_HEAD,
   DEFAULT_OUTLET_OPS_HEAD,
   DEFAULT_OUTLET_DRINK_MENU,
@@ -6389,7 +6390,14 @@ export const useStore = create<StoreState>()(
           outletPnlSyncAt: p?.outletPnlSyncAt ?? current.outletPnlSyncAt,
           outletMoneyEditCount: p?.outletMoneyEditCount ?? current.outletMoneyEditCount,
           outletSettings: p?.outletSettings ?? current.outletSettings ?? DEFAULT_OUTLET_SETTINGS,
-          outletOwner: p?.outletOwner ?? current.outletOwner ?? DEFAULT_OUTLET_OWNER,
+          outletOwner: (() => {
+            const saved = p?.outletOwner ?? current.outletOwner ?? DEFAULT_OUTLET_OWNER;
+            const merged = { ...DEFAULT_OUTLET_OWNER, ...saved };
+            if (!merged.avatarPhoto && merged.orgName.trim() === "Velvet 23") {
+              merged.avatarPhoto = VELVET_23_OUTLET_LOGO;
+            }
+            return merged;
+          })(),
           outletSubscriptionBilling: syncOutletSubscriptionBilling(
             p?.outletSubscriptionBilling ??
               current.outletSubscriptionBilling ??

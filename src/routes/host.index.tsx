@@ -39,8 +39,13 @@ import {
   Filter,
   MapPin,
   Sparkles,
+  Store,
 } from "lucide-react";
-import { formatRM } from "@/components/iz/ui";
+import { formatRM, IzCardTitle } from "@/components/iz/ui";
+import { IconGuide } from "@/components/iz/IconGuide";
+import { LabelWithIcon } from "@/components/iz/TitleWithIcon";
+import { outletLogoForName } from "@/lib/outlet-demo";
+import { publicAssetPath } from "@/lib/public-asset";
 
 type HostHubView = "shifts" | "services";
 
@@ -309,38 +314,18 @@ function HostShifts() {
         </div>
       ) : (
         <>
-          <div className={`iz-outlet-stat-strip mt-3${tied ? " iz-outlet-stat-strip--3" : ""}`}>
-            {tied ? (
-              <>
-                <StatStripCell label="Today" onClick={() => focusHubSection("today")}>
-                  <span className="text-[var(--iz-gold-l)]">{todayStatus}</span>
-                </StatStripCell>
-                <StatStripCell label="To-do" onClick={() => focusHubSection("todo")}>
-                  <span className={todoCount > 0 ? "text-[var(--iz-amber)]" : undefined}>
-                    {todoCount}
-                  </span>
-                </StatStripCell>
-                <StatStripCell label="Upcoming" onClick={() => focusHubSection("agency")}>
-                  {upcomingEvents.length}
-                </StatStripCell>
-              </>
-            ) : (
-              <>
-                <StatStripCell label="Offers" onClick={() => focusHubSection("openShifts")}>
-                  {offerCount}
-                </StatStripCell>
-                <StatStripCell label="Upcoming" onClick={() => focusHubSection("openShifts")}>
-                  {prUpcomingShifts.length}
-                </StatStripCell>
-                <StatStripCell label="Status" onClick={() => focusHubSection("today")}>
-                  <span className="text-[var(--iz-gold-l)]">{statusLabel}</span>
-                </StatStripCell>
-                <StatStripCell label="Open" onClick={() => focusHubSection("openShifts")}>
-                  {filteredMarketplace.length}
-                </StatStripCell>
-              </>
-            )}
-          </div>
+          <PrHomeHubStrip
+            tied={tied}
+            hubSectionsOpen={hubSectionsOpen}
+            focusHubSection={focusHubSection}
+            todayStatus={todayStatus}
+            todoCount={todoCount}
+            upcomingCount={upcomingEvents.length}
+            offerCount={offerCount}
+            prUpcomingCount={prUpcomingShifts.length}
+            statusLabel={statusLabel}
+            openShiftCount={filteredMarketplace.length}
+          />
 
           {!effectiveShiftAccepted &&
             !pendingApproval &&
@@ -383,7 +368,7 @@ function HostShifts() {
                 >
                   <Link
                     to="/host/tonight"
-                    className={`iz-btn iz-btn-sm mt-3 w-full${checkedOut ? " iz-btn-soft" : " iz-btn-primary"}`}
+                    className={`iz-btn iz-btn-sm iz-pr-shift-card__cta w-full${checkedOut ? " iz-btn-soft" : " iz-btn-primary"}`}
                   >
                     <MapPin className="h-3.5 w-3.5" />
                     {checkedOut ? "View summary" : checkedIn ? "Attendance" : "Check in"}
@@ -580,7 +565,7 @@ function HostShifts() {
       </IzSheet>
 
       <IzSheet open={filtersOpen} onClose={() => setFiltersOpen(false)}>
-        <div className="iz-cardttl">Filters</div>
+        <IzCardTitle>Filters</IzCardTitle>
         <FilterSelect
           label="Area"
           value={mktFilters.area}
@@ -679,7 +664,7 @@ function HostShifts() {
           setSwapRejectReason("");
         }}
       >
-        <div className="iz-cardttl">Decline coverage</div>
+        <IzCardTitle>Decline coverage</IzCardTitle>
         <p className="iz-tiny iz-muted mb-3">
           Tell the agency why you cannot take this shift — they will find someone else.
         </p>
@@ -704,6 +689,8 @@ function HostShifts() {
           Submit decline
         </button>
       </IzSheet>
+
+      <IconGuide className="mt-4 mb-2" />
     </div>
   );
 }
@@ -733,20 +720,94 @@ function FilterSelect({
   );
 }
 
-function StatStripCell({
-  label,
-  onClick,
-  children,
+function PrHomeHubStrip({
+  tied,
+  hubSectionsOpen,
+  focusHubSection,
+  todayStatus,
+  todoCount,
+  upcomingCount,
+  offerCount,
+  prUpcomingCount,
+  statusLabel,
+  openShiftCount,
 }: {
-  label: string;
-  onClick: () => void;
-  children: ReactNode;
+  tied: boolean;
+  hubSectionsOpen: Record<PrHubSectionKey, boolean>;
+  focusHubSection: (key: PrHubSectionKey) => void;
+  todayStatus: string;
+  todoCount: number;
+  upcomingCount: number;
+  offerCount: number;
+  prUpcomingCount: number;
+  statusLabel: string;
+  openShiftCount: number;
 }) {
+  const tabs = tied
+    ? ([
+        {
+          key: "today" as const,
+          label: "Today",
+          value: todayStatus,
+          accent: "text-[var(--iz-gold-l)]",
+        },
+        {
+          key: "todo" as const,
+          label: "To-do",
+          value: String(todoCount),
+          accent: todoCount > 0 ? "text-[var(--iz-amber)]" : "",
+        },
+        {
+          key: "agency" as const,
+          label: "Upcoming",
+          value: String(upcomingCount),
+          accent: "",
+        },
+      ] as const)
+    : ([
+        {
+          key: "openShifts" as const,
+          label: "Offers",
+          value: String(offerCount),
+          accent: "",
+        },
+        {
+          key: "openShifts" as const,
+          label: "Upcoming",
+          value: String(prUpcomingCount),
+          accent: "",
+        },
+        {
+          key: "today" as const,
+          label: "Status",
+          value: statusLabel,
+          accent: "text-[var(--iz-gold-l)]",
+        },
+        {
+          key: "openShifts" as const,
+          label: "Open",
+          value: String(openShiftCount),
+          accent: "",
+        },
+      ] as const);
+
   return (
-    <button type="button" className="iz-outlet-stat-cell" onClick={onClick}>
-      <div className="l">{label}</div>
-      <div className="n">{children}</div>
-    </button>
+    <div
+      className="iz-agency-home-tabs iz-pr-home-tabs mt-3"
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+    >
+      {tabs.map((tab, index) => (
+        <button
+          key={`${tab.key}-${tab.label}-${index}`}
+          type="button"
+          className={`iz-agency-home-tab${hubSectionsOpen[tab.key] ? " on" : ""}`}
+          onClick={() => focusHubSection(tab.key)}
+        >
+          <div className="l">{tab.label}</div>
+          <div className={`n truncate ${tab.accent}`.trim()}>{tab.value}</div>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -767,27 +828,49 @@ function TodayShiftCard({
   badge?: ReactNode;
   children?: ReactNode;
 }) {
+  const logo = outletLogoForName(outlet);
+  const outletInitial = outlet.trim()[0]?.toUpperCase() ?? "?";
+
   return (
-    <div className="iz-pr-hero">
-      <div className="flex items-start justify-between gap-2">
-        <p className="iz-tiny iz-muted2 uppercase tracking-wide">{eyebrow}</p>
-        {badge}
+    <div className="iz-pr-shift-card">
+      <div className="iz-pr-shift-card__head">
+        <div className="iz-pr-shift-card__eyebrow-row">
+          <p className="iz-pr-shift-card__eyebrow">{eyebrow}</p>
+          {badge}
+        </div>
+        <div className="iz-pr-shift-card__venue">
+          <div className="iz-avatar iz-avatar--md iz-pr-shift-card__logo">
+            {logo ? (
+              <img
+                src={publicAssetPath(logo)}
+                alt=""
+                className="iz-avatar-photo iz-avatar-photo--logo"
+              />
+            ) : (
+              <span>{outletInitial}</span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <LabelWithIcon label="Outlet name" className="iz-pr-shift-card__fact-k" />
+            <p className="iz-pr-shift-card__venue-name">{outlet}</p>
+          </div>
+        </div>
       </div>
-      <dl className="iz-pr-hero__facts">
-        <div className="iz-pr-hero__fact">
-          <dt className="iz-pr-hero__fact-k">Outlet name</dt>
-          <dd className="iz-pr-hero__fact-v">{outlet}</dd>
+      <dl className="iz-pr-shift-card__facts">
+        <div className="iz-pr-shift-card__fact">
+          <dt>
+            <LabelWithIcon label="Date" className="iz-pr-shift-card__fact-k" />
+          </dt>
+          <dd className="iz-pr-shift-card__fact-v">{date}</dd>
         </div>
-        <div className="iz-pr-hero__fact">
-          <dt className="iz-pr-hero__fact-k">Date</dt>
-          <dd className="iz-pr-hero__fact-v">{date}</dd>
-        </div>
-        <div className="iz-pr-hero__fact">
-          <dt className="iz-pr-hero__fact-k">Time</dt>
-          <dd className="iz-pr-hero__fact-v">{time}</dd>
+        <div className="iz-pr-shift-card__fact">
+          <dt>
+            <LabelWithIcon label="Time" className="iz-pr-shift-card__fact-k" />
+          </dt>
+          <dd className="iz-pr-shift-card__fact-v">{time}</dd>
         </div>
       </dl>
-      {footnote && <p className="iz-tiny iz-muted mt-2">{footnote}</p>}
+      {footnote && <p className="iz-pr-shift-card__event">{footnote}</p>}
       {children}
     </div>
   );
@@ -862,7 +945,7 @@ function OfferDetailSheet({
 
   return (
     <>
-      <div className="iz-cardttl">{listing.outlet}</div>
+      <IzCardTitle icon={Store}>{listing.outlet}</IzCardTitle>
       <p className="iz-tiny iz-muted mb-1">
         {fmtDFriendly(listing.date[0], listing.date[1], listing.date[2])} · {listing.time}
       </p>

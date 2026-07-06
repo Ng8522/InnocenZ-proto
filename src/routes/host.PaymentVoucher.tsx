@@ -52,7 +52,7 @@ import { FreelancerPayrollNotice } from "@/components/iz/FreelancerPayrollNotice
 import { IzSheet } from "@/components/iz/Sheet";
 import { PrSignaturePad } from "@/components/pr/PrSignaturePad";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
-import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
+import { IzCard, IzCardTitle, IzPill, formatRM } from "@/components/iz/ui";
 
 export const Route = createFileRoute("/host/PaymentVoucher")({
   validateSearch: (search: Record<string, unknown>): { pvId?: string } => ({
@@ -642,7 +642,7 @@ function PvDetail({
       />
 
       <IzSheet open={signOpen} onClose={() => setSignOpen(false)}>
-        <div className="iz-cardttl">Sign payment voucher</div>
+        <IzCardTitle>Sign payment voucher</IzCardTitle>
         <p className="iz-tiny iz-muted mb-3">
           Draw your signature below to confirm {formatRM(weekSummary.totals.net)} for {pv.id}. Your sign time is
           stamped on the PV and sent to your agency.
@@ -724,7 +724,7 @@ function LinkedReceiptScanSheet({
 
   return (
     <IzSheet open onClose={onClose}>
-      <div className="iz-cardttl">Receipt details</div>
+      <IzCardTitle>Receipt details</IzCardTitle>
       <dl className="iz-pv-receipt-detail-grid">
         <div>
           <dt>Date & time</dt>

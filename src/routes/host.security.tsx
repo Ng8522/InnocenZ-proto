@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { PrSecuritySettingsSheets } from "@/components/pr/PrSecuritySettingsSheets";
-import { IzCard } from "@/components/iz/ui";
+import { IzCard, IzPageTitle } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import { goToWelcome } from "@/lib/go-welcome";
@@ -55,7 +55,7 @@ function SecuritySettingsPage() {
       <AppTopbar backTo="/host/profile" backLabel="Profile" />
 
       <header className="mb-2">
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Security settings</h2>
+        <IzPageTitle>Security settings</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">{profile.name}</p>
       </header>
 

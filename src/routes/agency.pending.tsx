@@ -6,7 +6,7 @@ import type { PendingCutlostRequest } from "@/lib/outlet-cutlost-requests";
 import { cutlostRequestDetail, cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { IzCard, IzPill } from "@/components/iz/ui";
+import { IzCard, IzPageTitle, IzPill } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import { Camera, Check, Clock, Image, Sparkles, TrendingDown, UserMinus, UserPlus, X } from "lucide-react";
 import { publicAssetPath } from "@/lib/public-asset";
@@ -376,7 +376,7 @@ function AgencyPending() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
+          <IzPageTitle>Access restricted</IzPageTitle>
         </header>
         <IzCard className="text-center">
           <p className="iz-sm iz-muted">Finance role cannot approve PR sign-ups.</p>
@@ -388,7 +388,7 @@ function AgencyPending() {
   return (
     <div className="iz-screen">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Approve sign-ups</h2>
+        <IzPageTitle>Approve sign-ups</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">
           {date} · {time}
         </p>

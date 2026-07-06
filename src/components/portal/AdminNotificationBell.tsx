@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Bell, Plug } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzCard, IzPill } from "@/components/iz/ui";
+import { IzCard, IzCardTitle, IzPill } from "@/components/iz/ui";
 import { useStore } from "@/lib/store";
 import {
   adminNotificationKindLabel,
@@ -49,7 +49,7 @@ export function AdminNotificationBell() {
       </button>
 
       <IzSheet open={open} onClose={() => setOpen(false)} variant="dialog">
-        <div className="iz-cardttl">Admin notifications</div>
+        <IzCardTitle>Admin notifications</IzCardTitle>
         <p className="iz-tiny iz-muted mt-1">
           Outlet requests and ops alerts for InnocenZ admin
         </p>

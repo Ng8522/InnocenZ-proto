@@ -2,7 +2,7 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { BottomNav } from "@/components/Nav";
 import { PhoneFrame } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
-import { Briefcase, MapPin, History, FileText, User } from "lucide-react";
+import { iconForNav } from "@/lib/lucide-label-icons";
 
 export const Route = createFileRoute("/host")({
   component: HostLayout,
@@ -10,18 +10,15 @@ export const Route = createFileRoute("/host")({
 
 function HostLayout() {
   const items = [
-    { to: "/host", label: "Shifts", icon: Briefcase },
-    { to: "/host/tonight", label: "Check-In", icon: MapPin },
-    { to: "/host/PaymentVoucher", label: "Payment", icon: FileText },
-    { to: "/host/history", label: "History", icon: History },
-    { to: "/host/profile", label: "Profile", icon: User },
+    { to: "/host", label: "Shifts", icon: iconForNav("Shifts") },
+    { to: "/host/tonight", label: "Check-In", icon: iconForNav("Check-In") },
+    { to: "/host/PaymentVoucher", label: "Payment", icon: iconForNav("Payment") },
+    { to: "/host/history", label: "History", icon: iconForNav("History") },
+    { to: "/host/profile", label: "Profile", icon: iconForNav("Profile") },
   ];
 
   return (
-    <PhoneFrame
-      overlay={<Toasts />}
-      footer={<BottomNav items={items} className="iz-pr-tabbar" />}
-    >
+    <PhoneFrame overlay={<Toasts />} footer={<BottomNav items={items} className="iz-pr-tabbar" />}>
       <div className="iz-pr-app">
         <Outlet />
       </div>

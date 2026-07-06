@@ -30,6 +30,7 @@ import {
 import { OutletPrShiftHistorySheet } from "@/components/iz/ShiftHistoryLog";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzPill, TierBadge } from "@/components/iz/ui";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import {
   workforceStatusLabel,
   workforceStatusVariant,
@@ -406,7 +407,7 @@ export function OutletTodayOperationPanel({
                       onClick={() => setLiveSalesPrId(pr.id)}
                       className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
                     >
-                      Live sales
+                      <TitleWithIcon>Live sales</TitleWithIcon>
                     </button>
 
                     <button
@@ -414,7 +415,7 @@ export function OutletTodayOperationPanel({
                       onClick={() => setHistoryPrId(pr.id)}
                       className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
                     >
-                      Shift history
+                      <TitleWithIcon>Shift history</TitleWithIcon>
                     </button>
 
                     <button
@@ -422,7 +423,7 @@ export function OutletTodayOperationPanel({
                       onClick={() => setOpenPr(pr.id)}
                       className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
                     >
-                      Rate
+                      <TitleWithIcon>Rate</TitleWithIcon>
                     </button>
                   </div>
                 );

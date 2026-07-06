@@ -984,6 +984,17 @@ const velvetTierBase = {
   otAfterHours: velvetRule.otAfterHours,
 };
 
+/** Velvet Coupe Wine Bar — outlet logo & profile photo (served from `public/`). */
+export const VELVET_23_OUTLET_LOGO = "/assets/outlet-logos/velvet-23-logo.png";
+
+export const OUTLET_LOGOS: Record<string, string> = {
+  "Velvet 23": VELVET_23_OUTLET_LOGO,
+};
+
+export function outletLogoForName(outletName: string): string | null {
+  return OUTLET_LOGOS[outletName.trim()] ?? null;
+}
+
 export const DEFAULT_OUTLET_WORKSPACE: OutletWorkspaceSettings = {
   outletName: "Velvet 23",
   basePayPerHour: velvetRule.wagePerHour,
@@ -1017,7 +1028,7 @@ export const DEFAULT_OUTLET_OWNER: OutletOwnerSettings = {
   orgName: "Velvet 23",
   otpChannel: "email",
   accountActivated: true,
-  avatarPhoto: null,
+  avatarPhoto: VELVET_23_OUTLET_LOGO,
   subscriptionPlanId: "pro",
 };
 

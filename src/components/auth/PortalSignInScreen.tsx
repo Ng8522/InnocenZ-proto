@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
-import { PhoneFrame } from "@/components/Brand";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, LogIn, Mail, User, Users } from "lucide-react";
+import { PhoneFrame, LogoMark } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
 import { isValidDemoOtp, OtpVerifySheet } from "@/components/auth/OtpVerifySheet";
 import { PortalAuthFrame } from "@/components/auth/PortalAuthFrame";
+import { IzCardTitle } from "@/components/iz/ui";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import {
@@ -17,6 +19,7 @@ import {
   type PortalSubRoleItem,
   type SignInPortal,
 } from "@/lib/portal-signin";
+import { PORTAL_TITLE_ICONS, SUB_ROLE_TITLE_ICONS } from "@/lib/title-icons";
 
 type ResetChannel = "email" | "phone";
 
@@ -60,6 +63,7 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
   } | null>(null);
 
   const portalLabel = PORTAL_SIGNIN_LABELS[portal];
+  const PortalIcon = PORTAL_TITLE_ICONS[portal];
   const subRoles = subRolesForPortal(portal);
   const needsSubRole = subRoles.length > 0;
 
@@ -185,7 +189,9 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
           setPendingContact(null);
         }}
       >
-        <div className="iz-cardttl">{portalLabel} sub-role</div>
+        <IzCardTitle icon={Users}>
+          {portalLabel} sub-role
+        </IzCardTitle>
         <p className="iz-tiny iz-muted mt-1">
           {pendingContact
             ? `Signed in as ${pendingContact.displayName} — pick how you enter ${portalLabel.toLowerCase()}.`
@@ -200,7 +206,9 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
               onClick={() => pickSubRole(item)}
             >
               <div className="font-sora text-[15px] font-bold text-[var(--iz-txt)]">
-                {item.label}
+                <TitleWithIcon icon={SUB_ROLE_TITLE_ICONS[item.label] ?? PortalIcon}>
+                  {item.label}
+                </TitleWithIcon>
               </div>
               <span className="iz-iconbox">
                 <ArrowRight className="h-4 w-4" />
@@ -219,7 +227,7 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
       </button>
 
       <div className="iz-logo-tile mt-8">
-        <span>Z</span>
+        <LogoMark />
       </div>
 
       <div className={emailOnly ? "mt-2" : "text-center"}>
@@ -231,7 +239,7 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
         <p
           className={`iz-tiny iz-muted ${emailOnly ? "mt-0 text-[15px] font-semibold text-[var(--iz-txt)]" : "mt-1.5"}`}
         >
-          {portalLabel} sign in
+          <TitleWithIcon icon={PortalIcon}>{portalLabel} sign in</TitleWithIcon>
         </p>
         {emailOnly && (
           <p className="iz-tiny iz-muted2 mt-1">
@@ -292,7 +300,7 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
         </div>
 
         <button type="submit" className="iz-btn iz-btn-primary mt-2">
-          Sign In
+          <LogIn className="h-4 w-4" aria-hidden /> Sign In
         </button>
       </form>
 

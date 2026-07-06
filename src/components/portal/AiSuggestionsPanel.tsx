@@ -16,13 +16,14 @@ export function AiSuggestionsPanel() {
   const pearlCount = workforce.filter((w) => w.outlet.includes("Pearl")).length;
   const lowKpi = agencyPRs.find((p) => !p.detached && (p.kpiScore ?? 100) < 75);
 
-  const suggestions: { title: string; desc: string; to: string }[] = [];
+  const suggestions: { title: string; desc: string; to: string; search?: Record<string, unknown> }[] = [];
 
   if (avail.free > 0) {
     suggestions.push({
       title: `Assign ${avail.free} free PR${avail.free === 1 ? "" : "s"} to outlets`,
       desc: "Planning → pick outlet · bulk or one-by-one",
       to: "/agency/roster",
+      search: { view: "planning" },
     });
   } else if (onyxCount < 2) {
     suggestions.push({
@@ -65,7 +66,7 @@ export function AiSuggestionsPanel() {
       </div>
       <div className="space-y-2 p-3 pt-0">
         {suggestions.slice(0, 3).map((s) => (
-          <Link key={s.title} to={s.to} className="iz-portal-ai-card">
+          <Link key={s.title} to={s.to} search={s.search} className="iz-portal-ai-card">
             <div className="min-w-0 flex-1">
               <div className="font-sora text-sm font-semibold leading-snug">{s.title}</div>
               <p className="iz-tiny iz-muted mt-0.5">{s.desc}</p>

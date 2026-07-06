@@ -443,30 +443,12 @@ export const SEED_PR_NOTIFICATIONS: PrNotification[] = [
     pvId: "PV-2026-0512",
     prId: "p1",
   },
-  {
-    id: "n-rate-1",
-    kind: "rating",
-    title: "Rate Velvet 23",
-    body: `Mutual rating window — 18h left after your ${fmtDtable(SHIFT_TODAY[0], SHIFT_TODAY[1], SHIFT_TODAY[2])} Jun shift.`,
-    at: "5 Jun · 02:30",
-    read: false,
-    href: "/host/profile",
-    prId: "p1",
-  },
 ];
 
-export const SEED_PENDING_RATINGS: PrPendingRating[] = [
-  {
-    id: "pr-rate-velvet",
-    outlet: "Velvet 23",
-    shiftDate: fmtDateLabelFromIso(shiftTodayIso()).replace(/^\w+ · /, ""),
-    expiresAt: Date.now() + 18 * 60 * 60 * 1000,
-  },
-];
+export const SEED_PENDING_RATINGS: PrPendingRating[] = [];
 
 export const SEED_RATING_HISTORY: PrRatingRecord[] = [
   { id: "rh-1", outlet: "Mermate", stars: 5, direction: "outlet_rates_pr", date: "27 Apr 2026" },
-  { id: "rh-2", outlet: "Mermate", stars: 4, direction: "pr_rates_outlet", date: "27 Apr 2026" },
 ];
 
 /** Demo: tied 8 months ago — under 1-year lock */

@@ -485,7 +485,6 @@ interface StoreState {
   simulatePrLate: (enabled: boolean) => void;
   simulatePrNoShow: () => void;
   prCheckOut: () => void;
-  setOutletRatingStars: (n: number) => void;
 
   prNotifications: PrNotification[];
   opsNotifications: OpsNotification[];
@@ -530,7 +529,6 @@ interface StoreState {
   requestPrSwap: (targetId: string, reason: string) => void;
   linkPayrollByAgencyCode: (code: string) => void;
   detachFreelancerPayroll: (agencyId: string) => void;
-  submitPrOutletRating: (pendingId: string, stars: number) => void;
   submitSosIncident: (note: string, photoDataUrl?: string) => void;
   requestLeaveAgency: (note: string) => void;
   requestTransferAgency: (code: string, note: string) => void;
@@ -2000,15 +1998,7 @@ export const useStore = create<StoreState>()(
           `Checked out · ${scans.length} receipt(s) logged — reopen Check-In to continue this shift`,
           "success",
         );
-        get().pushNotify({
-          type: "rating_prompt",
-          prId,
-          prName: managedPr?.name ?? profile.name,
-          outlet: shift.outlet,
-          audience: "pr",
-        });
       },
-      setOutletRatingStars: (n) => set({ outletRatingStars: n }),
 
       markPrNotificationRead: (id) =>
         set((st) => ({
@@ -2031,47 +2021,6 @@ export const useStore = create<StoreState>()(
             st.prPayrollAgencyId === agencyId ? (nextLinks[0] ?? null) : st.prPayrollAgencyId,
         });
         get().toast("Payroll unlinked — future PVs blocked until you link again", "warn");
-      },
-      submitPrOutletRating: (pendingId, stars) => {
-        const pending = get().prPendingRatings.find((p) => p.id === pendingId);
-        if (!pending) return;
-        if (stars < 1 || stars > 5) return;
-        const stamp = new Date().toLocaleDateString("en-MY", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        });
-        set((st) => {
-          let strikes = st.prFreelancerLowRatingStrikes;
-          if (st.prSubRole === "pr_free" && stars < 3) strikes += 1;
-          return {
-            prPendingRatings: st.prPendingRatings.filter((p) => p.id !== pendingId),
-            prRatingHistory: [
-              {
-                id: "rh-" + Date.now().toString(36),
-                outlet: pending.outlet,
-                stars,
-                direction: "pr_rates_outlet",
-                date: stamp,
-              },
-              ...st.prRatingHistory,
-            ],
-            prFreelancerLowRatingStrikes: strikes,
-            outletRatingStars: 0,
-          };
-        });
-        if (get().prSubRole === "pr_free" && stars < 3.5) {
-          get().toast(
-            stars < 3 && get().prFreelancerLowRatingStrikes >= 3
-              ? "Rating submitted · 3 strikes below 3.0★ — account suspended (demo)"
-              : stars < 3.5
-                ? "Rating submitted · below 3.5★ warning logged"
-                : "Rating submitted · outlet may rate you within 24h",
-            stars < 3 && get().prFreelancerLowRatingStrikes >= 3 ? "warn" : "success",
-          );
-        } else {
-          get().toast("Rating submitted · outlet may rate you within 24h", "success");
-        }
       },
       submitSosIncident: (note, photoDataUrl) => {
         const st = get();
@@ -5796,12 +5745,6 @@ export const useStore = create<StoreState>()(
           month: "short",
           year: "numeric",
         });
-        const notifyStamp = new Date().toLocaleString("en-MY", {
-          day: "numeric",
-          month: "short",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
         set((st) => {
           const prompt = st.postSealRatePrompt;
           const nextPrompt =
@@ -5827,13 +5770,6 @@ export const useStore = create<StoreState>()(
                 }
               : p,
           );
-          const syncDemoPr = prId === FREELANCER_DEMO_PR_ID || prId === getPrRosterId("pr_tied");
-          const pendingRating: PrPendingRating = {
-            id: "pr-rate-" + Date.now().toString(36),
-            outlet: outletName,
-            shiftDate: stamp,
-            expiresAt: Date.now() + 18 * 60 * 60 * 1000,
-          };
           return {
             ratings: [
               {
@@ -5853,39 +5789,9 @@ export const useStore = create<StoreState>()(
               prId === FREELANCER_DEMO_PR_ID && lowShift
                 ? st.prFreelancerLowRatingStrikes + 1
                 : st.prFreelancerLowRatingStrikes,
-            prPendingRatings: syncDemoPr
-              ? [pendingRating, ...st.prPendingRatings.filter((p) => p.outlet !== outletName)]
-              : st.prPendingRatings,
-            prNotifications: syncDemoPr
-              ? [
-                  {
-                    id: "n-rate-" + Date.now().toString(36),
-                    kind: "rating" as const,
-                    title: `Rate ${outletName}`,
-                    body: `You received ${stars}★ — mutual rating window open (18h).`,
-                    at: notifyStamp,
-                    read: false,
-                    href: "/host/profile",
-                    prId,
-                  },
-                  ...st.prNotifications,
-                ]
-              : st.prNotifications,
-            prRatingHistory: syncDemoPr
-              ? [
-                  {
-                    id: "rh-out-" + Date.now().toString(36),
-                    outlet: outletName,
-                    stars,
-                    direction: "outlet_rates_pr" as const,
-                    date: stamp,
-                  },
-                  ...st.prRatingHistory,
-                ]
-              : st.prRatingHistory,
           };
         });
-        get().toast("Rating submitted · PR notified to rate your outlet too", "success");
+        get().toast("Rating submitted", "success");
       },
 
       toasts: [],

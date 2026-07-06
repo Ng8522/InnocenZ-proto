@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from "react";
-import { Award, Crown, Medal, Plus, Star, Trash2 } from "lucide-react";
-import { IzSelect } from "@/components/iz/ui";
+import { Award, Crown, Medal, Percent, Star, UserRound } from "lucide-react";
 import { type OutletPrTier, type OutletTierRateSettings } from "@/lib/agency-demo";
 import {
   applyPayTierRowChange,
+  ensureAllPayTierRows,
   isCommissionOnlyPayTier,
-  newPostJobPayTierRow,
-  POST_JOB_PAY_TIER_OPTIONS,
+  isServantPayTier,
   outletTierForPostJobPayTier,
+  payTierDisplayOrder,
   postJobPayTierLabel,
   totalPrCountFromPayTierRows,
   type PostJobPayTierId,
@@ -20,9 +20,18 @@ import { TierCountStepper, TierPayInput, TierPctStepper } from "@/components/out
 
 const TIER_COLUMN_ICONS = [Star, Medal, Award, Award, Crown] as const;
 
-function tierColumnRank(payTierId: PostJobPayTierId): number {
-  const idx = POST_JOB_PAY_TIER_OPTIONS.findIndex((o) => o.id === payTierId);
-  return idx >= 0 && idx < 5 ? idx : 0;
+function tierColumnIcon(payTierId: PostJobPayTierId) {
+  if (isCommissionOnlyPayTier(payTierId)) return Percent;
+  if (isServantPayTier(payTierId)) return UserRound;
+  const rank = payTierDisplayOrder(payTierId);
+  return TIER_COLUMN_ICONS[rank] ?? Star;
+}
+
+function tierColumnIconClass(payTierId: PostJobPayTierId): string {
+  if (isCommissionOnlyPayTier(payTierId)) return "iz-post-job-tier-col-head__icon--commission";
+  if (isServantPayTier(payTierId)) return "iz-post-job-tier-col-head__icon--servant";
+  const rank = payTierDisplayOrder(payTierId);
+  return `iz-post-job-tier-col-head__icon--${Math.min(rank + 1, 5)}`;
 }
 
 function formatCommissionHint(row: PostJobPayTierRow): string {
@@ -51,50 +60,20 @@ export function PostJobTierRatesEditor({
   onChange: (rows: PostJobPayTierRow[]) => void;
   planHint?: ReactNode;
 }) {
-  const usedTierIds = new Set(rows.map((row) => row.payTierId));
-  const unusedTierIds = POST_JOB_PAY_TIER_OPTIONS.filter((o) => !usedTierIds.has(o.id)).map(
-    (o) => o.id,
-  );
-  const allocatedTotal = totalPrCountFromPayTierRows(rows);
+  const allRows = ensureAllPayTierRows(rows, workspaceTierRates, commissionOnlyRates);
+  const allocatedTotal = totalPrCountFromPayTierRows(allRows);
   const [commissionExpanded, setCommissionExpanded] = useState(() =>
-    rows.some((row) => row.drinkPct > 0 || row.tipPct > 0),
-  );
-
-  const sortedRows = [...rows].sort(
-    (a, b) => tierColumnRank(a.payTierId) - tierColumnRank(b.payTierId),
+    allRows.some((row) => row.drinkPct > 0 || row.tipPct > 0),
   );
 
   const patchRow = (id: string, patch: Partial<PostJobPayTierRow>) => {
-    let nextRows = rows.map((row) =>
+    let nextRows = allRows.map((row) =>
       row.id === id ? applyPayTierRowChange(row, patch, workspaceTierRates, commissionOnlyRates) : row,
     );
     if (maxPrTotal != null && patch.prCount != null) {
       nextRows = clampPayTierRowsToMax(nextRows, maxPrTotal, id);
     }
     onChange(nextRows);
-  };
-
-  const changeRowTier = (id: string, payTierId: PostJobPayTierId) => {
-    if (rows.some((row) => row.id !== id && row.payTierId === payTierId)) return;
-    patchRow(id, { payTierId });
-  };
-
-  const removeRow = (id: string) => {
-    if (rows.length <= 1) return;
-    onChange(rows.filter((row) => row.id !== id));
-  };
-
-  const addRow = () => {
-    const nextId = unusedTierIds[0];
-    if (!nextId) return;
-    const remaining =
-      maxPrTotal != null ? Math.max(0, maxPrTotal - totalPrCountFromPayTierRows(rows)) : 1;
-    const initialPrCount =
-      maxPrTotal != null ? (remaining > 0 ? Math.min(1, remaining) : 0) : 1;
-    onChange([
-      ...rows,
-      newPostJobPayTierRow({ payTierId: nextId, prCount: initialPrCount }, workspaceTierRates, commissionOnlyRates),
-    ]);
   };
 
   const rowLabels = commissionExpanded
@@ -118,54 +97,26 @@ export function PostJobTierRatesEditor({
           <div
             className="iz-post-job-tier-grid"
             style={{
-              gridTemplateColumns: `minmax(4.5rem, 5.5rem) repeat(${sortedRows.length}, minmax(0, 1fr))`,
+              gridTemplateColumns: `minmax(4.5rem, 5.5rem) repeat(${allRows.length}, minmax(0, 1fr))`,
             }}
           >
             <div className="iz-post-job-tier-grid__corner" aria-hidden />
-            {sortedRows.map((row) => {
-              const rank = tierColumnRank(row.payTierId);
-              const Icon = TIER_COLUMN_ICONS[rank];
+            {allRows.map((row) => {
+              const Icon = tierColumnIcon(row.payTierId);
               const tierLabel =
                 outletTierForPostJobPayTier(row.payTierId) ?? postJobPayTierLabel(row.payTierId);
-              const rowOptions = POST_JOB_PAY_TIER_OPTIONS.filter(
-                (o) => o.id === row.payTierId || !usedTierIds.has(o.id),
-              );
 
               return (
                 <div key={`head-${row.id}`} className="iz-post-job-tier-col-head">
                   <span
                     className={cn(
                       "iz-post-job-tier-col-head__icon",
-                      `iz-post-job-tier-col-head__icon--${rank + 1}`,
+                      tierColumnIconClass(row.payTierId),
                     )}
                   >
                     <Icon className="h-3.5 w-3.5" />
                   </span>
-                  <div className="iz-post-job-tier-col-head__select">
-                    <IzSelect
-                      block
-                      value={row.payTierId}
-                      onChange={(e) => changeRowTier(row.id, e.target.value as PostJobPayTierId)}
-                      className="!cursor-pointer !rounded-md !border-0 !bg-transparent !py-0 !text-center !text-[11px] !font-bold !text-[var(--iz-gold-l)] !shadow-none"
-                      aria-label={`Select ${tierLabel}`}
-                    >
-                      {rowOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {outletTierForPostJobPayTier(option.id) ?? option.label}
-                        </option>
-                      ))}
-                    </IzSelect>
-                  </div>
-                  {rows.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeRow(row.id)}
-                      className="iz-post-job-tier-col-head__remove"
-                      aria-label={`Remove ${tierLabel}`}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )}
+                  <div className="iz-post-job-tier-col-head__label">{tierLabel}</div>
                 </div>
               );
             })}
@@ -173,9 +124,9 @@ export function PostJobTierRatesEditor({
             {rowLabels.map((label, labelIndex) => (
               <div key={label} className="contents">
                 <div className="iz-post-job-tier-grid__row-label">{label}</div>
-                {sortedRows.map((row) => {
+                {allRows.map((row) => {
                   const commissionOnly = isCommissionOnlyPayTier(row.payTierId);
-                  const allocatedOthers = rows
+                  const allocatedOthers = allRows
                     .filter((r) => r.id !== row.id)
                     .reduce((sum, r) => sum + r.prCount, 0);
                   const rowMax =
@@ -275,14 +226,6 @@ export function PostJobTierRatesEditor({
       </div>
 
       {planHint && <p className="iz-post-job-tier-plan-hint">{planHint}</p>}
-
-      {unusedTierIds.length > 0 && (
-        <div className="iz-post-job-tier-footer">
-          <button type="button" onClick={addRow} className="iz-chip w-full justify-center text-[11px]">
-            <Plus className="h-3.5 w-3.5" /> Add tier
-          </button>
-        </div>
-      )}
     </div>
   );
 }

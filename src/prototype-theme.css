@@ -5008,9 +5008,26 @@
   background: linear-gradient(135deg, rgba(183, 156, 232, 0.28), rgba(244, 183, 64, 0.2));
   color: #f0e4ff;
 }
-.iz-post-job-tier-col-head__select {
+.iz-post-job-tier-col-head__icon--servant {
+  background: rgba(140, 160, 190, 0.14);
+  color: #b8c8dc;
+}
+.iz-post-job-tier-col-head__icon--commission {
+  background: rgba(93, 217, 160, 0.12);
+  color: var(--iz-green);
+}
+.iz-post-job-tier-col-head__select,
+.iz-post-job-tier-col-head__label {
   width: 100%;
   min-width: 0;
+}
+.iz-post-job-tier-col-head__label {
+  text-align: center;
+  font-family: "Sora", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--iz-gold-l);
 }
 .iz-post-job-tier-col-head__remove {
   position: absolute;
@@ -7574,34 +7591,52 @@ button.iz-pr-offer-row:hover {
 .iz-outlet-hist-card__identity {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
-.iz-outlet-hist-rank {
+.iz-outlet-hist-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.iz-outlet-hist-crown {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.35rem;
-  height: 1.35rem;
-  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(145deg, #f59e0b 0%, #ea580c 100%);
+  color: #fff7ed;
+  box-shadow: 0 0 0 2px rgba(30, 28, 38, 0.95);
+}
+.iz-outlet-hist-rank-badge {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
   color: var(--iz-muted2);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
+  box-shadow: 0 0 0 2px rgba(30, 28, 38, 0.95);
 }
-.iz-outlet-hist-rank--gold {
-  width: auto;
-  height: auto;
-  padding: 2px;
-  background: transparent;
-  color: var(--iz-gold);
-  filter: drop-shadow(0 0 4px rgba(244, 183, 64, 0.45));
+.iz-outlet-hist-rank {
+  display: none;
 }
+.iz-outlet-hist-rank--gold,
 .iz-outlet-hist-rank--bronze {
-  background: rgba(180, 120, 70, 0.35);
-  color: #e8b88a;
-  border: 1px solid rgba(232, 184, 138, 0.35);
+  display: none;
 }
 .iz-outlet-hist-avatar {
   display: inline-flex;
@@ -7616,6 +7651,22 @@ button.iz-pr-offer-row:hover {
 }
 .iz-outlet-hist-card__names {
   min-width: 0;
+}
+.iz-outlet-hist-card__name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.iz-outlet-hist-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .iz-outlet-hist-card__name {
   font-family: "Sora", sans-serif;
@@ -7684,22 +7735,22 @@ button.iz-pr-offer-row:hover {
   line-height: 1.1;
 }
 .iz-outlet-hist-metric--earned .iz-outlet-hist-metric__label {
-  color: rgba(244, 183, 64, 0.85);
+  color: #4ade80;
 }
 .iz-outlet-hist-metric--earned .iz-outlet-hist-metric__value {
-  color: var(--iz-gold-l);
+  color: var(--iz-txt);
 }
 .iz-outlet-hist-metric--drinks .iz-outlet-hist-metric__label {
-  color: rgba(34, 211, 238, 0.85);
+  color: #f472b6;
 }
 .iz-outlet-hist-metric--drinks .iz-outlet-hist-metric__value {
-  color: #67e8f9;
+  color: var(--iz-txt);
 }
 .iz-outlet-hist-metric--tips .iz-outlet-hist-metric__label {
-  color: rgba(74, 222, 128, 0.85);
+  color: #22d3ee;
 }
 .iz-outlet-hist-metric--tips .iz-outlet-hist-metric__value {
-  color: #86efac;
+  color: var(--iz-txt);
 }
 .iz-outlet-hist-bar {
   display: flex;
@@ -7717,10 +7768,10 @@ button.iz-pr-offer-row:hover {
 .iz-outlet-hist-bar__fill {
   height: 100%;
   border-radius: 999px;
-  background: rgba(167, 139, 250, 0.55);
+  background: rgba(74, 222, 128, 0.45);
 }
 .iz-outlet-hist-bar__fill--top {
-  background: linear-gradient(90deg, rgba(167, 139, 250, 0.85) 0%, var(--iz-gold) 100%);
+  background: linear-gradient(90deg, #4ade80 0%, #22d3ee 100%);
 }
 .iz-outlet-hist-bar__label {
   flex-shrink: 0;
@@ -7744,6 +7795,178 @@ button.iz-pr-offer-row:hover {
   }
 }
 
+/* Outlet history — shift log sheet */
+.iz-outlet-shift-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.iz-outlet-shift-log-summary {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(30, 28, 38, 0.92);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.iz-outlet-shift-log-summary__hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--iz-muted2);
+  line-height: 1.4;
+}
+.iz-outlet-shift-log-summary__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.iz-outlet-shift-log-summary__metric {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 8px 6px 7px;
+  text-align: center;
+}
+.iz-outlet-shift-log-summary__metric-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--iz-muted2);
+}
+.iz-outlet-shift-log-summary__metric-value {
+  display: block;
+  margin-top: 5px;
+  font-family: "Sora", sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--iz-txt);
+  line-height: 1.1;
+}
+.iz-outlet-shift-log-rating {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(30, 28, 38, 0.92);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.iz-outlet-shift-log-rating__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.iz-outlet-shift-log-rating__label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fb923c;
+}
+.iz-outlet-shift-log-rating__date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--iz-muted2);
+}
+.iz-outlet-shift-log-rating__body {
+  margin-top: 8px;
+}
+.iz-outlet-shift-log-rating__stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.iz-outlet-shift-log-rating__quote {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-style: italic;
+  font-weight: 500;
+  color: var(--iz-txt);
+  line-height: 1.45;
+}
+.iz-outlet-shift-log-card {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(30, 28, 38, 0.92);
+  padding: 14px;
+}
+.iz-outlet-shift-log-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.iz-outlet-shift-log-card__date {
+  margin: 0;
+  font-family: "Sora", sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--iz-txt);
+}
+.iz-outlet-shift-log-card__sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--iz-muted2);
+}
+.iz-outlet-shift-log-card__total-wrap {
+  flex-shrink: 0;
+  text-align: right;
+}
+.iz-outlet-shift-log-card__total {
+  margin: 0;
+  font-family: "Sora", sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: #4ade80;
+}
+.iz-outlet-shift-log-card__hours {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--iz-muted2);
+}
+.iz-outlet-shift-log-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.iz-outlet-shift-log-card__metric {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 8px 6px 7px;
+  text-align: center;
+}
+.iz-outlet-shift-log-card__metric-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.iz-outlet-shift-log-card__metric-value {
+  display: block;
+  margin-top: 5px;
+  font-family: "Sora", sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--iz-txt);
+  line-height: 1.1;
+}
+.iz-outlet-shift-log-card__metric--earned .iz-outlet-shift-log-card__metric-label {
+  color: #4ade80;
+}
+.iz-outlet-shift-log-card__metric--drinks .iz-outlet-shift-log-card__metric-label {
+  color: #f472b6;
+}
+.iz-outlet-shift-log-card__metric--tips .iz-outlet-shift-log-card__metric-label {
+  color: #22d3ee;
+}
 /* Outlet reports dashboard */
 .iz-outlet-report {
   display: flex;

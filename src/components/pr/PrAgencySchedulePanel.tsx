@@ -1,4 +1,5 @@
 ﻿import { Calendar as CalendarUi } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
 import { PrStatusPill } from "@/components/pr/PrOfferRow";
 import { PrShiftCancellationSheet } from "@/components/pr/PrShiftCancellationSheet";
 import type { AgencyRosterSlot } from "@/lib/agency-demo";
@@ -21,12 +22,48 @@ import { calendarNavBounds, dateFromIsoKey, isoKeyFromDate } from "@/components/
 import { getLiveTodayIso } from "@/lib/demo-clock";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Building2, CalendarDays, ChevronDown, Clock, Shield } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { DayButton } from "react-day-picker";
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 
 const MONTH_LABELS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+
+/** Fills each grid cell — shared CalendarDayButton uses size="icon" (36×36px) and overlaps on mobile. */
+function PrScheduleDayButton({
+  className,
+  day,
+  modifiers,
+  ...props
+}: ComponentProps<typeof DayButton>) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (modifiers.focused) ref.current?.focus();
+  }, [modifiers.focused]);
+
+  return (
+    <Button
+      ref={ref}
+      variant="ghost"
+      data-day={day.date.toLocaleDateString()}
+      data-selected-single={
+        modifiers.selected &&
+        !modifiers.range_start &&
+        !modifiers.range_end &&
+        !modifiers.range_middle
+      }
+      data-range-start={modifiers.range_start}
+      data-range-end={modifiers.range_end}
+      data-range-middle={modifiers.range_middle}
+      className={cn(
+        "iz-pr-cal-day-btn group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px]",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
 
 export function PrAgencySchedulePanel({
   prId,
@@ -196,6 +233,7 @@ export function PrAgencySchedulePanel({
           endMonth={navBounds.endMonth}
           selected={undefined}
           onSelect={handleDaySelect}
+          components={{ DayButton: PrScheduleDayButton }}
           disabled={(date) => {
             const iso = isoKeyFromDate(date);
             const fromIso = getAgencyScheduleFromIso();
@@ -228,14 +266,17 @@ export function PrAgencySchedulePanel({
           classNames={{
             month_caption: "hidden",
             nav: "hidden",
-            root: "iz-pr-schedule-cal",
-            month: "w-full",
+            root: "iz-pr-schedule-cal w-full max-w-full",
+            month: "w-full gap-2",
+            month_grid: "iz-pr-cal-grid w-full",
+            weeks: "w-full",
             weekdays: "iz-pr-cal-weekdays",
+            weekday: "iz-pr-cal-weekday",
             week: "iz-pr-cal-week",
-            day: "iz-pr-cal-day",
+            day: "iz-pr-cal-day group/day",
             day_button: "iz-pr-cal-day-btn",
           }}
-          className="w-full p-0"
+          className="w-full p-0 [--cell-size:100%]"
         />
         <div className="iz-pr-cal-legend">
           <span><i className="sw open" /> Available</span>

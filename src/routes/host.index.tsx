@@ -839,13 +839,11 @@ function TodayShiftCard({
           {badge}
         </div>
         <div className="iz-pr-shift-card__venue">
-          <div className="iz-avatar iz-avatar--md iz-pr-shift-card__logo">
+          <div
+            className={`iz-avatar iz-avatar--md iz-pr-shift-card__logo${logo ? " iz-avatar-photo iz-avatar-photo--logo" : ""}`}
+          >
             {logo ? (
-              <img
-                src={publicAssetPath(logo)}
-                alt=""
-                className="iz-avatar-photo iz-avatar-photo--logo"
-              />
+              <img src={publicAssetPath(logo)} alt="" />
             ) : (
               <span>{outletInitial}</span>
             )}

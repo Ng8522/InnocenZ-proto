@@ -240,7 +240,21 @@ export function dayCanToggleAvailability(day: PrScheduleDay): boolean {
 
 function slotHasRosterCoverage(slot: AgencyRosterSlot, upcoming: PrUpcomingShift): boolean {
   const key = dateKeyFromTuple(upcoming.date);
-  return slot.dateIso === key && slot.outlet === upcoming.outlet;
+  return slot.dateIso === key && outletMatches(slot.outlet, upcoming.outlet);
+}
+
+function timetableEntryKey(entry: TimetableEntry): string {
+  return `${entry.dateIso}|${entry.outlet}|${entry.time}`;
+}
+
+function dedupeTimetableEntries(entries: TimetableEntry[]): TimetableEntry[] {
+  const seen = new Set<string>();
+  return entries.filter((entry) => {
+    const key = timetableEntryKey(entry);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
@@ -414,7 +428,9 @@ export function buildTimetableEntriesInRange(
     entries.push(resolveUpcomingEntry(up));
   }
 
-  return entries.sort((a, b) => a.dateIso.localeCompare(b.dateIso) || a.outlet.localeCompare(b.outlet));
+  return dedupeTimetableEntries(
+    entries.sort((a, b) => a.dateIso.localeCompare(b.dateIso) || a.outlet.localeCompare(b.outlet)),
+  );
 }
 
 export function buildUpcomingWeekTimetableEntries(

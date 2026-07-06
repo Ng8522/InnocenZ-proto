@@ -6853,6 +6853,10 @@
   border-radius: 16px;
   font-size: 18px;
 }
+.iz-avatar--md.iz-avatar-photo--logo img {
+  object-position: 50% 54%;
+  transform: scale(1.28) translateY(-4%);
+}
 .iz-avatar--lg {
   width: 72px;
   height: 72px;
@@ -12142,21 +12146,57 @@ button.iz-pr-offer-row:hover {
   border-radius: 16px;
   border: 1px solid var(--iz-line);
   background: rgba(0, 0, 0, 0.2);
-  padding: 12px 10px 10px;
+  padding: 12px 8px 10px;
 }
-.iz-pr-schedule-cal {
+.iz-pr-schedule-cal,
+.iz-pr-schedule-cal .iz-pr-cal-grid,
+.iz-pr-schedule-cal [data-slot="calendar"] {
+  width: 100% !important;
+  max-width: 100%;
+}
+.iz-pr-schedule-cal .iz-pr-cal-weekdays,
+.iz-pr-schedule-cal .iz-pr-cal-week {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   width: 100%;
-  --cell-size: 2.65rem;
+  column-gap: 2px;
+}
+.iz-pr-schedule-cal .iz-pr-cal-week {
+  margin-top: 6px;
+}
+.iz-pr-schedule-cal .iz-pr-cal-weekday {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--iz-muted);
+  padding: 0;
+}
+.iz-pr-schedule-cal .iz-pr-cal-day {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
 }
 .iz-pr-cal-weekdays {
   opacity: 0.7;
 }
-.iz-pr-cal-day-btn {
-  width: var(--cell-size);
-  height: var(--cell-size);
-  font-size: 14px;
+.iz-pr-schedule-cal .iz-pr-cal-day-btn {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  font-size: 15px;
   font-weight: 600;
   border-radius: 12px;
+  line-height: 1;
 }
 .iz-pr-cal-open .iz-pr-cal-day-btn {
   background: rgba(255, 255, 255, 0.04);

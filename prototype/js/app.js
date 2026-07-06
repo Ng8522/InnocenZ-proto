@@ -45,7 +45,6 @@
         { id: 'p1', name: 'Siti Rahman', langs: 'EN', status: 'pending' },
         { id: 'p2', name: 'Chen Wei', langs: 'EN · 中文', status: 'pending' }
       ],
-      ratingDone: false,
       platformFee: 0.05,
       geofenceM: 50
     };
@@ -282,13 +281,6 @@
     izToast('SOS CRITICAL — GPS stream to Agency, contacts alerted');
   };
 
-  window.izRate = function () {
-    izState.ratingDone = true;
-    saveState();
-    izToast('Ratings submitted — reputation scores updated');
-    izGo(izState.role === 'pr' ? 'pr-home' : 'outlet-home');
-  };
-
   window.izSignOut = function () {
     izGo('welcome');
   };
@@ -415,8 +407,7 @@
         modCard('◈', 'Shifts (Module 2)', 'Browse nearby · accept · VIP priority', 'home', s.accepted ? '1 active' : '') +
         modCard('◎', 'Attendance (Module 4)', 'Geo check-in ≤50m · Time-out · live earnings', 'shift', s.checkedIn ? 'ON DUTY' : '') +
         modCard('◇', 'Wallet & PV (Modules 6–7)', 'Sign PV before withdraw · 4-part breakdown', 'wallet', izState.pv.signed ? '' : 'PV due') +
-        modCard('⚠', 'SOS & Safety (Module 5)', 'Panic · incident report · ratings', 'sos', '') +
-        (s.sealed && !izState.ratingDone ? modCard('★', 'Rate Shift', 'Mutual 1–5★ within 24h', 'rating', 'New') : '') +
+        modCard('⚠', 'SOS & Safety (Module 5)', 'Panic · incident report', 'sos', '') +
         '</div>';
     },
 
@@ -518,16 +509,7 @@
         '<button onclick="izSOS()" style="width:110px;height:110px;border-radius:50%;border:none;cursor:pointer;margin:8px auto 0;font-family:var(--serif);font-size:24px;font-weight:700;color:#fff;background:linear-gradient(120deg,#fb7185,#e11d48)">SOS</button>' +
         '<div style="font-weight:600;margin-top:12px">Emergency</div></div>' +
         modCard('📄', 'Incident Report', 'Immutable once filed', 'sos', '') +
-        modCard('★', 'Post-Shift Rating', 'Mutual 1–5★', 'rating', '') +
         '</div>';
-    },
-
-    rating: function () {
-      return topbar('pr-home', 'Ratings', '') +
-        '<div class="scroll"><div class="muted">Rate outlet (Module 5) — permanent, affects matching</div>' +
-        '<div class="card" style="margin-top:14px;text-align:center"><div class="star-row" style="font-size:28px">★★★★★</div>' +
-        '<div class="faint" style="margin-top:8px">Working environment · payment reliability</div></div>' +
-        '<button class="btn btn-gold" style="margin-top:16px" onclick="izRate()">Submit Rating</button></div>';
     },
 
     profile: function () {

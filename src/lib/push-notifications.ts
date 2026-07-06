@@ -42,7 +42,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   pv_signed: { pr: true, agency: true, outlet: false },
   pv_paid: { pr: true, agency: true, outlet: false },
   dispute_raised: { pr: true, agency: true, outlet: true },
-  rating_prompt: { pr: true, agency: false, outlet: true },
+  rating_prompt: { pr: false, agency: false, outlet: true },
   reconciliation_due: { pr: false, agency: true, outlet: true },
   report_ready: { pr: false, agency: true, outlet: true },
   collection_reminder: { pr: false, agency: false, outlet: true },
@@ -86,7 +86,7 @@ export type PushEvent =
   | { type: "pv_signed"; pvId: string; prName: string; net: number }
   | { type: "pv_paid"; pvId: string; prId: string; prName: string; net: number }
   | { type: "dispute_raised"; pvId: string; prName: string; outlet: string }
-  | { type: "rating_prompt"; prId?: string; prName: string; outlet: string; audience: "pr" | "outlet" }
+  | { type: "rating_prompt"; prId?: string; prName: string; outlet: string; audience: "outlet" }
   | { type: "reconciliation_due"; outlet: string }
   | { type: "report_ready"; portal: OpsPortal; label: string }
   | { type: "collection_reminder"; collectionId: string; outlet: string; amount: number; dueDate: string }
@@ -827,6 +827,7 @@ export const OPS_KIND_LABEL: Record<OpsNotification["kind"], string> = {
   report_ready: "Report",
   collection_reminder: "Invoice due",
   special_service: "Job posting",
+  receipt_self_log: "Self-log",
 };
 
 export function isUrgentOpsKind(kind: OpsNotification["kind"]): boolean {

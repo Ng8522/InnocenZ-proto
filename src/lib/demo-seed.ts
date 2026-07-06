@@ -39,7 +39,7 @@ import {
   recomputeAllOutletPnl,
   withShiftFinancialDefaults,
 } from "@/lib/outlet-financial-sync";
-import { marketplacePrsFromAgency, mergeOutletRequestRosterSlots } from "@/lib/portal-sync";
+import { marketplacePrsFromAgency, mergeOutletRequestRosterSlots, outletMatches } from "@/lib/portal-sync";
 import {
   DEMO_RECONCILIATION_WEEK,
   recomputeWeeklyReconciliation,
@@ -949,6 +949,15 @@ function buildDemoRoster(): AgencyRosterSlot[] {
     }
     return slot;
   });
+  const hennessyPrIds = new Set<string>(HENNESSY_LAUNCH_PR_IDS);
+  const withoutHennessyDupes = patched.filter(
+    (slot) =>
+      !(
+        slot.dateIso === DEFAULT_ROSTER_DATE_ISO &&
+        outletMatches(slot.outlet, "Velvet 23") &&
+        hennessyPrIds.has(slot.prId)
+      ),
+  );
   const velvetTonight: AgencyRosterSlot[] = HENNESSY_LAUNCH_PR_IDS.map((prId, index) => {
     const floor = HENNESSY_FLOOR_BY_PR[prId];
     return velvetTonightRosterSlot(
@@ -958,7 +967,7 @@ function buildDemoRoster(): AgencyRosterSlot[] {
       floor?.floorTips ?? 0,
     );
   });
-  return [...patched, ...velvetTonight];
+  return [...withoutHennessyDupes, ...velvetTonight];
 }
 
 /** Fresh weekly reconciliation — both sides pending so Owner/Finance can confirm on Sunday */

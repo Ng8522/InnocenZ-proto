@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -29,7 +29,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
@@ -39,10 +39,13 @@ jobs:
       - name: Build for GitHub Pages
         run: pnpm run build:pages
 
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Vite client build + scripts/generate-spa-html.mjs (not TanStack .output/public)
+          # Vite client build + scripts/prerender-pages.mjs (not TanStack .output/public)
           path: dist/client
 
   deploy:
@@ -55,3 +58,8 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # Pages backend occasionally fails while status is still "queued"
+          timeout: 900000
+          error_count: 15
+          reporting_interval: 10000

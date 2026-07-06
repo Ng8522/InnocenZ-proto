@@ -1,6 +1,6 @@
 {
-  "sig": "e5597d87baa537d76f190446c5dde849205ef71343bbd7ff8bb412a6c0e42376",
-  "at": "2026-07-05 22:46:48",
+  "sig": "6c1933ea0d13019c354d44f93c8ce586f3cd887535471425c9b338c26a340175",
+  "at": "2026-07-05 23:31:47",
   "snapshot": {
     "routes": [
       "src/routes/admin.index.tsx",
@@ -36,7 +36,6 @@
       "src/routes/outlet.index.tsx",
       "src/routes/outlet.profile.tsx",
       "src/routes/outlet.ratings.tsx",
-      "src/routes/outlet.sales.tsx",
       "src/routes/outlet.settings.tsx",
       "src/routes/outlet.special-service.tsx",
       "src/routes/outlet.subscription.tsx",
@@ -76,7 +75,6 @@
       "src/lib/outlet-demo.ts",
       "src/lib/outlet-drink-menu.ts",
       "src/lib/outlet-financial-sync.ts",
-      "src/lib/outlet-pr-weekly-ranks.ts",
       "src/lib/outlet-rbac.ts",
       "src/lib/outlet-report-dates.ts",
       "src/lib/outlet-report-prefs.ts",
@@ -124,7 +122,6 @@
       "src/components/Nav.tsx",
       "src/components/PortalProfile.tsx",
       "src/components/Toasts.tsx",
-      "src/components/admin/AdminNotificationBell.tsx",
       "src/components/agency/AgencyBroadcastSheet.tsx",
       "src/components/agency/AgencyCommissionRulesPanel.tsx",
       "src/components/agency/AgencyGpsPanel.tsx",
@@ -142,7 +139,6 @@
       "src/components/agency/RosterWeeklyTimetable.tsx",
       "src/components/agency/SpecialServiceFilters.tsx",
       "src/components/agency/SpecialServiceSection.tsx",
-      "src/components/auth/AccountSecuritySection.tsx",
       "src/components/auth/OtpVerifySheet.tsx",
       "src/components/auth/PasswordField.tsx",
       "src/components/auth/PortalAuthFrame.tsx",
@@ -152,11 +148,9 @@
       "src/components/iz/FreelancerPayrollNotice.tsx",
       "src/components/iz/HScroll.tsx",
       "src/components/iz/HistDateCalendar.tsx",
-      "src/components/iz/PrAvailabilityPanel.tsx",
       "src/components/iz/ProfileLanguagePicker.tsx",
       "src/components/iz/PvDateTimeFilter.tsx",
       "src/components/iz/PvSummaryView.tsx",
-      "src/components/iz/PvTemplateView.tsx",
       "src/components/iz/Sheet.tsx",
       "src/components/iz/ShiftHistoryLog.tsx",
       "src/components/iz/ui.tsx",
@@ -166,7 +160,6 @@
       "src/components/outlet/OutletLaborCostReport.tsx",
       "src/components/outlet/OutletLogSales.tsx",
       "src/components/outlet/OutletOperationsCalendar.tsx",
-      "src/components/outlet/OutletPosIntegrationAddon.tsx",
       "src/components/outlet/OutletPrLiveSalesFloorTable.tsx",
       "src/components/outlet/OutletPrLiveSalesSheet.tsx",
       "src/components/outlet/OutletReconciliationBanner.tsx",
@@ -178,9 +171,7 @@
       "src/components/outlet/OutletTodayOperationPanel.tsx",
       "src/components/outlet/OutletTonightSummaryTable.tsx",
       "src/components/outlet/PostJobTierRatesEditor.tsx",
-      "src/components/outlet/RecommendedPRs.tsx",
       "src/components/outlet/ShiftTierWagesStrip.tsx",
-      "src/components/outlet/TierRatesFields.tsx",
       "src/components/outlet/WorkspaceTierRatesEditor.tsx",
       "src/components/outlet/outlet-date-popover.tsx",
       "src/components/outlet/outlet-history-ui.tsx",
@@ -213,7 +204,6 @@
       "src/components/pr/PrShiftOutletBrief.tsx",
       "src/components/pr/PrShiftStatusPanel.tsx",
       "src/components/pr/PrSignaturePad.tsx",
-      "src/components/pr/PrSosButton.tsx",
       "src/components/pr/PrWeeklyPaymentGrid.tsx",
       "src/components/pr/PrWeeklyPaymentWeekCard.tsx",
       "src/components/pr/ReceiptScanSlip.tsx",
@@ -230,8 +220,8 @@
       "weeklyReconciliation": true,
       "cancellationPenalty": true,
       "realPvXlsxExport": true,
-      "adminBellDuplicate": true,
-      "outletSalesDeadRoute": true
+      "adminBellDuplicate": false,
+      "outletSalesDeadRoute": false
     }
   }
 }

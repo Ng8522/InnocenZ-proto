@@ -11,7 +11,7 @@ import { getAgencyManagedPvs } from "@/lib/agency-payroll";
 import { demoPayrollWeekBoundsForWeeksAgo, demoPvIssueIsoForWeeksAgo } from "@/lib/pr-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { OutletSection } from "@/components/outlet/OutletSection";
-import { IzCard, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
+import { IzCard, IzPageTitle, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
 import { Calendar, CreditCard, Receipt, Users } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -67,7 +67,7 @@ function AgencySubscription() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
+          <IzPageTitle>Access restricted</IzPageTitle>
         </header>
         <IzCard className="text-center">
           <p className="iz-sm iz-muted">You do not have access to subscription billing.</p>
@@ -82,7 +82,7 @@ function AgencySubscription() {
   return (
     <div className="iz-screen">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Subscription</h2>
+        <IzPageTitle>Subscription</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">{agencyOwner.orgName}</p>
         {isFinanceReadOnly && (
           <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">

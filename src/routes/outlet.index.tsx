@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { OutletBookings } from "@/components/outlet/OutletBookings";
 import { OutletReconciliationBanner } from "@/components/outlet/OutletReconciliationBanner";
+import { IconGuide } from "@/components/iz/IconGuide";
 import { OutletPage, OutletPageHeader } from "@/components/outlet/outlet-portal-ui";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 
@@ -31,6 +32,8 @@ function OutletHome() {
       <OutletBookings />
 
       <OutletReconciliationBanner />
+
+      <IconGuide className="iz-icon-guide--portal mt-6" />
     </OutletPage>
   );
 }

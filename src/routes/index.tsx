@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Building2, Users, Star, ArrowRight, RotateCcw } from "lucide-react";
+import { ArrowRight, RotateCcw } from "lucide-react";
+import { iconForNav } from "@/lib/lucide-label-icons";
 import { useStore, type Role } from "@/lib/store";
 import type { SignInPortal } from "@/lib/portal-signin";
 import { PhoneFrame, InnocenZLogoMark } from "@/components/Brand";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,12 +22,11 @@ export const Route = createFileRoute("/")({
 const ROLES: {
   side: SignInPortal;
   role: Role;
-  icon: typeof Building2;
   title: string;
 }[] = [
-  { side: "outlet", role: "vendor", icon: Building2, title: "Outlet" },
-  { side: "agency", role: "agency", icon: Users, title: "PR Agency" },
-  { side: "pr", role: "host", icon: Star, title: "PR" },
+  { side: "outlet", role: "vendor", title: "Outlet" },
+  { side: "agency", role: "agency", title: "PR Agency" },
+  { side: "pr", role: "host", title: "PR" },
 ];
 
 function Welcome() {
@@ -63,36 +64,37 @@ function Welcome() {
   return (
     <PhoneFrame showStatusBar>
       <div className="iz-welcome">
-        <div className="iz-wordmark mt-1.5">
-          Innocen<span className="iz-wordmark-z">Z</span>
-        </div>
-
-        <InnocenZLogoMark size="lg" className="!mt-[26px]" />
+        <InnocenZLogoMark className="!mt-[26px]" />
 
         <div className="text-center">
           <h1 className="font-sora mt-3 text-[27px] font-extrabold text-[var(--iz-txt)]">
-            Welcome to Innocen<span className="iz-wordmark-z">Z</span>
+            <TitleWithIcon icon={iconForNav("Welcome")}>
+              Welcome to Innocen<span className="iz-wordmark-z">Z</span>
+            </TitleWithIcon>
           </h1>
         </div>
 
         <div className="iz-role-grid">
-          {ROLES.map((r) => (
-            <Link
-              key={r.side}
-              to="/signin"
-              search={{ portal: r.side }}
-              className="iz-role-card block w-full text-left no-underline"
-              onClick={() => preparePortal(r.side)}
-            >
-              <div className="iz-role-icon">
-                <r.icon className="h-[21px] w-[21px]" strokeWidth={1.8} />
-              </div>
-              <span className="iz-role-arrow">
-                <ArrowRight className="h-3.5 w-3.5" />
-              </span>
-              <h4>{r.title}</h4>
-            </Link>
-          ))}
+          {ROLES.map((r) => {
+            const RoleIcon = iconForNav(r.title);
+            return (
+              <Link
+                key={r.side}
+                to="/signin"
+                search={{ mode: "signin", portal: r.side }}
+                className="iz-role-card block w-full text-left no-underline"
+                onClick={() => preparePortal(r.side)}
+              >
+                <div className="iz-role-icon">
+                  <RoleIcon className="h-[21px] w-[21px]" strokeWidth={1.8} />
+                </div>
+                <span className="iz-role-arrow">
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </span>
+                <h4>{r.title}</h4>
+              </Link>
+            );
+          })}
         </div>
 
         <div className="mt-3.5 flex flex-col items-center gap-2">

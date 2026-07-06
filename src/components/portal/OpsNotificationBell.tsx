@@ -11,7 +11,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzCard, IzPill } from "@/components/iz/ui";
+import { IzCard, IzCardTitle, IzPill } from "@/components/iz/ui";
 import { useStore } from "@/lib/store";
 import {
   opsNotificationsForPortal,
@@ -83,7 +83,7 @@ export function OpsNotificationBell({ portal }: { portal: OpsPortal }) {
       </button>
 
       <IzSheet open={open && !sosDetailId} onClose={() => setOpen(false)}>
-        <div className="iz-cardttl">Notifications</div>
+        <IzCardTitle>Notifications</IzCardTitle>
         <p className="iz-tiny iz-muted mb-3">
           Shift updates, check-ins, PVs, disputes, ratings, SOS, and reports — tap to open.
         </p>
@@ -147,10 +147,9 @@ export function OpsNotificationBell({ portal }: { portal: OpsPortal }) {
       <IzSheet open={Boolean(sosDetail)} onClose={closeSosDetail}>
         {sosDetail && (
           <>
-            <div className="iz-cardttl text-[var(--iz-red)] flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
+            <IzCardTitle className="text-[var(--iz-red)] flex items-center gap-2">
               SOS incident
-            </div>
+            </IzCardTitle>
             <IzCard flat className="border-[rgba(255,107,107,.35)] bg-[var(--iz-red-bg)]">
               <p className="iz-sm font-bold">{sosDetail.prName}</p>
               <p className="iz-tiny iz-muted mt-0.5">

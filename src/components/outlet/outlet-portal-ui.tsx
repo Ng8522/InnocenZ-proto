@@ -1,7 +1,9 @@
 import type { ComponentType, ReactNode } from "react";
 import { Award, Check, Crown, Lock, Medal, Pencil, Star, X, type LucideIcon } from "lucide-react";
 import { JobPostingMicroLabel } from "@/components/special-service/job-posting-ui";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import { TrafficPill } from "@/components/iz/ui";
+import { iconForNav } from "@/lib/lucide-label-icons";
 import { formatOutletShiftMetricAmount } from "@/lib/outlet-demo";
 import { trafficLevelForRatio, type TrafficLevel } from "@/lib/traffic-status";
 import { cn } from "@/lib/utils";
@@ -59,8 +61,16 @@ export function OutletPageHeader({
   return (
     <header className="iz-outlet-page-header">
       <div className="min-w-0 flex-1">
-        {eyebrow && <p className="iz-outlet-page-eyebrow">{eyebrow}</p>}
-        <h2 className="font-sora text-lg font-extrabold leading-snug text-[var(--iz-txt)]">{title}</h2>
+        {eyebrow && (
+          <p className="iz-outlet-page-eyebrow">
+            <TitleWithIcon icon={iconForNav(eyebrow)} iconClassName="iz-title-icon--eyebrow">
+              {eyebrow}
+            </TitleWithIcon>
+          </p>
+        )}
+        <h2 className="font-sora text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
+          <TitleWithIcon icon={iconForNav(title)}>{title}</TitleWithIcon>
+        </h2>
         {hint && <p className="iz-outlet-page-hint">{hint}</p>}
       </div>
       {trailing}

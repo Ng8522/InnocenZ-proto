@@ -6,6 +6,7 @@ import { IzCard, IzSectionLabel } from "@/components/iz/ui";
 import { SecuritySettingsSheets } from "@/components/auth/SecuritySettingsSheets";
 import { useStore } from "@/lib/store";
 import type { OutletFinanceHead, OutletOpsHead, OutletOwnerSettings } from "@/lib/outlet-demo";
+import { publicAssetPath } from "@/lib/public-asset";
 import { outletCan } from "@/lib/outlet-rbac";
 import {
   Building2,
@@ -192,7 +193,7 @@ function OutletSettingsPage() {
         </p>
       )}
 
-      <div className="flex flex-col items-center py-4">
+      <div className="iz-settings-profile flex flex-col items-center py-5">
         <input
           ref={avatarFileRef}
           type="file"
@@ -202,14 +203,14 @@ function OutletSettingsPage() {
         />
         <div className="relative">
           <div
-            className={`iz-avatar h-16 w-16 text-xl${owner.avatarPhoto ? " iz-avatar-photo" : ""}`}
+            className={`iz-avatar iz-avatar--xl${owner.avatarPhoto ? " iz-avatar-photo iz-avatar-photo--logo" : ""}`}
             style={
               owner.avatarPhoto
                 ? undefined
                 : { background: "var(--iz-grad-outlet, var(--iz-grad))" }
             }
           >
-            {owner.avatarPhoto ? <img src={owner.avatarPhoto} alt="" /> : avatarLetter}
+            {owner.avatarPhoto ? <img src={publicAssetPath(owner.avatarPhoto)} alt="" /> : avatarLetter}
           </div>
           {editing && canEdit && (
             <>

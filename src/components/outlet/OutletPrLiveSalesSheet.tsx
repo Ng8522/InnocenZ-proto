@@ -1,11 +1,14 @@
 import { IzSheet } from "@/components/iz/Sheet";
-import { formatRM } from "@/components/iz/ui";
+import { LiveEarningsLabel } from "@/components/outlet/outlet-live-sales-ui";
+import { formatRM, IzCardTitle } from "@/components/iz/ui";
 import type { OutletPrLiveEarningsBreakdown } from "@/lib/outlet-financial-sync";
 
 function EarningsRow({ label, amount }: { label: string; amount: number }) {
   return (
     <div className="iz-outlet-pr-earnings-sheet__row">
-      <dt>{label}</dt>
+      <dt>
+        <LiveEarningsLabel label={label} />
+      </dt>
       <dd>{formatRM(amount)}</dd>
     </div>
   );
@@ -29,7 +32,7 @@ export function OutletPrLiveSalesSheet({
 
   return (
     <IzSheet open={open} onClose={onClose} wide liveSales>
-      <div className="iz-cardttl">Live sales · {breakdown.prName}</div>
+      <IzCardTitle>Live sales · {breakdown.prName}</IzCardTitle>
       <p className="iz-sm iz-muted mt-1.5">{shiftEvent} · tonight floor</p>
 
       <div className="iz-outlet-pr-earnings-sheet mt-4">
@@ -47,7 +50,7 @@ export function OutletPrLiveSalesSheet({
         </dl>
 
         <div className="iz-outlet-pr-earnings-sheet__total">
-          <span>Total earn</span>
+          <LiveEarningsLabel label="Total earn" />
           <span>{formatRM(breakdown.totalEarnRm)}</span>
         </div>
       </div>

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
-import { PhoneFrame, InnocenZLogoHorizontal, InnocenZLogoMark } from "@/components/Brand";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, LogIn, Mail, User, Users } from "lucide-react";
+import { PhoneFrame, InnocenZLogoMark } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
 import { isValidDemoOtp, OtpVerifySheet } from "@/components/auth/OtpVerifySheet";
 import { PortalAuthFrame } from "@/components/auth/PortalAuthFrame";
+import { IzCardTitle } from "@/components/iz/ui";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import {
@@ -17,6 +19,7 @@ import {
   type PortalSubRoleItem,
   type SignInPortal,
 } from "@/lib/portal-signin";
+import { PORTAL_TITLE_ICONS, SUB_ROLE_TITLE_ICONS } from "@/lib/title-icons";
 
 type ResetChannel = "email" | "phone";
 
@@ -60,6 +63,7 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
   } | null>(null);
 
   const portalLabel = PORTAL_SIGNIN_LABELS[portal];
+  const PortalIcon = PORTAL_TITLE_ICONS[portal];
   const subRoles = subRolesForPortal(portal);
   const needsSubRole = subRoles.length > 0;
 
@@ -142,6 +146,7 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
         search: {
           channel: forgotContact.channel,
           identifier: forgotContact.identifier,
+          portal,
         },
       });
       return;
@@ -185,7 +190,9 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
           setPendingContact(null);
         }}
       >
-        <div className="iz-cardttl">{portalLabel} sub-role</div>
+        <IzCardTitle icon={Users}>
+          {portalLabel} sub-role
+        </IzCardTitle>
         <p className="iz-tiny iz-muted mt-1">
           {pendingContact
             ? `Signed in as ${pendingContact.displayName} — pick how you enter ${portalLabel.toLowerCase()}.`
@@ -200,7 +207,9 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
               onClick={() => pickSubRole(item)}
             >
               <div className="font-sora text-[15px] font-bold text-[var(--iz-txt)]">
-                {item.label}
+                <TitleWithIcon icon={SUB_ROLE_TITLE_ICONS[item.label] ?? PortalIcon}>
+                  {item.label}
+                </TitleWithIcon>
               </div>
               <span className="iz-iconbox">
                 <ArrowRight className="h-4 w-4" />
@@ -218,17 +227,13 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
         <ArrowLeft className="h-3.5 w-3.5" /> Back
       </button>
 
-      {portal === "pr" ? (
-        <InnocenZLogoMark size="lg" className="mt-8" />
-      ) : (
-        <InnocenZLogoHorizontal className="iz-portal-auth-card-logo mt-8" />
-      )}
+      <InnocenZLogoMark className="mt-8" />
 
       <div className={emailOnly ? "mt-2" : "text-center"}>
         <p
           className={`iz-tiny ${emailOnly ? "mt-0 text-[15px] font-semibold text-[var(--iz-txt)]" : "iz-muted mt-4"}`}
         >
-          {portalLabel} sign in
+          <TitleWithIcon icon={PortalIcon}>{portalLabel} sign in</TitleWithIcon>
         </p>
         {emailOnly && (
           <p className="iz-tiny iz-muted2 mt-1">
@@ -289,7 +294,7 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
         </div>
 
         <button type="submit" className="iz-btn iz-btn-primary mt-2">
-          Sign In
+          <LogIn className="h-4 w-4" aria-hidden /> Sign In
         </button>
       </form>
 
@@ -305,7 +310,7 @@ export function PortalSignInScreen({ portal }: { portal: SignInPortal }) {
     </>
   );
 
-  if (emailOnly) {
+  if (portal === "outlet" || portal === "agency") {
     return (
       <PortalAuthFrame portal={portal} overlay={overlays}>
         <div className="iz-portal-auth-card">{form}</div>

@@ -1,4 +1,5 @@
 import { IzSheet } from "@/components/iz/Sheet";
+import { IzCardTitle } from "@/components/iz/ui";
 import {
   CANCELLATION_RULE_SUMMARY,
   type CancellationEvaluation,
@@ -40,7 +41,7 @@ export function PrShiftCancellationSheet({
 }) {
   return (
     <IzSheet open={open} onClose={onClose}>
-      <div className="iz-cardttl">{title}</div>
+      <IzCardTitle>{title}</IzCardTitle>
       <p className="iz-tiny iz-muted mb-2">
         <strong className="text-[var(--iz-txt)]">{outlet}</strong>
         {dateLine ? ` · ${dateLine}` : ""}

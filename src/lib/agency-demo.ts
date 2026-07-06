@@ -1558,6 +1558,36 @@ export function resolveRosterPrName(
   return rosterName?.trim() || prId;
 }
 
+/** Match a shift-history / roster row to the agency PR record. */
+export function findAgencyManagedPr(
+  agencyPRs: AgencyManagedPR[],
+  prId: string,
+  prName?: string,
+): AgencyManagedPR | undefined {
+  const byId = agencyPRs.find((p) => p.id === prId);
+  if (byId) return byId;
+  const name = prName?.trim();
+  if (!name) return undefined;
+  const lower = name.toLowerCase();
+  return agencyPRs.find(
+    (p) =>
+      p.name === name ||
+      p.icName === name ||
+      p.name.toLowerCase() === lower ||
+      p.icName.toLowerCase() === lower,
+  );
+}
+
+/** Best available profile image for outlet/agency PR cards. */
+export function resolveAgencyPrPhoto(
+  pr: Pick<AgencyManagedPR, "avatarPhoto" | "comcardImageUrl" | "portfolioPhotos">,
+): string | null {
+  if (pr.avatarPhoto) return pr.avatarPhoto;
+  if (pr.comcardImageUrl) return pr.comcardImageUrl;
+  const portfolio = pr.portfolioPhotos?.find(Boolean);
+  return portfolio ?? null;
+}
+
 function mergeRosterSlotPrName(
   saved: AgencyRosterSlot,
   seedSlot: AgencyRosterSlot,

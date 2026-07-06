@@ -1,4 +1,5 @@
 import { formatRM } from "@/components/iz/ui";
+import { LiveEarningsLabel } from "@/components/outlet/outlet-live-sales-ui";
 import type { OutletPrLiveEarningsBreakdown } from "@/lib/outlet-financial-sync";
 import { roundRm } from "@/lib/outlet-financial-sync";
 import { cn } from "@/lib/utils";
@@ -101,14 +102,30 @@ export function OutletPrLiveSalesFloorTable({
       <table className="iz-outlet-live-earnings-table">
         <thead>
           <tr>
-            <th>PR Name</th>
-            <th>PR ID</th>
-            <th>Daily wages</th>
-            <th>HH</th>
-            <th>Normal</th>
-            <th>Tips</th>
-            <th>OT</th>
-            <th>Total earn</th>
+            <th>
+              <LiveEarningsLabel label="PR Name" />
+            </th>
+            <th>
+              <LiveEarningsLabel label="PR ID" />
+            </th>
+            <th>
+              <LiveEarningsLabel label="Daily wages" />
+            </th>
+            <th>
+              <LiveEarningsLabel label="HH" />
+            </th>
+            <th>
+              <LiveEarningsLabel label="Normal" />
+            </th>
+            <th>
+              <LiveEarningsLabel label="Tips" />
+            </th>
+            <th>
+              <LiveEarningsLabel label="OT" />
+            </th>
+            <th>
+              <LiveEarningsLabel label="Total earn" />
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -132,7 +149,7 @@ export function OutletPrLiveSalesFloorTable({
           <tfoot>
             <tr className="iz-outlet-live-earnings-table__foot">
               <th scope="row" colSpan={2}>
-                Tonight total
+                <LiveEarningsLabel label="Tonight total" />
               </th>
               <td>{formatRM(roundRm(totals.wages))}</td>
               <td>{formatRM(roundRm(totals.hh))}</td>

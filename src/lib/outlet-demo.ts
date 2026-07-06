@@ -191,121 +191,121 @@ type OutletRatingSeed = Omit<OutletSubmittedRating, "id" | "pr">;
 const OUTLET_RATING_BY_PR: Record<string, OutletRatingSeed> = {
   Victoria: {
     stars: 5,
-    note: "Closed two VIP booths — strong bottle recommendations all night.",
+    note: "Owned the VIP lounge — two booth upgrades and guests stayed past 2am.",
     tags: ["Great upsell", "Professional"],
     date: "3 Jun 2026",
   },
   Vicky: {
     stars: 4,
-    note: "Strong closer on a busy Friday — minor dress-code reminder needed.",
-    tags: ["Professional"],
-    date: "5 Jun 2026",
+    note: "Hennessy anchor — guests ask for her section on busy Saturdays.",
+    tags: ["Professional", "Team player"],
+    date: "6 Jun 2026",
   },
   Alice: {
-    stars: 5,
-    note: "Consistent upsell on champagne packages — guests asked for her by name.",
+    stars: 3,
+    note: "Reliable champagne closer — could open tables faster at peak.",
     tags: ["Great upsell", "Friendly"],
     date: "29 Jun 2026",
   },
   Moon: {
-    stars: 5,
-    note: "Top drinks on the floor — covered a short-staffed section without being asked.",
-    tags: ["Great upsell", "Team player"],
+    stars: 2,
+    note: "Stepped into a short-staffed zone — drinks count still below floor average.",
+    tags: ["Team player"],
     date: "4 Jul 2026",
   },
   Angie: {
-    stars: 5,
-    note: "High energy on peak nights — guests stayed longer at her tables.",
-    tags: ["Friendly", "Great upsell"],
+    stars: 1,
+    note: "High energy early, but two tables were left unattended during rush.",
+    tags: ["Needs coaching"],
     date: "2 Jul 2026",
   },
+  Charlotte: {
+    stars: 2,
+    note: "Late check-in and slow to warm the floor — review before next booking.",
+    tags: ["Needs coaching"],
+    date: "27 Jun 2026",
+  },
   Bernice: {
-    stars: 4,
-    note: "Solid drinks count — quick reminder on uniform before peak hour.",
-    tags: ["Professional", "Punctual"],
+    stars: 5,
+    note: "Dom Perignon upsell on a full house — zero service complaints.",
+    tags: ["Great upsell", "Professional"],
     date: "26 Jun 2026",
   },
   Ava: {
     stars: 4,
-    note: "Reliable floor coverage; could push harder on premium spirits.",
-    tags: ["Professional", "Team player"],
+    note: "Steady floor coverage — premium spirits pitch could be sharper.",
+    tags: ["Professional", "Punctual"],
     date: "28 Jun 2026",
   },
   Yvon: {
-    stars: 4,
-    note: "Positive guest feedback — steady drink count and on-time arrival.",
+    stars: 3,
+    note: "Warm with walk-ins — on-time and polite, tips slightly soft.",
     tags: ["Punctual", "Friendly"],
     date: "1 Jul 2026",
   },
   Sarah: {
-    stars: 4,
-    note: "Reliable closer — good tips, room to push premium bottles.",
-    tags: ["Professional"],
+    stars: 5,
+    note: "Closed the night strong — three bottle upgrades on her tables.",
+    tags: ["Great upsell"],
     date: "22 Jun 2026",
   },
   Veron: {
     stars: 4,
-    note: "Warm with regulars — upsell on top-shelf could be more proactive.",
+    note: "Regulars stayed longer at her section — upsell on top-shelf next time.",
     tags: ["Friendly"],
     date: "24 Jun 2026",
   },
   Hazel: {
-    stars: 4,
-    note: "Consistent on brunch shifts — works well alongside senior PRs.",
+    stars: 3,
+    note: "Consistent on quieter shifts — pairs well with senior PRs.",
     tags: ["Team player", "Punctual"],
     date: "25 Jun 2026",
   },
   KarYan: {
-    stars: 4,
-    note: "Strong Mandarin guest rapport — helped land a walk-in VIP table.",
+    stars: 5,
+    note: "Mandarin guest rapport landed a walk-in VIP booth.",
     tags: ["Great upsell", "Professional"],
     date: "20 Jun 2026",
   },
   Gin: {
     stars: 4,
-    note: "Stepped up when we were short — drinks slightly below target.",
+    note: "Covered an absent colleague — drinks just under the shift target.",
     tags: ["Team player"],
     date: "18 Jun 2026",
   },
   Grace: {
     stars: 3,
-    note: "Hit minimums but quiet on upsell — coach on table engagement.",
+    note: "Hit minimums on a slow night — coach on table engagement.",
     tags: ["Needs coaching"],
     date: "30 Jun 2026",
   },
   Zoe: {
-    stars: 3,
-    note: "Met shift requirements — needs louder presence during peak hour.",
+    stars: 2,
+    note: "Met shift requirements — needs a louder presence during peak hour.",
     tags: ["Needs coaching"],
     date: "23 Jun 2026",
   },
   Winnie: {
-    stars: 3,
-    note: "Punctual and polite — drinks target hit on a quieter night.",
+    stars: 1,
+    note: "Punctual and polite — drinks target missed on a busier floor.",
     tags: ["Punctual"],
     date: "21 Jun 2026",
   },
   "Wei Qi": {
-    stars: 3,
-    note: "Average shift — coaching on champagne packages recommended.",
-    tags: ["Needs coaching"],
+    stars: 5,
+    note: "Champagne package pitch converted twice — guests praised her service.",
+    tags: ["Great upsell", "Friendly"],
     date: "19 Jun 2026",
   },
   "Xiao Bao": {
-    stars: 3,
+    stars: 4,
     note: "Still finding floor rhythm — polite with guests, upsell improving.",
     tags: ["Friendly"],
     date: "17 Jun 2026",
   },
-  Charlotte: {
-    stars: 2,
-    note: "Late check-in and slow to open tables — discuss before next booking.",
-    tags: ["Needs coaching"],
-    date: "27 Jun 2026",
-  },
   Jes: {
-    stars: 2,
-    note: "On time but left sections unattended twice during peak.",
+    stars: 3,
+    note: "On time but left two sections unattended during the 11pm rush.",
     tags: ["Needs coaching"],
     date: "16 Jun 2026",
   },
@@ -1179,6 +1179,17 @@ const velvetTierBase = {
   otAfterHours: velvetRule.otAfterHours,
 };
 
+/** Velvet Coupe Wine Bar — outlet logo & profile photo (served from `public/`). */
+export const VELVET_23_OUTLET_LOGO = "/assets/outlet-logos/velvet-23-logo.png";
+
+export const OUTLET_LOGOS: Record<string, string> = {
+  "Velvet 23": VELVET_23_OUTLET_LOGO,
+};
+
+export function outletLogoForName(outletName: string): string | null {
+  return OUTLET_LOGOS[outletName.trim()] ?? null;
+}
+
 export const DEFAULT_OUTLET_WORKSPACE: OutletWorkspaceSettings = {
   outletName: "Velvet 23",
   basePayPerHour: velvetRule.wagePerHour,
@@ -1212,7 +1223,7 @@ export const DEFAULT_OUTLET_OWNER: OutletOwnerSettings = {
   orgName: "Velvet 23",
   otpChannel: "email",
   accountActivated: true,
-  avatarPhoto: null,
+  avatarPhoto: VELVET_23_OUTLET_LOGO,
   subscriptionPlanId: "pro",
 };
 

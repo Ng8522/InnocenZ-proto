@@ -36,7 +36,6 @@ export interface PrShiftSessionState {
   checkedOut: boolean;
   drinks: number;
   tables: number;
-  outletRatingStars: number;
   prActiveShift: PrActiveShiftSession | null;
   prCheckInMeta: PrCheckInMetaState;
   prMarketplaceApplication: PrMarketplaceApplicationState;
@@ -55,7 +54,6 @@ export const EMPTY_PR_SHIFT_SESSION: PrShiftSessionState = {
   checkedOut: false,
   drinks: 0,
   tables: 0,
-  outletRatingStars: 0,
   prActiveShift: null,
   prCheckInMeta: {},
   prMarketplaceApplication: null,
@@ -172,7 +170,6 @@ export function defaultPrShiftSessionForRole(role: PrSubRole, ctx: PrSessionCont
     checkedOut: false,
     drinks: slot.floorDrinks ?? 0,
     tables: 0,
-    outletRatingStars: 0,
     prActiveShift: null,
     prCheckInMeta: {},
     prMarketplaceApplication: null,
@@ -187,7 +184,6 @@ export function extractPrShiftSession(st: {
   checkedOut: boolean;
   drinks: number;
   tables: number;
-  outletRatingStars: number;
   prActiveShift: PrActiveShiftSession | null;
   prCheckInMeta: PrCheckInMetaState;
   prMarketplaceApplication: PrMarketplaceApplicationState;
@@ -200,7 +196,6 @@ export function extractPrShiftSession(st: {
     checkedOut: st.checkedOut,
     drinks: st.drinks,
     tables: st.tables,
-    outletRatingStars: st.outletRatingStars,
     prActiveShift: st.prActiveShift,
     prCheckInMeta: { ...st.prCheckInMeta },
     prMarketplaceApplication: st.prMarketplaceApplication ? { ...st.prMarketplaceApplication } : null,

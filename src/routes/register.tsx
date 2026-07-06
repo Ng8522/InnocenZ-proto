@@ -15,6 +15,7 @@ import {
   Camera,
   Check,
   ChevronDown,
+  ClipboardList,
   IdCard,
   MapPin,
   RotateCcw,
@@ -24,20 +25,22 @@ import {
   X,
   Clock,
   Smartphone,
+  type LucideIcon,
 } from "lucide-react";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 
 export const Route = createFileRoute("/register")({
   component: RegisterPage,
 });
 
-const STEPS = [
-  { id: 1, title: "Persona", subtitle: "Your details" },
-  { id: 2, title: "Address", subtitle: "Where you live" },
-  { id: 3, title: "Agency", subtitle: "Optional tie" },
-  { id: 4, title: "Verify", subtitle: "ID & gallery photos" },
-  { id: 5, title: "Summary", subtitle: "Review & submit" },
-  { id: 6, title: "OTP", subtitle: "Verify your mobile" },
-] as const;
+const STEPS: { id: number; title: string; subtitle: string; icon: LucideIcon }[] = [
+  { id: 1, title: "Persona", subtitle: "Your details", icon: User },
+  { id: 2, title: "Address", subtitle: "Where you live", icon: MapPin },
+  { id: 3, title: "Agency", subtitle: "Optional tie", icon: Building2 },
+  { id: 4, title: "Verify", subtitle: "ID & gallery photos", icon: IdCard },
+  { id: 5, title: "Summary", subtitle: "Review & submit", icon: ClipboardList },
+  { id: 6, title: "OTP", subtitle: "Verify your mobile", icon: Smartphone },
+];
 
 const ID_TYPES = ["NRIC", "Passport", "Work permit"] as const;
 type IdType = (typeof ID_TYPES)[number];
@@ -363,7 +366,10 @@ function StepDots({ step }: { step: number }) {
           className={`iz-reg-step ${s.id === step ? "iz-reg-step--active" : ""} ${s.id < step ? "iz-reg-step--done" : ""}`}
         >
           <span className="iz-reg-step__dot">{s.id < step ? <Check className="h-3 w-3" /> : s.id}</span>
-          <span className="iz-reg-step__lbl">{s.title}</span>
+          <span className="iz-reg-step__lbl">
+            <s.icon className="iz-reg-step__icon" aria-hidden />
+            {s.title}
+          </span>
         </div>
       ))}
     </div>
@@ -955,7 +961,7 @@ function RegisterPage() {
             Step {step} of {STEPS.length}
           </p>
           <h1 className="font-sora mt-1 text-xl font-extrabold text-[var(--iz-txt)]">
-            {current.title}
+            <TitleWithIcon icon={current.icon}>{current.title}</TitleWithIcon>
           </h1>
           <p className="iz-sm iz-muted">{current.subtitle}</p>
         </div>

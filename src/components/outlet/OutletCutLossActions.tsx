@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import type { ShiftRequest } from "@/lib/store";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzPill } from "@/components/iz/ui";
+import { IzCardTitle, IzPill } from "@/components/iz/ui";
 import {
   OUTLET_CUTLOSS_COST_SHARE,
   mergeReleasedEarlyPrIds,
@@ -305,7 +305,7 @@ export function OutletCutLossActions({
       </OutletSection>
 
       <IzSheet open={releaseOpen} onClose={() => setReleaseOpen(false)}>
-        <div className="iz-cardttl">Guaranteed cutlost · release PRs</div>
+        <IzCardTitle>Guaranteed cutlost · release PRs</IzCardTitle>
         <p className="iz-tiny iz-muted mt-1">
           Selected PRs are sent to your agency for approval. Once approved, they are checked out
           and target and actual labor both drop by their shift wages.
@@ -364,10 +364,9 @@ export function OutletCutLossActions({
       </IzSheet>
 
       <IzSheet open={bestEffortOpen} onClose={() => setBestEffortOpen(false)}>
-        <div className="iz-cardttl flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[var(--iz-violet)]" />
+        <IzCardTitle className="flex items-center gap-2">
           Best Effort Cut-Lost
-        </div>
+        </IzCardTitle>
         <p className="iz-tiny iz-muted mt-1">
           Optimized for {shift.event} tonight — balances cutlost savings with minimal floor
           disruption.

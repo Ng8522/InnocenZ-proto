@@ -64,7 +64,7 @@ import {
 } from "lucide-react";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { ReceiptScanSlip } from "@/components/pr/ReceiptScanSlip";
-import { IzCard, IzPill, IzSelect, formatRM } from "@/components/iz/ui";
+import { IzCard, IzCardTitle, IzKpiLabel, IzPageTitle, IzPill, IzSelect, formatRM } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import {
   PV_WORKFLOW_STEPS,
@@ -327,7 +327,7 @@ function AgencyPV() {
   return (
     <div className="iz-screen">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Payroll &amp; PV</h2>
+        <IzPageTitle>Payroll &amp; PV</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">
           {date} · {time} · Cycle{" "}
           <span className="text-[var(--iz-gold-l)]">{PAYROLL_CYCLE.range}</span>
@@ -373,15 +373,15 @@ function AgencyPV() {
       <div className="iz-grid3 mt-3">
         <div className="iz-stat-tile">
           <div className="n text-[var(--iz-gold-l)]">{activeWeekStats.prCount}</div>
-          <div className="l">PR</div>
+          <IzKpiLabel>PR</IzKpiLabel>
         </div>
         <div className="iz-stat-tile">
           <div className="n">{activeWeekStats.pvCount}</div>
-          <div className="l">PV</div>
+          <IzKpiLabel>PV</IzKpiLabel>
         </div>
         <div className="iz-stat-tile">
           <div className="n text-[var(--iz-gold-l)]">{formatRM(activeWeekStats.pendingPayout)}</div>
-          <div className="l">Pending Payout</div>
+          <IzKpiLabel>Pending Payout</IzKpiLabel>
         </div>
       </div>
 
@@ -1250,7 +1250,7 @@ function PvDetail({
       )}
 
       <IzSheet open={overrideOpen} onClose={() => setOverrideOpen(false)}>
-        <div className="iz-cardttl">Override signed PV</div>
+        <IzCardTitle>Override signed PV</IzCardTitle>
         <p className="iz-tiny iz-muted mb-3">
           Finance may override with a mandatory audit reason — PV re-opens for PR review
         </p>

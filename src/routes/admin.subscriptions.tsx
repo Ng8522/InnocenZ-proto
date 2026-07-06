@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Mail, Phone, Plug, User } from "lucide-react";
-import { IzCard, IzPill, IzSectionLabel } from "@/components/iz/ui";
+import { IzCard, IzPageTitle, IzPill, IzSectionLabel } from "@/components/iz/ui";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
 import { pendingPosIntegrationQuoteRequests } from "@/lib/admin-notifications";
@@ -31,7 +31,7 @@ function AdminSubscriptions() {
   return (
     <div className="iz-screen !px-0">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Subscription requests</h2>
+        <IzPageTitle>Subscription requests</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">
           Outlet POS integration quotes — contact outlet to negotiate pricing
         </p>

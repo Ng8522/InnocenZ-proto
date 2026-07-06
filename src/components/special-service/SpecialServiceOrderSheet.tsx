@@ -1,4 +1,4 @@
-import { IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
+import { IzCardTitle, IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
 import {
   AGENCY_SPECIAL_SERVICE_OFFERS,
   specialServiceOffer,
@@ -55,13 +55,13 @@ export function SpecialServiceOrderSheet({
 
   return (
     <>
-      <div className="iz-cardttl">
+      <IzCardTitle>
         {leaveRequest
           ? "Service request"
           : role === "agency"
             ? "Book agency service"
             : "Order agency service"}
-      </div>
+      </IzCardTitle>
       <p className="iz-tiny iz-muted mb-3">
         {leaveRequest
           ? "Before 1 year with your agency you must raise a support ticket to leave early."

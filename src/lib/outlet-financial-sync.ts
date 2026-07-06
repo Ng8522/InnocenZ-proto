@@ -105,50 +105,26 @@ export type OutletShiftFloorActivity = {
   prIds?: string[];
 };
 
-function outletShiftHasLiveFloorActivity(
-  shift: Pick<ShiftRequest, "date" | "dateIso" | "shift" | "status">,
-  activity: OutletShiftFloorActivity,
-): boolean {
-  const dateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso);
-  const prSet = activity.prIds?.length ? new Set(activity.prIds) : null;
-
-  if (
-    activity.rosterSlots?.some(
-      (slot) =>
-        slot.dateIso === dateIso &&
-        outletMatches(slot.outlet, activity.outletName) &&
-        (!prSet || prSet.has(slot.prId)) &&
-        slot.status === "on-duty" &&
-        !!slot.checkedInAt,
-    )
-  ) {
-    return true;
-  }
-
-  return (activity.receiptScans ?? []).some(
-    (scan) =>
-      outletMatches(scan.outlet, activity.outletName) &&
-      receiptDateIso(scan) === dateIso &&
-      (!prSet || (scan.prId != null && prSet.has(scan.prId))) &&
-      !isPayrollCommissionReceiptScan(scan),
-  );
-}
-
-/**
- * Floor sales count after shift start — or once PRs are on duty / receipts are logged
- * (demo-friendly for daytime check-in testing before opening).
- */
-export function outletShiftFloorSalesStarted(
+/** True once the scheduled shift start time has passed (sealed shifts always count as started). */
+export function outletShiftClockStarted(
   shift: Pick<ShiftRequest, "date" | "dateIso" | "shift" | "status">,
   now = new Date(),
-  activity?: OutletShiftFloorActivity,
 ): boolean {
   if (shift.status === "sealed") return true;
-  if (activity && outletShiftHasLiveFloorActivity(shift, activity)) return true;
   const dateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso);
   const start = shiftStartTimeFromLabel(shift.shift);
   if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return false;
   return now.getTime() >= shiftStartMs(dateIso, start);
+}
+
+/** Floor sales and live earnings only count after the shift clock has started. */
+export function outletShiftFloorSalesStarted(
+  shift: Pick<ShiftRequest, "date" | "dateIso" | "shift" | "status">,
+  now = new Date(),
+  _activity?: OutletShiftFloorActivity,
+): boolean {
+  if (shift.status === "sealed") return true;
+  return outletShiftClockStarted(shift, now);
 }
 
 /** PV payroll sync lines log commission RM — not gross floor sales. */

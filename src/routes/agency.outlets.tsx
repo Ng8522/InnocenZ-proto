@@ -28,7 +28,7 @@ import {
   shiftTierStaffingByPayTier,
 } from "@/lib/post-job-pay-tiers";
 import { useStore } from "@/lib/store";
-import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
+import { IzCard, IzPageTitle, IzPill, formatRM } from "@/components/iz/ui";
 import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import {
@@ -110,9 +110,7 @@ function AgencyManageOutlets() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">
-            Access restricted
-          </h2>
+          <IzPageTitle>Access restricted</IzPageTitle>
         </header>
         <IzCard className="text-center">
           <p className="iz-sm iz-muted">Finance role cannot manage outlets.</p>
@@ -146,7 +144,7 @@ function AgencyManageOutlets() {
   return (
     <div className="iz-screen">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Manage Outlet</h2>
+        <IzPageTitle>Manage Outlet</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">Browse venues · open shifts · assign from roster</p>
       </header>
 

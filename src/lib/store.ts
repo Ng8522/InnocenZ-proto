@@ -192,6 +192,7 @@ import {
   DEFAULT_OUTLET_SETTINGS,
   DEFAULT_OUTLET_WORKSPACE,
   DEFAULT_OUTLET_OWNER,
+  VELVET_23_OUTLET_LOGO,
   DEFAULT_OUTLET_FINANCE_HEAD,
   DEFAULT_OUTLET_OPS_HEAD,
   DEFAULT_OUTLET_DRINK_MENU,
@@ -262,13 +263,9 @@ import {
 import {
   type PrNotification,
   type PrSwapRequest,
-  type PrPendingRating,
-  type PrRatingRecord,
   type PrUpcomingShift,
   PR_AGENCY_CODES,
   SEED_PR_NOTIFICATIONS,
-  SEED_PENDING_RATINGS,
-  SEED_RATING_HISTORY,
   SEED_UPCOMING_SHIFTS,
   remapSeedUpcomingShifts,
   SEED_PR_SWAP_REQUESTS,
@@ -458,7 +455,6 @@ interface StoreState {
   checkedOut: boolean;
   drinks: number;
   tables: number;
-  outletRatingStars: number;
   prActiveShift: PrActiveShiftSession | null;
   acceptPrShift: (shiftIndex?: number) => void;
   approvePrShift: () => void;
@@ -509,8 +505,6 @@ interface StoreState {
   prSwapRequests: PrSwapRequest[];
   prAgencyTiedAt: string;
   prFreelancerPayrollLinks: string[];
-  prPendingRatings: PrPendingRating[];
-  prRatingHistory: PrRatingRecord[];
   prFreelancerLowRatingStrikes: number;
   prCheckInMeta: {
     late?: boolean;
@@ -1418,7 +1412,6 @@ export const useStore = create<StoreState>()(
       checkedOut: demoSnapshot.checkedOut,
       drinks: demoSnapshot.drinks,
       tables: demoSnapshot.tables,
-      outletRatingStars: demoSnapshot.outletRatingStars,
       prActiveShift: demoSnapshot.prActiveShift,
       prSessionByRole: demoSnapshot.prSessionByRole ?? {},
 
@@ -1520,8 +1513,6 @@ export const useStore = create<StoreState>()(
       prSwapRequests: [...SEED_PR_SWAP_REQUESTS],
       prAgencyTiedAt: DEMO_AGENCY_TIED_AT,
       prFreelancerPayrollLinks: [],
-      prPendingRatings: [...SEED_PENDING_RATINGS],
-      prRatingHistory: [...SEED_RATING_HISTORY],
       prFreelancerLowRatingStrikes: 0,
       prCheckInMeta: {},
       prLeaveRequest: null,
@@ -5867,8 +5858,6 @@ export const useStore = create<StoreState>()(
           prSwapRequests: s.prSwapRequests,
           prAgencyTiedAt: s.prAgencyTiedAt,
           prFreelancerPayrollLinks: s.prFreelancerPayrollLinks,
-          prPendingRatings: s.prPendingRatings,
-          prRatingHistory: s.prRatingHistory,
           prFreelancerLowRatingStrikes: s.prFreelancerLowRatingStrikes,
           prCheckInMeta: s.prCheckInMeta,
           prLeaveRequest: s.prLeaveRequest,
@@ -6169,10 +6158,6 @@ export const useStore = create<StoreState>()(
           ),
           prAgencyTiedAt: p?.prAgencyTiedAt ?? current.prAgencyTiedAt,
           prFreelancerPayrollLinks: p?.prFreelancerPayrollLinks ?? current.prFreelancerPayrollLinks,
-          prPendingRatings: p?.prPendingRatings?.length
-            ? p.prPendingRatings
-            : current.prPendingRatings,
-          prRatingHistory: p?.prRatingHistory?.length ? p.prRatingHistory : current.prRatingHistory,
           prFreelancerLowRatingStrikes:
             p?.prFreelancerLowRatingStrikes ?? current.prFreelancerLowRatingStrikes,
           prCheckInMeta: p?.prCheckInMeta ?? current.prCheckInMeta,
@@ -6295,7 +6280,14 @@ export const useStore = create<StoreState>()(
           outletPnlSyncAt: p?.outletPnlSyncAt ?? current.outletPnlSyncAt,
           outletMoneyEditCount: p?.outletMoneyEditCount ?? current.outletMoneyEditCount,
           outletSettings: p?.outletSettings ?? current.outletSettings ?? DEFAULT_OUTLET_SETTINGS,
-          outletOwner: p?.outletOwner ?? current.outletOwner ?? DEFAULT_OUTLET_OWNER,
+          outletOwner: (() => {
+            const saved = p?.outletOwner ?? current.outletOwner ?? DEFAULT_OUTLET_OWNER;
+            const merged = { ...DEFAULT_OUTLET_OWNER, ...saved };
+            if (!merged.avatarPhoto && merged.orgName.trim() === "Velvet 23") {
+              merged.avatarPhoto = VELVET_23_OUTLET_LOGO;
+            }
+            return merged;
+          })(),
           outletSubscriptionBilling: syncOutletSubscriptionBilling(
             p?.outletSubscriptionBilling ??
               current.outletSubscriptionBilling ??

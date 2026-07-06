@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { AlertTriangle, Bell, Briefcase, RefreshCw, Star, Wallet } from "lucide-react";
+import { AlertTriangle, Bell, Briefcase, RefreshCw, Wallet } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzCard, IzPill } from "@/components/iz/ui";
+import { IzCard, IzCardTitle, IzPill } from "@/components/iz/ui";
 import { useStore } from "@/lib/store";
 import { getPrRosterId } from "@/lib/pr-demo";
 import { prNotificationsForRecipient, type PrNotification, type PrNotificationKind } from "@/lib/pr-features";
@@ -11,7 +11,6 @@ import { usePrPortalReady } from "@/lib/use-pr-sub-role";
 function prKindIcon(kind: PrNotificationKind) {
   if (kind === "sos") return AlertTriangle;
   if (kind === "pv") return Wallet;
-  if (kind === "rating") return Star;
   if (kind === "swap") return RefreshCw;
   return Briefcase;
 }
@@ -55,9 +54,9 @@ export function PrNotificationBell() {
       </button>
 
       <IzSheet open={open} onClose={() => setOpen(false)}>
-        <div className="iz-cardttl">Notifications</div>
+        <IzCardTitle>Notifications</IzCardTitle>
         <p className="iz-tiny iz-muted mb-3">
-          Assignments, swaps, PVs, ratings, and SOS receipts — tap to open the screen.
+          Assignments, swaps, PVs, and SOS receipts — tap to open the screen.
         </p>
         {notifications.length === 0 ? (
           <p className="iz-sm iz-muted py-6 text-center">No notifications</p>

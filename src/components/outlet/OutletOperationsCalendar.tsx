@@ -29,7 +29,7 @@ import {
 import { isoKeyFromDate, dateFromIsoKey } from "@/components/iz/HistDateCalendar";
 import { getLiveTodayIso } from "@/lib/demo-clock";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzCard, IzPill } from "@/components/iz/ui";
+import { IzCard, IzCardTitle, IzPill } from "@/components/iz/ui";
 import {
   OutletShiftDetailPanel,
   OutletShiftStatusBadge,
@@ -324,7 +324,7 @@ export function OutletOperationsCalendar() {
             <div className="flex items-start gap-2 pr-6">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="iz-cardttl truncate">{selectedShift.event}</div>
+                  <IzCardTitle className="truncate">{selectedShift.event}</IzCardTitle>
                   {selectedShift.eventKind === "special" && (
                     <IzPill variant="gold" className="shrink-0 !py-0.5 !text-[9px]">
                       {shiftSpecialEventLabel(
@@ -362,7 +362,7 @@ export function OutletOperationsCalendar() {
       </IzSheet>
 
       <IzSheet open={deleteTarget !== null} onClose={() => setDeleteTargetId(null)}>
-        <div className="iz-cardttl">Delete this shift?</div>
+        <IzCardTitle>Delete this shift?</IzCardTitle>
         {deleteTarget && (
           <IzCard flat className="mt-2">
             <p className="text-sm font-semibold">{deleteTarget.event}</p>

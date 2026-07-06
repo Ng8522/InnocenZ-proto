@@ -1,44 +1,63 @@
 import { type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { CreditCard, LogOut, Settings, SlidersHorizontal, Store, Users } from "lucide-react";
+import { iconForNav } from "@/lib/lucide-label-icons";
+import { LogOut } from "lucide-react";
 import { BottomNav, type NavItem, navIsActive } from "@/components/Nav";
+import { InnocenZLogoHorizontal } from "@/components/Brand";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import { AGENCY_SUB_ROLE_LABELS, agencyCan } from "@/lib/agency-rbac";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 import { signOutToWelcome } from "@/lib/go-welcome";
 import { OUTLET_SUB_ROLE_LABELS, outletCan } from "@/lib/outlet-rbac";
 import { OpsNotificationBell } from "@/components/portal/OpsNotificationBell";
 import { useStore } from "@/lib/store";
+import { publicAssetPath } from "@/lib/public-asset";
 
 export type PortalKind = "agency" | "outlet";
 
 type ExtraNavItem = NavItem & { permission: string };
 
 const AGENCY_EXTRAS: ExtraNavItem[] = [
-  { to: "/agency/prs", label: "Manage PR", icon: Users, permission: "managePr" },
-  { to: "/agency/outlets", label: "Manage Outlet", icon: Store, permission: "managePr" },
+  { to: "/agency/prs", label: "Manage PR", icon: iconForNav("Manage PR"), permission: "managePr" },
+  {
+    to: "/agency/outlets",
+    label: "Manage Outlet",
+    icon: iconForNav("Manage Outlet"),
+    permission: "managePr",
+  },
   {
     to: "/agency/subscription",
     label: "Subscription",
-    icon: CreditCard,
+    icon: iconForNav("Subscription"),
     permission: "viewSettings",
   },
-  { to: "/agency/profile", label: "Settings", icon: Settings, permission: "viewSettings" },
+  {
+    to: "/agency/profile",
+    label: "Settings",
+    icon: iconForNav("Settings"),
+    permission: "viewSettings",
+  },
 ];
 
 const OUTLET_EXTRAS: ExtraNavItem[] = [
   {
     to: "/outlet/workspace",
     label: "Workspace",
-    icon: SlidersHorizontal,
+    icon: iconForNav("Workspace"),
     permission: "viewWorkspace",
   },
   {
     to: "/outlet/subscription",
     label: "Subscription",
-    icon: CreditCard,
+    icon: iconForNav("Subscription"),
     permission: "viewSettings",
   },
-  { to: "/outlet/settings", label: "Settings", icon: Settings, permission: "viewSettings" },
+  {
+    to: "/outlet/settings",
+    label: "Settings",
+    icon: iconForNav("Settings"),
+    permission: "viewSettings",
+  },
 ];
 
 function portalGreeting() {
@@ -91,10 +110,10 @@ function PortalAvatar({
 
   return (
     <div
-      className={`iz-avatar${className ? ` ${className}` : ""}${avatarPhoto ? " iz-avatar-photo" : ""}`}
+      className={`iz-avatar${className ? ` ${className}` : ""}${avatarPhoto ? " iz-avatar-photo iz-avatar-photo--logo" : ""}`}
       style={avatarPhoto ? undefined : { background: portalAvatarGradient(portal) }}
     >
-      {avatarPhoto ? <img src={avatarPhoto} alt="" /> : avatarLetter}
+      {avatarPhoto ? <img src={publicAssetPath(avatarPhoto)} alt="" /> : avatarLetter}
     </div>
   );
 }
@@ -131,11 +150,11 @@ function PortalSidebar({
   return (
     <aside className="iz-portal-sidebar">
       <div className="iz-portal-sidebar-brand">
-        <div className="iz-wordmark text-lg">
-          Innocen<span className="iz-wordmark-z">Z</span>
-        </div>
-        <p className="iz-tiny iz-muted mt-1">
-          {portal === "agency" ? "Agency portal" : "Outlet portal"}
+        <InnocenZLogoHorizontal className="iz-portal-sidebar-logo" />
+        <p className="iz-tiny iz-muted mt-2">
+          <TitleWithIcon icon={iconForNav(portal === "agency" ? "PR Agency" : "Outlet")}>
+            {portal === "agency" ? "Agency portal" : "Outlet portal"}
+          </TitleWithIcon>
         </p>
       </div>
 
@@ -209,7 +228,7 @@ function PortalHeader({
             ownerName={ownerName}
             orgName={orgName}
             avatarPhoto={avatarPhoto}
-            className="iz-avatar--sm"
+            className="iz-avatar--md"
           />
         </Link>
       </div>
@@ -255,7 +274,9 @@ export function PortalShell({
           subLabel={subLabel}
         />
 
-        <div className="iz-portal-viewport">{children}</div>
+        <div className="iz-portal-viewport">
+          {children}
+        </div>
       </div>
 
       {navItems.length > 0 && (

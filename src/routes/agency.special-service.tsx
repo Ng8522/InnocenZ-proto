@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SpecialServiceSection } from "@/components/agency/SpecialServiceSection";
-import { IzCard } from "@/components/iz/ui";
+import { IzCard, IzPageTitle } from "@/components/iz/ui";
 import { agencyCan } from "@/lib/agency-rbac";
 import { useStore } from "@/lib/store";
 
@@ -16,7 +16,7 @@ function AgencySpecialService() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
+          <IzPageTitle>Access restricted</IzPageTitle>
         </header>
         <IzCard className="text-center">
           <p className="iz-sm iz-muted">You do not have access to job postings.</p>
@@ -28,7 +28,7 @@ function AgencySpecialService() {
   return (
     <div className="iz-screen">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Job posting</h2>
+        <IzPageTitle>Job posting</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">{agencyOwner.orgName} · book services for PRs & outlets</p>
       </header>
 

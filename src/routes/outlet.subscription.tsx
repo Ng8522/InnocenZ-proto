@@ -15,7 +15,7 @@ import { outletCan } from "@/lib/outlet-rbac";
 import { outletMatches, tonightShiftOutletName } from "@/lib/portal-sync";
 import { isoKeyFromDate } from "@/components/iz/HistDateCalendar";
 import { OutletSection } from "@/components/outlet/OutletSection";
-import { IzCard, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
+import { IzCard, IzPageTitle, IzPill, IzSectionLabel, formatRM } from "@/components/iz/ui";
 import { Calendar, Check, CreditCard, Plug, Receipt, Sparkles, Users } from "lucide-react";
 
 const RENEWAL_DATE = "15 Jul 2026";
@@ -177,7 +177,7 @@ function OutletSubscriptionPage() {
     return (
       <div className="iz-screen">
         <header>
-          <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Access restricted</h2>
+          <IzPageTitle>Access restricted</IzPageTitle>
         </header>
         <IzCard className="text-center">
           <p className="iz-sm iz-muted">You do not have access to subscription billing.</p>
@@ -191,7 +191,7 @@ function OutletSubscriptionPage() {
   return (
     <div className="iz-screen">
       <header>
-        <h2 className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">Subscription</h2>
+        <IzPageTitle>Subscription</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">{outletOwner.orgName}</p>
         {isFinanceReadOnly && (
           <p className="iz-tiny iz-muted mt-2 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">

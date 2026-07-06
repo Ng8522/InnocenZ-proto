@@ -6,6 +6,7 @@ import { OutletSection } from "@/components/outlet/OutletSection";
 import {
   outletTonightFloorTotals,
   outletTonightLiveEarningsRows,
+  outletShiftClockStarted,
   outletShiftFloorSalesStarted,
   outletPrLiveFloorSales,
 } from "@/lib/outlet-financial-sync";
@@ -32,6 +33,7 @@ import {
 import { OutletPrShiftHistorySheet } from "@/components/iz/ShiftHistoryLog";
 import { IzSheet } from "@/components/iz/Sheet";
 import { IzPill, TierBadge } from "@/components/iz/ui";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import {
   workforceStatusLabel,
   workforceStatusVariant,
@@ -52,12 +54,26 @@ type StaffEntry = {
   displayStatus: FloorDisplayStatus;
 };
 
-function resolveFloorPrDisplayStatusFromSlot(slot?: AgencyRosterSlot): FloorDisplayStatus {
+function slotHasDemoFloorActivity(slot: AgencyRosterSlot): boolean {
+  return (slot.floorDrinks ?? 0) > 0 || (slot.floorTips ?? 0) > 0;
+}
+
+function resolveFloorPrDisplayStatusFromSlot(
+  slot: AgencyRosterSlot | undefined,
+  shift: ShiftRequest,
+  now = new Date(),
+): FloorDisplayStatus {
   if (!slot) return "scheduled";
-  if (slot.status === "on-duty" && slot.checkedInAt) return "on-duty";
+  const clockStarted = outletShiftClockStarted(shift, now);
+  if (!clockStarted) {
+    if (slot.status === "en-route") return "en-route";
+    return "scheduled";
+  }
   if (slot.checkedOutAt) return "checked-out";
+  if (slot.status === "on-duty" && slot.checkedInAt) return "on-duty";
   if (slot.status === "en-route") return "en-route";
   if (slot.status === "on-duty") return "en-route";
+  if (slotHasDemoFloorActivity(slot)) return "on-duty";
   return "scheduled";
 }
 
@@ -85,12 +101,15 @@ function resolveStaffFloorStatus(
   prId: string,
   slot: AgencyRosterSlot | undefined,
   tiedLive: ReturnType<typeof resolveTiedPrLiveAttendance>,
+  shift: ShiftRequest,
+  now = new Date(),
 ): FloorDisplayStatus {
+  const clockStarted = outletShiftClockStarted(shift, now);
   if (prId === TIED_DEMO_ROSTER_PR_ID) {
-    if (tiedLive.onDuty) return "on-duty";
+    if (clockStarted && tiedLive.onDuty) return "on-duty";
     if (tiedLive.checkedOutTonight) return "checked-out";
   }
-  return resolveFloorPrDisplayStatusFromSlot(slot);
+  return resolveFloorPrDisplayStatusFromSlot(slot, shift, now);
 }
 
 const STATUS_SORT: Record<FloorDisplayStatus, number> = {
@@ -209,7 +228,7 @@ export function OutletTodayOperationPanel({
             comcardImageUrl: agencyPr!.comcardImageUrl ?? null,
           } satisfies PR);
         const slot = rosterByPr.get(id);
-        const displayStatus = resolveStaffFloorStatus(id, slot, tiedLive);
+        const displayStatus = resolveStaffFloorStatus(id, slot, tiedLive, shift);
         return slot ? [{ pr, slot, displayStatus }] : [{ pr, displayStatus }];
       })
       .sort(
@@ -438,7 +457,7 @@ export function OutletTodayOperationPanel({
                       onClick={() => setLiveSalesPrId(pr.id)}
                       className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
                     >
-                      Live sales
+                      <TitleWithIcon>Live sales</TitleWithIcon>
                     </button>
 
                     <button
@@ -446,7 +465,7 @@ export function OutletTodayOperationPanel({
                       onClick={() => setHistoryPrId(pr.id)}
                       className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
                     >
-                      Shift history
+                      <TitleWithIcon>Shift history</TitleWithIcon>
                     </button>
 
                     {displayStatus === "checked-out" && (
@@ -455,7 +474,7 @@ export function OutletTodayOperationPanel({
                         onClick={() => setOpenPr(pr.id)}
                         className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
                       >
-                        Rate
+                        <TitleWithIcon>Rate</TitleWithIcon>
                       </button>
                     )}
                   </div>

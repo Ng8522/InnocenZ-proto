@@ -30,7 +30,7 @@ import {
   DEFAULT_OUTLET_OPS_HEAD,
   patchShiftTierSalesTargets,
   DEMO_SHIFT_TIER_SALES_TARGETS,
-  buildSeedOutletRatings,
+  SEED_OUTLET_RATINGS,
   type ShiftApplicant,
 } from "@/lib/outlet-demo";
 import { mergeHistoryDemoLedger } from "@/lib/history-demo-sync";
@@ -62,9 +62,7 @@ import {
 import { DEFAULT_NOTIFICATION_PREFS } from "@/lib/push-notifications";
 import {
   DEMO_AGENCY_TIED_AT,
-  SEED_PENDING_RATINGS,
   SEED_PR_NOTIFICATIONS,
-  SEED_RATING_HISTORY,
   SEED_UPCOMING_SHIFTS,
   SEED_PR_SWAP_REQUESTS,
 } from "@/lib/pr-features";
@@ -202,9 +200,7 @@ export function mergeDemoShiftStaffing(
   return shifts.map((sh) => {
     if (sh.id !== HENNESSY_LAUNCH_SHIFT_ID) return sh;
     const releasedEarly = [...new Set(sh.releasedEarlyPrIds ?? [])];
-    const seedSet = new Set<string>(rosterPrIds);
-    const extras = (sh.prs ?? []).filter((id) => !seedSet.has(id) && !releasedEarly.includes(id));
-    const activePrs = [...new Set([...rosterPrIds.filter((id) => !releasedEarly.includes(id)), ...extras])];
+    const activePrs = rosterPrIds.filter((id) => !releasedEarly.includes(id));
     return {
       ...sh,
       quantity: seed?.quantity ?? sh.quantity,
@@ -298,6 +294,7 @@ export function mergeDemoHennessyRosterFloor(
       ...slot,
       floorDrinks: seed.floorDrinks,
       floorTips: seed.floorTips,
+      estPayout: seed.estPayout,
     };
   });
 }
@@ -320,13 +317,23 @@ function velvetTonightRosterSlot(
     shift: "22:00 — 04:00",
     shiftStart: "22:00",
     shiftEnd: "04:00",
-    status: "scheduled" as const,
-    checkedInAt: undefined,
+    status: "scheduled",
     floorDrinks,
     floorTips,
     estPayout,
   };
 }
+
+const HENNESSY_FLOOR_BY_PR: Record<string, { floorDrinks: number; floorTips?: number }> = {
+  p1: { floorDrinks: 6, floorTips: 150 },
+  "pr-comcard-alice": { floorDrinks: 4, floorTips: 90 },
+  "pr-comcard-angie": { floorDrinks: 3, floorTips: 60 },
+  "pr-comcard-ava": { floorDrinks: 2, floorTips: 40 },
+  "pr-comcard-bernice": { floorDrinks: 5, floorTips: 75 },
+  "pr-comcard-charlotte": { floorDrinks: 2 },
+  "pr-comcard-grace": { floorDrinks: 4, floorTips: 55 },
+  "pr-comcard-hazel": { floorDrinks: 3, floorTips: 45 },
+};
 
 function buildDemoShifts(): ShiftRequest[] {
   const wsTierRates = DEFAULT_OUTLET_WORKSPACE.tierRates;
@@ -810,19 +817,22 @@ function buildDemoShifts(): ShiftRequest[] {
       });
     }),
   ];
-  return raw.map((s) => ({
-    ...s,
-    payTierRows:
-      s.id === HENNESSY_LAUNCH_SHIFT_ID
-        ? payTierRowsFromSplit(s.tierRates, HENNESSY_DEMO_PAY_TIER_SPLIT, s.id)
-        : payTierRowsFromSplit(s.tierRates, allocateDiversePayTierSplit(s.quantity), s.id),
-    filled: s.prs?.length ?? 0,
-    liveSales:
-      (s.drinkUnits ?? 0) > 0 || s.drinkUnitCounts
-        ? computeShiftLiveSales(s)
-        : 0,
-    dateIso: s.dateIso ?? resolveOutletShiftDateIso(s.date, s.dateIso, DEFAULT_ROSTER_DATE_ISO),
-  }));
+  return raw.map((s) => {
+    const tierRates = s.tierRates ?? velvetTierRates({});
+    return {
+      ...s,
+      payTierRows:
+        s.id === HENNESSY_LAUNCH_SHIFT_ID
+          ? payTierRowsFromSplit(tierRates, HENNESSY_DEMO_PAY_TIER_SPLIT, s.id)
+          : payTierRowsFromSplit(tierRates, allocateDiversePayTierSplit(s.quantity), s.id),
+      filled: s.prs?.length ?? 0,
+      liveSales:
+        (s.drinkUnits ?? 0) > 0 || s.drinkUnitCounts
+          ? computeShiftLiveSales(s)
+          : 0,
+      dateIso: s.dateIso ?? resolveOutletShiftDateIso(s.date, s.dateIso, DEFAULT_ROSTER_DATE_ISO),
+    };
+  });
 }
 
 function cloneRosterSlot(slot: AgencyRosterSlot): AgencyRosterSlot {
@@ -939,9 +949,15 @@ function buildDemoRoster(): AgencyRosterSlot[] {
     }
     return slot;
   });
-  const velvetTonight: AgencyRosterSlot[] = HENNESSY_LAUNCH_PR_IDS.map((prId, index) =>
-    velvetTonightRosterSlot(`rs-hennessy-${index + 1}`, prId),
-  );
+  const velvetTonight: AgencyRosterSlot[] = HENNESSY_LAUNCH_PR_IDS.map((prId, index) => {
+    const floor = HENNESSY_FLOOR_BY_PR[prId];
+    return velvetTonightRosterSlot(
+      `rs-hennessy-${index + 1}`,
+      prId,
+      floor?.floorDrinks ?? 0,
+      floor?.floorTips ?? 0,
+    );
+  });
   return [...patched, ...velvetTonight];
 }
 
@@ -989,7 +1005,6 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     checkedOut: false,
     drinks: 0,
     tables: 0,
-    outletRatingStars: 0,
     prActiveShift: null,
     prPaymentVouchers: historyLedger.pvs,
     prReceiptScans: payrollScans,
@@ -1009,8 +1024,6 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     prSwapRequests: SEED_PR_SWAP_REQUESTS.map((s) => ({ ...s })),
     prAgencyTiedAt: DEMO_AGENCY_TIED_AT,
     prFreelancerPayrollLinks: [] as string[],
-    prPendingRatings: [...SEED_PENDING_RATINGS],
-    prRatingHistory: [...SEED_RATING_HISTORY],
     prFreelancerLowRatingStrikes: 0,
     prCheckInMeta: {},
     prLeaveRequest: null,
@@ -1044,7 +1057,7 @@ export function buildDemoStoreReset() {
     prs: marketplacePrsFromAgency(SEED_AGENCY_PRS.map(cloneAgencyPr)),
     shiftHistory,
     shiftApplicants: [...DEMO_APPLICANTS],
-    ratings: buildSeedOutletRatings(agencyPRs.map((p) => p.name)),
+    ratings: SEED_OUTLET_RATINGS.map((r) => ({ ...r })),
     agencyReconciliation: buildDemoReconciliation(shiftHistory),
     agencyCollections: DEMO_COLLECTIONS.map((c) => ({ ...c })),
     agencyOwner: { ...DEFAULT_AGENCY_OWNER },

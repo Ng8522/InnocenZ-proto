@@ -3,7 +3,8 @@ import { Toasts } from "@/components/Toasts";
 import { AdminNotificationBell } from "@/components/portal/AdminNotificationBell";
 import { useStore } from "@/lib/store";
 import { pendingPosIntegrationQuoteRequests } from "@/lib/admin-notifications";
-import { Shield } from "lucide-react";
+import { iconForNav } from "@/lib/lucide-label-icons";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
@@ -19,17 +20,18 @@ function AdminLayout() {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-[var(--iz-violet-l)]" />
-              <span className="font-sora text-sm font-bold">InnocenZ Admin</span>
+              <TitleWithIcon icon={iconForNav("Admin")}>
+                <span className="font-sora text-sm font-bold">InnocenZ Admin</span>
+              </TitleWithIcon>
             </div>
             <p className="iz-tiny iz-muted mt-0.5">Hidden operations portal</p>
           </div>
           <div className="flex items-center gap-2">
             <Link to="/admin/jobs" className="iz-chip">
-              Job postings
+              <TitleWithIcon icon={iconForNav("Job Posting")}>Job postings</TitleWithIcon>
             </Link>
             <Link to="/admin/subscriptions" className="iz-chip relative">
-              Subscriptions
+              <TitleWithIcon icon={iconForNav("Subscriptions")}>Subscriptions</TitleWithIcon>
               {pendingCount > 0 && (
                 <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--iz-red)] px-0.5 text-[10px] font-bold text-white">
                   {pendingCount}

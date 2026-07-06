@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { AlertTriangle, Briefcase, MessageSquare } from "lucide-react";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzSelect } from "@/components/iz/ui";
+import { IzCardTitle, IzSelect } from "@/components/iz/ui";
 import { useStore } from "@/lib/store";
 
 type BroadcastKind = "shift" | "message";
@@ -139,7 +139,7 @@ export function AgencyBroadcastSheet({
 
   return (
     <IzSheet open={open} onClose={onClose}>
-      <div className="iz-cardttl">Broadcast to {prIds.length} PR{prIds.length !== 1 ? "s" : ""}</div>
+      <IzCardTitle>Broadcast to {prIds.length} PR{prIds.length !== 1 ? "s" : ""}</IzCardTitle>
       <p className="iz-tiny iz-muted mb-3">Choose what you are sending, then fill in the required fields.</p>
 
       <p className="iz-tiny iz-muted2 mb-1.5 tracking-wide">BROADCAST TYPE</p>

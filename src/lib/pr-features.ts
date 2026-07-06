@@ -1,4 +1,4 @@
-/** PR spec features beyond base pr-demo — marketplace, notifications, swaps, ratings */
+/** PR spec features beyond base pr-demo — marketplace, notifications, swaps */
 
 import type { PrShiftOffer } from "@/lib/pr-demo";
 import { PR_SHIFT_OFFERS, SHIFT_TODAY, fmtDateLabelFromIso, fmtDtable, shiftTodayIso } from "@/lib/pr-demo";
@@ -49,7 +49,6 @@ export type PrNotificationKind =
   | "assignment"
   | "application"
   | "swap"
-  | "rating"
   | "sos"
   | "special_service";
 
@@ -236,25 +235,7 @@ export function swapTargetOptionsForPr(
 
 export const SEED_PR_SWAP_REQUESTS: PrSwapRequest[] = [];
 
-export interface PrPendingRating {
-  id: string;
-  outlet: string;
-  shiftDate: string;
-  expiresAt: number;
-}
-
-export interface PrRatingRecord {
-  id: string;
-  outlet: string;
-  stars: number;
-  direction: "pr_rates_outlet" | "outlet_rates_pr";
-  date: string;
-}
-
-/** @deprecated Use SosIncident from @/lib/ops-notifications */
-export type { SosIncident } from "@/lib/ops-notifications";
-
-/** Agency code → id (freelancer payroll link) */
+/** Demo: tied 8 months ago — under 1-year lock */
 export const PR_AGENCY_CODES: Record<string, string> = {
   ATLAS2026: "atlas",
   LUNA26: "luna",
@@ -445,11 +426,8 @@ export const SEED_PR_NOTIFICATIONS: PrNotification[] = [
   },
 ];
 
-export const SEED_PENDING_RATINGS: PrPendingRating[] = [];
-
-export const SEED_RATING_HISTORY: PrRatingRecord[] = [
-  { id: "rh-1", outlet: "Mermate", stars: 5, direction: "outlet_rates_pr", date: "27 Apr 2026" },
-];
+/** @deprecated Use SosIncident from @/lib/ops-notifications */
+export type { SosIncident } from "@/lib/ops-notifications";
 
 /** Demo: tied 8 months ago — under 1-year lock */
 export const DEMO_AGENCY_TIED_AT = "2025-10-04";

@@ -28,7 +28,7 @@ import {
   emptyDrinkQtys,
 } from "@/components/pr/DrinkSelfLogMenu";
 import { Camera, Check, History, PenLine, Shield, Droplets, RotateCcw } from "lucide-react";
-import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
+import { IzCard, IzPageTitle, IzPill, formatRM } from "@/components/iz/ui";
 
 type ScanCategory = "drinks" | "tips";
 
@@ -281,7 +281,7 @@ function ReceiptScanPage() {
               : undefined
         }
       />
-      <h2 className="font-sora mx-0.5 mt-1 text-[22px] font-extrabold text-[var(--iz-txt)]">{pageTitle}</h2>
+      <IzPageTitle size="xl" className="mx-0.5 mt-1">{pageTitle}</IzPageTitle>
       <p className="iz-tiny iz-muted mt-0.5">
         {editScan
           ? scanCategory === "drinks"

@@ -1,6 +1,12 @@
 import { format, parseISO } from "date-fns";
 import { Crown, Star } from "lucide-react";
+import { useState } from "react";
 import type { ShiftHistoryPrRollup, ShiftHistoryRow } from "@/lib/shift-history-utils";
+import { findAgencyManagedPr, resolveAgencyPrPhoto } from "@/lib/agency-demo";
+import { formatRM } from "@/components/iz/ui";
+import { ShiftMetricIconLabel } from "@/components/outlet/outlet-history-metrics";
+import { publicAssetPath } from "@/lib/public-asset";
+import { useStore } from "@/lib/store";
 import { shiftHistorySubline } from "@/lib/shift-history";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +16,8 @@ const AVATAR_COLORS = [
   { bg: "rgba(74, 222, 128, 0.35)", text: "#86efac" },
   { bg: "rgba(244, 183, 64, 0.35)", text: "#fcd34d" },
 ];
+
+const RATED_STAR_SLOTS = 5;
 
 export type OutletPrRating = {
   id: string;
@@ -38,6 +46,37 @@ function formatLatestLabel(dateIso: string, dateDisplay: string) {
   return `Latest ${dateDisplay}`;
 }
 
+function OutletPrAvatar({ prId, prName }: { prId: string; prName: string }) {
+  const agencyPRs = useStore((s) => s.agencyPRs);
+  const agencyPr = findAgencyManagedPr(agencyPRs, prId, prName);
+  const photoSrc = agencyPr ? resolveAgencyPrPhoto(agencyPr) : null;
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const initial = prName.trim().charAt(0).toUpperCase() || "?";
+  const avatar = avatarStyle(prName);
+
+  if (photoSrc && !photoFailed) {
+    return (
+      <div className="iz-outlet-hist-avatar iz-outlet-hist-avatar--photo" aria-hidden>
+        <img
+          src={publicAssetPath(photoSrc)}
+          alt=""
+          onError={() => setPhotoFailed(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="iz-outlet-hist-avatar"
+      style={{ background: avatar.bg, color: avatar.text }}
+      aria-hidden
+    >
+      {initial}
+    </div>
+  );
+}
+
 /** Compact RM for outlet history cards — drops .00 when whole ringgit. */
 export function formatOutletHistRm(value: number) {
   const whole = Math.abs(value - Math.round(value)) < 0.005;
@@ -47,14 +86,8 @@ export function formatOutletHistRm(value: number) {
   })}`;
 }
 
-const PR_RATING_ALIASES: Record<string, string> = {
-  victoria: "vicky",
-  vicky: "vicky",
-};
-
 function ratingNameKey(name: string) {
-  const key = name.trim().toLowerCase();
-  return PR_RATING_ALIASES[key] ?? key;
+  return name.trim().toLowerCase();
 }
 
 export function findOutletRatingForPr(
@@ -65,15 +98,48 @@ export function findOutletRatingForPr(
   return ratings.find((r) => ratingNameKey(r.pr) === key);
 }
 
-function OutletStarPill({ stars }: { stars: number }) {
-  if (stars <= 0) return null;
+/** Five star slots — each position has its own fill / empty placeholder style. */
+function RatedStarRow({
+  stars,
+  size = "md",
+  className,
+}: {
+  stars: number;
+  size?: "sm" | "md";
+  className?: string;
+}) {
+  const filled = Math.max(0, Math.min(RATED_STAR_SLOTS, Math.round(stars)));
+  const iconSize = size === "sm" ? "h-2.5 w-2.5" : "h-3.5 w-3.5";
+
   return (
-    <span className="iz-outlet-hist-stars" aria-label={`${stars} star rating`}>
-      {Array.from({ length: stars }).map((_, i) => (
-        <Star key={i} className="h-2.5 w-2.5 fill-[var(--iz-gold)] text-[var(--iz-gold)]" />
-      ))}
+    <span
+      className={cn("iz-rated-stars", size === "sm" && "iz-rated-stars--sm", className)}
+      aria-label={`${filled} out of ${RATED_STAR_SLOTS} stars`}
+    >
+      {Array.from({ length: RATED_STAR_SLOTS }).map((_, index) => {
+        const slot = index + 1;
+        const isFilled = index < filled;
+        return (
+          <Star
+            key={slot}
+            className={cn(
+              iconSize,
+              "iz-rated-star",
+              isFilled ? "iz-rated-star--filled" : "iz-rated-star--empty",
+              `iz-rated-star--slot-${slot}`,
+            )}
+            strokeWidth={isFilled ? 0 : 1.6}
+            aria-hidden
+          />
+        );
+      })}
     </span>
   );
+}
+
+function OutletStarPill({ stars }: { stars: number }) {
+  if (stars <= 0) return null;
+  return <RatedStarRow stars={stars} size="sm" className="iz-outlet-hist-stars" />;
 }
 
 export function OutletShiftLogRatingBlock({ rating }: { rating: OutletPrRating }) {
@@ -84,11 +150,7 @@ export function OutletShiftLogRatingBlock({ rating }: { rating: OutletPrRating }
         {rating.date && <span className="iz-outlet-shift-log-rating__date">{rating.date}</span>}
       </div>
       <div className="iz-outlet-shift-log-rating__body">
-        <span className="iz-outlet-shift-log-rating__stars" aria-hidden>
-          {Array.from({ length: rating.stars }).map((_, i) => (
-            <Star key={i} className="h-3.5 w-3.5 fill-[var(--iz-gold)] text-[var(--iz-gold)]" />
-          ))}
-        </span>
+        <RatedStarRow stars={rating.stars} className="iz-outlet-shift-log-rating__stars" />
         {rating.note && <p className="iz-outlet-shift-log-rating__quote">&ldquo;{rating.note}&rdquo;</p>}
       </div>
     </section>
@@ -104,7 +166,7 @@ export function OutletShiftLogShiftCard({ row }: { row: ShiftHistoryRow }) {
           <p className="iz-outlet-shift-log-card__sub">{shiftHistorySubline(row, "outlet")}</p>
         </div>
         <div className="iz-outlet-shift-log-card__total-wrap">
-          <p className="iz-outlet-shift-log-card__total">{formatOutletHistRm(row.totalPayout)}</p>
+          <p className="iz-outlet-shift-log-card__total">{formatRM(row.totalPayout)}</p>
           <p className="iz-outlet-shift-log-card__hours">{row.durationHours}h shift</p>
         </div>
       </div>
@@ -186,8 +248,6 @@ export function OutletPrHistoryCard({
       : rollup.venues.length > 1
         ? `${rollup.venues.length} agencies`
         : "—";
-  const initial = rollup.prName.trim().charAt(0).toUpperCase() || "?";
-  const avatar = avatarStyle(rollup.prName);
   const pct = topPayout > 0 ? Math.round((rollup.totalPayout / topPayout) * 100) : 0;
   const pctLabel = rank === 1 ? "100% of top earner" : `${pct}% of top earner`;
 
@@ -205,13 +265,7 @@ export function OutletPrHistoryCard({
                 {rank}
               </span>
             ) : null}
-            <div
-              className="iz-outlet-hist-avatar"
-              style={{ background: avatar.bg, color: avatar.text }}
-              aria-hidden
-            >
-              {initial}
-            </div>
+            <OutletPrAvatar prId={rollup.prId} prName={rollup.prName} />
           </div>
           <div className="iz-outlet-hist-card__names">
             <div className="iz-outlet-hist-card__name-row">
@@ -233,16 +287,22 @@ export function OutletPrHistoryCard({
 
       <div className="iz-outlet-hist-metrics">
         <div className="iz-outlet-hist-metric iz-outlet-hist-metric--earned">
-          <span className="iz-outlet-hist-metric__label">Earned</span>
-          <span className="iz-outlet-hist-metric__value">{formatOutletHistRm(rollup.totalPayout)}</span>
+          <span className="iz-outlet-hist-metric__label">
+            <ShiftMetricIconLabel kind="earned" size="lg" />
+          </span>
+          <span className="iz-outlet-hist-metric__value">{formatRM(rollup.totalPayout)}</span>
         </div>
         <div className="iz-outlet-hist-metric iz-outlet-hist-metric--drinks">
-          <span className="iz-outlet-hist-metric__label">Drinks</span>
+          <span className="iz-outlet-hist-metric__label">
+            <ShiftMetricIconLabel kind="drinks" size="lg" />
+          </span>
           <span className="iz-outlet-hist-metric__value">{rollup.totalDrinks}</span>
         </div>
         <div className="iz-outlet-hist-metric iz-outlet-hist-metric--tips">
-          <span className="iz-outlet-hist-metric__label">Tips</span>
-          <span className="iz-outlet-hist-metric__value">{formatOutletHistRm(rollup.totalTips)}</span>
+          <span className="iz-outlet-hist-metric__label">
+            <ShiftMetricIconLabel kind="tips" size="lg" />
+          </span>
+          <span className="iz-outlet-hist-metric__value">{formatRM(rollup.totalTips)}</span>
         </div>
       </div>
 

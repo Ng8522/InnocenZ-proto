@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { OutletPrHistoryCard, OutletShiftLogRatingBlock, OutletShiftLogShiftCard, OutletShiftLogSummaryCard, findOutletRatingForPr } from "@/components/outlet/outlet-history-ui";
 import {
+  ShiftTxnMetric,
+  ShiftTxnMetricsRow,
+} from "@/components/outlet/outlet-history-metrics";
+import {
   aggregateShiftHistoryByPr,
   aggregateShiftHistoryByVenue,
   sortShiftHistoryDesc,
@@ -18,7 +22,8 @@ import { shiftHistorySubline } from "@/lib/shift-history";
 import { fmtDateLabelFromIso } from "@/lib/pr-demo";
 import { format, parseISO } from "date-fns";
 import { getLiveTodayIso } from "@/lib/demo-clock";
-import { IzCard, formatRM } from "@/components/iz/ui";
+import { IzCard, IzPageTitle, IzSectionLabel, formatRM } from "@/components/iz/ui";
+import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import { IzSheet } from "@/components/iz/Sheet";
 import type { ReactNode } from "react";
 import { Calendar as CalendarIcon, ChevronDown, ChevronRight, X } from "lucide-react";
@@ -201,7 +206,7 @@ export function ShiftHistoryLog({
       {!embedded && (
         <>
           <p className="iz-tiny iz-muted2 uppercase tracking-widest">InnocenZ · {portal === "agency" ? "Agency" : "Outlet"}</p>
-          <h2 className="font-sora mx-0.5 mt-0.5 text-[22px] font-extrabold text-[var(--iz-txt)]">History</h2>
+          <IzPageTitle size="xl" className="mx-0.5 mt-0.5">History</IzPageTitle>
         </>
       )}
       {!embedded && <p className="iz-tiny iz-muted mt-0.5">{subtitle}</p>}
@@ -210,7 +215,7 @@ export function ShiftHistoryLog({
       )}
 
       <p className={outletPortal ? "iz-outlet-hist-filter-heading" : "iz-txn-filter-heading mt-4"}>
-        Filter by
+        <TitleWithIcon>Filter by</TitleWithIcon>
       </p>
       <div className={outletPortal ? "iz-outlet-hist-filters" : "iz-txn-filters"}>
         <HistSelectField
@@ -257,12 +262,18 @@ export function ShiftHistoryLog({
       </div>
 
       <div className={outletPortal ? "iz-outlet-hist-log-head" : "iz-between mt-4"}>
-        <div className={outletPortal ? "iz-outlet-hist-section-label" : "iz-sect-label !mb-0"}>
-          Transaction log
+        <div className={outletPortal ? "iz-outlet-hist-log-head__main" : "flex-1"}>
+          {outletPortal || portal === "agency" ? (
+            <div className="iz-outlet-hist-section-label">
+              <TitleWithIcon>Transaction log</TitleWithIcon>
+            </div>
+          ) : (
+            <IzSectionLabel className="!mb-0">Transaction log</IzSectionLabel>
+          )}
+          <span className={outletPortal || portal === "agency" ? "iz-outlet-hist-log-count" : "iz-tiny iz-muted2"}>
+            {logCountLabel}
+          </span>
         </div>
-        <span className={outletPortal ? "iz-outlet-hist-log-count" : "iz-tiny iz-muted2"}>
-          {logCountLabel}
-        </span>
       </div>
 
       <div className={outletPortal ? "iz-outlet-hist-grid" : "mt-2.5 space-y-2.5"}>
@@ -340,7 +351,13 @@ export function ShiftHistoryLog({
                 shiftCount={detailPrShifts.length}
                 outletName={detailOutletName}
                 prName={detailPr.prName}
-                agencyLabel={detailPr.venues.length === 1 ? detailPr.venues[0] : undefined}
+                agencyLabel={
+                  detailPr.venues.length === 1
+                    ? detailPr.venues[0]
+                    : detailPr.venues.length > 1
+                      ? detailPr.venues.join(" · ")
+                      : undefined
+                }
                 totalPayout={detailTotals.totalPayout}
                 totalDrinks={detailTotals.totalDrinks}
                 totalTips={detailTotals.totalTips}
@@ -353,8 +370,6 @@ export function ShiftHistoryLog({
                   <OutletShiftLogShiftCard key={shift.id} row={shift} />
                 ))}
               </div>
-
-              <p className="iz-tiny iz-muted2 mt-3 text-center">Outlet view · PR ↔ outlet shift history</p>
             </>
           ) : detailPrVenue && detailPrVenueRollup ? (
             <>
@@ -363,20 +378,13 @@ export function ShiftHistoryLog({
                   {detailPrVenueShifts.length} shift{detailPrVenueShifts.length !== 1 ? "s" : ""} at{" "}
                   {detailPrVenue} · {detailPr.prName}
                 </p>
-                <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet mt-2">
-                  <div className="iz-txn-metric earned">
-                    <div className="label">Total earned</div>
-                    <div className="value iz-ledger">{formatRM(detailPrVenueRollup.totalPayout)}</div>
-                  </div>
-                  <div className="iz-txn-metric">
-                    <div className="label">Total drinks</div>
-                    <div className="value">{detailPrVenueRollup.totalDrinks}</div>
-                  </div>
-                  <div className="iz-txn-metric">
-                    <div className="label">Total tips</div>
-                    <div className="value iz-ledger">{formatRM(detailPrVenueRollup.totalTips)}</div>
-                  </div>
-                </div>
+                <ShiftTxnMetricsRow
+                  className="iz-txn-card-metrics--sheet mt-2"
+                  total
+                  totalPayout={detailPrVenueRollup.totalPayout}
+                  totalDrinks={detailPrVenueRollup.totalDrinks}
+                  totalTips={detailPrVenueRollup.totalTips}
+                />
               </IzCard>
 
               <div className="space-y-2">
@@ -396,20 +404,13 @@ export function ShiftHistoryLog({
                       ? ` · ${detailVenueRollups[0].venue}`
                       : ""}
                 </p>
-                <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet mt-2">
-                  <div className="iz-txn-metric earned">
-                    <div className="label">Total earned</div>
-                    <div className="value iz-ledger">{formatRM(detailTotals.totalPayout)}</div>
-                  </div>
-                  <div className="iz-txn-metric">
-                    <div className="label">Total drinks</div>
-                    <div className="value">{detailTotals.totalDrinks}</div>
-                  </div>
-                  <div className="iz-txn-metric">
-                    <div className="label">Total tips</div>
-                    <div className="value iz-ledger">{formatRM(detailTotals.totalTips)}</div>
-                  </div>
-                </div>
+                <ShiftTxnMetricsRow
+                  className="iz-txn-card-metrics--sheet mt-2"
+                  total
+                  totalPayout={detailTotals.totalPayout}
+                  totalDrinks={detailTotals.totalDrinks}
+                  totalTips={detailTotals.totalTips}
+                />
               </IzCard>
 
               <p className="iz-tiny iz-muted2 mb-2">Tap an outlet to see every shift</p>
@@ -429,20 +430,12 @@ export function ShiftHistoryLog({
                           <ChevronRight className="h-3.5 w-3.5" aria-hidden />
                         </span>
                       </div>
-                      <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet">
-                        <div className="iz-txn-metric earned">
-                          <div className="label">Earned</div>
-                          <div className="value iz-ledger">{formatRM(rollup.totalPayout)}</div>
-                        </div>
-                        <div className="iz-txn-metric">
-                          <div className="label">Drinks</div>
-                          <div className="value">{rollup.totalDrinks}</div>
-                        </div>
-                        <div className="iz-txn-metric">
-                          <div className="label">Tips</div>
-                          <div className="value iz-ledger">{formatRM(rollup.totalTips)}</div>
-                        </div>
-                      </div>
+                      <ShiftTxnMetricsRow
+                        className="iz-txn-card-metrics--sheet"
+                        totalPayout={rollup.totalPayout}
+                        totalDrinks={rollup.totalDrinks}
+                        totalTips={rollup.totalTips}
+                      />
                     </IzCard>
                   </button>
                 ))}
@@ -450,7 +443,9 @@ export function ShiftHistoryLog({
             </>
           )}
 
-          <p className="iz-tiny iz-muted2 mt-3 text-center">Read-only · mirrored to outlet portal</p>
+          {portal !== "outlet" && (
+            <p className="iz-tiny iz-muted2 mt-3 text-center">Read-only · mirrored to outlet portal</p>
+          )}
         </IzSheet>
       )}
 
@@ -478,20 +473,13 @@ export function ShiftHistoryLog({
               {detailOutletRollup.shiftCount} shift{detailOutletRollup.shiftCount !== 1 ? "s" : ""} ·{" "}
               {detailOutletPrRollups.length} PR{detailOutletPrRollups.length !== 1 ? "s" : ""}
             </p>
-            <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet mt-2">
-              <div className="iz-txn-metric earned">
-                <div className="label">Total earned</div>
-                <div className="value iz-ledger">{formatRM(detailOutletRollup.totalPayout)}</div>
-              </div>
-              <div className="iz-txn-metric">
-                <div className="label">Total drinks</div>
-                <div className="value">{detailOutletRollup.totalDrinks}</div>
-              </div>
-              <div className="iz-txn-metric">
-                <div className="label">Total tips</div>
-                <div className="value iz-ledger">{formatRM(detailOutletRollup.totalTips)}</div>
-              </div>
-            </div>
+            <ShiftTxnMetricsRow
+              className="iz-txn-card-metrics--sheet mt-2"
+              total
+              totalPayout={detailOutletRollup.totalPayout}
+              totalDrinks={detailOutletRollup.totalDrinks}
+              totalTips={detailOutletRollup.totalTips}
+            />
           </IzCard>
 
           <div className="space-y-2.5">
@@ -503,20 +491,12 @@ export function ShiftHistoryLog({
                     {rollup.shiftCount} shift{rollup.shiftCount !== 1 ? "s" : ""} · Latest {rollup.latestDateDisplay}
                   </span>
                 </div>
-                <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet">
-                  <div className="iz-txn-metric earned">
-                    <div className="label">Earned</div>
-                    <div className="value iz-ledger">{formatRM(rollup.totalPayout)}</div>
-                  </div>
-                  <div className="iz-txn-metric">
-                    <div className="label">Drinks</div>
-                    <div className="value">{rollup.totalDrinks}</div>
-                  </div>
-                  <div className="iz-txn-metric">
-                    <div className="label">Tips</div>
-                    <div className="value iz-ledger">{formatRM(rollup.totalTips)}</div>
-                  </div>
-                </div>
+                <ShiftTxnMetricsRow
+                  className="iz-txn-card-metrics--sheet"
+                  totalPayout={rollup.totalPayout}
+                  totalDrinks={rollup.totalDrinks}
+                  totalTips={rollup.totalTips}
+                />
               </IzCard>
             ))}
           </div>
@@ -550,18 +530,9 @@ function ShiftHistoryShiftCard({
         </div>
       </div>
       <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet">
-        <div className="iz-txn-metric earned">
-          <div className="label">Earned</div>
-          <div className="value iz-ledger">{formatRM(row.totalPayout)}</div>
-        </div>
-        <div className="iz-txn-metric">
-          <div className="label">Drinks</div>
-          <div className="value">{row.totalDrinks}</div>
-        </div>
-        <div className="iz-txn-metric">
-          <div className="label">Tips</div>
-          <div className="value iz-ledger">{formatRM(row.totalTips)}</div>
-        </div>
+        <ShiftTxnMetric kind="earned" value={formatRM(row.totalPayout)} />
+        <ShiftTxnMetric kind="drinks" value={row.totalDrinks} />
+        <ShiftTxnMetric kind="tips" value={formatRM(row.totalTips)} />
       </div>
     </IzCard>
   );
@@ -619,7 +590,7 @@ export function OutletPrShiftHistorySheet({
             className="iz-chip mb-2 !px-2 !py-1 !text-[10px]"
             onClick={onClose}
           >
-            ← Back
+            ← Back to log
           </button>
           <p className="iz-tiny iz-muted2 uppercase">Shift log · {prName}</p>
           <h3>{outletName}</h3>
@@ -654,8 +625,6 @@ export function OutletPrShiftHistorySheet({
               <OutletShiftLogShiftCard key={shift.id} row={shift} />
             ))}
           </div>
-
-          <p className="iz-tiny iz-muted2 mt-3 text-center">Outlet view · PR ↔ outlet shift history</p>
         </>
       )}
     </IzSheet>
@@ -697,20 +666,12 @@ function VenueHistoryCard({
         </div>
       </div>
       <p className="iz-tiny iz-muted mt-0.5">{prSummary}</p>
-      <div className="iz-txn-card-metrics">
-        <div className="iz-txn-metric earned">
-          <div className="label">Total earned</div>
-          <div className="value iz-ledger">{formatRM(rollup.totalPayout)}</div>
-        </div>
-        <div className="iz-txn-metric">
-          <div className="label">Total drinks</div>
-          <div className="value">{rollup.totalDrinks}</div>
-        </div>
-        <div className="iz-txn-metric">
-          <div className="label">Total tips</div>
-          <div className="value iz-ledger">{formatRM(rollup.totalTips)}</div>
-        </div>
-      </div>
+      <ShiftTxnMetricsRow
+        total
+        totalPayout={rollup.totalPayout}
+        totalDrinks={rollup.totalDrinks}
+        totalTips={rollup.totalTips}
+      />
     </>
   );
 
@@ -756,20 +717,12 @@ function PrHistoryCard({
         </div>
       </div>
       <p className="iz-tiny iz-muted mt-0.5">{venueSummary}</p>
-      <div className="iz-txn-card-metrics">
-        <div className="iz-txn-metric earned">
-          <div className="label">Total earned</div>
-          <div className="value iz-ledger">{formatRM(rollup.totalPayout)}</div>
-        </div>
-        <div className="iz-txn-metric">
-          <div className="label">Total drinks</div>
-          <div className="value">{rollup.totalDrinks}</div>
-        </div>
-        <div className="iz-txn-metric">
-          <div className="label">Total tips</div>
-          <div className="value iz-ledger">{formatRM(rollup.totalTips)}</div>
-        </div>
-      </div>
+      <ShiftTxnMetricsRow
+        total
+        totalPayout={rollup.totalPayout}
+        totalDrinks={rollup.totalDrinks}
+        totalTips={rollup.totalTips}
+      />
     </>
   );
 

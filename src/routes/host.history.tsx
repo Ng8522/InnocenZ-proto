@@ -46,7 +46,8 @@ import {
 } from "@/lib/pr-payment-history";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { HistPayrollWeekSection } from "@/components/pr/HistPayrollWeekSection";
-import { IzCard, IzPill, IzTimeInput, formatRM } from "@/components/iz/ui";
+import { LabelWithIcon, TitleWithIcon } from "@/components/iz/TitleWithIcon";
+import { IzCard, IzCardTitle, IzPill, IzSectionLabel, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCalendar";
 import { parseDateInputMs, parseScannedAtMs } from "@/lib/payroll-filters";
 import { getPayrollWeekSundayIso } from "@/lib/demo-clock";
@@ -870,15 +871,14 @@ function HistoryPage() {
           className={tab === "shifts" ? "active" : ""}
           onClick={() => setTab("shifts")}
         >
-          Shifts
+          <TitleWithIcon>Shifts</TitleWithIcon>
         </button>
         <button
           type="button"
           className={tab === "payment" ? "active" : ""}
           onClick={() => setTab("payment")}
         >
-          <Wallet className="mr-1 inline h-3.5 w-3.5" />
-          Payment history
+          <TitleWithIcon>Payment history</TitleWithIcon>
         </button>
       </div>
 
@@ -887,11 +887,11 @@ function HistoryPage() {
           <IzCard flat className="iz-hist-shift-panel mt-4 !p-0">
             <div className="iz-hist-shift-earn-strip">
               <div className="iz-hist-shift-earn-cell primary">
-                <span className="l">Earned in range</span>
+                <LabelWithIcon label="Earned in range" className="l" />
                 <span className="v">{formatRM(shiftPeriodEarnings)}</span>
               </div>
               <div className="iz-hist-shift-earn-cell">
-                <span className="l">Wages</span>
+                <LabelWithIcon label="Wages" className="l" />
                 <span className="v">{formatRM(shiftPeriodWages)}</span>
               </div>
             </div>
@@ -903,7 +903,7 @@ function HistoryPage() {
 
             <div className="iz-hist-shift-filters-body">
               <div className="iz-between mb-2">
-                <div className="iz-sect-label !m-0">Shift history</div>
+                <IzSectionLabel className="!m-0">Shift history</IzSectionLabel>
                 <button
                   type="button"
                   className="iz-btn iz-btn-soft iz-btn-sm relative"
@@ -1059,7 +1059,7 @@ function HistoryPage() {
           )}
 
           <IzSheet open={filterOpen} onClose={() => setFilterOpen(false)}>
-            <div className="iz-cardttl">Filter shift history</div>
+            <IzCardTitle>Filter shift history</IzCardTitle>
 
             <div className="space-y-3">
               <PvDateTimeFilter
@@ -1403,19 +1403,19 @@ function HistShiftCard({
 
       <div className="iz-hist-shift-card-metrics mt-3">
         <div className="iz-hist-shift-metric">
-          <span className="l">Wages</span>
+          <LabelWithIcon label="Wages" className="l" />
           <span className="v text-[var(--iz-gold-l)]">{formatRM(row.wages)}</span>
         </div>
         <div className="iz-hist-shift-metric">
-          <span className="l">Drinks</span>
+          <LabelWithIcon label="Drinks" className="l" />
           <span className="v">{formatRM(row.drinks)}</span>
         </div>
         <div className="iz-hist-shift-metric">
-          <span className="l">Tips</span>
+          <LabelWithIcon label="Tips" className="l" />
           <span className="v">{formatRM(row.tips)}</span>
         </div>
         <div className="iz-hist-shift-metric">
-          <span className="l">Others</span>
+          <LabelWithIcon label="Others" className="l" />
           <span className="v">{formatRM(row.others)}</span>
         </div>
       </div>
@@ -1452,7 +1452,9 @@ function GenericSelectField({
 
   return (
     <div ref={rootRef} className={`iz-hist-custom-select${compact ? " compact" : ""}`}>
-      <label className={compact ? "!text-[10px]" : undefined}>{label}</label>
+      <label className={compact ? "!text-[10px]" : undefined}>
+        <LabelWithIcon label={label} as="span" />
+      </label>
       <button
         type="button"
         className={`iz-hist-select-trigger${compact ? " sm" : ""}${open ? " open" : ""}`}
@@ -1525,7 +1527,7 @@ function PaymentHistorySection({
   return (
     <>
       <div className="iz-between mb-2.5 mt-4">
-        <div className="iz-sect-label !m-0">Payment history</div>
+        <IzSectionLabel className="!m-0">Payment history</IzSectionLabel>
         <button
           type="button"
           className="iz-btn iz-btn-soft iz-btn-sm relative -mt-2"
@@ -1679,7 +1681,7 @@ function PaymentHistorySection({
       )}
 
       <IzSheet open={paymentFilterOpen} onClose={() => setPaymentFilterOpen(false)}>
-        <div className="iz-cardttl">Filter payment history</div>
+        <IzCardTitle>Filter payment history</IzCardTitle>
         <div className="space-y-3">
           <PvDateTimeFilter
             date={paymentDraft.date}
@@ -2032,7 +2034,7 @@ function PvBreakdownSection({
   return (
     <>
       <div className="iz-between mb-2.5 mt-4">
-        <div className="iz-sect-label !m-0">PV line breakdown</div>
+        <IzSectionLabel className="!m-0">PV line breakdown</IzSectionLabel>
         <button
           type="button"
           className="iz-btn iz-btn-soft iz-btn-sm relative -mt-2"
@@ -2267,7 +2269,7 @@ function PvBreakdownSection({
       </Link>
 
       <IzSheet open={pvFilterOpen} onClose={() => setPvFilterOpen(false)}>
-        <div className="iz-cardttl">Filter PV lines</div>
+        <IzCardTitle>Filter PV lines</IzCardTitle>
         <div className="space-y-3">
           <GenericSelectField
             label="PV"

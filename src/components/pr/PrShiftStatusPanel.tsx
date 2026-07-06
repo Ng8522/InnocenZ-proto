@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Check, Shield, AlertTriangle, Camera, FileText, PenLine, RotateCcw, Clock, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { formatRM } from "@/components/iz/ui";
+import { formatRM, IzCardTitle } from "@/components/iz/ui";
+import { LabelWithIcon } from "@/components/iz/TitleWithIcon";
 import { IzHScroll } from "@/components/iz/HScroll";
 import { IzSheet } from "@/components/iz/Sheet";
 import { PrSection } from "@/components/pr/PrSection";
@@ -170,15 +171,15 @@ export function PrShiftStatusPanel({
     <div className="iz-pr-shift-status">
       <div className="iz-pr-shift-status__times">
         <div className="iz-pr-shift-status__time-cell">
-          <span className="l">Check-in</span>
+          <LabelWithIcon label="Check-in" className="l" />
           <span className="n">{session.timeIn}</span>
         </div>
         <div className="iz-pr-shift-status__time-cell">
-          <span className="l">Check-out</span>
+          <LabelWithIcon label="Check-out" className="l" />
           <span className="n">{session.timeOut ?? (checkedOut ? "—" : "Pending")}</span>
         </div>
         <div className="iz-pr-shift-status__time-cell">
-          <span className="l">Duration</span>
+          <LabelWithIcon label="Duration" className="l" />
           <span className="n">
             {session.timeOut || checkedOut ? shiftDurationLabel(session) : "In progress"}
           </span>

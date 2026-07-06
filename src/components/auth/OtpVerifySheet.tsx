@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { IzSheet, type SheetVariant } from "@/components/iz/Sheet";
+import { IzCardTitle } from "@/components/iz/ui";
 
 import { verifyDemoOtp } from "@/lib/verify-demo-otp";
 
@@ -32,7 +33,7 @@ export function OtpVerifySheet({
 }) {
   return (
     <IzSheet open={open} onClose={onClose} variant={variant}>
-      <div className="iz-cardttl">{title}</div>
+      <IzCardTitle>{title}</IzCardTitle>
       <p className="iz-tiny iz-muted mb-3">{description}</p>
       <input
         value={otp}

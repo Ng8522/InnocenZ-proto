@@ -25,7 +25,6 @@ import { Route as OutletWorkspaceRouteImport } from './routes/outlet.workspace'
 import { Route as OutletSubscriptionRouteImport } from './routes/outlet.subscription'
 import { Route as OutletSpecialServiceRouteImport } from './routes/outlet.special-service'
 import { Route as OutletSettingsRouteImport } from './routes/outlet.settings'
-import { Route as OutletSalesRouteImport } from './routes/outlet.sales'
 import { Route as OutletRatingsRouteImport } from './routes/outlet.ratings'
 import { Route as OutletProfileRouteImport } from './routes/outlet.profile'
 import { Route as OutletHistoryRouteImport } from './routes/outlet.history'
@@ -130,11 +129,6 @@ const OutletSpecialServiceRoute = OutletSpecialServiceRouteImport.update({
 const OutletSettingsRoute = OutletSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => OutletRoute,
-} as any)
-const OutletSalesRoute = OutletSalesRouteImport.update({
-  id: '/sales',
-  path: '/sales',
   getParentRoute: () => OutletRoute,
 } as any)
 const OutletRatingsRoute = OutletRatingsRouteImport.update({
@@ -297,7 +291,6 @@ export interface FileRoutesByFullPath {
   '/outlet/history': typeof OutletHistoryRoute
   '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
-  '/outlet/sales': typeof OutletSalesRoute
   '/outlet/settings': typeof OutletSettingsRoute
   '/outlet/special-service': typeof OutletSpecialServiceRoute
   '/outlet/subscription': typeof OutletSubscriptionRoute
@@ -337,7 +330,6 @@ export interface FileRoutesByTo {
   '/outlet/history': typeof OutletHistoryRoute
   '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
-  '/outlet/sales': typeof OutletSalesRoute
   '/outlet/settings': typeof OutletSettingsRoute
   '/outlet/special-service': typeof OutletSpecialServiceRoute
   '/outlet/subscription': typeof OutletSubscriptionRoute
@@ -382,7 +374,6 @@ export interface FileRoutesById {
   '/outlet/history': typeof OutletHistoryRoute
   '/outlet/profile': typeof OutletProfileRoute
   '/outlet/ratings': typeof OutletRatingsRoute
-  '/outlet/sales': typeof OutletSalesRoute
   '/outlet/settings': typeof OutletSettingsRoute
   '/outlet/special-service': typeof OutletSpecialServiceRoute
   '/outlet/subscription': typeof OutletSubscriptionRoute
@@ -428,7 +419,6 @@ export interface FileRouteTypes {
     | '/outlet/history'
     | '/outlet/profile'
     | '/outlet/ratings'
-    | '/outlet/sales'
     | '/outlet/settings'
     | '/outlet/special-service'
     | '/outlet/subscription'
@@ -468,7 +458,6 @@ export interface FileRouteTypes {
     | '/outlet/history'
     | '/outlet/profile'
     | '/outlet/ratings'
-    | '/outlet/sales'
     | '/outlet/settings'
     | '/outlet/special-service'
     | '/outlet/subscription'
@@ -512,7 +501,6 @@ export interface FileRouteTypes {
     | '/outlet/history'
     | '/outlet/profile'
     | '/outlet/ratings'
-    | '/outlet/sales'
     | '/outlet/settings'
     | '/outlet/special-service'
     | '/outlet/subscription'
@@ -646,13 +634,6 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/outlet/settings'
       preLoaderRoute: typeof OutletSettingsRouteImport
-      parentRoute: typeof OutletRoute
-    }
-    '/outlet/sales': {
-      id: '/outlet/sales'
-      path: '/sales'
-      fullPath: '/outlet/sales'
-      preLoaderRoute: typeof OutletSalesRouteImport
       parentRoute: typeof OutletRoute
     }
     '/outlet/ratings': {
@@ -910,7 +891,6 @@ interface OutletRouteChildren {
   OutletHistoryRoute: typeof OutletHistoryRoute
   OutletProfileRoute: typeof OutletProfileRoute
   OutletRatingsRoute: typeof OutletRatingsRoute
-  OutletSalesRoute: typeof OutletSalesRoute
   OutletSettingsRoute: typeof OutletSettingsRoute
   OutletSpecialServiceRoute: typeof OutletSpecialServiceRoute
   OutletSubscriptionRoute: typeof OutletSubscriptionRoute
@@ -924,7 +904,6 @@ const OutletRouteChildren: OutletRouteChildren = {
   OutletHistoryRoute: OutletHistoryRoute,
   OutletProfileRoute: OutletProfileRoute,
   OutletRatingsRoute: OutletRatingsRoute,
-  OutletSalesRoute: OutletSalesRoute,
   OutletSettingsRoute: OutletSettingsRoute,
   OutletSpecialServiceRoute: OutletSpecialServiceRoute,
   OutletSubscriptionRoute: OutletSubscriptionRoute,

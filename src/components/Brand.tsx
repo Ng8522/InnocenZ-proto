@@ -16,7 +16,13 @@ export function InnocenZWordmark({ className }: { className?: string }) {
 
 export function InnocenZLogoHorizontal({ className }: { className?: string }) {
   return (
-    <div className={["iz-logo-horizontal", className].filter(Boolean).join(" ")}>
+    <div className={cn("iz-logo-horizontal", className)}>
+      <img
+        src={publicAssetPath(INNOCENZ_LOGO_PATH)}
+        alt=""
+        aria-hidden
+        className="iz-logo-horizontal__mark"
+      />
       <InnocenZWordmark className="iz-logo-horizontal__wordmark" />
     </div>
   );

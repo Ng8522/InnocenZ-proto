@@ -398,6 +398,10 @@ export interface PendingPR {
   race?: string;
   hasIcPhotos?: boolean;
   hasSelfie?: boolean;
+  icPhotoFront?: string;
+  icPhotoBack?: string;
+  selfiePhoto?: string;
+  comcardImageUrl?: string;
   /** @deprecated Use portfolioPhotos — kept for persisted demos */
   hasComcard3d?: boolean;
   portfolioCount?: number;
@@ -1206,6 +1210,37 @@ function syncLedgerState(
   };
 }
 
+function isStockDemoPortfolioPath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  return /\/pr-portfolio\/(vicky|luna)-/i.test(path);
+}
+
+function stripStockPortfolioFromPending(p: PendingPR): PendingPR {
+  if (!p.portfolioPhotos?.some(isStockDemoPortfolioPath)) return p;
+  const portfolioPhotos = p.portfolioPhotos.map((photo) =>
+    photo && isStockDemoPortfolioPath(photo) ? null : photo,
+  );
+  const filled = portfolioPhotos.filter(Boolean).length;
+  return {
+    ...p,
+    portfolioPhotos,
+    portfolioCount: filled > 0 ? filled : undefined,
+  };
+}
+
+function mergePendingSeedFields(p: PendingPR, seed: PendingPR): PendingPR {
+  return stripStockPortfolioFromPending({
+    ...p,
+    icPhotoFront: p.icPhotoFront ?? seed.icPhotoFront,
+    icPhotoBack: p.icPhotoBack ?? seed.icPhotoBack,
+    selfiePhoto: p.selfiePhoto ?? seed.selfiePhoto,
+    portfolioPhotos: p.portfolioPhotos?.some(Boolean) ? p.portfolioPhotos : seed.portfolioPhotos,
+    portfolioCount: p.portfolioPhotos?.some(Boolean)
+      ? p.portfolioPhotos.filter(Boolean).length
+      : seed.portfolioCount,
+  });
+}
+
 function mergePendingPRs(persisted: PendingPR[] | undefined, current: PendingPR[]): PendingPR[] {
   const seedIds = new Set(SEED_PENDING_PRS.map((s) => s.id));
   const source = persisted?.length ? persisted : current;
@@ -1215,19 +1250,12 @@ function mergePendingPRs(persisted: PendingPR[] | undefined, current: PendingPR[
   for (const seed of SEED_PENDING_PRS) {
     if (!byId.has(seed.id)) byId.set(seed.id, seed);
   }
-  const seeds = SEED_PENDING_PRS.map((seed) => {
-    const p = byId.get(seed.id) ?? seed;
-    if (!p.portfolioPhotos?.some(Boolean) && seed.portfolioPhotos?.some(Boolean)) {
-      return {
-        ...p,
-        portfolioPhotos: seed.portfolioPhotos,
-        portfolioCount: seed.portfolioCount,
-      };
-    }
-    return p;
-  });
+  const seeds = SEED_PENDING_PRS.map((seed) => mergePendingSeedFields(byId.get(seed.id) ?? seed, seed));
   const dedupedExtras = userSignups.filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
-  return [...seeds, ...dedupedExtras.filter((p) => !seedIds.has(p.id))];
+  return [
+    ...seeds,
+    ...dedupedExtras.filter((p) => !seedIds.has(p.id)).map(stripStockPortfolioFromPending),
+  ];
 }
 
 function mergePendingFreelancerPayrolls(

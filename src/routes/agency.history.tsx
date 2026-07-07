@@ -2,11 +2,25 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { AgencyPaidPvHistory } from "@/components/agency/AgencyPaidPvHistory";
 import { ShiftHistoryLog } from "@/components/iz/ShiftHistoryLog";
-import { IzPageTitle } from "@/components/iz/ui";
 import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
+import { OutletPage, OutletPageHeader } from "@/components/outlet/outlet-portal-ui";
 import { useStore } from "@/lib/store";
 
 type HistoryTab = "shifts" | "outlets" | "paid";
+
+function historySummaryHint(
+  rows: { dateIso: string; dateDisplay: string; totalPayout: number }[],
+  shiftLabel: string,
+) {
+  if (rows.length === 0) return "No shift history yet — completed shifts will appear here.";
+  const sorted = [...rows].sort((a, b) => a.dateIso.localeCompare(b.dateIso));
+  const oldest = sorted[0]?.dateDisplay;
+  const newest = sorted[sorted.length - 1]?.dateDisplay;
+  const totalPayout = rows.reduce((a, r) => a + r.totalPayout, 0);
+  const range =
+    oldest && newest && oldest !== newest ? `${oldest} – ${newest}` : oldest ?? newest;
+  return `${rows.length} ${shiftLabel} · ${range} · RM ${totalPayout.toLocaleString()} paid out`;
+}
 
 export const Route = createFileRoute("/agency/history")({
   component: AgencyHistory,
@@ -29,12 +43,21 @@ function AgencyHistory() {
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
   const agencyPRs = useStore((s) => s.agencyPRs);
+  const orgName = useStore((s) => s.agencyOwner.orgName);
 
   const paidCount = prPaymentVouchers.filter((p) => p.status === "PAID").length;
   const outletCount = useMemo(
     () => new Set(shiftHistory.map((r) => r.outlet)).size,
     [shiftHistory],
   );
+
+  const summaryHint = useMemo(() => {
+    if (tab === "paid") return `${paidCount} paid payment voucher${paidCount === 1 ? "" : "s"}`;
+    if (tab === "outlets") {
+      return historySummaryHint(shiftHistory, `PR shifts across ${outletCount} outlet${outletCount === 1 ? "" : "s"}`);
+    }
+    return historySummaryHint(shiftHistory, "PR shifts");
+  }, [tab, shiftHistory, outletCount, paidCount]);
 
   const setTab = (next: HistoryTab) => {
     void navigate({
@@ -45,9 +68,8 @@ function AgencyHistory() {
   };
 
   return (
-    <div className="iz-screen">
-      <p className="iz-tiny iz-muted2 uppercase tracking-widest">InnocenZ · Agency</p>
-      <IzPageTitle size="xl" className="mx-0.5 mt-0.5">History</IzPageTitle>
+    <OutletPage>
+      <OutletPageHeader eyebrow={orgName} title="History" hint={summaryHint} />
 
       <div className="iz-payroll-tabs mt-3">
         <button
@@ -74,25 +96,34 @@ function AgencyHistory() {
       </div>
 
       {tab === "shifts" && (
-        <ShiftHistoryLog
-          key="history-by-pr"
-          portal="agency"
-          groupBy="pr"
-          rows={shiftHistory}
-          subtitle="PR view — shift totals match Last Week / Last Last Week payroll PVs. Tap a PR, then an outlet for each night."
-          embedded
-        />
+        <>
+          <p className="iz-tiny iz-muted mt-2">
+            PR view — shift totals match Last Week / Last Last Week payroll PVs. Tap a PR, then an outlet for
+            each night.
+          </p>
+          <ShiftHistoryLog
+            key="history-by-pr"
+            portal="agency"
+            groupBy="pr"
+            rows={shiftHistory}
+            embedded
+          />
+        </>
       )}
 
       {tab === "outlets" && (
-        <ShiftHistoryLog
-          key="history-by-outlet"
-          portal="agency"
-          groupBy="venue"
-          rows={shiftHistory}
-          subtitle="Outlet view — same shift nights as payroll PVs. Tap a row for PR breakdown."
-          embedded
-        />
+        <>
+          <p className="iz-tiny iz-muted mt-2">
+            Outlet view — same shift nights as payroll PVs. Tap a row for PR breakdown.
+          </p>
+          <ShiftHistoryLog
+            key="history-by-outlet"
+            portal="agency"
+            groupBy="venue"
+            rows={shiftHistory}
+            embedded
+          />
+        </>
       )}
 
       {tab === "paid" && (
@@ -106,6 +137,6 @@ function AgencyHistory() {
           }
         />
       )}
-    </div>
+    </OutletPage>
   );
 }

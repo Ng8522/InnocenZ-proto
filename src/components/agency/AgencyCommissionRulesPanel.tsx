@@ -5,7 +5,13 @@ import { useStore } from "@/lib/store";
 import { IzCard } from "@/components/iz/ui";
 import { WorkspaceTierRatesEditor } from "@/components/outlet/WorkspaceTierRatesEditor";
 
-export function AgencyCommissionRulesPanel({ outlet }: { outlet: string }) {
+export function AgencyCommissionRulesPanel({
+  outlet,
+  tableOnly = false,
+}: {
+  outlet: string;
+  tableOnly?: boolean;
+}) {
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
 
@@ -17,24 +23,28 @@ export function AgencyCommissionRulesPanel({ outlet }: { outlet: string }) {
 
   return (
     <>
-      <p className="iz-tiny iz-muted2 mb-2">
-        {syncedFromWorkspace
-          ? `${tierHint} · read-only`
-          : "Outlet tier rates · read-only on agency"}
-      </p>
+      {!tableOnly && (
+        <p className="iz-tiny iz-muted2 mb-2">
+          {syncedFromWorkspace
+            ? `${tierHint} · read-only`
+            : "Outlet tier rates · read-only on agency"}
+        </p>
+      )}
 
-      <IzCard flat className="!py-3">
-        <WorkspaceTierRatesEditor
-          tierRates={tierRates}
-          commissionOnlyRates={outletWorkspace.commissionOnlyRates}
-          onPatchTier={() => {}}
-          onPatchCommissionOnly={() => {}}
-          readOnly
-          hideTargetSales
-        />
-      </IzCard>
+      <div className={tableOnly ? "iz-outlet-detail-tier-table" : undefined}>
+        <IzCard flat className="!py-3">
+          <WorkspaceTierRatesEditor
+            tierRates={tierRates}
+            commissionOnlyRates={outletWorkspace.commissionOnlyRates}
+            onPatchTier={() => {}}
+            onPatchCommissionOnly={() => {}}
+            readOnly
+            hideTargetSales
+          />
+        </IzCard>
+      </div>
 
-      {syncedFromWorkspace && drinkRange && (
+      {!tableOnly && syncedFromWorkspace && drinkRange && (
         <IzCard flat className="mt-3 !py-3">
           <p className="iz-tiny iz-muted2 mb-1.5">Drink prices · synced from outlet</p>
           <p className="iz-tiny iz-muted mb-2">

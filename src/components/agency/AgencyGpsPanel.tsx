@@ -70,7 +70,7 @@ export function AgencyGpsPanel({
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [filteredRows]);
-  const mapHeight = outletPins.length > 2 ? 280 : 228;
+  const mapHeight = outletPins.length > 2 ? 240 : 200;
 
   const toggleOutletFilter = (outlet: string) => {
     setOutletFilter((current) => (current === outlet ? null : outlet));
@@ -79,6 +79,13 @@ export function AgencyGpsPanel({
   const gpsHint = outletFilter
     ? `${outletFilter} · ${inRangeCount}/${filteredRows.length} in geofence`
     : `${outletPins.length} outlets · ${inRangeCount}/${rows.length} in geofence`;
+
+  const gpsHintNode = (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="iz-roster-gps-live-dot" aria-hidden />
+      {gpsHint}
+    </span>
+  );
 
   if (rows.length === 0) {
     return (
@@ -91,10 +98,10 @@ export function AgencyGpsPanel({
   }
 
   return (
-    <OutletSection title="Live GPS" hint={gpsHint}>
-      <IzCard flat className="!p-0 overflow-hidden">
+    <OutletSection title="Live GPS" hint={gpsHintNode} className="iz-roster-gps-section">
+      <IzCard flat className="iz-roster-gps-card !p-0 overflow-hidden">
         {outletOptions.length > 1 && (
-          <div className="iz-filter-chips border-b border-[var(--iz-line)] bg-[var(--iz-panel)] px-3 py-2.5">
+          <div className="iz-filter-chips border-b border-[var(--iz-line)] bg-[var(--iz-panel)] px-3 py-2">
             <button
               type="button"
               className={cn("iz-filter-chip", !outletFilter && "on")}
@@ -124,91 +131,71 @@ export function AgencyGpsPanel({
           height={mapHeight}
         />
 
-        <div className="border-t border-[var(--iz-line)] bg-[var(--iz-panel)] px-3 py-2.5">
-          <div className="space-y-4">
-            {groupedByOutlet.map(([outlet, outletRows]) => {
-              const pin = outletPins.find((p) => p.outlet === outlet) ?? {
-                outlet,
-                coord: OUTLET_GPS[outlet] ?? OUTLET_GPS["Velvet 23"],
-              };
-              return (
-                <div key={outlet}>
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      className={cn(
-                        "font-sora text-sm font-bold transition-colors",
-                        outletFilter === outlet
-                          ? "text-[var(--iz-gold-l)]"
-                          : "text-[var(--iz-txt)] hover:text-[var(--iz-gold-l)]",
-                      )}
-                      onClick={() => toggleOutletFilter(outlet)}
-                    >
-                      {outlet}
-                    </button>
-                    <a
-                      href={mapsUrlForCoord(pin.coord)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="iz-tiny inline-flex shrink-0 items-center gap-1 text-[#1a73e8]"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      Maps
-                    </a>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {outletRows.map((row) => {
-                      const isSelected = row.slotId === selectedId;
-                      return (
-                        <button
-                          key={row.slotId}
-                          type="button"
-                          onClick={() => setSelectedId(isSelected ? null : row.slotId)}
-                          className={cn(
-                            "flex min-w-0 flex-col gap-1 rounded-xl border px-2 py-2 text-left transition-colors",
-                            isSelected
-                              ? "border-[#1a73e8] bg-[rgba(26,115,232,.08)]"
-                              : "border-[var(--iz-line)] bg-white/[0.02] hover:bg-white/[0.04]",
-                          )}
-                        >
-                          <div className="flex min-w-0 items-start gap-1.5">
-                            <span
-                              className={cn(
-                                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
-                                row.inRange
-                                  ? "bg-[#34A853] text-white"
-                                  : "bg-[#4285F4] text-white",
-                              )}
-                            >
-                              {row.prName.trim()[0]}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex min-w-0 flex-wrap items-center gap-1">
-                                <span className="truncate font-sora text-[11px] font-bold leading-tight">
-                                  {row.prName}
-                                </span>
-                                <IzPill variant="green" className="!px-1.5 !py-0.5 !text-[11px] !font-bold">
-                                  On duty
-                                </IzPill>
-                              </div>
-                              <p className="iz-tiny iz-muted truncate leading-tight">
-                                {row.meters} m
-                                {row.gpsFallback
-                                  ? " · Fallback"
-                                  : row.inRange
-                                    ? " · In geofence"
-                                    : " · Outside"}
-                              </p>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+        <div className="iz-roster-gps-foot">
+          {groupedByOutlet.map(([outlet, outletRows]) => {
+            const pin = outletPins.find((p) => p.outlet === outlet) ?? {
+              outlet,
+              coord: OUTLET_GPS[outlet] ?? OUTLET_GPS["Velvet 23"],
+            };
+            return (
+              <div key={outlet} className="iz-roster-gps-outlet">
+                <div className="iz-roster-gps-outlet-head">
+                  <button
+                    type="button"
+                    className={cn(
+                      "iz-roster-gps-outlet-name",
+                      outletFilter === outlet && "on",
+                    )}
+                    onClick={() => toggleOutletFilter(outlet)}
+                  >
+                    {outlet}
+                  </button>
+                  <a
+                    href={mapsUrlForCoord(pin.coord)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="iz-roster-gps-maps-link"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Maps
+                  </a>
                 </div>
-              );
-            })}
-          </div>
+                <div className="iz-roster-gps-rows">
+                  {outletRows.map((row) => {
+                    const isSelected = row.slotId === selectedId;
+                    return (
+                      <button
+                        key={row.slotId}
+                        type="button"
+                        onClick={() => setSelectedId(isSelected ? null : row.slotId)}
+                        className={cn("iz-roster-gps-row", isSelected && "on")}
+                      >
+                        <div className="iz-roster-gps-row-top">
+                          <span className="iz-roster-gps-avatar">{row.prName.trim()[0]}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="iz-roster-gps-row-head">
+                              <span className="iz-roster-gps-row-name">{row.prName}</span>
+                              <IzPill variant="green" className="iz-roster-gps-row-pill">
+                                On duty
+                              </IzPill>
+                            </div>
+                            <span className="iz-roster-gps-row-meta">
+                              {row.meters} m
+                              {row.gpsFallback
+                                ? " · Fallback"
+                                : row.inRange
+                                  ? " · In geofence"
+                                  : " · Outside"}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </IzCard>
     </OutletSection>

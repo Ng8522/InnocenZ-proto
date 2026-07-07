@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { AgencyBroadcastSheet } from "@/components/agency/AgencyBroadcastSheet";
-import { Comcard3dPreviewCard, Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
+import { ManagePrGridCard } from "@/components/agency/ManagePrGridCard";
+import { Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
 import { toComcardPreview } from "@/components/agency/PrComcardIdentity";
 import { StaticComcardVisual } from "@/components/pr/PortfolioComcardVisual";
 import { IzSheet } from "@/components/iz/Sheet";
@@ -23,7 +24,7 @@ import {
   isAgencyPrActive,
   tiedMonthsLabel,
 } from "@/lib/agency-pr-flags";
-import { AlertTriangle, Check, Filter, Megaphone, Pencil, Star, UserMinus } from "lucide-react";
+import { AlertTriangle, Filter, Megaphone, MousePointerClick, Pencil, Star, UserMinus } from "lucide-react";
 
 const KPI_TIER_OPTIONS = ["A", "B", "C"] as const;
 const TRAINING_TIER_OPTIONS = ["Tier I", "Tier II", "Tier III", "Tier IV", "Tier V"] as const;
@@ -103,7 +104,6 @@ function AgencyManagePRs() {
 
   const detail = agencyPRs.find((p) => p.id === detailId);
   const activeCount = useMemo(() => filtered.filter((p) => isAgencyPrActive(p)).length, [filtered]);
-  const inactiveCount = filtered.length - activeCount;
 
   if (!canManage) {
     return (
@@ -146,7 +146,13 @@ function AgencyManagePRs() {
     setSelected(new Set(filtered.map((p) => p.id)));
   };
 
-  const openBroadcast = () => setBroadcastOpen(true);
+  const openBroadcast = () => {
+    if (!selectMode) {
+      setSelectMode(true);
+      return;
+    }
+    if (selected.size > 0) setBroadcastOpen(true);
+  };
 
   const finishBroadcast = () => {
     setSelectMode(false);
@@ -155,9 +161,32 @@ function AgencyManagePRs() {
 
   return (
     <div className="iz-screen">
-      <header>
-        <IzPageTitle>Manage PR</IzPageTitle>
-        <p className="iz-tiny iz-muted mt-0.5">Filter roster · bulk broadcast · auto-flags</p>
+      <header className="iz-pr-manage-header">
+        <div className="min-w-0">
+          <IzPageTitle>Manage PR</IzPageTitle>
+          <p className="iz-tiny iz-muted mt-0.5">Filter roster · bulk broadcast · auto-flags</p>
+        </div>
+        <div className="iz-pr-manage-header__actions">
+          <button
+            type="button"
+            className={`iz-pr-manage-header__btn${selectMode ? " iz-pr-manage-header__btn--active" : ""}`}
+            onClick={() => {
+              setSelectMode(!selectMode);
+              setSelected(new Set());
+            }}
+          >
+            <MousePointerClick className="h-4 w-4" />
+            {selectMode ? "Cancel" : "Select"}
+          </button>
+          <button
+            type="button"
+            className="iz-pr-manage-header__btn iz-pr-manage-header__btn--primary"
+            onClick={openBroadcast}
+          >
+            <Megaphone className="h-4 w-4" />
+            Broadcast
+          </button>
+        </div>
       </header>
 
       <IzCard flat className="border-[var(--iz-line2)]">
@@ -174,63 +203,57 @@ function AgencyManagePRs() {
 
       <IzCard flat className="iz-pr-manage-filters-card">
         <div className="flex items-center gap-2 iz-sm iz-muted mb-2">
-          <Filter className="h-4 w-4" /> Filter PRs
+          <Filter className="h-4 w-4 shrink-0" /> Filter PRs
         </div>
-        <div className="iz-pr-manage-filters-grid">
-          <label className="iz-pr-manage-filter-field">
-            <span className="iz-roster-filter-label">Min age</span>
+        <div className="iz-pr-manage-filters-inline">
+          <label className="iz-pr-manage-filter-chip">
             <input
               type="number"
-              placeholder="e.g. 21"
-              className="iz-roster-filter-input iz-roster-filter-input--plain iz-pr-manage-filter-control"
+              placeholder="Min age"
+              className="iz-roster-filter-input iz-roster-filter-input--plain"
               value={ageMin}
               onChange={(e) => setAgeMin(e.target.value)}
             />
           </label>
-          <label className="iz-pr-manage-filter-field">
-            <span className="iz-roster-filter-label">Min rating</span>
+          <label className="iz-pr-manage-filter-chip">
             <input
               type="number"
               min={0}
               max={5}
               step={0.1}
-              placeholder="e.g. 4.0"
-              className="iz-roster-filter-input iz-roster-filter-input--plain iz-pr-manage-filter-control"
+              placeholder="Min rating"
+              className="iz-roster-filter-input iz-roster-filter-input--plain"
               value={ratingMin}
               onChange={(e) => setRatingMin(e.target.value)}
             />
           </label>
-          <label className="iz-pr-manage-filter-field">
-            <span className="iz-roster-filter-label">Min years</span>
+          <label className="iz-pr-manage-filter-chip">
             <input
               type="number"
-              placeholder="e.g. 2"
-              className="iz-roster-filter-input iz-roster-filter-input--plain iz-pr-manage-filter-control"
+              placeholder="Min years"
+              className="iz-roster-filter-input iz-roster-filter-input--plain"
               value={expMin}
               onChange={(e) => setExpMin(e.target.value)}
             />
           </label>
-          <label className="iz-pr-manage-filter-field">
-            <span className="iz-roster-filter-label">Language</span>
-            <IzSelect block className="iz-pr-manage-filter-control" value={lang} onChange={(e) => setLang(e.target.value)}>
+          <label className="iz-pr-manage-filter-chip iz-pr-manage-filter-chip--wide">
+            <IzSelect block value={lang} onChange={(e) => setLang(e.target.value)}>
               <option value="">All languages</option>
               {languages.map((l) => (
                 <option key={l} value={l}>{l}</option>
               ))}
             </IzSelect>
           </label>
-          <label className="iz-pr-manage-filter-field">
-            <span className="iz-roster-filter-label">Race</span>
-            <IzSelect block className="iz-pr-manage-filter-control" value={race} onChange={(e) => setRace(e.target.value)}>
+          <label className="iz-pr-manage-filter-chip">
+            <IzSelect block value={race} onChange={(e) => setRace(e.target.value)}>
               <option value="">All races</option>
               {races.map((r) => (
                 <option key={r} value={r}>{r}</option>
               ))}
             </IzSelect>
           </label>
-          <label className="iz-pr-manage-filter-field">
-            <span className="iz-roster-filter-label">Place</span>
-            <IzSelect block className="iz-pr-manage-filter-control" value={place} onChange={(e) => setPlace(e.target.value)}>
+          <label className="iz-pr-manage-filter-chip">
+            <IzSelect block value={place} onChange={(e) => setPlace(e.target.value)}>
               <option value="">All places</option>
               {places.map((pl) => (
                 <option key={pl} value={pl}>{pl}</option>
@@ -240,117 +263,57 @@ function AgencyManagePRs() {
         </div>
       </IzCard>
 
-      <OutletSection
-        title={`${filtered.length} PR${filtered.length !== 1 ? "s" : ""}`}
-        hint={`${activeCount} active${inactiveCount ? ` · ${inactiveCount} inactive` : ""}`}
-        trailing={
-          <div className="flex gap-1.5">
-            {selectMode && (
-              <button type="button" className="iz-chip !text-xs" onClick={selectAllFiltered}>
-                All
-              </button>
-            )}
-            <button
-              type="button"
-              className={`iz-chip !text-xs${selectMode ? " ring-1 ring-[var(--iz-gold)]" : ""}`}
-              onClick={() => {
-                setSelectMode(!selectMode);
-                setSelected(new Set());
-              }}
-            >
-              {selectMode ? "Cancel" : "Select"}
-            </button>
-          </div>
-        }
-      >
+      <section className="mt-4">
+        <div className="iz-pr-manage-stats">
+          <span className="iz-pr-manage-stats__count">
+            {filtered.length} PR{filtered.length !== 1 ? "S" : ""}
+          </span>
+          <span className="iz-pr-manage-stats__active">{activeCount} active</span>
+        </div>
       {selectMode && (
         <p className="iz-tiny iz-muted2 mb-2">
-          {selected.size === 0 ? "Tap PR rows to multi-select" : `${selected.size} selected`}
+          {selected.size === 0 ? "Tap PR cards to multi-select" : `${selected.size} selected`}
+          {selected.size > 0 && (
+            <>
+              {" · "}
+              <button type="button" className="iz-link !text-xs" onClick={selectAllFiltered}>
+                Select all
+              </button>
+            </>
+          )}
         </p>
       )}
       {selectMode && selected.size > 0 && (
         <button
           type="button"
-          className="iz-btn iz-btn-primary mb-2 w-full !py-2.5 !text-xs"
-          onClick={openBroadcast}
+          className="iz-btn iz-btn-primary mb-3 w-full !py-2.5 !text-xs"
+          onClick={() => setBroadcastOpen(true)}
         >
           <Megaphone className="h-3.5 w-3.5" /> Broadcast shift / message ({selected.size})
         </button>
       )}
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="iz-pr-manage-grid">
         {filtered.map((p) => {
           const flags = getAgencyPrFlags(p);
           const active = isAgencyPrActive(p);
           const picked = selectMode && selected.has(p.id);
           return (
-            <div
+            <ManagePrGridCard
               key={p.id}
-              role="button"
-              tabIndex={0}
-              className={`relative flex cursor-pointer flex-col gap-1 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-2 text-left transition-colors hover:border-[var(--iz-line2)]${picked ? " ring-1 ring-[var(--iz-gold)]" : ""}${!active ? " opacity-75" : ""}${flags.suspendStreak && active ? " border-[var(--iz-red)]/40" : ""}`}
-              onClick={() => {
+              pr={p}
+              active={active}
+              flags={flags}
+              selectMode={selectMode}
+              picked={picked}
+              onActivate={() => {
                 if (selectMode) toggleSelect(p.id);
                 else openPrProfile(p.id);
               }}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" && e.key !== " ") return;
-                e.preventDefault();
-                if (selectMode) toggleSelect(p.id);
-                else openPrProfile(p.id);
-              }}
-            >
-              {selectMode && (
-                <div
-                  className={`absolute left-1.5 top-1.5 z-10 flex h-4 w-4 items-center justify-center rounded border shadow-sm ${
-                    picked
-                      ? "border-[var(--iz-gold)] bg-[var(--iz-gold)] text-[var(--iz-bg)]"
-                      : "border-[var(--iz-line2)] bg-[var(--iz-bg2)]/95"
-                  }`}
-                >
-                  {picked && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
-                </div>
-              )}
-
-              <div className="relative w-full">
-                <IzPill
-                  variant={active ? "green" : "ink"}
-                  className={`absolute right-1 top-1 z-10 !py-0 !text-[8px] shadow-sm${!active ? " !opacity-100" : ""}`}
-                >
-                  {active ? "Active" : "Inactive"}
-                </IzPill>
-                <Comcard3dPreviewCard
-                  pr={toComcardPreview(p)}
-                  trainingLevel={p.trainingLevel}
-                  rating={p.rating}
-                  languages={p.languages}
-                  place={p.place}
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-0.5">
-                {!active && (
-                  <IzPill variant="ink" className="!py-0 !text-[8px]">Suspended</IzPill>
-                )}
-                {flags.warnLowAvg && active && (
-                  <IzPill variant="amber" className="!py-0 !text-[8px]">Warn</IzPill>
-                )}
-                {flags.suspendStreak && active && (
-                  <IzPill variant="red" className="!py-0 !text-[8px]">Suspend</IzPill>
-                )}
-                {flags.tiedUnderOneYear && (
-                  <IzPill variant="violet" className="!py-0 !text-[8px]">Tied</IzPill>
-                )}
-              </div>
-
-              <p className="text-[10px] leading-tight text-[var(--iz-muted2)] line-clamp-2">
-                Paid {formatRM(p.totalPaid ?? 0)} · Att. {p.attendancePct ?? 0}% · KPI {p.kpiScore ?? "—"}
-                {flags.suspendLabel ? ` · ${flags.suspendLabel}` : ""}
-              </p>
-            </div>
+            />
           );
         })}
       </div>
-      </OutletSection>
+      </section>
 
       <AgencyBroadcastSheet
         open={broadcastOpen}

@@ -58,6 +58,7 @@ type RosterWeeklyTimetableProps = {
   canAssign: boolean;
   onEditSlot: (slotId: string) => void;
   onWeekChange: (anchorDateIso: string) => void;
+  todayIso?: string;
 };
 
 export function RosterWeeklyTimetable({
@@ -68,6 +69,7 @@ export function RosterWeeklyTimetable({
   canAssign,
   onEditSlot,
   onWeekChange,
+  todayIso,
 }: RosterWeeklyTimetableProps) {
   const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null);
   const [outletRequestSlot, setOutletRequestSlot] = useState<AgencyRosterSlot | null>(null);
@@ -124,6 +126,7 @@ export function RosterWeeklyTimetable({
 
   return (
     <>
+      <div className="iz-roster-week">
       <div className="iz-roster-week-head">
         <button
           type="button"
@@ -135,7 +138,7 @@ export function RosterWeeklyTimetable({
         </button>
         <div className="min-w-0 text-center">
           <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">Week · {weekLabel}</p>
-          <p className="iz-tiny iz-muted">Tap comcard to identify PRs · tap a free cell to assign an outlet shift</p>
+          <p className="iz-tiny iz-muted2">Tap comcard to identify PRs · tap a free cell to assign</p>
         </div>
         <button
           type="button"
@@ -149,13 +152,23 @@ export function RosterWeeklyTimetable({
 
       <div className="iz-roster-week-scroll">
         <table className="iz-roster-week-table">
+          <colgroup>
+            <col className="iz-roster-week-col-pr" />
+            {days.map((dateIso) => (
+              <col key={dateIso} className="iz-roster-week-col-day" />
+            ))}
+          </colgroup>
           <thead>
             <tr>
               <th className="iz-roster-week-pr-col">PR</th>
               {days.map((dateIso) => {
                 const { dow, dom } = dayColumnLabel(dateIso);
+                const isToday = todayIso === dateIso;
                 return (
-                  <th key={dateIso} className="iz-roster-week-day-col">
+                  <th
+                    key={dateIso}
+                    className={cn("iz-roster-week-day-col", isToday && "on")}
+                  >
                     <span className="dow">{dow}</span>
                     <span className="dom">{dom}</span>
                   </th>
@@ -194,14 +207,6 @@ export function RosterWeeklyTimetable({
                         Freelancer
                       </IzPill>
                     )}
-                    <span title={tiedAgency}>
-                      <IzPill
-                        variant="ink"
-                        className="!py-0 !text-[8px] iz-roster-week-agency-pill"
-                      >
-                        {tiedAgency}
-                      </IzPill>
-                    </span>
                     <span className="rating">{pr.rating}★</span>
                       </span>
                     </div>
@@ -291,6 +296,7 @@ export function RosterWeeklyTimetable({
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {outletRequestSlot && (

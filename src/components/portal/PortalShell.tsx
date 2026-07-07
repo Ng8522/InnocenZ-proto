@@ -183,6 +183,10 @@ function isAgencyHomePath(pathname: string) {
   return /\/agency\/?$/.test(pathname);
 }
 
+function isAgencyRosterPath(pathname: string) {
+  return pathname.startsWith("/agency/roster");
+}
+
 function PortalHeader({
   portal,
   orgName,
@@ -197,8 +201,10 @@ function PortalHeader({
   subLabel: string;
 }) {
   const { pathname } = useLocation();
-  const showToday = portal === "agency" && isAgencyHomePath(pathname);
-  const { date, time } = showToday ? nowAgencyDateTime() : { date: "", time: "" };
+  const onAgencyHome = portal === "agency" && isAgencyHomePath(pathname);
+  const onAgencyRoster = portal === "agency" && isAgencyRosterPath(pathname);
+  const showDatetime = onAgencyHome || onAgencyRoster;
+  const { date, time } = showDatetime ? nowAgencyDateTime() : { date: "", time: "" };
 
   return (
     <header className="iz-portal-header">
@@ -206,14 +212,19 @@ function PortalHeader({
         <h1 className="font-sora text-xl font-extrabold tracking-tight text-[var(--iz-txt)] md:text-2xl">
           {portalGreeting()}, <span className="text-[var(--iz-gold-l)]">{orgName}</span>
         </h1>
-        {showToday && (
-          <p className="iz-portal-header-datetime">
-            <span className="iz-tiny iz-muted2 uppercase tracking-widest">Today</span>
-            <span className="font-sora text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
+        {showDatetime &&
+          (onAgencyRoster ? (
+            <p className="iz-tiny iz-muted2 mt-1">
               {date} · {time}
-            </span>
-          </p>
-        )}
+            </p>
+          ) : (
+            <p className="iz-portal-header-datetime">
+              <span className="iz-tiny iz-muted2 uppercase tracking-widest">Today</span>
+              <span className="font-sora text-lg font-extrabold leading-snug text-[var(--iz-txt)]">
+                {date} · {time}
+              </span>
+            </p>
+          ))}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <OpsNotificationBell portal={portal} />

@@ -1,5 +1,10 @@
 import { IzPill } from "@/components/iz/ui";
 import { StaticComcardVisual } from "@/components/pr/PortfolioComcardVisual";
+import {
+  PortfolioComcardVisual,
+  canGeneratePortfolioComcard,
+  portfolioPhotosForComcard,
+} from "@/components/pr/PortfolioComcardVisual";
 import { getComcardDemoStyle } from "@/lib/comcard-demo";
 import { publicAssetPath } from "@/lib/public-asset";
 import { cn } from "@/lib/utils";
@@ -129,6 +134,47 @@ export type ComcardPreviewCardMeta = {
   languages?: string[];
   place?: string;
 };
+
+/** Grid-card visual only — photo comcard, portfolio collage, or 3D stage (no footer meta). */
+export function ComcardGridVisual({
+  pr,
+  className,
+}: {
+  pr: ComcardPreviewData;
+  className?: string;
+}) {
+  const portfolio = pr.portfolioPhotos ?? [];
+
+  if (pr.comcardImageUrl) {
+    return (
+      <StaticComcardVisual
+        src={pr.comcardImageUrl}
+        className={cn("iz-comcard-grid-visual iz-comcard-grid-visual--photo", className)}
+      />
+    );
+  }
+
+  if (canGeneratePortfolioComcard(portfolio)) {
+    return (
+      <PortfolioComcardVisual
+        photos={portfolioPhotosForComcard(portfolio)}
+        pr={pr}
+        className={cn("iz-comcard-grid-visual iz-comcard-grid-visual--portfolio", className)}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "iz-comcard-3d-preview iz-comcard-3d-preview--card iz-comcard-3d-preview--card-compact iz-comcard-grid-visual",
+        className,
+      )}
+    >
+      <ComcardStage pr={pr} variant="card" />
+    </div>
+  );
+}
 
 /** Grid-card identity preview — 3D figure, name plate, and key profile cues */
 export function Comcard3dPreviewCard({

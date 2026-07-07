@@ -189,6 +189,13 @@ function resolveAgencyShiftTierRates(
   return outletDefaultTierRates(outlet, ctx);
 }
 
+function postedShiftBriefing(
+  shift: Pick<ShiftRequest, "dressCode">,
+): string | undefined {
+  const dressCode = shift.dressCode?.trim();
+  return dressCode || undefined;
+}
+
 function postedShiftEventFields(
   shift: Pick<ShiftRequest, "eventKind" | "specialEventType" | "customSpecialEventName">,
 ): Pick<AgencyOutletAvailableShift, "eventKind" | "specialEventType" | "customSpecialEventName" | "vip"> {
@@ -246,6 +253,7 @@ function shiftsFromPosted(
         tierRates,
         quantity: s.quantity,
         payTierRows: resolveAgencyPayTierRows(tierRates, s.quantity, s.payTierRows, s.id),
+        briefing: postedShiftBriefing(s),
         ...postedShiftEventFields(s),
       };
     })
@@ -885,6 +893,7 @@ function shiftsFromPostedForWeek(
         tierRates,
         quantity: s.quantity,
         payTierRows: resolveAgencyPayTierRows(tierRates, s.quantity, s.payTierRows, s.id),
+        briefing: postedShiftBriefing(s),
         ...postedShiftEventFields(s),
       };
     })

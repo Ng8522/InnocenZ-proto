@@ -12,6 +12,7 @@ import {
 
 const TILE_SIZE = 256;
 const TILE_URL = "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png";
+const TILE_URL_DARK = "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
 const DRAG_THRESHOLD_PX = 5;
 
 function OutletMarker({ label }: { label: string }) {
@@ -59,6 +60,7 @@ export function GpsRoadMap({
   selectedId,
   onSelect,
   height = 220,
+  dark = false,
 }: {
   rows: GpsTrackingRow[];
   bounds: GpsMapBounds;
@@ -66,6 +68,7 @@ export function GpsRoadMap({
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   height?: number;
+  dark?: boolean;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const tilesRef = useRef<HTMLDivElement>(null);
@@ -184,7 +187,11 @@ export function GpsRoadMap({
   );
 
   return (
-    <div ref={frameRef} className="iz-gmaps-frame" style={{ height }}>
+    <div
+      ref={frameRef}
+      className={`iz-gmaps-frame${dark ? " iz-gmaps-frame--dark" : ""}`}
+      style={{ height }}
+    >
       <div
         ref={tilesRef}
         className={`iz-gmaps-tiles${isDragging ? " dragging" : ""}`}
@@ -197,7 +204,10 @@ export function GpsRoadMap({
         {tiles.map((t) => (
           <img
             key={`${t.z}-${t.x}-${t.y}`}
-            src={TILE_URL.replace("{z}", String(t.z)).replace("{x}", String(t.x)).replace("{y}", String(t.y))}
+            src={(dark ? TILE_URL_DARK : TILE_URL)
+              .replace("{z}", String(t.z))
+              .replace("{x}", String(t.x))
+              .replace("{y}", String(t.y))}
             alt=""
             className="iz-gmaps-tile"
             style={{

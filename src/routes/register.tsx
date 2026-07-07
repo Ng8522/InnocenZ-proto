@@ -139,20 +139,7 @@ type RegisterDraft = {
   acceptTerms: boolean;
 };
 
-function demoPlaceholderImage(title: string, subtitle?: string, accent = "#b79ce8"): string {
-  const sub = subtitle
-    ? `<text x="160" y="228" text-anchor="middle" fill="#928699" font-family="Manrope,sans-serif" font-size="13">${subtitle}</text>`
-    : "";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="400" viewBox="0 0 320 400">
-    <rect width="320" height="400" rx="16" fill="#1a1228"/>
-    <rect x="16" y="16" width="288" height="368" rx="12" fill="#241832" stroke="#3d2f4a" stroke-width="2"/>
-    <text x="160" y="196" text-anchor="middle" fill="${accent}" font-family="Sora,sans-serif" font-size="20" font-weight="700">${title}</text>
-    ${sub}
-  </svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
-
-/** Malaysian NRIC birth-date prefix from ISO date (YYMMDD). */
+import { demoPlaceholderImage } from "@/lib/demo-placeholder-image";
 function dobToNricPrefix(dob: string): string {
   if (!dob) return "";
   const [year, month, day] = dob.split("-");

@@ -248,7 +248,7 @@ export function JobPostingComposer({
 
       <ComposerField label="Remark" className="mt-3">
         <textarea
-          className="iz-job-posting-control iz-job-posting-textarea min-h-[68px] w-full resize-none outline-none"
+          className="iz-job-posting-textarea w-full"
           placeholder={specialServiceRemarkHint(draft.serviceType)}
           value={draft.remark}
           onChange={(e) => onChange({ remark: e.target.value })}

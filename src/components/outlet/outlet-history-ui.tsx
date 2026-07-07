@@ -235,18 +235,21 @@ export function OutletPrHistoryCard({
   topPayout,
   rating,
   onTap,
+  portal = "outlet",
 }: {
   rollup: ShiftHistoryPrRollup;
   rank: number;
   topPayout: number;
   rating?: OutletPrRating;
   onTap?: () => void;
+  portal?: "agency" | "outlet";
 }) {
-  const agency =
+  const venueKind = portal === "agency" ? "outlet" : "agency";
+  const subtitle =
     rollup.venues.length === 1
       ? rollup.venues[0]
       : rollup.venues.length > 1
-        ? `${rollup.venues.length} agencies`
+        ? `${rollup.venues.length} ${venueKind}s`
         : "—";
   const pct = topPayout > 0 ? Math.round((rollup.totalPayout / topPayout) * 100) : 0;
   const pctLabel = rank === 1 ? "100% of top earner" : `${pct}% of top earner`;
@@ -272,7 +275,7 @@ export function OutletPrHistoryCard({
               <p className="iz-outlet-hist-card__name">{rollup.prName}</p>
               {rating && rating.stars > 0 && <OutletStarPill stars={rating.stars} />}
             </div>
-            <p className="iz-outlet-hist-card__agency">{agency}</p>
+            <p className="iz-outlet-hist-card__agency">{subtitle}</p>
           </div>
         </div>
         <div className="iz-outlet-hist-card__shifts">

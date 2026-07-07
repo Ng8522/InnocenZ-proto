@@ -34,7 +34,7 @@ export function RosterShiftFilters({
             <input
               type="search"
               className="iz-roster-filter-input"
-              placeholder="Search PR…"
+              placeholder="Search"
               value={filters.nameQuery}
               onChange={(e) => onChange({ nameQuery: e.target.value })}
             />
@@ -83,6 +83,7 @@ export function RosterShiftFilters({
             onChange={(v) => onChange({ startTime: v })}
             showIcon={false}
             className="iz-roster-filter-time"
+            placeholder="Start Time"
             aria-label="Shift start from"
           />
         </label>
@@ -93,6 +94,7 @@ export function RosterShiftFilters({
             value={filters.endTime}
             onChange={(v) => onChange({ endTime: v })}
             showIcon={false}
+            placeholder="End Time"
             className="iz-roster-filter-time"
             aria-label="Shift end by"
           />

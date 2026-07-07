@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { addDays } from "date-fns";
 import { Calendar as CalendarUi } from "@/components/ui/calendar";
 import { fmtDateLabelFromIso } from "@/lib/pr-demo";
+import { mondayOfWeek, parseLocalIso, weekRangeLabel } from "@/lib/roster-week-plan";
 import { Calendar, ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function dateFromIso(iso: string): Date | undefined {
   if (!iso) return undefined;
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return undefined;
-  return new Date(y, m - 1, d);
+  return parseLocalIso(iso);
 }
 
 function isoFromDate(date: Date) {
@@ -18,13 +18,22 @@ function isoFromDate(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
+function isInPlanningWeek(date: Date, anchorIso: string): boolean {
+  if (!anchorIso) return false;
+  const weekStart = parseLocalIso(mondayOfWeek(anchorIso));
+  const weekEnd = addDays(weekStart, 6);
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return day >= weekStart && day <= weekEnd;
+}
+
 export function RosterPlanningDatePicker({
   value,
   onChange,
   rosterDates = [],
-  placeholder = "Pick date",
+  placeholder = "Pick week",
   allowClear = false,
   hint = "Dots mark days with roster shifts.",
+  weekly = false,
   className,
 }: {
   value: string;
@@ -33,13 +42,29 @@ export function RosterPlanningDatePicker({
   placeholder?: string;
   allowClear?: boolean;
   hint?: string;
+  /** When true, clicking any day selects Mon–Sun and highlights the full week. */
+  weekly?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selected = dateFromIso(value);
   const rosterDateSet = new Set(rosterDates);
-  const label = value ? fmtDateLabelFromIso(value) : placeholder;
+  const label = value
+    ? weekly
+      ? weekRangeLabel(mondayOfWeek(value))
+      : fmtDateLabelFromIso(value)
+    : placeholder;
+
+  const weekModifiers = useMemo(
+    () => ({
+      hasShifts: (date: Date) => rosterDateSet.has(isoFromDate(date)),
+      ...(weekly && value
+        ? { inWeek: (date: Date) => isInPlanningWeek(date, value) }
+        : {}),
+    }),
+    [rosterDateSet, value, weekly],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -57,7 +82,7 @@ export function RosterPlanningDatePicker({
         className={`iz-roster-planning-date-trigger${open ? " open" : ""}`}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        aria-label="Choose date"
+        aria-label={weekly ? "Choose week" : "Choose date"}
       >
         <span className={`flex min-w-0 items-center gap-1.5 truncate${value ? "" : " text-[var(--iz-muted2)]"}`}>
           <Calendar className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />
@@ -68,7 +93,7 @@ export function RosterPlanningDatePicker({
             role="button"
             tabIndex={0}
             className="iz-hist-clear"
-            aria-label="Clear date"
+            aria-label="Clear week"
             onClick={(e) => {
               e.stopPropagation();
               onChange("");
@@ -92,22 +117,31 @@ export function RosterPlanningDatePicker({
         )}
       </button>
       {open && (
-        <div className="iz-hist-cal iz-hist-cal--popover iz-roster-planning-date-popover">
+        <div
+          className={cn(
+            "iz-hist-cal iz-hist-cal--popover iz-roster-planning-date-popover",
+            weekly && "iz-roster-planning-week-cal",
+          )}
+        >
           <CalendarUi
             mode="single"
+            weekStartsOn={weekly ? 1 : 0}
+            showOutsideDays
             selected={selected}
             defaultMonth={selected ?? dateFromIso(rosterDates[0] ?? value) ?? new Date()}
             onSelect={(d) => {
               if (d) onChange(isoFromDate(d));
               setOpen(false);
             }}
-            modifiers={{
-              hasShifts: (date) => rosterDateSet.has(isoFromDate(date)),
-            }}
+            modifiers={weekModifiers}
             modifiersClassNames={{
               hasShifts: "iz-roster-cal-has-shifts",
+              ...(weekly ? { inWeek: "iz-roster-cal-in-week" } : {}),
             }}
-            className="rounded-[14px] border-0 bg-transparent p-0 text-[var(--iz-txt)]"
+            className={cn(
+              "rounded-[14px] border-0 bg-transparent p-0 text-[var(--iz-txt)]",
+              weekly && "iz-roster-planning-week-cal-picker",
+            )}
           />
           {hint ? <p className="iz-tiny iz-muted2 mt-1 px-1">{hint}</p> : null}
         </div>

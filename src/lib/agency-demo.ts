@@ -8,7 +8,6 @@ import {
   migrateDemoDateIso,
 } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
-import { SEED_PR_PORTFOLIO_PATHS } from "@/lib/pr-demo";
 import { SEED_COMCARD_AGENCY_PRS } from "@/lib/agency-pr-comcards";
 import {
   buildSeedPrPortfolio,
@@ -1004,13 +1003,23 @@ export function collectAgencyPrLanguages(
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
-/** Demo portfolio for pending sign-up review */
-function seedPendingPortfolio(count: number): (string | null)[] {
-  const slots: (string | null)[] = Array.from({ length: 8 }, () => null);
-  for (let i = 0; i < Math.min(count, SEED_PR_PORTFOLIO_PATHS.length); i++) {
-    slots[i] = SEED_PR_PORTFOLIO_PATHS[i]!;
+import { demoPlaceholderImage } from "@/lib/demo-placeholder-image";
+
+function seedPendingDocuments(name: string, initial: string) {
+  const icSize = { w: 480, h: 320 };
+  const portrait = { w: 320, h: 400 };
+  const square = { w: 400, h: 400 };
+  const portfolioPhotos: (string | null)[] = Array.from({ length: 8 }, () => null);
+  for (let i = 0; i < 4; i++) {
+    portfolioPhotos[i] = demoPlaceholderImage(`Photo ${i + 1}`, name, "#b79ce8", square);
   }
-  return slots;
+  return {
+    icPhotoFront: demoPlaceholderImage("IC · Front", `${name} · NRIC`, "#6ee7b7", icSize),
+    icPhotoBack: demoPlaceholderImage("IC · Back", `${name} · NRIC`, "#6ee7b7", icSize),
+    selfiePhoto: demoPlaceholderImage(initial, "Selfie · demo", "#C99B4E", portrait),
+    portfolioPhotos,
+    portfolioCount: 4,
+  };
 }
 
 /** New sign-ups awaiting owner approval — not yet on agency roster */
@@ -1029,8 +1038,7 @@ export const SEED_PENDING_PRS: PendingPR[] = [
     race: "Malay",
     hasIcPhotos: true,
     hasSelfie: true,
-    portfolioCount: 4,
-    portfolioPhotos: seedPendingPortfolio(4),
+    ...seedPendingDocuments("Siti Rahman", "SR"),
     submittedAt: "9 Jun 2026 · 09:14",
     source: "self-signup",
     status: "pending",
@@ -1049,8 +1057,7 @@ export const SEED_PENDING_PRS: PendingPR[] = [
     race: "Malay",
     hasIcPhotos: true,
     hasSelfie: true,
-    portfolioCount: 5,
-    portfolioPhotos: seedPendingPortfolio(5),
+    ...seedPendingDocuments("Amira Hassan", "AH"),
     submittedAt: "8 Jun 2026 · 22:41",
     source: "self-signup",
     status: "pending",

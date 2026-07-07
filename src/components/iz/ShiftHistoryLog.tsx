@@ -115,14 +115,14 @@ export function ShiftHistoryLog({
   );
 
   const rankedPrRollups = useMemo(
-    () =>
-      portal === "outlet"
-        ? [...prRollups].sort((a, b) => b.totalPayout - a.totalPayout)
-        : prRollups,
-    [prRollups, portal],
+    () => [...prRollups].sort((a, b) => b.totalPayout - a.totalPayout),
+    [prRollups],
   );
 
   const topPrPayout = rankedPrRollups[0]?.totalPayout ?? 0;
+
+  const useOutletCardLayout = portal === "outlet" || (portal === "agency" && !agencyByVenue);
+  const useHistGrid = useOutletCardLayout || agencyByVenue;
 
   const venueRollups = useMemo(
     () => (agencyByVenue ? aggregateShiftHistoryByVenue(filtered, "agency") : []),
@@ -192,11 +192,11 @@ export function ShiftHistoryLog({
   const agencyName = rows[0]?.agencyName ?? "Atlas Agency";
 
   const shellClass = embedded
-    ? portal === "outlet"
+    ? useOutletCardLayout
       ? "iz-outlet-hist-log"
       : "mt-2"
     : "iz-screen";
-  const outletPortal = portal === "outlet" && !agencyByVenue;
+  const outletStyleLayout = useOutletCardLayout;
 
   return (
     <div className={shellClass}>
@@ -210,14 +210,14 @@ export function ShiftHistoryLog({
         </>
       )}
       {!embedded && <p className="iz-tiny iz-muted mt-0.5">{subtitle}</p>}
-      {embedded && subtitleOverride && (
+      {embedded && subtitleOverride && !outletStyleLayout && (
         <p className="iz-tiny iz-muted mt-1">{subtitleOverride}</p>
       )}
 
-      <p className={outletPortal ? "iz-outlet-hist-filter-heading" : "iz-txn-filter-heading mt-4"}>
+      <p className={outletStyleLayout ? "iz-outlet-hist-filter-heading" : "iz-txn-filter-heading mt-4"}>
         <TitleWithIcon>Filter by</TitleWithIcon>
       </p>
-      <div className={outletPortal ? "iz-outlet-hist-filters" : "iz-txn-filters"}>
+      <div className={outletStyleLayout ? "iz-outlet-hist-filters" : "iz-txn-filters"}>
         <HistSelectField
           label={primaryLabel}
           value={nameFilter}
@@ -261,22 +261,32 @@ export function ShiftHistoryLog({
         />
       </div>
 
-      <div className={outletPortal ? "iz-outlet-hist-log-head" : "iz-between mt-4"}>
-        <div className={outletPortal ? "iz-outlet-hist-log-head__main" : "flex-1"}>
-          {outletPortal || portal === "agency" ? (
+      <div className={outletStyleLayout ? "iz-outlet-hist-log-head" : "iz-between mt-4"}>
+        <div className={outletStyleLayout ? "iz-outlet-hist-log-head__main" : "flex-1"}>
+          {outletStyleLayout ? (
+            <div className="iz-outlet-hist-section-label">
+              <TitleWithIcon>Transaction log</TitleWithIcon>
+            </div>
+          ) : portal === "agency" ? (
             <div className="iz-outlet-hist-section-label">
               <TitleWithIcon>Transaction log</TitleWithIcon>
             </div>
           ) : (
             <IzSectionLabel className="!mb-0">Transaction log</IzSectionLabel>
           )}
-          <span className={outletPortal || portal === "agency" ? "iz-outlet-hist-log-count" : "iz-tiny iz-muted2"}>
+          <span className={outletStyleLayout || portal === "agency" ? "iz-outlet-hist-log-count" : "iz-tiny iz-muted2"}>
             {logCountLabel}
           </span>
         </div>
       </div>
 
-      <div className={outletPortal ? "iz-outlet-hist-grid" : "mt-2.5 space-y-2.5"}>
+      <div
+        className={
+          useHistGrid
+            ? `iz-outlet-hist-grid${agencyByVenue ? " iz-outlet-hist-grid--venues" : ""}`
+            : "mt-2.5 space-y-2.5"
+        }
+      >
         {agencyByVenue ? (
           venueRollups.length === 0 ? (
             <IzCard className="text-center">
@@ -295,13 +305,14 @@ export function ShiftHistoryLog({
           <IzCard className="text-center">
             <p className="iz-sm iz-muted">No records match these filters</p>
           </IzCard>
-        ) : outletPortal ? (
+        ) : outletStyleLayout ? (
           rankedPrRollups.map((rollup, index) => (
             <OutletPrHistoryCard
               key={rollup.prId}
               rollup={rollup}
               rank={index + 1}
               topPayout={topPrPayout}
+              portal={portal}
               rating={findOutletRatingForPr(rollup.prName, outletRatings)}
               onTap={showPrDetail ? () => openPrDetail(rollup.prId) : undefined}
             />

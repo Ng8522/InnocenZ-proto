@@ -22,18 +22,16 @@ export function RosterTimetableFilters({
   const active = rosterTimetableFiltersActive(filters);
 
   return (
-    <div className="iz-roster-shift-filters iz-roster-timetable-filters">
+    <div className="iz-roster-shift-filters iz-roster-timetable-filters iz-roster-timetable-filters--compact">
       <div className="iz-roster-shift-filters-head">
-        <span className="iz-tiny font-semibold uppercase tracking-wider text-[#e8dff7]">
-          Filter timetable
-        </span>
-        <span className="iz-tiny iz-muted">
+        <span className="iz-roster-timetable-filters-title">Filters</span>
+        <span className="iz-roster-timetable-filters-stats">
           {prCount} PR{prCount === 1 ? "" : "s"} · {shiftCount} shift{shiftCount === 1 ? "" : "s"}
           {active ? ` (of ${totalPrs} · ${totalShifts})` : ""}
         </span>
       </div>
 
-      <div className="iz-roster-shift-filters-grid">
+      <div className="iz-roster-timetable-filters-primary">
         <label className="iz-roster-filter-field iz-roster-filter-field--search">
           <span className="iz-roster-filter-label">Name</span>
           <span className="iz-roster-filter-input-wrap">
@@ -41,7 +39,7 @@ export function RosterTimetableFilters({
             <input
               type="search"
               className="iz-roster-filter-input"
-              placeholder="Search PR…"
+              placeholder="Search"
               value={filters.nameQuery}
               onChange={(e) => onChange({ nameQuery: e.target.value })}
             />
@@ -68,9 +66,9 @@ export function RosterTimetableFilters({
             value={filters.showPrs}
             onChange={(e) => onChange({ showPrs: e.target.value as RosterTimetableFilterState["showPrs"] })}
           >
-            <option value="">Everyone on roster</option>
-            <option value="scheduled">With shifts this week</option>
-            <option value="free">Free on at least one day</option>
+            <option value="">Everyone</option>
+            <option value="scheduled">With shifts</option>
+            <option value="free">Free some days</option>
           </IzSelect>
         </label>
 
@@ -106,13 +104,16 @@ export function RosterTimetableFilters({
             <option value="unavailable">Unavailable</option>
           </IzSelect>
         </label>
+      </div>
 
+      <div className="iz-roster-timetable-filters-secondary">
         <label className="iz-roster-filter-field">
           <span className="iz-roster-filter-label">Start from</span>
           <IzTimeInput
             value={filters.startTime}
             onChange={(v) => onChange({ startTime: v })}
             showIcon={false}
+            placeholder="Start Time"
             className="iz-roster-filter-time"
             aria-label="Shift start from"
           />
@@ -124,6 +125,7 @@ export function RosterTimetableFilters({
             value={filters.endTime}
             onChange={(v) => onChange({ endTime: v })}
             showIcon={false}
+            placeholder="End Time"
             className="iz-roster-filter-time"
             aria-label="Shift end by"
           />

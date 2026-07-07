@@ -9,7 +9,6 @@ import { RosterShiftTable } from "@/components/agency/RosterShiftTable";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
 import {
-  nowAgencyDateTime,
   OUTLET_NAMES,
   rosterPageDisplayStatus,
   type AgencyRosterSlot,
@@ -17,8 +16,8 @@ import {
 } from "@/lib/agency-demo";
 import { deriveLiveWorkforce } from "@/lib/portal-sync";
 import { IzSheet } from "@/components/iz/Sheet";
-import { LabelWithIcon } from "@/components/iz/TitleWithIcon";
-import { IzCard, IzCardTitle, IzPageTitle, IzPill, IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
+import { LabelWithIcon, TitleWithIcon } from "@/components/iz/TitleWithIcon";
+import { IzCard, IzCardTitle, IzPill, IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import {
   EMPTY_ROSTER_SHIFT_FILTERS,
@@ -31,7 +30,7 @@ import {
 } from "@/lib/roster-shift-filters";
 import { getPrScheduleState } from "@/lib/roster-availability";
 import { agencyCan } from "@/lib/agency-rbac";
-import { mondayOfWeek, weekDayIsos, weekRangeLabel, dedupeLiveRosterByPr } from "@/lib/roster-week-plan";
+import { mondayOfWeek, weekDayIsos, dedupeLiveRosterByPr } from "@/lib/roster-week-plan";
 import { ArrowLeftRight, Calendar, ChevronRight, MapPin, Trash2, Users, X } from "lucide-react";
 
 const EDITABLE_STATUSES: RosterSlotStatus[] = ["scheduled", "on-duty", "unavailable"];
@@ -75,7 +74,6 @@ function AgencyRoster() {
   const flagRosterAttendance = useStore((s) => s.flagRosterAttendance);
   const syncLivePrCheckInToRoster = useStore((s) => s.syncLivePrCheckInToRoster);
   const syncOutletRequestRoster = useStore((s) => s.syncOutletRequestRoster);
-  const { date, time } = nowAgencyDateTime();
   const [planningDate, setPlanningDate] = useState(DEFAULT_ROSTER_DATE_ISO);
   const [shiftFilters, setShiftFilters] = useState<RosterShiftFilterState>(EMPTY_ROSTER_SHIFT_FILTERS);
   const [timetableFilters, setTimetableFilters] = useState<RosterTimetableFilterState>(
@@ -122,8 +120,8 @@ function AgencyRoster() {
       }),
     [prSwapRequests, agencyRoster],
   );
-  const swapCount = pendingPrSwaps.length;
   const outletRequestCount = agencyRoster.filter((s) => s.status === "outlet-request-pending").length;
+  const swapCount = pendingPrSwaps.length;
   const swapToApprove = approveSwapId
     ? prSwapRequests.find((s) => s.id === approveSwapId && s.status === "pending_agency")
     : null;
@@ -203,22 +201,27 @@ function AgencyRoster() {
     <div className="iz-screen iz-roster-page">
 
       <header className="iz-roster-head">
-        <div className="min-w-0 flex-1">
-          <IzPageTitle className="md:text-xl">Roster</IzPageTitle>
-          <p className="iz-tiny iz-muted mt-0.5">
-            {date} · {time}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {outletRequestCount > 0 && (
-            <IzPill variant="amber">{outletRequestCount} outlet request{outletRequestCount !== 1 ? "s" : ""}</IzPill>
-          )}
-          {swapCount > 0 && (
-            <IzPill variant="violet">
-              {swapCount} swap{swapCount > 1 ? "s" : ""}
-            </IzPill>
-          )}
-        </div>
+        <TitleWithIcon
+          icon={Calendar}
+          iconClassName="h-4 w-4 shrink-0 text-[var(--iz-gold-l)]"
+          className="font-sora text-lg font-extrabold tracking-tight text-[var(--iz-txt)] md:text-xl"
+        >
+          Roster
+        </TitleWithIcon>
+        {(outletRequestCount > 0 || swapCount > 0) && (
+          <div className="iz-roster-head-badges">
+            {outletRequestCount > 0 && (
+              <IzPill variant="amber">
+                {outletRequestCount} outlet request{outletRequestCount !== 1 ? "s" : ""}
+              </IzPill>
+            )}
+            {swapCount > 0 && (
+              <IzPill variant="violet">
+                {swapCount} swap{swapCount > 1 ? "s" : ""}
+              </IzPill>
+            )}
+          </div>
+        )}
       </header>
 
       <div className="iz-roster-toolbar">
@@ -241,7 +244,7 @@ function AgencyRoster() {
         <div className="iz-roster-filters">
           {viewMode === "live" ? (
             <div className="iz-roster-date-live" aria-label="Date: Today (live view)">
-              <Calendar className="h-3.5 w-3.5 shrink-0 text-[var(--iz-green)]" />
+              <Calendar className="h-3.5 w-3.5 shrink-0 text-[var(--iz-gold-l)]" />
               <span>Today</span>
             </div>
           ) : (
@@ -250,9 +253,10 @@ function AgencyRoster() {
                 value={planningDate}
                 onChange={setPlanningDate}
                 rosterDates={dates}
-                hint="Pick any day — timetable shows that full week (Mon–Sun)."
+                weekly
+                placeholder="Pick week"
+                hint="Tap any day — selects that full week (Mon–Sun)."
               />
-              <span className="iz-tiny iz-muted hidden sm:inline">{weekRangeLabel(weekStartIso)}</span>
             </div>
           )}
         </div>
@@ -289,7 +293,7 @@ function AgencyRoster() {
             </div>
             <div className="iz-roster-kpi">
               <span className="n gold">{formatRM(estLabour)}</span>
-              <LabelWithIcon label="Est. labour cost" className="l" />
+              <LabelWithIcon label="Est labour cost" className="l" />
             </div>
           </>
         )}
@@ -308,25 +312,17 @@ function AgencyRoster() {
       )}
 
       {viewMode === "planning" && (
-        <>
+        <div className="iz-roster-planning">
           {canAssign && (
-            <IzCard flat className="iz-roster-planning-hint">
-              <p className="iz-tiny iz-muted">
-                Weekly planning — assign outlet-posted shifts to PRs per day. Only open shifts from
-                outlets appear; assignments are confirmed immediately — PRs can cancel per agency policy.
-                Days without a posted shift still
-                open the picker so you can see what is available.
-              </p>
-              <button
-                type="button"
-                className="iz-btn iz-btn-soft mt-2 !text-xs"
-                onClick={() => demoAutoAssignPr(planningDate)}
-              >
-                AI auto-assign next free PR · {planningDate}
-              </button>
-            </IzCard>
+            <button
+              type="button"
+              className="iz-roster-auto-assign"
+              onClick={() => demoAutoAssignPr(planningDate)}
+            >
+              AI auto-assign next free PR · {planningDate}
+            </button>
           )}
-          <div className="iz-roster-week mt-3">
+          <div className="iz-roster-planning-panel">
             <RosterTimetableFilters
               filters={timetableFilters}
               onChange={(patch) => setTimetableFilters((prev) => ({ ...prev, ...patch }))}
@@ -343,9 +339,10 @@ function AgencyRoster() {
               canAssign={canAssign}
               onEditSlot={openEdit}
               onWeekChange={setPlanningDate}
+              todayIso={DEFAULT_ROSTER_DATE_ISO}
             />
           </div>
-        </>
+        </div>
       )}
 
       {canAssign && pendingPrSwaps.length > 0 && (

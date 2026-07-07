@@ -213,17 +213,20 @@
   font-weight: 700;
   letter-spacing: 0.2px;
   font-size: 22px;
+  color: var(--iz-accent-l, #e6c785);
 }
 .iz-wordmark-z {
-  background: var(--iz-grad-accent);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: inherit;
+  font-style: normal;
 }
-/* Italic gold Z only inside the wordmark lockup — heading Z's stay upright */
 .iz-wordmark .iz-wordmark-z {
-  font-style: italic;
-  padding-right: 0.04em;
+  padding-right: 0;
+}
+.iz-wordmark--match {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: inherit;
+  vertical-align: baseline;
 }
 .iz-tiny {
   font-size: var(--iz-fs-tiny);
@@ -7661,6 +7664,11 @@ button.iz-pr-offer-row:hover {
 }
 .iz-logo-horizontal {
   width: min(100%, 280px);
+}
+.iz-logo-horizontal__wordmark {
+  font-size: 28px;
+  line-height: 1;
+  white-space: nowrap;
 }
 .iz-logo-horizontal__img {
   display: block;

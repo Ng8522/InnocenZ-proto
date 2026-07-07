@@ -3,9 +3,7 @@ import { ArrowRight, RotateCcw } from "lucide-react";
 import { iconForNav } from "@/lib/lucide-label-icons";
 import { useStore, type Role } from "@/lib/store";
 import type { SignInPortal } from "@/lib/portal-signin";
-import { PhoneFrame, InnocenZLogoMark } from "@/components/Brand";
-import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
-
+import { PhoneFrame, InnocenZLogoMark, InnocenZWordmark } from "@/components/Brand";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -67,10 +65,8 @@ function Welcome() {
         <InnocenZLogoMark className="!mt-[26px]" />
 
         <div className="text-center">
-          <h1 className="font-sora mt-3 text-[27px] font-extrabold text-[var(--iz-txt)]">
-            <TitleWithIcon icon={iconForNav("Welcome")}>
-              Welcome to Innocen<span className="iz-wordmark-z">Z</span>
-            </TitleWithIcon>
+          <h1 className="mt-3 text-[27px] font-sora font-extrabold leading-tight text-[var(--iz-txt)]">
+            Welcome to <InnocenZWordmark className="iz-wordmark--match" />
           </h1>
         </div>
 

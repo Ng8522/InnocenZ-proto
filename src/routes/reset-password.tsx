@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { PhoneFrame, InnocenZLogoMark } from "@/components/Brand";
+import { PhoneFrame, InnocenZLogoMark, InnocenZWordmark } from "@/components/Brand";
 import { Toasts } from "@/components/Toasts";
 import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import { parseSignInPortal } from "@/lib/portal-signin";
@@ -52,8 +52,8 @@ function ResetPassword() {
         <InnocenZLogoMark className="mt-8" />
 
         <div className="text-center">
-          <h1 className="font-sora mt-6 text-[27px] font-extrabold text-[var(--iz-txt)]">
-            Innocen<span className="iz-wordmark-z">Z</span>
+          <h1 className="mt-6 text-[27px] font-sora font-extrabold leading-tight">
+            <InnocenZWordmark className="iz-wordmark--match" />
           </h1>
           <p className="iz-sm iz-muted mt-2">
             <TitleWithIcon icon={KeyRound}>Set your new password</TitleWithIcon>

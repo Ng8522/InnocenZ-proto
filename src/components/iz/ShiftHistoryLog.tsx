@@ -665,7 +665,7 @@ function VenueHistoryCard({
   const body = (
     <>
       <div className="iz-between items-start gap-2">
-        <div className="font-sora text-[16px] font-bold">{rollup.venue}</div>
+        <div className="iz-venue-hist-card__name">{rollup.venue}</div>
         <div className="flex shrink-0 items-center gap-1.5">
           <div className="text-right">
             <div className="font-sora text-sm font-bold text-[var(--iz-gold-l)]">

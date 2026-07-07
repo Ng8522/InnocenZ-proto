@@ -146,6 +146,27 @@ function normalizeShiftTime(time: string) {
   return time.replace(/\s+/g, " ").trim();
 }
 
+function isAgencyVisiblePostedShift(shift: ShiftRequest): boolean {
+  return (
+    shift.status === "open" &&
+    (shift.destination === "agency" || shift.destination === "both")
+  );
+}
+
+/** True when the outlet already has an agency-visible job board post on this calendar day. */
+function outletHasAgencyPostedShiftOnDate(
+  outlet: string,
+  dateIso: string,
+  posted: ShiftRequest[],
+  todayIso: string,
+): boolean {
+  return posted.some((s) => {
+    if (s.outletName !== outlet || !isAgencyVisiblePostedShift(s)) return false;
+    const sIso = s.dateIso ?? resolveOutletShiftDateIso(s.date, s.date, todayIso);
+    return sIso === dateIso;
+  });
+}
+
 /** Match tied offers to outlet-posted shifts so tier pay + sales targets stay in sync. */
 function findMatchingOutletShift(
   outlet: string,
@@ -162,6 +183,43 @@ function findMatchingOutletShift(
     if (sIso !== dateIso) return false;
     return normalizeShiftTime(s.shift) === normTime;
   });
+}
+
+const OUTLET_SHIFT_SOURCE_RANK: Record<OutletShiftSource, number> = {
+  posted: 3,
+  "tied-offer": 2,
+  "assignment-pending": 1,
+};
+
+function outletShiftDayKey(shift: AgencyOutletAvailableShift, todayIso: string): string {
+  return resolveOutletShiftDateIso(shift.date, shift.dateIso, todayIso);
+}
+
+function preferOutletShift(
+  a: AgencyOutletAvailableShift,
+  b: AgencyOutletAvailableShift,
+): AgencyOutletAvailableShift {
+  const rankA = OUTLET_SHIFT_SOURCE_RANK[a.source];
+  const rankB = OUTLET_SHIFT_SOURCE_RANK[b.source];
+  if (rankA !== rankB) return rankA > rankB ? a : b;
+  if (a.payEstimate !== b.payEstimate) return a.payEstimate > b.payEstimate ? a : b;
+  return a.id.localeCompare(b.id) <= 0 ? a : b;
+}
+
+/** One agency-visible event per outlet calendar day — prefer outlet job-board posts. */
+function dedupeOutletShiftsOnePerDay(
+  shifts: AgencyOutletAvailableShift[],
+  todayIso: string,
+): AgencyOutletAvailableShift[] {
+  const byDay = new Map<string, AgencyOutletAvailableShift>();
+  for (const shift of shifts) {
+    const key = outletShiftDayKey(shift, todayIso);
+    const existing = byDay.get(key);
+    byDay.set(key, existing ? preferOutletShift(existing, shift) : shift);
+  }
+  return [...byDay.values()].sort((a, b) =>
+    outletShiftDayKey(a, todayIso).localeCompare(outletShiftDayKey(b, todayIso)),
+  );
 }
 
 function resolveAgencyPayTierRows(
@@ -269,6 +327,10 @@ function shiftsFromTied(
 ): AgencyOutletAvailableShift[] {
   return tied
     .filter((o) => o.outlet === outlet)
+    .filter((o) => {
+      const dateIso = ymdToIso(migrateDemoYmd(o.date));
+      return !outletHasAgencyPostedShiftOnDate(outlet, dateIso, posted, todayIso);
+    })
     .map((o) => {
       const dateYmd = migrateDemoYmd(o.date);
       const dateIso = ymdToIso(dateYmd);
@@ -358,11 +420,14 @@ export function buildAgencyOutletSummaries(input: {
 
   return outlets.map((outlet) => {
     const rule = getOutletRule(outlet, commissionRules.length ? commissionRules : undefined);
-    const shifts = [
-      ...shiftsFromPosted(outlet, input.shifts, tierCtx, todayIso),
-      ...shiftsFromTied(outlet, tied, tierCtx, todayIso, input.shifts),
-      ...shiftsFromRoster(outlet, input.roster, tierCtx, todayIso),
-    ].filter((shift) => isUpcomingOutletShift(shift, todayIso));
+    const shifts = dedupeOutletShiftsOnePerDay(
+      [
+        ...shiftsFromPosted(outlet, input.shifts, tierCtx, todayIso),
+        ...shiftsFromTied(outlet, tied, tierCtx, todayIso, input.shifts),
+        ...shiftsFromRoster(outlet, input.roster, tierCtx, todayIso),
+      ].filter((shift) => isUpcomingOutletShift(shift, todayIso)),
+      todayIso,
+    );
     const scheduledTonight = input.roster.filter(
       (s) => s.outlet === outlet && s.dateIso === todayIso && s.status !== "unavailable",
     ).length;
@@ -502,8 +567,8 @@ export function buildOutletDayDemandSummaries(input: {
   for (const offer of tied.filter((o) => o.outlet === input.outlet)) {
     const dateYmd = migrateDemoYmd(offer.date);
     const dateIso = ymdToIso(dateYmd);
-    // Outlet post + agency tied offer are the same event — count demand once.
-    if (findMatchingOutletShift(input.outlet, dateIso, offer.time, input.posted, todayIso)) {
+    // Outlet post + agency tied offer are the same calendar day — count demand once.
+    if (outletHasAgencyPostedShiftOnDate(input.outlet, dateIso, input.posted, todayIso)) {
       continue;
     }
     bump(dateIso, fmtDShort(...dateYmd), tiedOfferHeadcount(offer), tiedOfferSupplied(offer));
@@ -828,32 +893,25 @@ export function buildPlanningWeekOutletShiftMap(
   return byDate;
 }
 
-function planningShiftKey(
+function planningShiftDayKey(
   shift: AgencyOutletAvailableShift,
   todayIso: string,
 ): string {
   const dateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso, todayIso);
-  const shiftNorm = shift.shift.replace(/\s+/g, " ").trim();
-  return `${shift.outlet}|${dateIso}|${shiftNorm}`;
+  return `${shift.outlet}|${dateIso}`;
 }
 
-/** One row per outlet shift — prefer outlet job-board post over legacy tied listing */
+/** One row per outlet per calendar day — prefer outlet job-board post over legacy tied listing */
 function dedupePlanningOutletShifts(
   shifts: AgencyOutletAvailableShift[],
   todayIso: string,
 ): AgencyOutletAvailableShift[] {
   const byKey = new Map<string, AgencyOutletAvailableShift>();
   for (const shift of shifts) {
-    const key = planningShiftKey(shift, todayIso);
+    const key = planningShiftDayKey(shift, todayIso);
     const existing = byKey.get(key);
-    const normalized = { ...shift, source: "posted" as const };
-    if (!existing) {
-      byKey.set(key, normalized);
-      continue;
-    }
-    const preferNew =
-      shift.id.startsWith("posted-") && !existing.id.startsWith("posted-");
-    byKey.set(key, preferNew ? normalized : { ...existing, source: "posted" });
+    const kept = existing ? preferOutletShift(existing, shift) : shift;
+    byKey.set(key, kept.source === "posted" ? { ...kept, source: "posted" as const } : kept);
   }
   return [...byKey.values()];
 }
@@ -910,6 +968,10 @@ function shiftsFromTiedForWeek(
 ): AgencyOutletAvailableShift[] {
   return tied
     .filter((o) => o.outlet === outlet)
+    .filter((o) => {
+      const dateIso = ymdToIso(migrateDemoYmd(o.date));
+      return !outletHasAgencyPostedShiftOnDate(outlet, dateIso, posted, todayIso);
+    })
     .map((o) => {
       const dateYmd = migrateDemoYmd(o.date);
       const dateIso = ymdToIso(dateYmd);

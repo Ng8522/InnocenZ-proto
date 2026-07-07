@@ -7965,6 +7965,13 @@ button.iz-pr-offer-row:hover {
   text-align: left;
   cursor: pointer;
 }
+.iz-venue-hist-card__name {
+  font-family: var(--font-sora, "Sora", sans-serif);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--iz-txt);
+  line-height: 1.2;
+}
 .iz-txn-metric {
   background: var(--iz-bg2);
   border: 1px solid var(--iz-line);
@@ -11397,7 +11404,7 @@ button.iz-pr-offer-row:hover {
 }
 .iz-outlet-manage-card__name {
   font-family: var(--font-sora, "Sora", sans-serif);
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 800;
   color: var(--iz-txt);
   white-space: nowrap;

@@ -5,14 +5,19 @@ import { publicAssetPath } from "@/lib/public-asset";
 export const INNOCENZ_LOGO_PATH = "/assets/innocenz-logo.png";
 export const INNOCENZ_LOGO_HORIZONTAL_PATH = "/assets/innocenz-logo-horizontal.png";
 
+/** Serif gold wordmark — matches brand lockup (Playfair Display, unified gold). */
+export function InnocenZWordmark({ className }: { className?: string }) {
+  return (
+    <span className={cn("iz-wordmark", className)}>
+      Innocen<span className="iz-wordmark-z">Z</span>
+    </span>
+  );
+}
+
 export function InnocenZLogoHorizontal({ className }: { className?: string }) {
   return (
     <div className={["iz-logo-horizontal", className].filter(Boolean).join(" ")}>
-      <img
-        src={publicAssetPath(INNOCENZ_LOGO_HORIZONTAL_PATH)}
-        alt="InnocenZ"
-        className="iz-logo-horizontal__img"
-      />
+      <InnocenZWordmark className="iz-logo-horizontal__wordmark" />
     </div>
   );
 }
@@ -69,9 +74,7 @@ export function Logo({
   const wordSize = size === "lg" ? "text-[22px]" : size === "sm" ? "text-lg" : "text-[22px]";
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className={`iz-wordmark ${wordSize}`}>
-        Innocen<span className="iz-wordmark-z">Z</span>
-      </div>
+      <InnocenZWordmark className={wordSize} />
       {showTagline && size !== "sm" && (
         <p
           className="font-sora text-[10px] font-bold tracking-[0.3em] text-[var(--iz-gold)]"

@@ -19,8 +19,8 @@
   <!-- Wordmark -->
   <text x="260" y="205" text-anchor="middle"
         font-family="'Playfair Display', 'Cormorant Garamond', Georgia, 'Times New Roman', serif"
-        font-size="62" letter-spacing="1">
-    <tspan fill="#f1ece0">Innocen</tspan><tspan fill="#d8ab57" font-style="italic">Z</tspan>
+        font-size="62" font-weight="700" letter-spacing="1" fill="#e6c785">
+    InnocenZ
   </text>
 
   <!-- Tagline -->

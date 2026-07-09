@@ -5,7 +5,7 @@ import { IzSheet } from "@/components/iz/Sheet";
 import { Toasts } from "@/components/Toasts";
 import { isValidDemoOtp } from "@/components/auth/OtpVerifySheet";
 import { useStore } from "@/lib/store";
-import { getPrAgencyById, PR_AGENCIES, DEFAULT_TIED_AGENCY_ID, PORTFOLIO_SLOT_COUNT, SEED_PR_PORTFOLIO_PATHS } from "@/lib/pr-demo";
+import { getPrAgencyById, PR_AGENCIES, DEFAULT_TIED_AGENCY_ID, PORTFOLIO_SLOT_COUNT } from "@/lib/pr-demo";
 import { PortfolioGalleryPicker, portfolioFilledCount } from "@/components/pr/PortfolioGalleryPicker";
 import { publicAssetPath } from "@/lib/public-asset";
 import {
@@ -139,7 +139,6 @@ type RegisterDraft = {
   acceptTerms: boolean;
 };
 
-import { demoPlaceholderImage } from "@/lib/demo-placeholder-image";
 function dobToNricPrefix(dob: string): string {
   if (!dob) return "";
   const [year, month, day] = dob.split("-");
@@ -188,12 +187,34 @@ function buildEmptyPortfolio(): (string | null)[] {
   return Array.from({ length: PORTFOLIO_SLOT_COUNT }, () => null);
 }
 
-function buildDemoPortfolio(): (string | null)[] {
-  const slots = buildEmptyPortfolio();
-  for (let i = 0; i < SEED_PR_PORTFOLIO_PATHS.length; i++) {
-    slots[i] = SEED_PR_PORTFOLIO_PATHS[i]!;
-  }
-  return slots;
+function buildEmptyRegisterDraft(): RegisterDraft {
+  return {
+    username: "",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneDialCode: "+60",
+    phoneNumber: "",
+    nationality: "Malaysia",
+    idType: "NRIC",
+    idNo: "",
+    dob: "",
+    addressLine1: "",
+    addressLine2: "",
+    postcode: "",
+    state: "Selangor",
+    country: "Malaysia",
+    underAgency: null,
+    agencyId: "",
+    idPhotoFront: null,
+    idPhotoBack: null,
+    profilePhoto: null,
+    portfolio: buildEmptyPortfolio(),
+    acceptPrivacy: false,
+    acceptTruth: false,
+    acceptAgencyShare: false,
+    acceptTerms: false,
+  };
 }
 
 function buildDemoRegisterDraft(): RegisterDraft {
@@ -216,10 +237,10 @@ function buildDemoRegisterDraft(): RegisterDraft {
     country: "Malaysia",
     underAgency: true,
     agencyId: DEFAULT_TIED_AGENCY_ID,
-    idPhotoFront: demoPlaceholderImage("ID — Front", "NRIC · demo"),
-    idPhotoBack: demoPlaceholderImage("ID — Back", "NRIC · demo"),
-    profilePhoto: demoPlaceholderImage("TCF", "Profile · demo", "#C99B4E"),
-    portfolio: buildDemoPortfolio(),
+    idPhotoFront: null,
+    idPhotoBack: null,
+    profilePhoto: null,
+    portfolio: buildEmptyPortfolio(),
     acceptPrivacy: true,
     acceptTruth: true,
     acceptAgencyShare: true,
@@ -684,7 +705,7 @@ function RegisterPage() {
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [otp, setOtp] = useState("");
-  const [draft, setDraft] = useState<RegisterDraft>(() => buildDemoRegisterDraft());
+  const [draft, setDraft] = useState<RegisterDraft>(() => buildEmptyRegisterDraft());
   const profilePhotoRef = useRef<HTMLInputElement>(null);
 
   const patch = (partial: Partial<RegisterDraft>) => setDraft((d) => ({ ...d, ...partial }));

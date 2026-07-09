@@ -1,14 +1,44 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import type { LiveWorkforceEntry } from "@/lib/agency-demo";
-import { resolveRosterPrName } from "@/lib/agency-demo";
+import type { AgencyManagedPR, AgencyRosterSlot, LiveWorkforceEntry } from "@/lib/agency-demo";
+import { resolveRosterPrName, rosterSlotAgencyName } from "@/lib/agency-demo";
 import { deriveLiveWorkforce, outletMatches } from "@/lib/portal-sync";
 import { formatPrDisplayName } from "@/lib/pr-demo";
+import { formatRosterShiftTime } from "@/lib/pr-session";
+import {
+  rosterSlotLiveFloorSales,
+  type OutletPrLiveSales,
+  type RosterShiftEarningsContext,
+} from "@/lib/outlet-financial-sync";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { useStore } from "@/lib/store";
-import { IzPill } from "@/components/iz/ui";
+import { IzPill, formatRM } from "@/components/iz/ui";
+import { comcardPreviewFromSlot, PrComcardIdentity } from "@/components/agency/PrComcardIdentity";
 import { PortalClickableTableRow } from "@/components/portal/PortalClickableTableRow";
+import {
+  RosterShiftEarningsSheets,
+  type RosterEarningsSheetKind,
+} from "@/components/agency/RosterShiftEarningsSheets";
+import { RosterAmountButton } from "@/components/agency/RosterAmountButton";
 import { ChevronRight } from "lucide-react";
+
+function formatFloorDrinks(floor: OutletPrLiveSales): string {
+  return floor.drinkSalesRm > 0 ? formatRM(floor.drinkSalesRm) : "—";
+}
+
+function formatFloorTips(floor: OutletPrLiveSales): string {
+  return floor.tipRm > 0 ? formatRM(floor.tipRm) : "—";
+}
+
+const LIVE_STATUS_LABEL: Record<
+  LiveWorkforceEntry["status"],
+  { label: string; variant: "green" | "amber" | "red" | "violet" | "ink" }
+> = {
+  "on-duty": { label: "On duty", variant: "green" },
+  "en-route": { label: "Scheduled", variant: "ink" },
+  "checked-out": { label: "Checked out", variant: "ink" },
+  out: { label: "Out", variant: "ink" },
+};
 
 export function workforceStatusVariant(
   status: LiveWorkforceEntry["status"] | "scheduled" | "checked-out",
@@ -30,29 +60,23 @@ export function workforceStatusLabel(
   return "OUT";
 }
 
-function statusVariant(status: LiveWorkforceEntry["status"]) {
-  return workforceStatusVariant(status);
-}
-
-function statusLabel(status: LiveWorkforceEntry["status"]) {
-  return workforceStatusLabel(status);
-}
-
 function WorkforceRow({
   entry,
-  shift,
+  slot,
+  profile,
+  floor,
   prId,
+  onOpenEarningsSheet,
 }: {
   entry: LiveWorkforceEntry;
-  shift?: string;
+  slot?: AgencyRosterSlot;
+  profile?: AgencyManagedPR;
+  floor: OutletPrLiveSales;
   prId?: string;
+  onOpenEarningsSheet?: (kind: RosterEarningsSheetKind, slot: AgencyRosterSlot) => void;
 }) {
-  const initials = entry.prName
-    .split(/\s+/)
-    .map((p) => p[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const st = LIVE_STATUS_LABEL[entry.status];
+  const previewSlot = slot ?? { prId: prId ?? entry.id, prName: entry.prName };
 
   return (
     <PortalClickableTableRow
@@ -60,16 +84,55 @@ function WorkforceRow({
     >
       <td>
         <div className="iz-portal-table-pr">
-          <span className="iz-portal-table-av">{initials}</span>
-          <span className="iz-portal-table-name">{entry.prName}</span>
+          <PrComcardIdentity
+            pr={comcardPreviewFromSlot(previewSlot, profile)}
+            profile={profile}
+            agencyName={slot ? rosterSlotAgencyName(slot) : undefined}
+          />
+          <div className="iz-portal-table-pr-meta">
+            <span className="iz-portal-table-name">{entry.prName}</span>
+            {profile?.trainingLevel && (
+              <span className="iz-roster-tier-tag">{profile.trainingLevel}</span>
+            )}
+          </div>
         </div>
       </td>
+      <td className="iz-portal-table-meta">{slot ? rosterSlotAgencyName(slot) : "—"}</td>
       <td className="iz-portal-table-meta">{entry.outlet}</td>
-      <td className="iz-portal-table-meta iz-portal-table-shift">{shift ?? "—"}</td>
+      <td className="iz-portal-table-meta iz-portal-table-shift">
+        {slot ? formatRosterShiftTime(slot) : "—"}
+      </td>
+      <td className="iz-portal-table-meta">{slot?.checkedInAt ?? entry.checkIn ?? "—"}</td>
       <td className="iz-portal-table-status">
-        <IzPill variant={statusVariant(entry.status)} className="!py-0.5 !text-[9px]">
-          {statusLabel(entry.status)}
+        <IzPill variant={st.variant} className="!py-0.5 !text-[9px]">
+          {st.label}
         </IzPill>
+      </td>
+      <td className="iz-portal-table-meta">
+        {onOpenEarningsSheet && slot ? (
+          <RosterAmountButton
+            label="drinks"
+            stopRowNavigation
+            onClick={() => onOpenEarningsSheet("drinks", slot)}
+          >
+            {formatFloorDrinks(floor)}
+          </RosterAmountButton>
+        ) : (
+          formatFloorDrinks(floor)
+        )}
+      </td>
+      <td className="iz-portal-table-meta">
+        {onOpenEarningsSheet && slot ? (
+          <RosterAmountButton
+            label="tips"
+            stopRowNavigation
+            onClick={() => onOpenEarningsSheet("tips", slot)}
+          >
+            {formatFloorTips(floor)}
+          </RosterAmountButton>
+        ) : (
+          formatFloorTips(floor)
+        )}
       </td>
     </PortalClickableTableRow>
   );
@@ -96,8 +159,51 @@ export function LiveWorkforceTable({
 }) {
   const agencyRoster = useStore((s) => s.agencyRoster);
   const agencyPRs = useStore((s) => s.agencyPRs);
+  const shifts = useStore((s) => s.shifts);
+  const drinkMenu = useStore((s) => s.outletWorkspace.drinkMenu ?? []);
+  const receiptScans = useStore((s) => s.prReceiptScans ?? []);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
+  const happyHourStart = useStore((s) => s.outletWorkspace.happyHourStart);
+  const happyHourEnd = useStore((s) => s.outletWorkspace.happyHourEnd);
+  const workspaceTierRates = useStore((s) => s.outletWorkspace.tierRates);
+
+  const [earningsSheet, setEarningsSheet] = useState<{
+    kind: RosterEarningsSheetKind;
+    slot: AgencyRosterSlot;
+  } | null>(null);
+
+  const rosterScope = useMemo(
+    () => agencyRoster.filter((slot) => slot.dateIso === dateIso),
+    [agencyRoster, dateIso],
+  );
+
+  const earningsContext = useMemo((): RosterShiftEarningsContext | null => {
+    if (!workspaceTierRates) return null;
+    return {
+      rosterScope,
+      agencyPRs,
+      outletShifts: shifts as RosterShiftEarningsContext["outletShifts"],
+      drinkMenu,
+      receiptScans,
+      happyHourStart,
+      happyHourEnd,
+      workspaceTierRates,
+    };
+  }, [
+    rosterScope,
+    agencyPRs,
+    shifts,
+    drinkMenu,
+    receiptScans,
+    happyHourStart,
+    happyHourEnd,
+    workspaceTierRates,
+  ]);
+
+  const openEarningsSheet = (kind: RosterEarningsSheetKind, slot: AgencyRosterSlot) => {
+    setEarningsSheet({ kind, slot });
+  };
   const workforce = useMemo(
     () => deriveLiveWorkforce(agencyRoster, dateIso, outletCommissionRules, perDrinkRm, agencyPRs),
     [agencyRoster, dateIso, outletCommissionRules, perDrinkRm, agencyPRs],
@@ -106,10 +212,10 @@ export function LiveWorkforceTable({
     ? workforce.filter((w) => w.outlet === outletFilter || w.outlet.includes(outletFilter))
     : workforce;
 
-  const shiftById = useMemo(() => {
-    const map = new Map<string, string>();
+  const slotById = useMemo(() => {
+    const map = new Map<string, AgencyRosterSlot>();
     for (const slot of agencyRoster) {
-      if (slot.id) map.set(slot.id, slot.shift);
+      if (slot.id) map.set(slot.id, slot);
     }
     return map;
   }, [agencyRoster]);
@@ -121,6 +227,8 @@ export function LiveWorkforceTable({
     }
     return map;
   }, [agencyRoster]);
+
+  const prById = useMemo(() => new Map(agencyPRs.map((p) => [p.id, p])), [agencyPRs]);
 
   const panelClass = ["iz-portal-panel", className].filter(Boolean).join(" ");
   const wrapClass = embedded ? className : panelClass;
@@ -157,28 +265,61 @@ export function LiveWorkforceTable({
   }
 
   const tableBody = (
-    <div className="iz-portal-table-wrap">
-      <table className="iz-portal-table">
-        <thead>
-          <tr>
-            <th>PR</th>
-            <th>Outlet</th>
-            <th>Shift</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((w) => (
-            <WorkforceRow
-              key={w.id}
-              entry={w}
-              shift={shiftById.get(w.id)}
-              prId={linkPrProfiles ? prIdBySlotId.get(w.id) : undefined}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <p className="iz-tiny iz-muted2 mb-2 hidden md:block px-4 md:px-0">
+        Tap <strong className="text-[var(--iz-gold-l)]">Drinks</strong> or{" "}
+        <strong className="text-[var(--iz-gold-l)]">Tips</strong> for shift breakdown.
+      </p>
+      <div className="iz-portal-table-wrap">
+        <table className="iz-portal-table">
+          <thead>
+            <tr>
+              <th>PR</th>
+              <th>Agency</th>
+              <th>Outlet</th>
+              <th>Shift</th>
+              <th>Check-in</th>
+              <th>Status</th>
+              <th>Drinks</th>
+              <th>Tips</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((w) => {
+              const slot = slotById.get(w.id);
+              const floor = slot
+                ? rosterSlotLiveFloorSales({
+                    slot,
+                    outletShifts: shifts,
+                    drinkMenu,
+                    receiptScans,
+                  })
+                : { salesRm: 0, drinkSalesRm: 0, drinkUnits: 0, tipRm: 0 };
+              const prId = linkPrProfiles ? prIdBySlotId.get(w.id) : undefined;
+              return (
+                <WorkforceRow
+                  key={w.id}
+                  entry={w}
+                  slot={slot}
+                  profile={prId ? prById.get(prId) : undefined}
+                  floor={floor}
+                  prId={prId}
+                  onOpenEarningsSheet={earningsContext ? openEarningsSheet : undefined}
+                />
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {earningsContext && (
+        <RosterShiftEarningsSheets
+          kind={earningsSheet?.kind ?? null}
+          anchorSlot={earningsSheet?.slot ?? null}
+          earningsContext={earningsContext}
+          onClose={() => setEarningsSheet(null)}
+        />
+      )}
+    </>
   );
 
   if (embedded) {

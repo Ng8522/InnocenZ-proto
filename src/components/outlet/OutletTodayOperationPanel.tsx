@@ -38,7 +38,6 @@ import {
   workforceStatusLabel,
   workforceStatusVariant,
 } from "@/components/portal/LiveWorkforceTable";
-import { OutletFormCard } from "@/components/outlet/outlet-portal-ui";
 import { OutletTonightSummaryTable } from "@/components/outlet/OutletTonightSummaryTable";
 import { OutletPrLiveSalesSheet } from "@/components/outlet/OutletPrLiveSalesSheet";
 import { OutletPrLiveSalesFloorTable } from "@/components/outlet/OutletPrLiveSalesFloorTable";
@@ -144,6 +143,7 @@ export function OutletTodayOperationPanel({
   const [comcardPreviewId, setComcardPreviewId] = useState<string | null>(null);
   const [historyPrId, setHistoryPrId] = useState<string | null>(null);
   const [liveSalesPrId, setLiveSalesPrId] = useState<string | null>(null);
+  const [prTonightOpen, setPrTonightOpen] = useState(false);
   const [liveSalesOpen, setLiveSalesOpen] = useState(false);
   const [stars, setStars] = useState<1 | 2 | 3 | 4 | 5>(5);
   const [note, setNote] = useState("");
@@ -377,7 +377,7 @@ export function OutletTodayOperationPanel({
   if (!canRate) return null;
 
   return (
-    <OutletFormCard className={cn("!mb-0", className)}>
+    <div className={cn("!mb-0", className)}>
       {postSealRatePrompt && canRate && (
         <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-[rgba(232,194,122,.3)] bg-[rgba(232,194,122,.06)] px-3 py-2">
           <p className="text-xs font-semibold">
@@ -394,7 +394,15 @@ export function OutletTodayOperationPanel({
         </div>
       )}
 
-      <OutletSection id={OUTLET_PR_TONIGHT_SECTION_ID} title="PR tonight" hint={staffHint} className="!mb-0">
+      <OutletSection
+        id={OUTLET_PR_TONIGHT_SECTION_ID}
+        title="PR tonight"
+        hint={staffHint}
+        collapsible
+        open={prTonightOpen}
+        onOpenChange={setPrTonightOpen}
+        className="!mb-0"
+      >
           {staffTonight.length === 0 ? (
             <p className="iz-tiny iz-muted rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
               No PRs assigned for tonight yet.
@@ -620,6 +628,6 @@ export function OutletTodayOperationPanel({
           </div>
         </IzSheet>
       )}
-    </OutletFormCard>
+    </div>
   );
 }

@@ -73,7 +73,10 @@ export function PrComcardIdentity({
           size === "week" && "iz-pr-comcard-thumb-btn--week",
           className,
         )}
-        onClick={() => setOpen(true)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
         aria-label={`View comcard for ${pr.name}`}
         title={`View ${pr.name}'s comcard`}
       >

@@ -45,7 +45,7 @@ export function OutletPrLiveSalesSheet({
           <EarningsRow label="Daily wages" amount={breakdown.dailyWagesRm} />
           <EarningsRow label="HH" amount={breakdown.hhCommissionRm} />
           <EarningsRow label="Normal" amount={breakdown.normalCommissionRm} />
-          <EarningsRow label="Tips" amount={breakdown.tipCommissionRm} />
+          <EarningsRow label="Tips" amount={breakdown.tipSalesRm} />
           <EarningsRow label="OT" amount={breakdown.otPayRm} />
         </dl>
 

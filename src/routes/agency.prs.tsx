@@ -10,7 +10,7 @@ import { StaticComcardVisual } from "@/components/pr/PortfolioComcardVisual";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import type { AgencyManagedPR } from "@/lib/agency-demo";
-import { collectAgencyPrLanguages, languagesFromPr, sortAgencyPrsByName } from "@/lib/agency-demo";
+import { collectAgencyPrLanguages, languagesFromPr, resolveAgencyPrPhoto, sortAgencyPrsByName } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
 import { IzCard, IzCardTitle, IzKpiLabel, IzPageTitle, IzPill, IzSectionLabel, IzSelect, formatRM } from "@/components/iz/ui";
 import { publicAssetPath } from "@/lib/public-asset";
@@ -456,6 +456,7 @@ function AgencyPrDetail({
 
   const display = editing ? draft : buildAgencyPrDraft(detail);
   const avatarLetter = display.name.trim()[0]?.toUpperCase() ?? "?";
+  const profilePhoto = resolveAgencyPrPhoto(detail);
 
   const confirmSuspend = () => {
     onSuspend(detail.id);
@@ -495,9 +496,9 @@ function AgencyPrDetail({
       <IzCard className={`mt-3${editing ? " border-[rgba(217,185,122,.25)]" : ""}`}>
         <div className="flex gap-2.5">
           <div
-            className={`iz-avatar iz-avatar--lg shrink-0${detail.avatarPhoto ? " iz-avatar-photo" : ""}`}
+            className={`iz-avatar iz-avatar--lg shrink-0${profilePhoto ? " iz-avatar-photo" : ""}`}
           >
-            {detail.avatarPhoto ? <img src={publicAssetPath(detail.avatarPhoto)} alt="" /> : avatarLetter}
+            {profilePhoto ? <img src={publicAssetPath(profilePhoto)} alt="" /> : avatarLetter}
           </div>
           <div className="min-w-0 flex-1">
             <div className="iz-between items-start gap-2">

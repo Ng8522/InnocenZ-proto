@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import {
   rosterPageDisplayStatus,
   rosterSlotAgencyName,
@@ -12,24 +13,91 @@ import { comcardPreviewFromSlot, PrComcardIdentity } from "@/components/agency/P
 import { formatRosterShiftTime } from "@/lib/pr-session";
 import { activePrSwapForRosterSlot, type PrSwapRequest } from "@/lib/pr-features";
 import { estimateRosterSlotPayout } from "@/lib/portal-sync";
-import { findOutletShiftForRosterSlot } from "@/lib/outlet-demo";
+import { findOutletShiftForRosterSlot, type OutletDrinkPrice } from "@/lib/outlet-demo";
+import {
+  rosterSlotBreakdownTotal,
+  rosterSlotHasReceiptFloorSales,
+  rosterSlotLiveFloorSales,
+  rosterSlotPayoutFromFloorSales,
+  type OutletPrLiveSales,
+  type RosterShiftEarningsContext,
+} from "@/lib/outlet-financial-sync";
+import type { PrReceiptScan } from "@/lib/pr-demo";
 import { IzCard, IzPill, formatRM } from "@/components/iz/ui";
 import { ArrowLeftRight, Pencil } from "lucide-react";
-
+import {
+  RosterShiftEarningsSheets,
+  type RosterEarningsSheetKind,
+} from "@/components/agency/RosterShiftEarningsSheets";
+import { RosterAmountButton } from "@/components/agency/RosterAmountButton";
 type OutletShiftTierRef = {
   outletName: string;
   shift: string;
+  date?: string;
+  dateIso?: string;
+  status?: string;
   tierRates?: Record<OutletPrTier, OutletTierRateSettings>;
+  perDrinkRm?: number;
+  eventDrinkMenu?: OutletDrinkPrice[];
+  payPerHour?: number;
 };
+
+function resolveRosterSlotFloorSales(
+  slot: AgencyRosterSlot,
+  outletShifts: OutletShiftTierRef[] | undefined,
+  drinkMenu: OutletDrinkPrice[],
+  receiptScans: PrReceiptScan[] | undefined,
+): OutletPrLiveSales {
+  return rosterSlotLiveFloorSales({
+    slot,
+    outletShifts: outletShifts ?? [],
+    drinkMenu,
+    receiptScans,
+  });
+}
+
+function formatRosterSlotDrinks(floor: OutletPrLiveSales): string {
+  return floor.drinkSalesRm > 0 ? formatRM(floor.drinkSalesRm) : "—";
+}
+
+function formatRosterSlotTips(floor: OutletPrLiveSales): string {
+  return floor.tipRm > 0 ? formatRM(floor.tipRm) : "—";
+}
 
 function rosterSlotDisplayPayout(
   slot: AgencyRosterSlot,
   profile: AgencyManagedPR | undefined,
   outletCommissionRules: OutletCommissionRule[],
   perDrinkRm: number,
-  outletShifts?: OutletShiftTierRef[],
+  outletShifts: OutletShiftTierRef[] | undefined,
+  drinkMenu: OutletDrinkPrice[],
+  receiptScans: PrReceiptScan[] | undefined,
+  earningsContext?: RosterShiftEarningsContext | null,
 ): number {
+  const floor = resolveRosterSlotFloorSales(slot, outletShifts, drinkMenu, receiptScans);
   const outletShift = outletShifts ? findOutletShiftForRosterSlot(outletShifts, slot) : undefined;
+  if (rosterSlotHasReceiptFloorSales(floor)) {
+    if (earningsContext) {
+      const breakdownTotal = rosterSlotBreakdownTotal(slot, earningsContext);
+      if (breakdownTotal != null) return breakdownTotal;
+    }
+    return rosterSlotPayoutFromFloorSales(slot, floor, {
+      trainingLevel: profile?.trainingLevel,
+      rules: outletCommissionRules,
+      shiftTierRates: outletShift?.tierRates,
+    });
+  }
+  if (!slot.checkedInAt) {
+    return estimateRosterSlotPayout(
+      { ...slot, floorDrinks: 0, floorTips: 0 },
+      {
+        trainingLevel: profile?.trainingLevel,
+        rules: outletCommissionRules,
+        perDrinkRm,
+        shiftTierRates: outletShift?.tierRates,
+      },
+    );
+  }
   return estimateRosterSlotPayout(slot, {
     trainingLevel: profile?.trainingLevel,
     rules: outletCommissionRules,
@@ -92,6 +160,12 @@ export function RosterShiftTable({
   outletCommissionRules,
   perDrinkRm,
   outletShifts,
+  drinkMenu = [],
+  receiptScans = [],
+  rosterScopeSlots,
+  happyHourStart = "20:00",
+  happyHourEnd = "22:00",
+  workspaceTierRates,
   canAssign,
   onEdit,
   onFlagLate,
@@ -104,12 +178,51 @@ export function RosterShiftTable({
   outletCommissionRules: OutletCommissionRule[];
   perDrinkRm: number;
   outletShifts?: OutletShiftTierRef[];
+  drinkMenu?: OutletDrinkPrice[];
+  receiptScans?: PrReceiptScan[];
+  rosterScopeSlots?: AgencyRosterSlot[];
+  happyHourStart?: string;
+  happyHourEnd?: string;
+  workspaceTierRates?: Record<OutletPrTier, OutletTierRateSettings>;
   canAssign: boolean;
   onEdit: (id: string) => void;
   onFlagLate: (id: string) => void;
   onFlagNoShow: (id: string) => void;
   onCancelPrSwap: (swapId: string) => void;
 }) {
+  const [earningsSheet, setEarningsSheet] = useState<{
+    kind: RosterEarningsSheetKind;
+    slot: AgencyRosterSlot;
+  } | null>(null);
+
+  const earningsContext = useMemo((): RosterShiftEarningsContext | null => {
+    if (!workspaceTierRates) return null;
+    return {
+      rosterScope: rosterScopeSlots ?? slots,
+      agencyPRs,
+      outletShifts: (outletShifts ?? []) as RosterShiftEarningsContext["outletShifts"],
+      drinkMenu,
+      receiptScans,
+      happyHourStart,
+      happyHourEnd,
+      workspaceTierRates,
+    };
+  }, [
+    workspaceTierRates,
+    rosterScopeSlots,
+    slots,
+    agencyPRs,
+    outletShifts,
+    drinkMenu,
+    receiptScans,
+    happyHourStart,
+    happyHourEnd,
+  ]);
+
+  const openEarningsSheet = (kind: RosterEarningsSheetKind, slot: AgencyRosterSlot) => {
+    if (!earningsContext) return;
+    setEarningsSheet({ kind, slot });
+  };
   if (slots.length === 0) {
     return (
       <IzCard className="text-center">
@@ -124,6 +237,9 @@ export function RosterShiftTable({
     <>
       <p className="iz-tiny iz-muted2 mb-2 hidden md:block">
         Tap a <strong className="text-[var(--iz-gold-l)]">comcard</strong> to identify PRs ·{" "}
+        <strong className="text-[var(--iz-gold-l)]">Drinks</strong>,{" "}
+        <strong className="text-[var(--iz-gold-l)]">Tips</strong>, or{" "}
+        <strong className="text-[var(--iz-gold-l)]">Est. payout</strong> for shift breakdown ·{" "}
         <strong className="text-[var(--iz-gold-l)]">Edit</strong> to change status, shift times, or request outlet swap.
       </p>
 
@@ -144,52 +260,77 @@ export function RosterShiftTable({
             </tr>
           </thead>
           <tbody>
-            {slots.map((slot) => (
+            {slots.map((slot) => {
+              const floor = resolveRosterSlotFloorSales(slot, outletShifts, drinkMenu, receiptScans);
+              return (
               <RosterTableRow
                 key={slot.id}
                 slot={slot}
                 profile={prById.get(slot.prId)}
                 prSwap={activePrSwapForRosterSlot(prSwapRequests, slot.id)}
+                floor={floor}
                 estPayout={rosterSlotDisplayPayout(
                   slot,
                   prById.get(slot.prId),
                   outletCommissionRules,
                   perDrinkRm,
                   outletShifts,
+                  drinkMenu,
+                  receiptScans,
+                  earningsContext,
                 )}
                 canAssign={canAssign}
                 onEdit={onEdit}
                 onFlagLate={onFlagLate}
                 onFlagNoShow={onFlagNoShow}
                 onCancelPrSwap={onCancelPrSwap}
+                onOpenEarningsSheet={earningsContext ? openEarningsSheet : undefined}
               />
-            ))}
+            );
+            })}
           </tbody>
         </table>
       </div>
 
       <div className="space-y-2 md:hidden">
-        {slots.map((slot) => (
+        {slots.map((slot) => {
+          const floor = resolveRosterSlotFloorSales(slot, outletShifts, drinkMenu, receiptScans);
+          return (
           <RosterShiftCard
             key={slot.id}
             slot={slot}
             profile={prById.get(slot.prId)}
             prSwap={activePrSwapForRosterSlot(prSwapRequests, slot.id)}
+            floor={floor}
             estPayout={rosterSlotDisplayPayout(
               slot,
               prById.get(slot.prId),
               outletCommissionRules,
               perDrinkRm,
               outletShifts,
+              drinkMenu,
+              receiptScans,
+              earningsContext,
             )}
             canAssign={canAssign}
             onEdit={onEdit}
             onFlagLate={onFlagLate}
             onFlagNoShow={onFlagNoShow}
             onCancelPrSwap={onCancelPrSwap}
+            onOpenEarningsSheet={earningsContext ? openEarningsSheet : undefined}
           />
-        ))}
+        );
+        })}
       </div>
+
+      {earningsContext && (
+        <RosterShiftEarningsSheets
+          kind={earningsSheet?.kind ?? null}
+          anchorSlot={earningsSheet?.slot ?? null}
+          earningsContext={earningsContext}
+          onClose={() => setEarningsSheet(null)}
+        />
+      )}
     </>
   );
 }
@@ -209,22 +350,26 @@ function RosterTableRow({
   slot,
   profile,
   prSwap,
+  floor,
   estPayout,
   canAssign,
   onEdit,
   onFlagLate,
   onFlagNoShow,
   onCancelPrSwap,
+  onOpenEarningsSheet,
 }: {
   slot: AgencyRosterSlot;
   profile?: AgencyManagedPR;
   prSwap?: import("@/lib/pr-features").PrSwapRequest;
+  floor: OutletPrLiveSales;
   estPayout: number;
   canAssign: boolean;
   onEdit: (id: string) => void;
   onFlagLate: (id: string) => void;
   onFlagNoShow: (id: string) => void;
   onCancelPrSwap: (swapId: string) => void;
+  onOpenEarningsSheet?: (kind: RosterEarningsSheetKind, slot: AgencyRosterSlot) => void;
 }) {
   const showFlags =
     canAssign && !slot.checkedInAt && slot.status !== "unavailable" && slot.status !== "swap-pending";
@@ -248,10 +393,36 @@ function RosterTableRow({
       <td className="iz-portal-table-status">
         <StatusPills slot={slot} />
       </td>
-      <td className="iz-portal-table-meta">{slot.floorDrinks ?? 0}</td>
-      <td className="iz-portal-table-meta">{slot.floorTips ? formatRM(slot.floorTips) : "—"}</td>
+      <td className="iz-portal-table-meta">
+        {onOpenEarningsSheet ? (
+          <RosterAmountButton label="drinks" onClick={() => onOpenEarningsSheet("drinks", slot)}>
+            {formatRosterSlotDrinks(floor)}
+          </RosterAmountButton>
+        ) : (
+          formatRosterSlotDrinks(floor)
+        )}
+      </td>
+      <td className="iz-portal-table-meta">
+        {onOpenEarningsSheet ? (
+          <RosterAmountButton label="tips" onClick={() => onOpenEarningsSheet("tips", slot)}>
+            {formatRosterSlotTips(floor)}
+          </RosterAmountButton>
+        ) : (
+          formatRosterSlotTips(floor)
+        )}
+      </td>
       <td className="text-[var(--iz-gold-l)] font-semibold">
-        {formatRM(estPayout)}
+        {onOpenEarningsSheet ? (
+          <RosterAmountButton
+            label="estimated payout"
+            className="iz-roster-amount-btn--gold"
+            onClick={() => onOpenEarningsSheet("payout", slot)}
+          >
+            {formatRM(estPayout)}
+          </RosterAmountButton>
+        ) : (
+          formatRM(estPayout)
+        )}
       </td>
       {canAssign && (
         <td>
@@ -295,22 +466,26 @@ function RosterShiftCard({
   slot,
   profile,
   prSwap,
+  floor,
   estPayout,
   canAssign,
   onEdit,
   onFlagLate,
   onFlagNoShow,
   onCancelPrSwap,
+  onOpenEarningsSheet,
 }: {
   slot: AgencyRosterSlot;
   profile?: AgencyManagedPR;
   prSwap?: import("@/lib/pr-features").PrSwapRequest;
+  floor: OutletPrLiveSales;
   estPayout: number;
   canAssign: boolean;
   onEdit: (id: string) => void;
   onFlagLate: (id: string) => void;
   onFlagNoShow: (id: string) => void;
   onCancelPrSwap: (swapId: string) => void;
+  onOpenEarningsSheet?: (kind: RosterEarningsSheetKind, slot: AgencyRosterSlot) => void;
 }) {
   return (
     <IzCard>
@@ -335,8 +510,37 @@ function RosterShiftCard({
       <div className="iz-roster-card-meta mt-2">
         <span>{formatRosterShiftTime(slot)}</span>
         {slot.checkedInAt && <span>In {slot.checkedInAt}</span>}
-        <span>{slot.floorDrinks ?? 0} drinks</span>
-        <span className="text-[var(--iz-gold-l)]">{formatRM(estPayout)}</span>
+        <span>
+          Drinks{" "}
+          {onOpenEarningsSheet ? (
+            <RosterAmountButton label="drinks" onClick={() => onOpenEarningsSheet("drinks", slot)}>
+              {formatRosterSlotDrinks(floor)}
+            </RosterAmountButton>
+          ) : (
+            formatRosterSlotDrinks(floor)
+          )}
+        </span>
+        <span>
+          Tips{" "}
+          {onOpenEarningsSheet ? (
+            <RosterAmountButton label="tips" onClick={() => onOpenEarningsSheet("tips", slot)}>
+              {formatRosterSlotTips(floor)}
+            </RosterAmountButton>
+          ) : (
+            formatRosterSlotTips(floor)
+          )}
+        </span>
+        {onOpenEarningsSheet ? (
+          <RosterAmountButton
+            label="estimated payout"
+            className="iz-roster-amount-btn--gold"
+            onClick={() => onOpenEarningsSheet("payout", slot)}
+          >
+            {formatRM(estPayout)}
+          </RosterAmountButton>
+        ) : (
+          <span className="text-[var(--iz-gold-l)]">{formatRM(estPayout)}</span>
+        )}
       </div>
       {prSwap && (
         <div className="mt-2 rounded-lg border border-[rgba(124,107,255,.3)] bg-[rgba(124,107,255,.08)] px-2.5 py-2">

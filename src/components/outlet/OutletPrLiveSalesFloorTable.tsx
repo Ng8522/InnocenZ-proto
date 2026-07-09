@@ -59,11 +59,7 @@ function EarningsRow({
         pct={row.normalDrinkPct}
         resultRm={row.normalCommissionRm}
       />
-      <FormulaCell
-        baseLabel={formatRM(row.tipSalesRm)}
-        pct={row.tipPct}
-        resultRm={row.tipCommissionRm}
-      />
+      <td className="iz-outlet-live-earnings-table__wage">{formatRM(row.tipSalesRm)}</td>
       <td className="iz-outlet-live-earnings-table__formula">
         <span className="iz-outlet-live-earnings-table__base">{row.otHours}</span>
         <span className="iz-outlet-live-earnings-table__op"> × {formatRM(row.otRmPerHour)} = </span>
@@ -88,7 +84,7 @@ export function OutletPrLiveSalesFloorTable({
       wages: acc.wages + row.dailyWagesRm,
       hh: acc.hh + row.hhCommissionRm,
       normal: acc.normal + row.normalCommissionRm,
-      tips: acc.tips + row.tipCommissionRm,
+      tips: acc.tips + row.tipSalesRm,
       ot: acc.ot + row.otPayRm,
       earn: acc.earn + row.totalEarnRm,
       drinkSales: acc.drinkSales + row.hhDrinkSalesRm + row.normalDrinkSalesRm,

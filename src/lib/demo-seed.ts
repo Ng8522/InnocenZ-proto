@@ -324,17 +324,6 @@ function velvetTonightRosterSlot(
   };
 }
 
-const HENNESSY_FLOOR_BY_PR: Record<string, { floorDrinks: number; floorTips?: number }> = {
-  p1: { floorDrinks: 6, floorTips: 150 },
-  "pr-comcard-alice": { floorDrinks: 4, floorTips: 90 },
-  "pr-comcard-angie": { floorDrinks: 3, floorTips: 60 },
-  "pr-comcard-ava": { floorDrinks: 2, floorTips: 40 },
-  "pr-comcard-bernice": { floorDrinks: 5, floorTips: 75 },
-  "pr-comcard-charlotte": { floorDrinks: 2 },
-  "pr-comcard-grace": { floorDrinks: 4, floorTips: 55 },
-  "pr-comcard-hazel": { floorDrinks: 3, floorTips: 45 },
-};
-
 function buildDemoShifts(): ShiftRequest[] {
   const wsTierRates = DEFAULT_OUTLET_WORKSPACE.tierRates;
   const velvetTierRates = (
@@ -958,15 +947,9 @@ function buildDemoRoster(): AgencyRosterSlot[] {
         hennessyPrIds.has(slot.prId)
       ),
   );
-  const velvetTonight: AgencyRosterSlot[] = HENNESSY_LAUNCH_PR_IDS.map((prId, index) => {
-    const floor = HENNESSY_FLOOR_BY_PR[prId];
-    return velvetTonightRosterSlot(
-      `rs-hennessy-${index + 1}`,
-      prId,
-      floor?.floorDrinks ?? 0,
-      floor?.floorTips ?? 0,
-    );
-  });
+  const velvetTonight: AgencyRosterSlot[] = HENNESSY_LAUNCH_PR_IDS.map((prId, index) =>
+    velvetTonightRosterSlot(`rs-hennessy-${index + 1}`, prId),
+  );
   return [...withoutHennessyDupes, ...velvetTonight];
 }
 

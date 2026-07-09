@@ -18,9 +18,11 @@ import type { PrReceiptScan } from "@/lib/pr-demo";
 import { receiptDateIso } from "@/lib/receipt-scan-utils";
 import { shiftStartMs } from "@/lib/pr-schedule-cancellation";
 import {
+  findOutletShiftForRosterSlot,
   outletShiftActualLaborCostForShift,
   outletShiftActivePrIds,
   outletShiftTargetLaborCost,
+  resolveShiftTierRates,
   type OutletCutLossShiftSlice,
 } from "@/lib/outlet-demo";
 import {
@@ -35,6 +37,7 @@ import {
   effectiveShiftDrinkMenu,
   happyHourWindowHours,
   resolveOutletPrTier,
+  resolveShiftTierRates,
   shiftHoursFromLabel,
   shiftStartTimeFromLabel,
   typicalDrinkPrice,
@@ -117,14 +120,34 @@ export function outletShiftClockStarted(
   return now.getTime() >= shiftStartMs(dateIso, start);
 }
 
-/** Floor sales and live earnings only count after the shift clock has started. */
+/** Floor sales and live earnings count after shift start, check-in, or a logged receipt. */
 export function outletShiftFloorSalesStarted(
   shift: Pick<ShiftRequest, "date" | "dateIso" | "shift" | "status">,
   now = new Date(),
-  _activity?: OutletShiftFloorActivity,
+  activity?: OutletShiftFloorActivity,
 ): boolean {
   if (shift.status === "sealed") return true;
-  return outletShiftClockStarted(shift, now);
+  if (outletShiftClockStarted(shift, now)) return true;
+  if (!activity) return false;
+
+  const shiftDateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso);
+  const prIds = new Set(activity.prIds ?? []);
+
+  if (
+    activity.receiptScans?.some(
+      (scan) =>
+        !isPayrollCommissionReceiptScan(scan) &&
+        (prIds.size === 0 || (scan.prId != null && prIds.has(scan.prId))) &&
+        outletMatches(scan.outlet, activity.outletName) &&
+        receiptDateIso(scan) === shiftDateIso,
+    )
+  ) {
+    return true;
+  }
+
+  if (activity.rosterSlots?.some((slot) => Boolean(slot.checkedInAt))) return true;
+
+  return false;
 }
 
 /** PV payroll sync lines log commission RM — not gross floor sales. */
@@ -248,6 +271,123 @@ export type OutletPrLiveSales = {
   drinkUnits: number;
   tipRm: number;
 };
+
+/** Per-roster-slot floor sales — prefers PR receipt scans, falls back to roster counters. */
+export function rosterSlotLiveFloorSales(opts: {
+  slot: AgencyRosterSlot;
+  outletShifts: Array<{
+    outletName: string;
+    shift: string;
+    date?: string;
+    dateIso?: string;
+    status?: string;
+    perDrinkRm?: number;
+    eventDrinkMenu?: OutletDrinkPrice[];
+  }>;
+  drinkMenu: OutletDrinkPrice[];
+  receiptScans?: PrReceiptScan[];
+}): OutletPrLiveSales {
+  const shift = findOutletShiftForRosterSlot(opts.outletShifts, opts.slot);
+  if (!shift) {
+    return { salesRm: 0, drinkSalesRm: 0, drinkUnits: 0, tipRm: 0 };
+  }
+  return outletPrLiveFloorSales({
+    prId: opts.slot.prId,
+    outletName: opts.slot.outlet,
+    shift: {
+      date: shift.date ?? "Tonight",
+      dateIso: shift.dateIso,
+      shift: shift.shift,
+      status: (shift.status ?? "confirmed") as ShiftRequest["status"],
+      perDrinkRm: shift.perDrinkRm,
+      eventDrinkMenu: shift.eventDrinkMenu,
+    },
+    slot: opts.slot,
+    drinkMenu: opts.drinkMenu,
+    receiptScans: opts.receiptScans,
+  });
+}
+
+export function rosterSlotHasReceiptFloorSales(floor: OutletPrLiveSales): boolean {
+  return floor.drinkSalesRm > 0 || floor.tipRm > 0;
+}
+
+/** Est. payout from receipt-linked floor sales (gross drink RM + tips). */
+export function rosterSlotPayoutFromFloorSales(
+  slot: AgencyRosterSlot,
+  floor: OutletPrLiveSales,
+  opts: {
+    trainingLevel?: string;
+    rules?: OutletCommissionRule[];
+    shiftTierRates?: Record<OutletPrTier, OutletTierRateSettings>;
+  } = {},
+): number {
+  const rules = opts.rules ?? OUTLET_COMMISSION_RULES;
+  const hours = shiftHoursFromLabel(slot.shift);
+  return calcShiftPayout(
+    {
+      outlet: slot.outlet,
+      hoursWorked: hours,
+      drinks: floor.drinkUnits,
+      drinkSales: floor.drinkSalesRm,
+      tips: floor.tipRm,
+      tableSales: 0,
+      prTier: opts.trainingLevel,
+      shiftTierRates: opts.shiftTierRates,
+    },
+    rules,
+  ).total;
+}
+
+/** Same total as the Est. payout breakdown sheet — HH/normal drink split + tip commission. */
+export function rosterSlotBreakdownTotal(
+  slot: AgencyRosterSlot,
+  ctx: Pick<
+    RosterShiftEarningsContext,
+    | "outletShifts"
+    | "drinkMenu"
+    | "receiptScans"
+    | "happyHourStart"
+    | "happyHourEnd"
+    | "workspaceTierRates"
+    | "agencyPRs"
+  >,
+): number | null {
+  const outletShift = findOutletShiftForRosterSlot(ctx.outletShifts, slot);
+  if (!outletShift) return null;
+
+  const tierRates = resolveShiftTierRates(
+    outletShift as { tierRates?: Record<OutletPrTier, OutletTierRateSettings>; payPerHour: number },
+    { tierRates: ctx.workspaceTierRates },
+  );
+  const trainingLevel = ctx.agencyPRs.find((pr) => pr.id === slot.prId)?.trainingLevel;
+
+  const shiftForBreakdown: Pick<
+    ShiftRequest,
+    "date" | "dateIso" | "shift" | "status" | "perDrinkRm" | "eventDrinkMenu"
+  > = {
+    date: outletShift.date ?? "Tonight",
+    dateIso: outletShift.dateIso,
+    shift: outletShift.shift,
+    status: (outletShift.status ?? "confirmed") as ShiftRequest["status"],
+    perDrinkRm: outletShift.perDrinkRm,
+    eventDrinkMenu: outletShift.eventDrinkMenu,
+  };
+
+  return outletPrLiveEarningsBreakdown({
+    prId: slot.prId,
+    prName: slot.prName,
+    trainingLevel,
+    outletName: slot.outlet,
+    shift: shiftForBreakdown as ShiftRequest,
+    slot,
+    drinkMenu: ctx.drinkMenu,
+    tierRates,
+    happyHourStart: ctx.happyHourStart,
+    happyHourEnd: ctx.happyHourEnd,
+    receiptScans: ctx.receiptScans,
+  }).totalEarnRm;
+}
 
 export type OutletTonightFloorTotals = {
   totalSalesRm: number;
@@ -413,6 +553,88 @@ export function outletTonightLiveEarningsRows(opts: {
       }),
     ];
   });
+}
+
+export function rosterSlotsForShiftBreakdown(
+  anchor: AgencyRosterSlot,
+  roster: AgencyRosterSlot[],
+): AgencyRosterSlot[] {
+  return roster
+    .filter(
+      (slot) =>
+        slot.dateIso === anchor.dateIso &&
+        outletMatches(slot.outlet, anchor.outlet) &&
+        slot.shift === anchor.shift &&
+        slot.status !== "unavailable",
+    )
+    .sort((a, b) => a.prName.localeCompare(b.prName, undefined, { sensitivity: "base" }));
+}
+
+export type RosterShiftEarningsContext = {
+  rosterScope: AgencyRosterSlot[];
+  agencyPRs: { id: string; name: string; trainingLevel?: string }[];
+  outletShifts: Array<
+    Pick<
+      ShiftRequest,
+      | "outletName"
+      | "shift"
+      | "date"
+      | "dateIso"
+      | "status"
+      | "perDrinkRm"
+      | "eventDrinkMenu"
+      | "tierRates"
+      | "payPerHour"
+    >
+  >;
+  drinkMenu: OutletDrinkPrice[];
+  receiptScans?: PrReceiptScan[];
+  happyHourStart: string;
+  happyHourEnd: string;
+  workspaceTierRates: Record<OutletPrTier, OutletTierRateSettings>;
+};
+
+export function rosterShiftEarningsRows(
+  anchor: AgencyRosterSlot,
+  ctx: RosterShiftEarningsContext,
+): OutletPrLiveEarningsBreakdown[] {
+  const slots = rosterSlotsForShiftBreakdown(anchor, ctx.rosterScope);
+  const outletShift = findOutletShiftForRosterSlot(ctx.outletShifts, anchor);
+  if (!outletShift || slots.length === 0) return [];
+
+  const tierRates = resolveShiftTierRates(
+    outletShift as { tierRates?: Record<OutletPrTier, OutletTierRateSettings>; payPerHour: number },
+    { tierRates: ctx.workspaceTierRates },
+  );
+  const prById = new Map(ctx.agencyPRs.map((pr) => [pr.id, pr]));
+
+  const shiftForBreakdown: Pick<
+    ShiftRequest,
+    "date" | "dateIso" | "shift" | "status" | "perDrinkRm" | "eventDrinkMenu"
+  > = {
+    date: outletShift.date ?? "Tonight",
+    dateIso: outletShift.dateIso,
+    shift: outletShift.shift,
+    status: (outletShift.status ?? "confirmed") as ShiftRequest["status"],
+    perDrinkRm: outletShift.perDrinkRm,
+    eventDrinkMenu: outletShift.eventDrinkMenu,
+  };
+
+  return slots.map((slot) =>
+    outletPrLiveEarningsBreakdown({
+      prId: slot.prId,
+      prName: slot.prName,
+      trainingLevel: prById.get(slot.prId)?.trainingLevel,
+      outletName: slot.outlet,
+      shift: shiftForBreakdown as ShiftRequest,
+      slot,
+      drinkMenu: ctx.drinkMenu,
+      tierRates,
+      happyHourStart: ctx.happyHourStart,
+      happyHourEnd: ctx.happyHourEnd,
+      receiptScans: ctx.receiptScans,
+    }),
+  );
 }
 
 export function floorTipsForOutlet(outletName: string, roster: AgencyRosterSlot[] = []): number {

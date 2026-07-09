@@ -139,6 +139,9 @@ function AgencyRoster() {
 
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
+  const drinkMenu = useStore((s) => s.outletWorkspace.drinkMenu ?? []);
+  const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
+  const outletWorkspace = useStore((s) => s.outletWorkspace);
   const shifts = useStore((s) => s.shifts);
   const shiftApplicants = useStore((s) => s.shiftApplicants);
 
@@ -416,6 +419,12 @@ function AgencyRoster() {
           outletCommissionRules={outletCommissionRules}
           perDrinkRm={perDrinkRm}
           outletShifts={shifts}
+          drinkMenu={drinkMenu}
+          receiptScans={prReceiptScans}
+          rosterScopeSlots={dateFiltered}
+          happyHourStart={outletWorkspace.happyHourStart}
+          happyHourEnd={outletWorkspace.happyHourEnd}
+          workspaceTierRates={outletWorkspace.tierRates}
           canAssign={canAssign}
           onEdit={openEdit}
           onFlagLate={(id) => flagRosterAttendance(id, "late")}

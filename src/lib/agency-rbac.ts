@@ -65,7 +65,7 @@ export function agencyCan(role: AgencySubRole | null | undefined, permission: Pe
 export type AgencyNavItem = { to: string; label: string; icon: LucideIcon; permission: Permission };
 
 const ALL_NAV: AgencyNavItem[] = [
-  { to: "/agency", label: "Home", icon: iconForNav("Home"), permission: "viewHome" },
+  { to: "/agency", label: "Today", icon: iconForNav("Today"), permission: "viewHome" },
   { to: "/agency/roster", label: "Roster", icon: iconForNav("Roster"), permission: "viewWorkforce" },
   { to: "/agency/pending", label: "Approvals", icon: iconForNav("Approvals"), permission: "approvePrSignups" },
   { to: "/agency/pv", label: "Payroll", icon: iconForNav("Payroll"), permission: "viewPv" },

@@ -13770,6 +13770,31 @@ button.iz-pr-offer-row:hover {
   border-bottom: none;
 }
 
+.iz-roster-amount-btn {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.iz-roster-amount-btn:hover,
+.iz-roster-amount-btn:focus-visible {
+  color: var(--iz-gold-l);
+  background: rgba(201, 155, 78, 0.08);
+  outline: none;
+}
+
+.iz-roster-amount-btn--gold {
+  color: var(--iz-gold-l);
+  font-weight: 600;
+}
+
 .iz-roster-row--swap {
   background: rgba(124, 107, 255, 0.04);
 }

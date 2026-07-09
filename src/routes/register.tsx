@@ -28,6 +28,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { TitleWithIcon } from "@/components/iz/TitleWithIcon";
+import { demoPlaceholderImage } from "@/lib/demo-placeholder-image";
 
 export const Route = createFileRoute("/register")({
   component: RegisterPage,
@@ -187,6 +188,12 @@ function buildEmptyPortfolio(): (string | null)[] {
   return Array.from({ length: PORTFOLIO_SLOT_COUNT }, () => null);
 }
 
+function buildDemoPortfolio(): (string | null)[] {
+  const slots = buildEmptyPortfolio();
+  slots[0] = demoPlaceholderImage("Gallery 1", "Portfolio · demo", "#b79ce8", { w: 400, h: 400 });
+  return slots;
+}
+
 function buildEmptyRegisterDraft(): RegisterDraft {
   return {
     username: "",
@@ -237,10 +244,10 @@ function buildDemoRegisterDraft(): RegisterDraft {
     country: "Malaysia",
     underAgency: true,
     agencyId: DEFAULT_TIED_AGENCY_ID,
-    idPhotoFront: null,
-    idPhotoBack: null,
-    profilePhoto: null,
-    portfolio: buildEmptyPortfolio(),
+    idPhotoFront: demoPlaceholderImage("ID — Front", "NRIC · demo"),
+    idPhotoBack: demoPlaceholderImage("ID — Back", "NRIC · demo"),
+    profilePhoto: demoPlaceholderImage("Profile", "Profile · demo", "#C99B4E", { w: 400, h: 400 }),
+    portfolio: buildDemoPortfolio(),
     acceptPrivacy: true,
     acceptTruth: true,
     acceptAgencyShare: true,

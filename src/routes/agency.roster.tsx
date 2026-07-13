@@ -15,7 +15,8 @@ import {
   type AgencyRosterSlot,
   type RosterSlotStatus,
 } from "@/lib/agency-demo";
-import { deriveLiveWorkforce } from "@/lib/portal-sync";
+import { listEarlyReleasedPrsForReassign } from "@/lib/outlet-demo";
+import { deriveLiveWorkforce, parseShiftWindow } from "@/lib/portal-sync";
 import { IzSheet } from "@/components/iz/Sheet";
 import { LabelWithIcon, TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import { IzCard, IzCardTitle, IzPill, IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
@@ -32,6 +33,10 @@ import {
 import { getPrScheduleState } from "@/lib/roster-availability";
 import { agencyCan } from "@/lib/agency-rbac";
 import { mondayOfWeek, weekDayIsos, dedupeLiveRosterByPr } from "@/lib/roster-week-plan";
+import {
+  listAvailableShiftsForEarlyReleaseReassign,
+  type AgencyOutletAvailableShift,
+} from "@/lib/agency-outlet-shifts";
 import { ArrowLeftRight, Calendar, ChevronRight, MapPin, Trash2, Users, X } from "lucide-react";
 
 const EDITABLE_STATUSES: RosterSlotStatus[] = ["scheduled", "on-duty", "unavailable"];
@@ -81,6 +86,7 @@ function AgencyRoster() {
   const approvePrSwapRequest = useStore((s) => s.approvePrSwapRequest);
   const declinePrSwapRequest = useStore((s) => s.declinePrSwapRequest);
   const demoAutoAssignPr = useStore((s) => s.demoAutoAssignPr);
+  const assignPrToOutlet = useStore((s) => s.assignPrToOutlet);
   const flagRosterAttendance = useStore((s) => s.flagRosterAttendance);
   const syncLivePrCheckInToRoster = useStore((s) => s.syncLivePrCheckInToRoster);
   const syncOutletRequestRoster = useStore((s) => s.syncOutletRequestRoster);
@@ -159,6 +165,11 @@ function AgencyRoster() {
   useEffect(() => {
     syncOutletRequestRoster();
   }, [syncOutletRequestRoster, shifts, shiftApplicants]);
+
+  const earlyReleasedAvailable = useMemo(
+    () => listEarlyReleasedPrsForReassign(shifts, agencyPRs),
+    [shifts, agencyPRs],
+  );
 
   const workforce = useMemo(
     () => deriveLiveWorkforce(agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm),
@@ -312,6 +323,23 @@ function AgencyRoster() {
         )}
       </div>
 
+      {viewMode === "live" && earlyReleasedAvailable.length > 0 && (
+        <div className="mb-3 mt-3 rounded-xl border border-[rgba(244,183,64,.28)] bg-[rgba(244,183,64,.08)] px-3 py-2.5">
+          <p className="text-xs font-semibold text-[var(--iz-amber)]">
+            Released early · available to reassign
+          </p>
+          <p className="iz-tiny iz-muted2 mt-1 leading-snug">
+            {earlyReleasedAvailable
+              .map(
+                (r) =>
+                  `${r.prName} (from ${r.fromOutlet}${r.releasedAt ? ` @ ${r.releasedAt}` : ""})`,
+              )
+              .join(" · ")}
+            . Assign them to another outlet on the roster, or leave them sent home.
+          </p>
+        </div>
+      )}
+
       {viewMode === "live" && (
         <div className="iz-roster-gps">
           <AgencyGpsPanel
@@ -459,6 +487,22 @@ function AgencyRoster() {
             requestOutletSwap(editSlot.id, targetOutlet, note);
             setEditId(null);
           }}
+          onReassignToOpenShift={(target) => {
+            const { shiftStart, shiftEnd } = parseShiftWindow(target.shift);
+            assignPrToOutlet({
+              prId: editSlot.prId,
+              outlet: target.outlet,
+              dateIso: target.dateIso,
+              dateLabel: target.date,
+              shiftStart,
+              shiftEnd,
+              shift: target.shift,
+              outletShiftId: target.id,
+              event: target.event,
+              payEstimate: target.payEstimate,
+            });
+            setEditId(null);
+          }}
           onCancelShift={() => {
             cancelRosterShift(editSlot.id);
             setEditId(null);
@@ -520,14 +564,19 @@ function EditRosterModal({
   onClose,
   onSave,
   onRequestOutletSwap,
+  onReassignToOpenShift,
   onCancelShift,
 }: {
   slot: AgencyRosterSlot;
   onClose: () => void;
   onSave: (patch: Partial<AgencyRosterSlot>) => void;
   onRequestOutletSwap: (targetOutlet: string, note: string) => void;
+  onReassignToOpenShift: (target: AgencyOutletAvailableShift) => void;
   onCancelShift: () => void;
 }) {
+  const shifts = useStore((s) => s.shifts);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const outletWorkspace = useStore((s) => s.outletWorkspace);
   const displayStatus = rosterPageDisplayStatus(slot.status);
   const initialStatus = EDITABLE_STATUSES.includes(displayStatus) ? displayStatus : "scheduled";
   const [status, setStatus] = useState<RosterSlotStatus>(initialStatus);
@@ -535,12 +584,28 @@ function EditRosterModal({
   const [shiftEnd, setShiftEnd] = useState(slot.shiftEnd);
   const [swapOutlet, setSwapOutlet] = useState("");
   const [swapNote, setSwapNote] = useState("");
+  const [reassignShiftId, setReassignShiftId] = useState("");
   const [busy, setBusy] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const shiftPreview = `${shiftStart} — ${shiftEnd}`;
   const swapTargets = OUTLET_NAMES.filter((o) => o !== slot.outlet);
-  const canRequestSwap = !slot.outletSwap || slot.outletSwap.status !== "pending_pr";
+  const releasedEarly = Boolean(slot.checkedOutAt);
+  const canRequestSwap = !releasedEarly && (!slot.outletSwap || slot.outletSwap.status !== "pending_pr");
   const canCancelShift = !slot.checkedOutAt;
+
+  const availableShifts = useMemo(
+    () =>
+      listAvailableShiftsForEarlyReleaseReassign({
+        shifts,
+        excludeOutlet: slot.outlet,
+        dateIso: slot.dateIso,
+        todayIso: DEFAULT_ROSTER_DATE_ISO,
+        commissionRules: outletCommissionRules,
+        outletWorkspace,
+      }),
+    [shifts, slot.outlet, slot.dateIso, outletCommissionRules, outletWorkspace],
+  );
+  const selectedReassign = availableShifts.find((s) => s.id === reassignShiftId);
 
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
@@ -554,6 +619,90 @@ function EditRosterModal({
     setBusy(true);
     onRequestOutletSwap(swapOutlet, swapNote.trim());
   };
+
+  const handleReassign = () => {
+    if (busy || !selectedReassign) return;
+    setBusy(true);
+    onReassignToOpenShift(selectedReassign);
+  };
+
+  if (releasedEarly) {
+    return (
+      <IzSheet open onClose={busy ? () => {} : onClose}>
+        <div className="iz-sheet-head">
+          <div>
+            <p className="iz-tiny iz-muted2 uppercase tracking-widest">Reassign</p>
+            <h3>{slot.prName}</h3>
+          </div>
+          <button type="button" className="iz-sheet-close" onClick={onClose} disabled={busy} aria-label="Close">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="iz-sheet-meta">
+          <span className="iz-sheet-meta-pill">
+            <MapPin className="h-3 w-3" />
+            <strong>{slot.outlet}</strong>
+          </span>
+          <span className="iz-sheet-meta-pill">
+            <Calendar className="h-3 w-3" />
+            {slot.date}
+          </span>
+          <span className="iz-sheet-meta-pill">
+            Released early{slot.checkedOutAt ? ` · ${slot.checkedOutAt}` : ""}
+          </span>
+        </div>
+
+        <p className="iz-tiny iz-muted mt-1">
+          Pick an open shift today at another outlet. Hours already worked at {slot.outlet} stay paid.
+        </p>
+
+        {availableShifts.length === 0 ? (
+          <p className="iz-tiny iz-muted2 mt-4 rounded-lg border border-dashed border-[var(--iz-line)] px-3 py-4 text-center">
+            No open shifts at other outlets today.
+          </p>
+        ) : (
+          <div className="mt-4">
+            <span className="iz-field-label">Available shift today</span>
+            <IzSelect
+              block
+              className="!text-sm"
+              value={reassignShiftId}
+              onChange={(e) => setReassignShiftId(e.target.value)}
+              disabled={busy}
+            >
+              <option value="">Select open shift…</option>
+              {availableShifts.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.outlet} · {s.shift} · {s.openSlots} open · {s.event}
+                </option>
+              ))}
+            </IzSelect>
+            {selectedReassign && (
+              <p className="iz-tiny iz-muted2 mt-2">
+                {selectedReassign.suppliedSlots}/{selectedReassign.demandSlots} supplied · est.{" "}
+                {formatRM(selectedReassign.payEstimate)}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="iz-sheet-actions">
+          <button type="button" className="iz-btn iz-btn-soft flex-1 !py-3" onClick={onClose} disabled={busy}>
+            Close
+          </button>
+          <button
+            type="button"
+            className="iz-btn iz-btn-primary flex-1 !py-3"
+            disabled={!selectedReassign || busy}
+            onClick={handleReassign}
+          >
+            {busy ? "Assigning…" : "Assign"}
+          </button>
+        </div>
+      </IzSheet>
+    );
+  }
 
   return (
     <IzSheet open onClose={busy ? () => {} : onClose}>

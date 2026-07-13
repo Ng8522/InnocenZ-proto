@@ -64,9 +64,13 @@ export function primarySlotForPrOnDate(
 ): AgencyRosterSlot | undefined {
   const slots = slotsForPrOnDate(roster, prId, dateIso);
   if (slots.length === 0) return undefined;
-  return [...slots].sort(
-    (a, b) => SLOT_DISPLAY_PRIORITY.indexOf(a.status) - SLOT_DISPLAY_PRIORITY.indexOf(b.status),
-  )[0];
+  return [...slots].sort((a, b) => {
+    // Prefer active assignment over early-released / checked-out same-day slot.
+    const aOut = a.checkedOutAt ? 1 : 0;
+    const bOut = b.checkedOutAt ? 1 : 0;
+    if (aOut !== bOut) return aOut - bOut;
+    return SLOT_DISPLAY_PRIORITY.indexOf(a.status) - SLOT_DISPLAY_PRIORITY.indexOf(b.status);
+  })[0];
 }
 
 export function slotForPrOnDate(

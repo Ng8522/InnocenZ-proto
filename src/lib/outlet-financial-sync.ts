@@ -780,12 +780,15 @@ export function buildOutletLaborCostReport(
     prs?: string[];
     payTierRows?: PostJobPayTierRow[];
     releasedEarlyPrIds?: string[];
+    releasedEarlyAt?: Record<string, string>;
   },
   tierRates: Record<OutletPrTier, OutletTierRateSettings>,
   agencyPRs: { id: string; trainingLevel?: string }[],
 ): { lines: LaborCostReportLine[]; totalActualRm: number; totalBudgetRm: number } {
   const prTierById = Object.fromEntries(agencyPRs.map((p) => [p.id, p.trainingLevel]));
   const activePrIds = outletShiftActivePrIds(shift);
+  const releasedIds = [...new Set(shift.releasedEarlyPrIds ?? [])];
+  const bookedIncludingReleased = [...activePrIds, ...releasedIds];
   const totalBudgetRm = outletShiftTargetLaborCost(shift, tierRates, prTierById);
   const totalActualRm = outletShiftActualLaborCostForShift(shift, tierRates, prTierById);
 
@@ -793,7 +796,17 @@ export function buildOutletLaborCostReport(
     payTierRows: shift.payTierRows,
     quantity: shift.quantity,
     demandCut: shift.demandCut,
-    releasedEarlyPrIds: shift.releasedEarlyPrIds,
+    // Labor budget keeps early releases in planned demand.
+    releasedEarlyPrIds: undefined,
+    tierRates,
+    bookedPrIds: bookedIncludingReleased,
+    agencyPRs,
+  });
+  const activeStaffing = shiftTierStaffingByPayTier({
+    payTierRows: shift.payTierRows,
+    quantity: shift.quantity,
+    demandCut: shift.demandCut,
+    releasedEarlyPrIds: undefined,
     tierRates,
     bookedPrIds: activePrIds,
     agencyPRs,
@@ -802,9 +815,9 @@ export function buildOutletLaborCostReport(
     payTierRows: shift.payTierRows,
     quantity: shift.quantity,
     demandCut: shift.demandCut,
-    releasedEarlyPrIds: shift.releasedEarlyPrIds,
+    releasedEarlyPrIds: undefined,
     tierRates,
-    bookedPrIds: activePrIds,
+    bookedPrIds: bookedIncludingReleased,
     agencyPRs,
     prTierById,
   });
@@ -812,7 +825,11 @@ export function buildOutletLaborCostReport(
   const tierLines: LaborCostReportLine[] = [];
   for (const option of POST_JOB_PAY_TIER_OPTIONS) {
     const stats = staffing[option.id];
-    if (!stats || (stats.demand === 0 && stats.supplied === 0)) continue;
+    const activeStats = activeStaffing[option.id];
+    if (!stats || (stats.demand === 0 && (activeStats?.supplied ?? 0) === 0 && !releasedIds.length)) {
+      continue;
+    }
+    if (!stats) continue;
     const demandRow = demandRows.find((row) => row.payTierId === option.id);
     const wage = demandRow
       ? payTierRowShiftWage(demandRow, tierRates)
@@ -824,7 +841,8 @@ export function buildOutletLaborCostReport(
       label: option.label,
       depth: 1,
       budgetRm: wage * stats.demand,
-      actualRm: wage * stats.supplied,
+      // Active PRs at full wage; early-release pro-rata is included in the total row.
+      actualRm: wage * (activeStats?.supplied ?? 0),
     });
   }
 

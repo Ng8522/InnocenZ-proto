@@ -526,8 +526,12 @@ export function resolveEffectiveShiftPayTierRows(input: {
     quantity: input.quantity,
     tierRates: input.tierRates,
   });
-  const booked = countPrIdsByPayTier(
-    input.bookedPrIds ?? [],
+  const activeIds = input.bookedPrIds ?? [];
+  const releasedIds = [...new Set(input.releasedEarlyPrIds ?? [])];
+  // Seats that were filled (still on floor + released early) — demand cuts only remove never-filled opens.
+  const filledForCut = [...new Set([...activeIds, ...releasedIds])];
+  const bookedForCut = countPrIdsByPayTier(
+    filledForCut,
     input.agencyPRs,
     input.prTierById,
   );
@@ -535,10 +539,9 @@ export function resolveEffectiveShiftPayTierRows(input: {
   let rows = baseRows;
   const demandCut = input.demandCut ?? 0;
   if (demandCut > 0) {
-    rows = applyOpenSlotDemandCut(rows, booked, demandCut);
+    rows = applyOpenSlotDemandCut(rows, bookedForCut, demandCut);
   }
 
-  const releasedIds = [...new Set(input.releasedEarlyPrIds ?? [])];
   if (releasedIds.length > 0) {
     const releasedByTier = countPrIdsByPayTier(
       releasedIds,
@@ -550,6 +553,13 @@ export function resolveEffectiveShiftPayTierRows(input: {
       return { ...row, prCount: Math.max(0, row.prCount - peel) };
     });
   }
+
+  // Never show requested below currently supplied active PRs.
+  const activeByTier = countPrIdsByPayTier(activeIds, input.agencyPRs, input.prTierById);
+  rows = rows.map((row) => {
+    const floor = activeByTier[row.payTierId] ?? 0;
+    return floor > row.prCount ? { ...row, prCount: floor } : row;
+  });
 
   return rows;
 }

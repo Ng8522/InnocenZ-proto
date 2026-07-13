@@ -661,20 +661,55 @@ export function rosterCheckOut(
   prId: string,
   outlet: string,
   time: string,
+  opts?: { shift?: string },
 ): AgencyRosterSlot[] {
   const canon = canonicalOutlet(outlet);
   return roster.map((s) => {
     if (s.prId !== prId || !outletMatches(s.outlet, canon)) return s;
-    if (s.status === "on-duty" && s.checkedInAt) {
-      return {
-        ...s,
-        status: "scheduled" as const,
-        checkedInAt: undefined,
-        checkedOutAt: time,
-      };
-    }
-    return s;
+    if (opts?.shift && s.shift && s.shift !== opts.shift) return s;
+    const releasable = [
+      "on-duty",
+      "en-route",
+      "scheduled",
+      "assignment-pending",
+      "outlet-pending",
+    ].includes(s.status);
+    if (!releasable) return s;
+    return {
+      ...s,
+      // Keep a floor-compatible status; UI treats checkedOutAt as released / checked out.
+      status: "scheduled" as const,
+      checkedInAt: undefined,
+      checkedOutAt: time,
+    };
   });
+}
+
+/** Apply shift.releasedEarly* onto agency roster so status UIs show released / sent home. */
+export function syncEarlyReleasesToRoster<
+  T extends {
+    outletName: string;
+    shift: string;
+    releasedEarlyPrIds?: string[];
+    releasedEarlyAt?: Record<string, string>;
+  },
+>(roster: AgencyRosterSlot[], shifts: T[]): AgencyRosterSlot[] {
+  let next = roster;
+  for (const sh of shifts) {
+    const released = [...new Set(sh.releasedEarlyPrIds ?? [])];
+    if (!released.length) continue;
+    for (const prId of released) {
+      const time =
+        sh.releasedEarlyAt?.[prId] ??
+        new Date().toLocaleTimeString("en-MY", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+      next = rosterCheckOut(next, prId, sh.outletName, time, { shift: sh.shift });
+    }
+  }
+  return next;
 }
 
 export type PrAttendanceRosterSync = {

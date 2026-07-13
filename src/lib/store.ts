@@ -171,6 +171,7 @@ import {
   addPrToPostedOutletShift,
   removePrFromOutletShifts,
   syncAgencyRosterToOutletShifts,
+  syncEarlyReleasesToRoster,
   parseShiftWindow,
   patchPrRosterAttendanceFlags,
   mergeOutletRequestRosterSlots,
@@ -213,6 +214,10 @@ import {
   outletShiftCutLossForShift,
   outletShiftCutLossSavings,
   mergeReleasedEarlyPrIds,
+  mergeReleasedEarlyAt,
+  releasedEarlyAtForPrIds,
+  outletNowClockLabel,
+  outletPlanningReleaseClock,
   outletShiftActivePrIds,
   OUTLET_SUBSCRIPTION_BILLING,
   outletSubscriptionInvoiceForPlan,
@@ -350,8 +355,10 @@ export interface ShiftRequest {
   dressCode?: string;
   destination?: ShiftDestination;
   preferredStarTiers?: number[];
-  /** PRs sent home early — lowers sales target headcount */
+  /** PRs sent home early — lowers sales target headcount; default sent home unless agency reassigns */
   releasedEarlyPrIds?: string[];
+  /** Release clock (HH:mm) per PR id — drives hourly wage for early releases */
+  releasedEarlyAt?: Record<string, string>;
   /** Unfilled demand slots removed from tonight's sales target */
   demandCut?: number;
   /** % of tier sales target still in effect (default 100) */
@@ -3171,10 +3178,22 @@ export const useStore = create<StoreState>()(
             ? fmtDateLabelFromIso(linkedDateIso)
             : postedShift.date
           : dateLabel;
-        const existing = st.agencyRoster.find(
-          (s) => s.prId === prId && s.dateIso === linkedDateIso,
+        const existingActive = st.agencyRoster.find(
+          (s) =>
+            s.prId === prId &&
+            s.dateIso === linkedDateIso &&
+            !s.checkedOutAt &&
+            s.status !== "unavailable" &&
+            s.status !== "outlet-request-pending",
         );
-        if (existing && isPrMarkedDayOff(existing)) {
+        if (existingActive) {
+          get().toast(`${pr.name} already has a shift on this date`, "warn");
+          return;
+        }
+        const existingDayOff = st.agencyRoster.find(
+          (s) => s.prId === prId && s.dateIso === linkedDateIso && isPrMarkedDayOff(s),
+        );
+        if (existingDayOff) {
           get().toast(
             `${pr.name} marked ${linkedDateLabel} unavailable on their schedule — they must reopen the day first`,
             "warn",
@@ -3202,7 +3221,7 @@ export const useStore = create<StoreState>()(
           hour: "2-digit",
           minute: "2-digit",
         });
-        const id = existing?.id ?? "rs" + Date.now().toString(36).slice(-6);
+        const id = reusableExisting?.id ?? "rs" + Date.now().toString(36).slice(-6);
         const shift = shiftLabel ?? `${shiftStart} — ${shiftEnd}`;
         const isTonight = linkedDateIso === DEFAULT_ROSTER_DATE_ISO;
         const slot: AgencyRosterSlot = {
@@ -3227,8 +3246,8 @@ export const useStore = create<StoreState>()(
           },
         };
         set((cur) => {
-          const nextRoster = existing
-            ? cur.agencyRoster.map((s) => (s.id === existing.id ? slot : s))
+          const nextRoster = reusableExisting
+            ? cur.agencyRoster.map((s) => (s.id === reusableExisting.id ? slot : s))
             : [slot, ...cur.agencyRoster];
           const nextShifts = postedShiftId
             ? addPrToPostedOutletShift(cur.shifts, postedShiftId, prId, outlet)
@@ -5091,10 +5110,9 @@ export const useStore = create<StoreState>()(
       },
       syncOutletRequestRoster: () => {
         set((st) => ({
-          agencyRoster: mergeOutletRequestRosterSlots(
-            st.agencyRoster,
+          agencyRoster: syncEarlyReleasesToRoster(
+            mergeOutletRequestRosterSlots(st.agencyRoster, st.shifts, st.shiftApplicants),
             st.shifts,
-            st.shiftApplicants,
           ),
         }));
       },
@@ -5242,28 +5260,28 @@ export const useStore = create<StoreState>()(
           get().toast("No PRs available to release", "warn");
           return;
         }
-        const checkOutTime = new Date().toLocaleTimeString("en-MY", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+        const checkOutTime = outletPlanningReleaseClock(shift.shift, outletNowClockLabel());
         set((cur) => {
-          let agencyRoster = cur.agencyRoster;
-          for (const prId of valid) {
-            agencyRoster = rosterCheckOut(agencyRoster, prId, shift.outletName, checkOutTime);
-          }
+          const shifts = cur.shifts.map((sh) => {
+            if (sh.id !== shiftId) return sh;
+            const releasedEarlyPrIds = mergeReleasedEarlyPrIds(sh.releasedEarlyPrIds, valid);
+            const releasedEarlyAt = mergeReleasedEarlyAt(
+              sh.releasedEarlyAt,
+              releasedEarlyAtForPrIds(valid, checkOutTime),
+            );
+            const prs = sh.prs.filter((id) => !valid.includes(id));
+            return {
+              ...sh,
+              prs,
+              filled: prs.length,
+              releasedEarlyPrIds,
+              releasedEarlyAt,
+            };
+          });
+          const agencyRoster = syncEarlyReleasesToRoster(cur.agencyRoster, shifts);
           return {
             agencyRoster,
-            shifts: cur.shifts.map((sh) => {
-              if (sh.id !== shiftId) return sh;
-              const releasedEarlyPrIds = mergeReleasedEarlyPrIds(sh.releasedEarlyPrIds, valid);
-              const prs = sh.prs.filter((id) => !valid.includes(id));
-              return {
-                ...sh,
-                prs,
-                filled: prs.length,
-                releasedEarlyPrIds,
-              };
-            }),
+            shifts: syncAgencyRosterToOutletShifts(shifts, agencyRoster),
           };
         });
         for (const prId of valid) {
@@ -5273,11 +5291,11 @@ export const useStore = create<StoreState>()(
             prId,
             prName: pr?.name ?? prId,
             outlet: shift.outletName,
-            detail: "Released early from tonight's shift",
+            detail: "Released early — paid for hours worked + commissions; available to reassign or sent home",
           });
         }
         get().toast(
-          `${valid.length} PR${valid.length === 1 ? "" : "s"} released early · labor plan updated`,
+          `${valid.length} PR${valid.length === 1 ? "" : "s"} released early · paid hours worked · available to reassign`,
           "success",
         );
       },
@@ -5346,10 +5364,23 @@ export const useStore = create<StoreState>()(
           releasedPrNames = validPrs.map((id) => st.agencyPRs.find((p) => p.id === id)?.name ?? id);
           slotsCut = cut > 0 ? cut : undefined;
           rationale = payload.rationale;
-          estimatedSavings = outletShiftCutLossSavings(shift, tierRates, prTierById, {
-            demandCut: (shift.demandCut ?? 0) + (cut > 0 ? cut : 0),
-            releasedEarlyPrIds: mergeReleasedEarlyPrIds(shift.releasedEarlyPrIds, validPrs),
-          });
+          const releaseAtClock = outletPlanningReleaseClock(shift.shift);
+          const nextReleased = mergeReleasedEarlyPrIds(shift.releasedEarlyPrIds, validPrs);
+          estimatedSavings = outletShiftCutLossSavings(
+            shift,
+            tierRates,
+            prTierById,
+            {
+              demandCut: (shift.demandCut ?? 0) + (cut > 0 ? cut : 0),
+              releasedEarlyPrIds: nextReleased,
+              releasedEarlyAt: mergeReleasedEarlyAt(
+                shift.releasedEarlyAt,
+                releasedEarlyAtForPrIds(validPrs, releaseAtClock),
+              ),
+              releaseAtClock,
+            },
+            "best_effort",
+          );
           if (!cut && !validPrs.length) {
             get().toast("No cutlost actions available for this plan", "warn");
             return;
@@ -5367,9 +5398,22 @@ export const useStore = create<StoreState>()(
           }
           releasedPrIds = valid;
           releasedPrNames = valid.map((id) => st.agencyPRs.find((p) => p.id === id)?.name ?? id);
-          estimatedSavings = outletShiftCutLossSavings(shift, tierRates, prTierById, {
-            releasedEarlyPrIds: mergeReleasedEarlyPrIds(shift.releasedEarlyPrIds, valid),
-          });
+          const releaseAtClock = outletPlanningReleaseClock(shift.shift);
+          const nextReleased = mergeReleasedEarlyPrIds(shift.releasedEarlyPrIds, valid);
+          estimatedSavings = outletShiftCutLossSavings(
+            shift,
+            tierRates,
+            prTierById,
+            {
+              releasedEarlyPrIds: nextReleased,
+              releasedEarlyAt: mergeReleasedEarlyAt(
+                shift.releasedEarlyAt,
+                releasedEarlyAtForPrIds(valid, releaseAtClock),
+              ),
+              releaseAtClock,
+            },
+            model === "guaranteed" ? "guaranteed" : "best_effort",
+          );
         } else {
           model = payload.model ?? "guaranteed";
           const unfilled = outletUnfilledDemandSlots(shift);
@@ -5385,7 +5429,7 @@ export const useStore = create<StoreState>()(
         }
 
         if (estimatedSavings <= 0) {
-          get().toast("This option would not reduce cutlost", "warn");
+          get().toast("This option would not save on cutlost / unused wages", "warn");
           return;
         }
 
@@ -6041,29 +6085,32 @@ export const useStore = create<StoreState>()(
             mergedAgencyPRs,
           ),
           prs: marketplacePrsFromAgency(mergedAgencyPRs),
-          agencyRoster: rosterWithTiedPrAttendance(
-            mergeAutoConfirmAgencyAssignments(
-              mergeDemoHennessyRosterFloor(
-                mergeDemoRosterAssignmentSlots(
-                  mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
+          agencyRoster: (() => {
+            const roster = rosterWithTiedPrAttendance(
+              mergeAutoConfirmAgencyAssignments(
+                mergeDemoHennessyRosterFloor(
+                  mergeDemoRosterAssignmentSlots(
+                    mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
+                    demoSnapshot.agencyRoster,
+                  ),
                   demoSnapshot.agencyRoster,
                 ),
-                demoSnapshot.agencyRoster,
               ),
-            ),
-            {
-              prSubRole: p?.prSubRole ?? current.prSubRole,
-              checkedIn: p?.checkedIn ?? current.checkedIn,
-              checkedOut: p?.checkedOut ?? current.checkedOut,
-              prActiveShift: p?.prActiveShift ?? current.prActiveShift,
-              prSessionByRole: p?.prSessionByRole ?? current.prSessionByRole ?? {},
-              prCheckInMeta: p?.prCheckInMeta ?? current.prCheckInMeta ?? {},
-              agencyPRs: mergedAgencyPRs,
-              acceptedShiftIndex: p?.acceptedShiftIndex ?? current.acceptedShiftIndex,
-              agencyRoster: p?.agencyRoster ?? current.agencyRoster,
-              shifts: p?.shifts ?? current.shifts,
-            },
-          ),
+              {
+                prSubRole: p?.prSubRole ?? current.prSubRole,
+                checkedIn: p?.checkedIn ?? current.checkedIn,
+                checkedOut: p?.checkedOut ?? current.checkedOut,
+                prActiveShift: p?.prActiveShift ?? current.prActiveShift,
+                prSessionByRole: p?.prSessionByRole ?? current.prSessionByRole ?? {},
+                prCheckInMeta: p?.prCheckInMeta ?? current.prCheckInMeta ?? {},
+                agencyPRs: mergedAgencyPRs,
+                acceptedShiftIndex: p?.acceptedShiftIndex ?? current.acceptedShiftIndex,
+                agencyRoster: p?.agencyRoster ?? current.agencyRoster,
+                shifts: p?.shifts ?? current.shifts,
+              },
+            );
+            return syncEarlyReleasesToRoster(roster, p?.shifts ?? current.shifts);
+          })(),
           outletCommissionRules: (() => {
             const ws = normalizeOutletWorkspace(p?.outletWorkspace ?? current.outletWorkspace);
             const legacyMult = p?.scalingTierMultipliers ?? current.scalingTierMultipliers;

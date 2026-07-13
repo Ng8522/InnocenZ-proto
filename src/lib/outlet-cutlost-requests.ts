@@ -45,9 +45,9 @@ export function cutlostRequestDetail(req: PendingCutlostRequest): string {
       parts.push(`${req.slotsCut} slot${req.slotsCut === 1 ? "" : "s"} cut`);
     }
     if (req.releasedPrNames?.length) {
-      parts.push(`release ${req.releasedPrNames.join(", ")}`);
+      parts.push(`release ${req.releasedPrNames.join(", ")} (80% unused wages)`);
     }
-    return `${req.outletName} · ${parts.join(" · ") || "Optimized mix"}`;
+    return `${req.outletName} · ${parts.join(" · ") || "Early-release plan"}`;
   }
   if (req.kind === "release_prs") {
     const names = req.releasedPrNames?.join(", ") ?? "Selected PRs";

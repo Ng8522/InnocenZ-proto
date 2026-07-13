@@ -336,6 +336,15 @@ export function RosterShiftTable({
 }
 
 function StatusPills({ slot }: { slot: AgencyRosterSlot }) {
+  if (slot.checkedOutAt) {
+    return (
+      <div className="flex flex-wrap gap-1">
+        {slot.lateFlag && <IzPill variant="amber">Late</IzPill>}
+        {slot.noShowFlag && <IzPill variant="red">No-show</IzPill>}
+        <IzPill variant="ink">Released early</IzPill>
+      </div>
+    );
+  }
   const st = STATUS_LABEL[rosterPageDisplayStatus(slot.status)];
   return (
     <div className="flex flex-wrap gap-1">
@@ -371,13 +380,20 @@ function RosterTableRow({
   onCancelPrSwap: (swapId: string) => void;
   onOpenEarningsSheet?: (kind: RosterEarningsSheetKind, slot: AgencyRosterSlot) => void;
 }) {
+  const releasedEarly = Boolean(slot.checkedOutAt);
   const showFlags =
-    canAssign && !slot.checkedInAt && slot.status !== "unavailable" && slot.status !== "swap-pending";
+    canAssign &&
+    !releasedEarly &&
+    !slot.checkedInAt &&
+    slot.status !== "unavailable" &&
+    slot.status !== "swap-pending";
   const showEdit =
     canAssign &&
+    !releasedEarly &&
     slot.status !== "swap-pending" &&
     slot.status !== "assignment-pending" &&
     slot.status !== "outlet-request-pending";
+  const showReassign = canAssign && releasedEarly;
 
   return (
     <tr className={prSwap ? "iz-roster-row--swap" : undefined}>
@@ -427,6 +443,16 @@ function RosterTableRow({
       {canAssign && (
         <td>
           <div className="iz-roster-row-actions">
+            {showReassign && (
+              <button
+                type="button"
+                className="iz-roster-mini-btn on"
+                onClick={() => onEdit(slot.id)}
+                title="Reassign to open shift"
+              >
+                Reassign
+              </button>
+            )}
             {showEdit && (
               <button type="button" className="iz-roster-icon-btn" onClick={() => onEdit(slot.id)} title="Edit">
                 <Pencil className="h-3.5 w-3.5" />

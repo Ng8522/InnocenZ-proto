@@ -56,7 +56,7 @@ export function workforceStatusLabel(
   if (status === "on-duty") return "ON-DUTY";
   if (status === "en-route") return "EN-ROUTE";
   if (status === "scheduled") return "BOOKED";
-  if (status === "checked-out") return "CHECK OUT";
+  if (status === "checked-out") return "RELEASED";
   return "OUT";
 }
 

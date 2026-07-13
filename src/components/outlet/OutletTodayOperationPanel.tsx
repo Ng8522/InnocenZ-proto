@@ -103,6 +103,7 @@ function resolveStaffFloorStatus(
   shift: ShiftRequest,
   now = new Date(),
 ): FloorDisplayStatus {
+  if (shift.releasedEarlyPrIds?.includes(prId)) return "checked-out";
   const clockStarted = outletShiftClockStarted(shift, now);
   if (prId === TIED_DEMO_ROSTER_PR_ID) {
     if (clockStarted && tiedLive.onDuty) return "on-duty";
@@ -200,11 +201,15 @@ export function OutletTodayOperationPanel({
 
   const staffTonight = useMemo((): StaffEntry[] => {
     const rosterByPr = new Map(rosterTonight.map((s) => [s.prId, s]));
+    const released = new Set(shift.releasedEarlyPrIds ?? []);
     const bookedIds = new Set(shift.prs ?? []);
+    for (const id of released) bookedIds.add(id);
     for (const slot of rosterTonight) {
+      if (released.has(slot.prId)) continue;
       if (
         ["scheduled", "on-duty", "en-route", "swap-pending"].includes(slot.status) &&
-        slot.shift === shift.shift
+        slot.shift === shift.shift &&
+        !slot.checkedOutAt
       ) {
         bookedIds.add(slot.prId);
       }
@@ -236,7 +241,7 @@ export function OutletTodayOperationPanel({
           STATUS_SORT[a.displayStatus] - STATUS_SORT[b.displayStatus] ||
           a.pr.name.localeCompare(b.pr.name),
       );
-  }, [shift.prs, shift.shift, prs, rosterTonight, tiedLive, agencyPrById]);
+  }, [shift.prs, shift.shift, shift.releasedEarlyPrIds, prs, rosterTonight, tiedLive, agencyPrById]);
 
   const statusCounts = useMemo(() => {
     const counts = { onDuty: 0, enRoute: 0, booked: 0, checkedOut: 0 };

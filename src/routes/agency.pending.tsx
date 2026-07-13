@@ -684,6 +684,10 @@ function CutlostDetailPanel({
         <div className="iz-approvals-info-card mt-3">
           <h3 className="iz-approvals-info-title">PRs affected</h3>
           <p className="iz-tiny iz-muted">{req.releasedPrNames.join(", ")}</p>
+          <p className="iz-tiny iz-muted2 mt-2">
+            On approve: paid for hours worked + commissions. They are sent home unless you reassign
+            them to another outlet on the roster.
+          </p>
         </div>
       ) : null}
 

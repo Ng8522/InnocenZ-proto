@@ -177,7 +177,7 @@ export function OutletStatChip({
 }: {
   label: string;
   value: string;
-  tone?: "neutral" | "violet" | "warn" | "danger";
+  tone?: "neutral" | "violet" | "warn" | "danger" | "green";
   onClick?: () => void;
 }) {
   const className = cn(

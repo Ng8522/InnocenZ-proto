@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useStore } from "@/lib/store";
-import { OUTLET_NAMES } from "@/lib/agency-demo";
+import { OUTLET_NAMES, scopeToAgency } from "@/lib/agency-demo";
 import { agencyPendingPayoutDeadline, agencyPrToPayTotal } from "@/lib/agency-payroll";
 import { LIVE_SEED_PR_PVS } from "@/lib/pr-demo";
 import { agencyCan } from "@/lib/agency-rbac";
@@ -16,7 +16,12 @@ export const Route = createFileRoute("/agency/")({
 
 function AgencyHub() {
   const agencySubRole = useStore((s) => s.agencySubRole);
-  const agencyPRs = useStore((s) => s.agencyPRs);
+  const activeAgencyId = useStore((s) => s.activeAgencyId);
+  const allAgencyPRs = useStore((s) => s.agencyPRs);
+  const agencyPRs = useMemo(
+    () => scopeToAgency(allAgencyPRs, activeAgencyId),
+    [allAgencyPRs, activeAgencyId],
+  );
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers);
   const prToPayTotal = useMemo(() => {
     const pvs = prPaymentVouchers?.length ? prPaymentVouchers : LIVE_SEED_PR_PVS;

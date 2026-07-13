@@ -4,7 +4,15 @@ import { AppTopbar } from "@/components/Nav";
 import { PrSecuritySettingsSheets } from "@/components/pr/PrSecuritySettingsSheets";
 import { useStore } from "@/lib/store";
 import { goToWelcome } from "@/lib/go-welcome";
-import { PORTFOLIO_SLOT_COUNT, getPrProfile, getPrRosterId, resolvePrAccountFields, type PrComcard } from "@/lib/pr-demo";
+import {
+  PORTFOLIO_SLOT_COUNT,
+  PR_AGENCIES,
+  getPrAgencyById,
+  getPrProfile,
+  getPrRosterId,
+  resolvePrAccountFields,
+  type PrComcard,
+} from "@/lib/pr-demo";
 import { Comcard3dPreviewVisual } from "@/components/agency/Comcard3dPreview";
 import {
   PortfolioComcardVisual,
@@ -13,8 +21,7 @@ import {
   portfolioPhotosForComcard,
 } from "@/components/pr/PortfolioComcardVisual";
 import { ProfileLanguagePicker } from "@/components/iz/ProfileLanguagePicker";
-import { Camera, Pencil, Star, X } from "lucide-react";
-import { FreelancerAgencyPicker } from "@/components/iz/FreelancerAgencyPicker";
+import { Camera, Check, ChevronDown, Pencil, Star, X } from "lucide-react";
 import { IzCard, IzPill } from "@/components/iz/ui";
 import { publicAssetPath } from "@/lib/public-asset";
 
@@ -54,8 +61,6 @@ function buildProfileDraft(
 
 function ProfilePage() {
   const prSubRole = useStore((s) => s.prSubRole);
-  const prFreelancerLowRatingStrikes = useStore((s) => s.prFreelancerLowRatingStrikes);
-  const demoFreelancerLowRatingStrike = useStore((s) => s.demoFreelancerLowRatingStrike);
   const prComcard = useStore((s) => s.prComcard);
   const prPortfolio = useStore((s) => s.prPortfolio);
   const prLanguages = useStore((s) => s.prLanguages);
@@ -64,14 +69,20 @@ function ProfilePage() {
   const prMobile = useStore((s) => s.prMobile);
   const prEmail = useStore((s) => s.prEmail);
   const agencyPRs = useStore((s) => s.agencyPRs);
+  const prAgencies = useStore((s) => s.prAgencies);
   const prAvatarPhoto = useStore((s) => s.prAvatarPhoto);
+  const linkedAgencyNames =
+    prAgencies
+      .map((id) => getPrAgencyById(id)?.name)
+      .filter(Boolean)
+      .join(", ") || "Atlas Agency";
   const savePrProfile = useStore((s) => s.savePrProfile);
   const savePrContact = useStore((s) => s.savePrContact);
+  const requestPrAgencyChange = useStore((s) => s.requestPrAgencyChange);
   const signOut = useStore((s) => s.signOut);
   const toast = useStore((s) => s.toast);
 
   const u = getPrProfile(prSubRole);
-  const tied = prSubRole !== "pr_free";
   const agencyPr = agencyPRs.find((p) => p.id === getPrRosterId(prSubRole));
   const account = resolvePrAccountFields(prSubRole, {
     prDisplayName,
@@ -86,6 +97,8 @@ function ProfilePage() {
   const [draft, setDraft] = useState<ProfileDraft>(() =>
     buildProfileDraft(account, prAvatarPhoto, prComcard, prPortfolio, prLanguages),
   );
+  const [agencyDraft, setAgencyDraft] = useState<string[]>(prAgencies);
+  const [agencyMenuOpen, setAgencyMenuOpen] = useState(false);
 
   const portfolioFileRef = useRef<HTMLInputElement>(null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
@@ -93,11 +106,14 @@ function ProfilePage() {
 
   const startEdit = () => {
     setDraft(buildProfileDraft(account, prAvatarPhoto, prComcard, prPortfolio, prLanguages));
+    setAgencyDraft(prAgencies);
+    setAgencyMenuOpen(false);
     setEditing(true);
   };
 
   const cancelEdit = () => {
     setDraft(buildProfileDraft(account, prAvatarPhoto, prComcard, prPortfolio, prLanguages));
+    setAgencyDraft(prAgencies);
     setEditing(false);
   };
 
@@ -122,8 +138,14 @@ function ProfilePage() {
       toast("Enter a valid email address", "warn");
       return;
     }
-    const height = Math.max(100, Math.min(220, Math.round(draft.comcard.height) || COMCARD_DEFAULT.height));
-    const weight = Math.max(35, Math.min(120, Math.round(draft.comcard.weight) || COMCARD_DEFAULT.weight));
+    const height = Math.max(
+      100,
+      Math.min(220, Math.round(draft.comcard.height) || COMCARD_DEFAULT.height),
+    );
+    const weight = Math.max(
+      35,
+      Math.min(120, Math.round(draft.comcard.weight) || COMCARD_DEFAULT.weight),
+    );
     const age = Math.max(18, Math.min(60, Math.round(draft.comcard.age) || COMCARD_DEFAULT.age));
     if (draft.languages.length === 0) {
       toast("Select at least one language", "warn");
@@ -144,6 +166,8 @@ function ProfilePage() {
       portfolio: draft.portfolio.slice(0, PORTFOLIO_SLOT_COUNT),
       languages: draft.languages,
     });
+    // Agency selection: notify each added/removed agency to dispatch or suspend.
+    requestPrAgencyChange(agencyDraft);
     setEditing(false);
   };
 
@@ -244,12 +268,22 @@ function ProfilePage() {
         glow
         className={`iz-pr-account-hero mt-3${editing ? " iz-pr-account-hero--edit" : ""}`}
       >
-        <input ref={avatarFileRef} type="file" accept="image/*" className="sr-only" onChange={onAvatarFilePick} />
+        <input
+          ref={avatarFileRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          onChange={onAvatarFilePick}
+        />
 
         <div className="iz-pr-account-hero__head">
           <p className="iz-pr-account-hero__eyebrow">Account</p>
           <div className="iz-pr-account-hero__head-badges">
-            {editing && <span className="iz-pr-account-hero__badge iz-pr-account-hero__badge--amber">Editing</span>}
+            {editing && (
+              <span className="iz-pr-account-hero__badge iz-pr-account-hero__badge--amber">
+                Editing
+              </span>
+            )}
             <span className="iz-pr-account-hero__badge">
               {hasPhotoComcard ? "Photo Comcard · IC · v3" : "3D Comcard · IC · v3"}
             </span>
@@ -337,17 +371,78 @@ function ProfilePage() {
                 <Star className="h-3 w-3" /> {u.tier}
               </span>
               <span className="iz-pr-account-hero__meta-text">
-                {tied ? "Agency-Tied · Atlas Agency" : "Freelancer"}
+                Agency-Tied · {linkedAgencyNames}
               </span>
               <span className="iz-pr-account-hero__meta-ic">IC {account.ic}</span>
             </div>
-            {editing && tied && (
-              <p className="iz-pr-account-hero__hint">
-                IC name and mobile sync to Atlas Agency when you save. Tap the camera on your photo to upload a new picture.
-              </p>
+            {editing && (
+              <div className="iz-pr-account-hero__agency-edit mt-2">
+                <p className="iz-tiny iz-muted2 mb-1">Agencies you work with</p>
+                <div className="relative">
+                  <button
+                    type="button"
+                    className="iz-field-input flex w-full items-center justify-between gap-2 !text-sm"
+                    onClick={() => setAgencyMenuOpen((o) => !o)}
+                    aria-expanded={agencyMenuOpen}
+                  >
+                    <span className={agencyDraft.length ? "" : "iz-muted2"}>
+                      {agencyDraft.length
+                        ? agencyDraft.map((id) => getPrAgencyById(id)?.name ?? id).join(", ")
+                        : "Select agencies…"}
+                    </span>
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 transition-transform${agencyMenuOpen ? " rotate-180" : ""}`}
+                    />
+                  </button>
+                  {agencyMenuOpen && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="Close agency list"
+                        className="fixed inset-0 z-30 cursor-default"
+                        onClick={() => setAgencyMenuOpen(false)}
+                      />
+                      <div className="absolute left-0 right-0 z-40 mt-1 max-h-60 overflow-y-auto rounded-xl border border-[var(--iz-line)] bg-[var(--iz-bg2)] p-1 shadow-lg">
+                        {PR_AGENCIES.map((a) => {
+                          const on = agencyDraft.includes(a.id);
+                          return (
+                            <button
+                              key={a.id}
+                              type="button"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-white/[0.04]"
+                              onClick={() =>
+                                setAgencyDraft((prev) =>
+                                  prev.includes(a.id)
+                                    ? prev.filter((id) => id !== a.id)
+                                    : [...prev, a.id],
+                                )
+                              }
+                            >
+                              <span
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${on ? "border-[var(--iz-gold)] bg-[var(--iz-gold)] text-black" : "border-[var(--iz-line2)]"}`}
+                              >
+                                {on && <Check className="h-3 w-3" />}
+                              </span>
+                              <span className={on ? "text-[var(--iz-gold-l)]" : ""}>{a.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <p className="iz-tiny iz-muted mt-1.5">
+                  Selecting an agency notifies them to{" "}
+                  <b className="text-[var(--iz-gold-l)]">dispatch</b> you; removing one notifies
+                  them to <b className="text-[var(--iz-amber)]">suspend</b> you.
+                </p>
+              </div>
             )}
-            {editing && !tied && (
-              <p className="iz-pr-account-hero__hint">Tap the camera on your photo to upload a new picture.</p>
+            {editing && (
+              <p className="iz-pr-account-hero__hint">
+                IC name and mobile sync to Atlas Agency when you save. Tap the camera on your photo
+                to upload a new picture.
+              </p>
             )}
           </div>
         </div>
@@ -381,21 +476,27 @@ function ProfilePage() {
           )}
           {editing && (
             <div className="iz-pr-account-hero__measure-edit">
-              <p className="iz-pr-account-hero__measure-hint">Adjust measurements — preview updates live</p>
+              <p className="iz-pr-account-hero__measure-hint">
+                Adjust measurements — preview updates live
+              </p>
               <div className="iz-pr-account-hero__measure-grid">
                 <ComcardInput
                   compact
                   label="Height"
                   suffix="cm"
                   value={comcard.height}
-                  onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, height: n } }))}
+                  onChange={(n) =>
+                    setDraft((p) => ({ ...p, comcard: { ...p.comcard, height: n } }))
+                  }
                 />
                 <ComcardInput
                   compact
                   label="Weight"
                   suffix="kg"
                   value={comcard.weight}
-                  onChange={(n) => setDraft((p) => ({ ...p, comcard: { ...p.comcard, weight: n } }))}
+                  onChange={(n) =>
+                    setDraft((p) => ({ ...p, comcard: { ...p.comcard, weight: n } }))
+                  }
                 />
                 <ComcardInput
                   compact
@@ -418,7 +519,13 @@ function ProfilePage() {
               </span>
             )}
           </div>
-          <input ref={portfolioFileRef} type="file" accept="image/*" className="sr-only" onChange={onPortfolioFilePick} />
+          <input
+            ref={portfolioFileRef}
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={onPortfolioFilePick}
+          />
           <div className="iz-pgrid iz-pgrid-8 iz-pr-account-hero__portfolio">
             {Array.from({ length: PORTFOLIO_SLOT_COUNT }, (_, i) => {
               const src = portfolio[i];
@@ -427,11 +534,21 @@ function ProfilePage() {
                   <button
                     type="button"
                     className={`iz-pcell w-full${src ? " has-photo" : ""}${editing ? " editable" : ""}`}
-                    onClick={() => (editing ? openPortfolioUpload(i) : src ? toast("Portfolio photo", "info") : undefined)}
+                    onClick={() =>
+                      editing
+                        ? openPortfolioUpload(i)
+                        : src
+                          ? toast("Portfolio photo", "info")
+                          : undefined
+                    }
                     aria-label={src ? `Portfolio photo ${i + 1}` : `Add portfolio photo ${i + 1}`}
                   >
                     {src ? (
-                      <img src={publicAssetPath(src)} alt="" className="h-full w-full rounded-[10px] object-cover" />
+                      <img
+                        src={publicAssetPath(src)}
+                        alt=""
+                        className="h-full w-full rounded-[10px] object-cover"
+                      />
                     ) : (
                       <Camera className="h-[18px] w-[18px]" />
                     )}
@@ -451,7 +568,9 @@ function ProfilePage() {
             })}
           </div>
           {!editing && portfolio.every((p) => !p) && (
-            <p className="iz-pr-account-hero__empty">No photos yet — tap Edit profile to add your gallery.</p>
+            <p className="iz-pr-account-hero__empty">
+              No photos yet — tap Edit profile to add your gallery.
+            </p>
           )}
         </div>
 
@@ -459,7 +578,11 @@ function ProfilePage() {
           <div className="iz-pr-account-hero__section-title">
             <span>Languages</span>
           </div>
-          <div className={editing ? "iz-pr-account-hero__languages-edit" : "iz-pr-account-hero__languages-view"}>
+          <div
+            className={
+              editing ? "iz-pr-account-hero__languages-edit" : "iz-pr-account-hero__languages-view"
+            }
+          >
             {editing ? (
               <ProfileLanguagePicker
                 value={languages}
@@ -482,31 +605,6 @@ function ProfilePage() {
           </div>
         </div>
       </IzCard>
-
-      <div className="mt-2.5">
-        <FreelancerAgencyPicker tied={tied} />
-      </div>
-
-      {!tied && (
-        <IzCard flat className="mt-2 border-[rgba(244,183,64,.35)]">
-          {prFreelancerLowRatingStrikes > 0 ? (
-            <p className="iz-tiny text-[var(--iz-amber)]">
-              {prFreelancerLowRatingStrikes >= 3
-                ? "Suspended: 3 ratings below 3.0★ — marketplace blocked"
-                : `Warning: ${prFreelancerLowRatingStrikes}/3 low rating strikes`}
-            </p>
-          ) : (
-            <p className="iz-tiny iz-muted">Below 3.5★ warns · 3× below 3.0★ suspends marketplace access.</p>
-          )}
-          <button
-            type="button"
-            className="iz-btn iz-btn-soft iz-btn-sm mt-2 w-auto"
-            onClick={demoFreelancerLowRatingStrike}
-          >
-            Demo: log low-rating strike
-          </button>
-        </IzCard>
-      )}
 
       <div className="iz-profile-actions mt-4">
         {editing ? (

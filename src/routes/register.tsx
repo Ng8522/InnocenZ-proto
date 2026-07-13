@@ -5,8 +5,16 @@ import { IzSheet } from "@/components/iz/Sheet";
 import { Toasts } from "@/components/Toasts";
 import { isValidDemoOtp } from "@/components/auth/OtpVerifySheet";
 import { useStore } from "@/lib/store";
-import { getPrAgencyById, PR_AGENCIES, DEFAULT_TIED_AGENCY_ID, PORTFOLIO_SLOT_COUNT } from "@/lib/pr-demo";
-import { PortfolioGalleryPicker, portfolioFilledCount } from "@/components/pr/PortfolioGalleryPicker";
+import {
+  getPrAgencyById,
+  PR_AGENCIES,
+  DEFAULT_TIED_AGENCY_ID,
+  PORTFOLIO_SLOT_COUNT,
+} from "@/lib/pr-demo";
+import {
+  PortfolioGalleryPicker,
+  portfolioFilledCount,
+} from "@/components/pr/PortfolioGalleryPicker";
 import { publicAssetPath } from "@/lib/public-asset";
 import {
   ArrowLeft,
@@ -129,7 +137,7 @@ type RegisterDraft = {
   state: string;
   country: string;
   underAgency: boolean | null;
-  agencyId: string;
+  agencyIds: string[];
   idPhotoFront: string | null;
   idPhotoBack: string | null;
   profilePhoto: string | null;
@@ -212,7 +220,7 @@ function buildEmptyRegisterDraft(): RegisterDraft {
     state: "Selangor",
     country: "Malaysia",
     underAgency: null,
-    agencyId: "",
+    agencyIds: [],
     idPhotoFront: null,
     idPhotoBack: null,
     profilePhoto: null,
@@ -243,7 +251,7 @@ function buildDemoRegisterDraft(): RegisterDraft {
     state: "Selangor",
     country: "Malaysia",
     underAgency: true,
-    agencyId: DEFAULT_TIED_AGENCY_ID,
+    agencyIds: [DEFAULT_TIED_AGENCY_ID, "delta"],
     idPhotoFront: demoPlaceholderImage("ID — Front", "NRIC · demo"),
     idPhotoBack: demoPlaceholderImage("ID — Back", "NRIC · demo"),
     profilePhoto: demoPlaceholderImage("Profile", "Profile · demo", "#C99B4E", { w: 400, h: 400 }),
@@ -263,13 +271,7 @@ function readImageFile(file: File, onLoad: (dataUrl: string) => void) {
   reader.readAsDataURL(file);
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="iz-field block">
       <span className="iz-field-label">{label}</span>
@@ -380,7 +382,9 @@ function StepDots({ step }: { step: number }) {
           key={s.id}
           className={`iz-reg-step ${s.id === step ? "iz-reg-step--active" : ""} ${s.id < step ? "iz-reg-step--done" : ""}`}
         >
-          <span className="iz-reg-step__dot">{s.id < step ? <Check className="h-3 w-3" /> : s.id}</span>
+          <span className="iz-reg-step__dot">
+            {s.id < step ? <Check className="h-3 w-3" /> : s.id}
+          </span>
           <span className="iz-reg-step__lbl">
             <s.icon className="iz-reg-step__icon" aria-hidden />
             {s.title}
@@ -489,7 +493,9 @@ function AgencySummary({ agencyId }: { agencyId: string }) {
               {agency.initials}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">{agency.name}</div>
+              <div className="font-sora text-lg font-extrabold text-[var(--iz-txt)]">
+                {agency.name}
+              </div>
               <div className="iz-sm iz-muted mt-0.5">{agency.city}</div>
               <div className="iz-tiny iz-muted mt-1">{agency.tagline}</div>
             </div>
@@ -661,8 +667,8 @@ function RegistrationAcknowledgements({
       >
         <p>
           Your identity documents, contact details, and address are stored securely on InnocenZ.
-          Only your linked PR agency (if any) and InnocenZ compliance staff can access this
-          data — outlets and other PRs cannot view your private records.
+          Only your linked PR agency (if any) and InnocenZ compliance staff can access this data —
+          outlets and other PRs cannot view your private records.
         </p>
       </DisclaimerSheet>
 
@@ -685,8 +691,8 @@ function RegistrationAcknowledgements({
       >
         <p>
           Your profile may be shared with registered InnocenZ agencies for payroll, roster, and
-          compliance purposes. If you register as a Freelancer, an agency will be auto-assigned to
-          support your shifts and Payment Vouchers.
+          compliance purposes. If you don't pick an agency, one will be auto-assigned to support
+          your shifts and Payment Vouchers.
         </p>
       </DisclaimerSheet>
 
@@ -754,7 +760,8 @@ function RegisterPage() {
     isNric &&
     draft.dob &&
     draft.idNo &&
-    (digitsOnlyNric(draft.idNo).length > 0 && !digitsOnlyNric(draft.idNo).startsWith(nricPrefix));
+    digitsOnlyNric(draft.idNo).length > 0 &&
+    !digitsOnlyNric(draft.idNo).startsWith(nricPrefix);
 
   const displayName =
     [draft.firstName, draft.lastName].filter(Boolean).join(" ").trim() || draft.username;
@@ -810,7 +817,7 @@ function RegisterPage() {
         toast("Please answer whether you are under an agency", "warn");
         return false;
       }
-      if (draft.underAgency && !draft.agencyId) {
+      if (draft.underAgency && draft.agencyIds.length === 0) {
         toast("Select an agency", "warn");
         return false;
       }
@@ -850,7 +857,12 @@ function RegisterPage() {
 
   const proceedToVerification = () => {
     if (!validateStep(5)) return;
-    if (!draft.acceptPrivacy || !draft.acceptTruth || !draft.acceptAgencyShare || !draft.acceptTerms) {
+    if (
+      !draft.acceptPrivacy ||
+      !draft.acceptTruth ||
+      !draft.acceptAgencyShare ||
+      !draft.acceptTerms
+    ) {
       toast("Accept all acknowledgements and terms to continue", "warn");
       return;
     }
@@ -875,7 +887,12 @@ function RegisterPage() {
   };
 
   const submit = () => {
-    if (!draft.acceptPrivacy || !draft.acceptTruth || !draft.acceptAgencyShare || !draft.acceptTerms) {
+    if (
+      !draft.acceptPrivacy ||
+      !draft.acceptTruth ||
+      !draft.acceptAgencyShare ||
+      !draft.acceptTerms
+    ) {
       toast("Accept all acknowledgements and terms to continue", "warn");
       return;
     }
@@ -890,8 +907,11 @@ function RegisterPage() {
       profilePhoto: draft.profilePhoto,
       portfolio: draft.portfolio,
       underAgency: draft.underAgency === true,
-      agencyId: draft.agencyId,
+      agencyId: draft.agencyIds[0] ?? "",
     });
+    useStore
+      .getState()
+      .setPrAgencies(draft.underAgency && draft.agencyIds.length ? draft.agencyIds : ["atlas"]);
     toast("Registration submitted — awaiting agency verification", "success");
     setSubmitted(true);
   };
@@ -899,8 +919,11 @@ function RegisterPage() {
   const agencyName =
     draft.underAgency === false
       ? "your assigned agency"
-      : draft.agencyId
-        ? (getPrAgencyById(draft.agencyId)?.name ?? "your agency")
+      : draft.agencyIds.length
+        ? draft.agencyIds
+            .map((id) => getPrAgencyById(id)?.name)
+            .filter(Boolean)
+            .join(", ")
         : "your agency";
 
   if (submitted) {
@@ -930,7 +953,10 @@ function RegisterPage() {
                   <p className="iz-tiny iz-muted mb-2">Your portfolio gallery</p>
                   <div className="grid grid-cols-4 gap-2">
                     {draft.portfolio.filter(Boolean).map((src, i) => (
-                      <div key={i} className="aspect-square overflow-hidden rounded-lg border border-[var(--iz-line)]">
+                      <div
+                        key={i}
+                        className="aspect-square overflow-hidden rounded-lg border border-[var(--iz-line)]"
+                      >
                         <img
                           src={publicAssetPath(src!)}
                           alt={`Gallery ${i + 1}`}
@@ -1171,35 +1197,48 @@ function RegisterPage() {
                 <button
                   type="button"
                   className={`iz-chip w-full justify-center py-3 ${draft.underAgency === false ? "border-[var(--iz-gold)]" : ""}`}
-                  onClick={() => patch({ underAgency: false, agencyId: "" })}
+                  onClick={() => patch({ underAgency: false, agencyIds: [] })}
                 >
-                  No — Freelancer
+                  No
                 </button>
               </div>
               {draft.underAgency === true && (
                 <>
-                  <Field label="Agency name">
-                    <select
-                      className="iz-select iz-select--field w-full"
-                      value={draft.agencyId}
-                      onChange={(e) => patch({ agencyId: e.target.value })}
-                    >
-                      <option value="">Select agency…</option>
-                      {PR_AGENCIES.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name}
-                        </option>
-                      ))}
-                    </select>
+                  <Field label="Agency name — select one or many">
+                    <div className="flex flex-col gap-2">
+                      {PR_AGENCIES.map((a) => {
+                        const checked = draft.agencyIds.includes(a.id);
+                        return (
+                          <button
+                            key={a.id}
+                            type="button"
+                            className={`iz-chip w-full justify-between py-3 ${checked ? "border-[var(--iz-gold)]" : ""}`}
+                            onClick={() =>
+                              patch({
+                                agencyIds: checked
+                                  ? draft.agencyIds.filter((id) => id !== a.id)
+                                  : [...draft.agencyIds, a.id],
+                              })
+                            }
+                          >
+                            <span>{a.name}</span>
+                            {checked && <Check className="h-4 w-4 text-[var(--iz-gold)]" />}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </Field>
-                  {draft.agencyId && <AgencySummary agencyId={draft.agencyId} />}
+                  {draft.agencyIds.length > 0 && (
+                    <p className="iz-tiny iz-muted2">
+                      Each selected agency approves your link before it goes live.
+                    </p>
+                  )}
                 </>
               )}
               {draft.underAgency === false && (
                 <p className="iz-tiny iz-muted rounded-[13px] border border-[var(--iz-line)] bg-white/[0.02] p-3">
-                  You will register as a Freelancer. Your profile will be shared with registered
-                  InnocenZ agencies — an agency will be auto-assigned to you for payroll and roster
-                  support.
+                  An agency will be auto-assigned to you for payroll and roster support. Your
+                  profile will be shared with registered InnocenZ agencies.
                 </p>
               )}
             </>
@@ -1234,7 +1273,8 @@ function RegisterPage() {
                 <span>Portfolio gallery</span>
               </div>
               <p className="iz-sm iz-muted -mt-1">
-                Add up to {PORTFOLIO_SLOT_COUNT} photos — agencies review your gallery during sign-up approval.
+                Add up to {PORTFOLIO_SLOT_COUNT} photos — agencies review your gallery during
+                sign-up approval.
               </p>
               <PortfolioGalleryPicker
                 value={draft.portfolio}
@@ -1254,7 +1294,11 @@ function RegisterPage() {
                   onClick={() => profilePhotoRef.current?.click()}
                 >
                   {draft.profilePhoto ? (
-                    <img src={draft.profilePhoto} alt="Profile" className="h-full w-full object-cover" />
+                    <img
+                      src={draft.profilePhoto}
+                      alt="Profile"
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <User className="h-10 w-10 text-[var(--iz-muted)]" />
                   )}
@@ -1291,7 +1335,13 @@ function RegisterPage() {
                   <SummaryRow label="DOB" value={draft.dob} />
                   <SummaryRow
                     label="Address"
-                    value={[draft.addressLine1, draft.addressLine2, draft.postcode, draft.state, draft.country]
+                    value={[
+                      draft.addressLine1,
+                      draft.addressLine2,
+                      draft.postcode,
+                      draft.state,
+                      draft.country,
+                    ]
                       .filter(Boolean)
                       .join(", ")}
                   />
@@ -1299,10 +1349,11 @@ function RegisterPage() {
                     label="Agency"
                     value={
                       draft.underAgency === false
-                        ? "Freelancer — auto-assigned agency"
-                        : draft.agencyId
-                          ? (getPrAgencyById(draft.agencyId)?.name ?? "")
-                          : ""
+                        ? "Auto-assigned agency"
+                        : draft.agencyIds
+                            .map((id) => getPrAgencyById(id)?.name)
+                            .filter(Boolean)
+                            .join(", ")
                     }
                   />
                 </dl>
@@ -1318,8 +1369,7 @@ function RegisterPage() {
                 <Smartphone className="h-8 w-8" strokeWidth={2} />
               </div>
               <p className="iz-sm iz-muted mt-5 max-w-[18rem] leading-relaxed">
-                Enter the 6-digit OTP sent to{" "}
-                <b className="text-[var(--iz-txt)]">{fullPhone}</b>
+                Enter the 6-digit OTP sent to <b className="text-[var(--iz-txt)]">{fullPhone}</b>
               </p>
               <input
                 value={otp}
@@ -1347,15 +1397,27 @@ function RegisterPage() {
             {step === 1 ? "Back" : "Previous"}
           </button>
           {step < 5 ? (
-            <button type="button" className="iz-btn iz-btn-primary min-w-0 flex-[7]" onClick={goNext}>
+            <button
+              type="button"
+              className="iz-btn iz-btn-primary min-w-0 flex-[7]"
+              onClick={goNext}
+            >
               Continue <ArrowRight className="ml-1 inline h-4 w-4" />
             </button>
           ) : step === 5 ? (
-            <button type="button" className="iz-btn iz-btn-primary min-w-0 flex-[7]" onClick={proceedToVerification}>
+            <button
+              type="button"
+              className="iz-btn iz-btn-primary min-w-0 flex-[7]"
+              onClick={proceedToVerification}
+            >
               Create account
             </button>
           ) : (
-            <button type="button" className="iz-btn iz-btn-primary min-w-0 flex-[7]" onClick={verifyRegistrationOtp}>
+            <button
+              type="button"
+              className="iz-btn iz-btn-primary min-w-0 flex-[7]"
+              onClick={verifyRegistrationOtp}
+            >
               Verify & submit
             </button>
           )}

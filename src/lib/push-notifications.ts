@@ -89,7 +89,13 @@ export type PushEvent =
   | { type: "rating_prompt"; prId?: string; prName: string; outlet: string; audience: "outlet" }
   | { type: "reconciliation_due"; outlet: string }
   | { type: "report_ready"; portal: OpsPortal; label: string }
-  | { type: "collection_reminder"; collectionId: string; outlet: string; amount: number; dueDate: string }
+  | {
+      type: "collection_reminder";
+      collectionId: string;
+      outlet: string;
+      amount: number;
+      dueDate: string;
+    }
   | {
       type: "special_service_requested";
       orderId: string;
@@ -162,10 +168,7 @@ function rm(amount: number) {
 }
 
 /** Apply one push event → updated notification arrays */
-export function applyPushEvent(
-  state: PushNotifyInput,
-  event: PushEvent,
-): PushNotifyResult {
+export function applyPushEvent(state: PushNotifyInput, event: PushEvent): PushNotifyResult {
   const at = notificationStamp();
   const prefs = state.notificationPrefs;
   let prNotifications = state.prNotifications;
@@ -351,7 +354,7 @@ export function applyPushEvent(
     }
     case "sos": {
       const { incident } = event;
-      const typeLabel = incident.prType === "freelancer" ? "Freelancer" : "Agency-tied";
+      const typeLabel = "Agency-tied";
       if (prefOn(prefs, "sos", "pr")) {
         prNotifications = prependPr(
           {

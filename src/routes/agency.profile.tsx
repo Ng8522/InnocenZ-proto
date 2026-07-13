@@ -6,6 +6,7 @@ import type { AgencyFinanceHead, AgencyOwnerSettings } from "@/lib/agency-demo";
 import {
   agencySubscriptionBillingForWeeklyPv,
   agencyWeeklyPvCount,
+  ownedByAgency,
 } from "@/lib/agency-demo";
 import { getPreviousWeekSundayIso } from "@/lib/demo-clock";
 import { getAgencyManagedPvs } from "@/lib/agency-payroll";
@@ -20,7 +21,12 @@ export const Route = createFileRoute("/agency/profile")({
 
 function AgencyProfile() {
   const agencyOwner = useStore((s) => s.agencyOwner);
-  const agencyPRs = useStore((s) => s.agencyPRs);
+  const activeAgencyId = useStore((s) => s.activeAgencyId);
+  const allAgencyPRs = useStore((s) => s.agencyPRs);
+  const agencyPRs = useMemo(
+    () => ownedByAgency(allAgencyPRs, activeAgencyId),
+    [allAgencyPRs, activeAgencyId],
+  );
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const agencyFinanceHead = useStore((s) => s.agencyFinanceHead);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
@@ -42,10 +48,7 @@ function AgencyProfile() {
   const payrollWeekStartIso = getPreviousWeekSundayIso();
   const issuedWeeklyPv = useMemo(
     () =>
-      agencyWeeklyPvCount(
-        getAgencyManagedPvs(prPaymentVouchers, agencyPRs),
-        payrollWeekStartIso,
-      ),
+      agencyWeeklyPvCount(getAgencyManagedPvs(prPaymentVouchers, agencyPRs), payrollWeekStartIso),
     [prPaymentVouchers, agencyPRs, payrollWeekStartIso],
   );
   const subscriptionBilling = useMemo(

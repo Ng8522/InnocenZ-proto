@@ -15022,11 +15022,6 @@ button.iz-pr-offer-row:hover {
   color: var(--iz-green);
   border: 1px solid rgba(74, 222, 128, 0.35);
 }
-.iz-outlet-staff-tag--freelancer {
-  background: rgba(244, 183, 64, 0.16);
-  color: var(--iz-gold-l);
-  border: 1px solid rgba(244, 183, 64, 0.35);
-}
 .iz-outlet-staff-tag--booked {
   background: rgba(74, 222, 128, 0.2);
   color: var(--iz-green);
@@ -15174,7 +15169,7 @@ button.iz-pr-offer-row:hover {
   box-shadow: 0 0 0 3px rgba(183, 156, 232, 0.12);
 }
 
-/* PR agency picker (Freelancer profile) */
+/* PR agency picker */
 .iz-agency-row {
   display: flex;
   align-items: flex-start;

@@ -18,6 +18,18 @@ export interface ShiftHistoryRow {
   durationHours: number;
 }
 
+/**
+ * Scope shift history to the agency that assigned each shift. Rows are tagged with
+ * `agencyName` (the operating agency that placed the PR on that night), so a Delta
+ * portal never sees Atlas-assigned rows — even for a PR that is a member of both.
+ */
+export function scopeShiftHistoryToAgencyName(
+  rows: ShiftHistoryRow[],
+  agencyName: string,
+): ShiftHistoryRow[] {
+  return (rows ?? []).filter((row) => row.agencyName === agencyName);
+}
+
 /** Only shifts on or before today — future nights are not sealed history yet */
 export function filterShiftHistoryThroughToday(
   rows: ShiftHistoryRow[],
@@ -33,7 +45,9 @@ export function isPayrollSyncedShiftHistoryRow(row: ShiftHistoryRow): boolean {
 
 /** Real checkout row — not Velvet demo seed (`vh-…`) */
 export function isCheckoutShiftHistoryRow(row: ShiftHistoryRow): boolean {
-  return row.id.startsWith("h") && !row.id.startsWith("vh-") && !isPayrollSyncedShiftHistoryRow(row);
+  return (
+    row.id.startsWith("h") && !row.id.startsWith("vh-") && !isPayrollSyncedShiftHistoryRow(row)
+  );
 }
 
 export function isDateInCurrentPayrollWeek(dateIso: string, todayIso = getLiveTodayIso()): boolean {

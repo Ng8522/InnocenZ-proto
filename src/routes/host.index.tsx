@@ -32,15 +32,7 @@ import {
 import { SpecialServicePortalSection } from "@/components/special-service/SpecialServicePortalSection";
 import { SpecialServiceOrderCard } from "@/components/special-service/SpecialServiceOrderCard";
 import { pendingSpecialServicesForPr } from "@/lib/special-service-actions";
-import {
-  Briefcase,
-  ExternalLink,
-  FileText,
-  Filter,
-  MapPin,
-  Sparkles,
-  Store,
-} from "lucide-react";
+import { Briefcase, ExternalLink, FileText, Filter, MapPin, Sparkles, Store } from "lucide-react";
 import { formatRM, IzCardTitle } from "@/components/iz/ui";
 import { IconGuide } from "@/components/iz/IconGuide";
 import { LabelWithIcon } from "@/components/iz/TitleWithIcon";
@@ -86,8 +78,6 @@ function HostShifts() {
   const checkedOut = useStore((s) => s.checkedOut);
   const acceptedShiftIndex = useStore((s) => s.acceptedShiftIndex);
   const declinePrOffer = useStore((s) => s.declinePrOffer);
-  const applyFreelancerListing = useStore((s) => s.applyFreelancerListing);
-  const prFreelancerLowRatingStrikes = useStore((s) => s.prFreelancerLowRatingStrikes);
   const acceptSwapReplacement = useStore((s) => s.acceptSwapReplacement);
   const rejectSwapReplacement = useStore((s) => s.rejectSwapReplacement);
   const agencyRoster = useStore((s) => s.agencyRoster);
@@ -120,7 +110,9 @@ function HostShifts() {
   const focusHubSection = useCallback((key: PrHubSectionKey) => {
     setHubSectionsOpen((prev) => ({ ...prev, [key]: true }));
     window.requestAnimationFrame(() => {
-      document.getElementById(`pr-hub-${key}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document
+        .getElementById(`pr-hub-${key}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }, []);
 
@@ -129,7 +121,7 @@ function HostShifts() {
   }, []);
 
   const profile = getPrProfile(prSubRole);
-  const tied = prSubRole !== "pr_free";
+  const tied = true;
   const myRosterId = getPrRosterId(prSubRole);
   const pendingServices = useMemo(
     () => pendingSpecialServicesForPr(specialServiceOrders, myRosterId),
@@ -478,12 +470,6 @@ function HostShifts() {
               )}
             </PrSection>
 
-            {!tied && prFreelancerLowRatingStrikes >= 3 && (
-              <p className="iz-pr-note mt-3 border-[rgba(255,107,107,.35)] text-[var(--iz-red)]">
-                Marketplace suspended — 3 ratings below 3.0★. See Profile for details.
-              </p>
-            )}
-
             {tied && (
               <PrSection
                 id="pr-hub-agency"
@@ -554,7 +540,7 @@ function HostShifts() {
           <OfferDetailSheet
             listing={confirmMkt}
             onConfirm={() => {
-              if (applyFreelancerListing(confirmMkt.id)) setConfirmMktId(null);
+              setConfirmMktId(null);
             }}
             onDecline={() => {
               declinePrOffer(confirmMkt.id);
@@ -842,11 +828,7 @@ function TodayShiftCard({
           <div
             className={`iz-avatar iz-avatar--md iz-pr-shift-card__logo${logo ? " iz-avatar-photo iz-avatar-photo--logo" : ""}`}
           >
-            {logo ? (
-              <img src={publicAssetPath(logo)} alt="" />
-            ) : (
-              <span>{outletInitial}</span>
-            )}
+            {logo ? <img src={publicAssetPath(logo)} alt="" /> : <span>{outletInitial}</span>}
           </div>
           <div className="min-w-0 flex-1">
             <LabelWithIcon label="Outlet name" className="iz-pr-shift-card__fact-k" />

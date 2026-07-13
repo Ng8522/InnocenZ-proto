@@ -28,6 +28,7 @@ import {
   type ReceiptEntryMethod,
 } from "@/lib/pr-demo";
 import {
+  getAgencyManagedPvs,
   getAgencyManagedReceiptScans,
   receiptBelongsToAgencyPr,
   receiptsForPv,
@@ -47,7 +48,11 @@ import {
 import { PvSummaryView } from "@/components/iz/PvSummaryView";
 import { downloadPvBreakdownCsv, downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { buildAgencyPayee } from "@/lib/pv-template";
-import { nowAgencyDateTime, agencySubscriptionBillingForWeeklyPv } from "@/lib/agency-demo";
+import {
+  nowAgencyDateTime,
+  agencySubscriptionBillingForWeeklyPv,
+  ownedByAgency,
+} from "@/lib/agency-demo";
 import type { AgencyManagedPR } from "@/lib/agency-demo";
 import { agencyCan, AGENCY_SUB_ROLE_LABELS } from "@/lib/agency-rbac";
 import {
@@ -64,7 +69,15 @@ import {
 } from "lucide-react";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { ReceiptScanSlip } from "@/components/pr/ReceiptScanSlip";
-import { IzCard, IzCardTitle, IzKpiLabel, IzPageTitle, IzPill, IzSelect, formatRM } from "@/components/iz/ui";
+import {
+  IzCard,
+  IzCardTitle,
+  IzKpiLabel,
+  IzPageTitle,
+  IzPill,
+  IzSelect,
+  formatRM,
+} from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import {
   PV_WORKFLOW_STEPS,
@@ -130,10 +143,21 @@ function statusFiltersForWeek(tab: PayrollWeekTab) {
 function AgencyPV() {
   const navigate = useNavigate();
   const { status: statusFromSearch, pv: pvFromSearch } = Route.useSearch();
-  const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
+  const activeAgencyId = useStore((s) => s.activeAgencyId);
+  const allPrPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
-  const agencyPRs = useStore((s) => s.agencyPRs);
+  const allAgencyPRs = useStore((s) => s.agencyPRs);
   const agencySubRole = useStore((s) => s.agencySubRole);
+  // Tenant scoping — attribute PVs/receipts to this agency via its OWNED PRs so a
+  // shared PR (member of both agencies) never drags the other agency's payroll in.
+  const agencyPRs = useMemo(
+    () => ownedByAgency(allAgencyPRs, activeAgencyId),
+    [allAgencyPRs, activeAgencyId],
+  );
+  const prPaymentVouchers = useMemo(
+    () => getAgencyManagedPvs(allPrPaymentVouchers, agencyPRs),
+    [allPrPaymentVouchers, agencyPRs],
+  );
   const [detailId, setDetailId] = useState<string | null>(null);
   const [payrollWeekTab, setPayrollWeekTab] = useState<PayrollWeekTab>("last_week");
   const [pvSubTab, setPvSubTab] = useState<PvSubTab>("vouchers");
@@ -147,10 +171,7 @@ function AgencyPV() {
       void navigate({ to: "/agency/history", search: { tab: "paid" }, replace: true });
       return;
     }
-    if (
-      statusFromSearch === "TO_PAY" ||
-      statusFromSearch === "SIGNED"
-    ) {
+    if (statusFromSearch === "TO_PAY" || statusFromSearch === "SIGNED") {
       setPayrollWeekTab("last_last_week");
       setPvSubTab("vouchers");
       setStatusFilter(statusFromSearch === "TO_PAY" ? "TO_PAY" : "all");
@@ -246,12 +267,7 @@ function AgencyPV() {
       const iso = receiptShiftDateIso(scan);
       return iso >= activeWeekBounds.weekStartIso && iso <= activeWeekBounds.weekEndIso;
     });
-  }, [
-    agencyReceiptScans,
-    weekTabPvs,
-    activeWeekBounds.weekStartIso,
-    activeWeekBounds.weekEndIso,
-  ]);
+  }, [agencyReceiptScans, weekTabPvs, activeWeekBounds.weekStartIso, activeWeekBounds.weekEndIso]);
 
   const selectPayrollWeekTab = (tab: PayrollWeekTab) => {
     setPayrollWeekTab(tab);
@@ -385,160 +401,159 @@ function AgencyPV() {
         </div>
       </div>
 
-          <div className="iz-payroll-tabs mt-2.5">
-            <button
-              type="button"
-              className={`iz-payroll-tab${pvSubTab === "vouchers" ? " on" : ""}`}
-              onClick={() => setPvSubTab("vouchers")}
+      <div className="iz-payroll-tabs mt-2.5">
+        <button
+          type="button"
+          className={`iz-payroll-tab${pvSubTab === "vouchers" ? " on" : ""}`}
+          onClick={() => setPvSubTab("vouchers")}
+        >
+          Payment Vouchers ({weekTabPvs.length})
+        </button>
+        <button
+          type="button"
+          className={`iz-payroll-tab${pvSubTab === "receipts" ? " on" : ""}`}
+          onClick={() => setPvSubTab("receipts")}
+        >
+          Receipts ({activeWeekReceiptScans.length})
+        </button>
+      </div>
+
+      {pvSubTab === "vouchers" && (
+        <OutletSection title="Payment Vouchers" hint={activeWeekBounds.cycle}>
+          {payrollWeekTab === "last_last_week" && (
+            <IzCard
+              flat
+              className="!mb-2.5 border-[rgba(232,194,122,.3)] bg-[linear-gradient(180deg,rgba(232,194,122,.05),transparent)]"
             >
-              Payment Vouchers ({weekTabPvs.length})
-            </button>
-            <button
-              type="button"
-              className={`iz-payroll-tab${pvSubTab === "receipts" ? " on" : ""}`}
-              onClick={() => setPvSubTab("receipts")}
-            >
-              Receipts ({activeWeekReceiptScans.length})
-            </button>
-          </div>
-
-          {pvSubTab === "vouchers" && (
-            <OutletSection title="Payment Vouchers" hint={activeWeekBounds.cycle}>
-              {payrollWeekTab === "last_last_week" && (
-                <IzCard
-                  flat
-                  className="!mb-2.5 border-[rgba(232,194,122,.3)] bg-[linear-gradient(180deg,rgba(232,194,122,.05),transparent)]"
-                >
-                  <div className="iz-between">
-                    <div>
-                      <p className="iz-sm font-bold">Signed PVs · manual payment</p>
-                      <p className="iz-tiny iz-muted mt-1">
-                        Agency pays each PR individually after e-sign — no scheduled auto-transfer.
-                      </p>
-                      <p className="iz-tiny iz-muted2 mt-0.5">
-                        {activeWeekStats.signedCount} signed · use <b>To pay</b> to record each bank
-                        transfer ·{" "}
-                        <Link
-                          to="/agency/history"
-                          search={{ tab: "paid" }}
-                          className="text-[var(--iz-gold-l)]"
-                        >
-                          {paid} paid in History
-                        </Link>
-                      </p>
-                    </div>
-                    <b className="font-sora text-base text-[var(--iz-gold)]">
-                      {formatRM(activeWeekStats.signedTotal)}
-                    </b>
-                  </div>
-                  <p className="iz-tiny iz-muted2 mt-2">Duplicate payment blocked</p>
-                </IzCard>
-              )}
-              {payrollWeekTab === "last_week" && (
-              <IzCard flat className="!mb-2.5">
-                <div className="flex items-center gap-2 iz-tiny iz-muted">
-                  <Filter className="h-3.5 w-3.5 shrink-0" />
-                  Filter &amp; sort
-                  {hasActiveFilters && (
-                    <button
-                      type="button"
-                      className="ml-auto text-[var(--iz-gold-l)]"
-                      onClick={clearFilters}
+              <div className="iz-between">
+                <div>
+                  <p className="iz-sm font-bold">Signed PVs · manual payment</p>
+                  <p className="iz-tiny iz-muted mt-1">
+                    Agency pays each PR individually after e-sign — no scheduled auto-transfer.
+                  </p>
+                  <p className="iz-tiny iz-muted2 mt-0.5">
+                    {activeWeekStats.signedCount} signed · use <b>To pay</b> to record each bank
+                    transfer ·{" "}
+                    <Link
+                      to="/agency/history"
+                      search={{ tab: "paid" }}
+                      className="text-[var(--iz-gold-l)]"
                     >
-                      Clear all
-                    </button>
-                  )}
+                      {paid} paid in History
+                    </Link>
+                  </p>
                 </div>
-
-                <p className="iz-filter-group-label">Status</p>
-                <div className="iz-filter-chips">
-                  {visibleStatusFilters.map((f) => {
-                    const active = statusFilter === f.value;
-                    const count = statusCounts[f.value];
-                    return (
-                      <button
-                        key={f.value}
-                        type="button"
-                        className={`iz-filter-chip${active ? " on" : ""}`}
-                        onClick={() => setStatusFilter(f.value)}
-                      >
-                        {f.label}
-                        <span className="iz-filter-chip__count">({count})</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-              </IzCard>
-              )}
-
-              <div className="space-y-2.5">
-                {filteredVouchers.length === 0 ? (
-                  <IzCard className="text-center">
-                    <p className="iz-sm iz-muted">
-                      {payrollWeekTab === "last_last_week"
-                        ? "No signed vouchers to pay this week"
-                        : "No vouchers match these filters"}
-                    </p>
-                    {payrollWeekTab === "last_week" && hasActiveFilters && (
-                      <button type="button" className="iz-chip mt-2" onClick={clearFilters}>
-                        Clear filters
-                      </button>
-                    )}
-                  </IzCard>
-                ) : (
-                  filteredVouchers.map((pv) => (
-                    <button
-                      key={pv.id}
-                      type="button"
-                      className="iz-card iz-between w-full cursor-pointer text-left"
-                      onClick={() => setDetailId(pv.id)}
-                    >
-                      <div className="min-w-0">
-                        <div className="font-sora text-[15px] font-bold">{pv.id}</div>
-                        <p className="iz-tiny iz-muted mt-0.5">
-                          {resolvePvPrName(pv, agencyPRs)} · {pv.outlet}
-                        </p>
-                        {pv.prIc && <p className="iz-tiny iz-muted2">IC {pv.prIc}</p>}
-                        <p className="iz-tiny iz-muted2 mt-0.5">Cycle: {pv.cycle}</p>
-                        <p className="iz-tiny iz-muted2">
-                          Issued {pv.issued} · Due {resolvePvPayByDue(pv)}
-                          {parsePvIssuedMs(pv.issued) >= latestIssuedMs && latestIssuedMs > 0 && (
-                            <span className="ml-1 text-[var(--iz-violet)]">· Latest</span>
-                          )}
-                        </p>
-                        <p className="iz-tiny text-[var(--iz-gold-l)] mt-0.5">
-                          Sales {formatRM(getPvSalesTotal(pv))}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <IzPill variant={statusPill(pv.status)}>
-                          {agencyPvStatusLabel(pv.status)}
-                        </IzPill>
-                        <div className="iz-ledger font-sora mt-1.5 text-base font-bold">
-                          {formatRM(getPvNetTotal(pv))}
-                        </div>
-                        <p className="iz-tiny iz-muted2 mt-0.5">Net payable</p>
-                      </div>
-                    </button>
-                  ))
+                <b className="font-sora text-base text-[var(--iz-gold)]">
+                  {formatRM(activeWeekStats.signedTotal)}
+                </b>
+              </div>
+              <p className="iz-tiny iz-muted2 mt-2">Duplicate payment blocked</p>
+            </IzCard>
+          )}
+          {payrollWeekTab === "last_week" && (
+            <IzCard flat className="!mb-2.5">
+              <div className="flex items-center gap-2 iz-tiny iz-muted">
+                <Filter className="h-3.5 w-3.5 shrink-0" />
+                Filter &amp; sort
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    className="ml-auto text-[var(--iz-gold-l)]"
+                    onClick={clearFilters}
+                  >
+                    Clear all
+                  </button>
                 )}
               </div>
-            </OutletSection>
+
+              <p className="iz-filter-group-label">Status</p>
+              <div className="iz-filter-chips">
+                {visibleStatusFilters.map((f) => {
+                  const active = statusFilter === f.value;
+                  const count = statusCounts[f.value];
+                  return (
+                    <button
+                      key={f.value}
+                      type="button"
+                      className={`iz-filter-chip${active ? " on" : ""}`}
+                      onClick={() => setStatusFilter(f.value)}
+                    >
+                      {f.label}
+                      <span className="iz-filter-chip__count">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </IzCard>
           )}
 
-          {pvSubTab === "receipts" && (
-            <ReceiptsSection
-              scans={activeWeekReceiptScans}
-              agencyPRs={agencyPRs}
-              pvs={prPaymentVouchers}
-              payrollRange={payrollRange}
-              onRangeChange={setPayrollRange}
-              onClearRange={() => setPayrollRange(EMPTY_PAYROLL_RANGE)}
-              onVerifySelfLog={verifyAgencyReceiptSelfLog}
-              onOpenPv={(pvId) => setDetailId(pvId)}
-            />
-          )}
+          <div className="space-y-2.5">
+            {filteredVouchers.length === 0 ? (
+              <IzCard className="text-center">
+                <p className="iz-sm iz-muted">
+                  {payrollWeekTab === "last_last_week"
+                    ? "No signed vouchers to pay this week"
+                    : "No vouchers match these filters"}
+                </p>
+                {payrollWeekTab === "last_week" && hasActiveFilters && (
+                  <button type="button" className="iz-chip mt-2" onClick={clearFilters}>
+                    Clear filters
+                  </button>
+                )}
+              </IzCard>
+            ) : (
+              filteredVouchers.map((pv) => (
+                <button
+                  key={pv.id}
+                  type="button"
+                  className="iz-card iz-between w-full cursor-pointer text-left"
+                  onClick={() => setDetailId(pv.id)}
+                >
+                  <div className="min-w-0">
+                    <div className="font-sora text-[15px] font-bold">{pv.id}</div>
+                    <p className="iz-tiny iz-muted mt-0.5">
+                      {resolvePvPrName(pv, agencyPRs)} · {pv.outlet}
+                    </p>
+                    {pv.prIc && <p className="iz-tiny iz-muted2">IC {pv.prIc}</p>}
+                    <p className="iz-tiny iz-muted2 mt-0.5">Cycle: {pv.cycle}</p>
+                    <p className="iz-tiny iz-muted2">
+                      Issued {pv.issued} · Due {resolvePvPayByDue(pv)}
+                      {parsePvIssuedMs(pv.issued) >= latestIssuedMs && latestIssuedMs > 0 && (
+                        <span className="ml-1 text-[var(--iz-violet)]">· Latest</span>
+                      )}
+                    </p>
+                    <p className="iz-tiny text-[var(--iz-gold-l)] mt-0.5">
+                      Sales {formatRM(getPvSalesTotal(pv))}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <IzPill variant={statusPill(pv.status)}>
+                      {agencyPvStatusLabel(pv.status)}
+                    </IzPill>
+                    <div className="iz-ledger font-sora mt-1.5 text-base font-bold">
+                      {formatRM(getPvNetTotal(pv))}
+                    </div>
+                    <p className="iz-tiny iz-muted2 mt-0.5">Net payable</p>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </OutletSection>
+      )}
+
+      {pvSubTab === "receipts" && (
+        <ReceiptsSection
+          scans={activeWeekReceiptScans}
+          agencyPRs={agencyPRs}
+          pvs={prPaymentVouchers}
+          payrollRange={payrollRange}
+          onRangeChange={setPayrollRange}
+          onClearRange={() => setPayrollRange(EMPTY_PAYROLL_RANGE)}
+          onVerifySelfLog={verifyAgencyReceiptSelfLog}
+          onOpenPv={(pvId) => setDetailId(pvId)}
+        />
+      )}
     </div>
   );
 }

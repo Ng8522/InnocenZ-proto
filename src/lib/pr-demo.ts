@@ -24,7 +24,7 @@ import {
 import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 import { getDrinkMenuForOutlet } from "@/lib/outlet-drink-menu";
 
-export type PrSubRole = "pr_tied" | "pr_free";
+export type PrSubRole = "pr_tied";
 
 export interface PrProfile {
   name: string;
@@ -63,24 +63,6 @@ export const PR_PROFILES: Record<PrSubRole, PrProfile> = {
     langs: ["English", "Mandarin"],
     prog: 72,
     next: "8 more 5★ shifts to unlock Tier V perks & priority VIP requests.",
-  },
-  pr_free: {
-    name: "Jaya Nair",
-    first: "Jaya Nair a/l Subramaniam",
-    ic: "880214-10-5566",
-    mobile: "+60 17-662 3391",
-    email: "jaya.nair@inz.my",
-    bank: "CIMB",
-    acc: "7029 1183 4420",
-    av: "J",
-    avg: "linear-gradient(135deg,#5BA8FF,#2d63b8)",
-    tier: "TIER III",
-    rep: "4.6",
-    shifts: "19",
-    noshow: "1",
-    langs: ["English", "Cantonese"],
-    prog: 45,
-    next: "12 more 5★ shifts to reach Tier IV.",
   },
 };
 
@@ -262,36 +244,16 @@ export function resolvePrAccountFields(
   };
 }
 
-/** Demo freelancer PR — payroll requests appear on agency pending screen */
-export const FREELANCER_DEMO_PR_ID = "freelancer-jaya";
-
-export function isFreelancerPrId(prId: string): boolean {
-  return prId.startsWith("freelancer-");
-}
-
-/** Outlet / roster UI — e.g. "Jaya (Freelancers)" instead of "freelancer-jaya" */
+/** Outlet / roster UI — render a PR's display name. */
 export function formatPrDisplayName(prId: string, name?: string | null): string {
-  if (!isFreelancerPrId(prId)) {
-    return name?.trim() || prId;
-  }
-  const fromName = name?.trim().split(/\s+/)[0];
-  const fromId = prId
-    .replace(/^freelancer-/, "")
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ")
-    .split(/\s+/)[0];
-  const first = (fromName || fromId || "Freelancer").trim();
-  const label = first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
-  return `${label} (Freelancers)`;
+  return name?.trim() || prId;
 }
 
 /** Roster / swap inbox — tied PR maps to Vicky demo slot (p1) */
 export const TIED_DEMO_ROSTER_PR_ID = "p1";
 
-export function getPrRosterId(prSubRole: PrSubRole | null): string {
-  return prSubRole === "pr_free" ? FREELANCER_DEMO_PR_ID : TIED_DEMO_ROSTER_PR_ID;
+export function getPrRosterId(_prSubRole: PrSubRole | null): string {
+  return TIED_DEMO_ROSTER_PR_ID;
 }
 
 /** True when a PV / receipt / shift row belongs to the logged-in PR profile. */
@@ -314,7 +276,7 @@ export function prProfileMatchesPayee(
   );
 }
 
-/** PVs belonging to the logged-in PR only (freelancer vs agency-tied). */
+/** PVs belonging to the logged-in PR only. */
 export function filterPvsForPrProfile(
   vouchers: PrPaymentVoucher[],
   profile: PrProfile,
@@ -614,9 +576,7 @@ export function pvPayByDeadlineIsoFromIssued(issued: string): string | null {
   const issuedMs = parsePvIssuedMs(issued);
   if (!issuedMs) return null;
   const d = new Date(issuedMs);
-  return pvPayByDeadlineIsoFromIssueIso(
-    ymdToIso(d.getFullYear(), d.getMonth() + 1, d.getDate()),
-  );
+  return pvPayByDeadlineIsoFromIssueIso(ymdToIso(d.getFullYear(), d.getMonth() + 1, d.getDate()));
 }
 
 export function pvPayByDeadlineMsFromIssued(issued: string): number {
@@ -1266,18 +1226,12 @@ export function isDemoWeeklyPvIssued(
   return isWeekPvIssuedOnCalendar(pv.weekEndIso, fromIso);
 }
 
-export function demoPvIssueIsoForWeeksAgo(
-  weeksAgo: number,
-  fromIso = getLiveTodayIso(),
-): string {
+export function demoPvIssueIsoForWeeksAgo(weeksAgo: number, fromIso = getLiveTodayIso()): string {
   return addDaysToIso(latestDemoPvIssueSundayIso(fromIso), -7 * weeksAgo);
 }
 
 /** Sun–Sat payroll week bounds for a completed week N Sundays before the latest issue. */
-export function demoPayrollWeekBoundsForWeeksAgo(
-  weeksAgo: number,
-  fromIso = getLiveTodayIso(),
-) {
+export function demoPayrollWeekBoundsForWeeksAgo(weeksAgo: number, fromIso = getLiveTodayIso()) {
   const issueIso = demoPvIssueIsoForWeeksAgo(weeksAgo, fromIso);
   const weekEndIso = addDaysToIso(issueIso, -1);
   const weekStartIso = addDaysToIso(weekEndIso, -6);
@@ -1491,16 +1445,9 @@ export function remapSeedPaymentVouchers(pvs: PrPaymentVoucher[]): PrPaymentVouc
     .filter((pv) => isDemoWeeklyPvIssued(pv));
 }
 
-/** Persisted scans that kept pre-comcard freelancer / Luna identity. */
-export function isLegacyReceiptScanIdentity(
-  scan: Pick<PrReceiptScan, "prId" | "prName">,
-): boolean {
-  return (
-    scan.prId === FREELANCER_DEMO_PR_ID ||
-    scan.prName === "Jaya Nair" ||
-    scan.prName === "Jaya" ||
-    scan.prName === "Luna"
-  );
+/** Persisted scans that kept pre-comcard legacy identity. */
+export function isLegacyReceiptScanIdentity(scan: Pick<PrReceiptScan, "prId" | "prName">): boolean {
+  return scan.prName === "Jaya Nair" || scan.prName === "Jaya" || scan.prName === "Luna";
 }
 
 export function mergePersistedReceiptScanWithSeed(
@@ -1766,11 +1713,9 @@ export function buildDemoReceiptDraft(
   const totalLogged = items.reduce((s, i) => s + i.amount, 0);
   const comm = calcReceiptCommissions(items);
   const prCode =
-    prId === FREELANCER_DEMO_PR_ID
-      ? "PR-0042"
-      : prId === TIED_DEMO_ROSTER_PR_ID
-        ? "PR-0001"
-        : `PR-${prId.replace(/\D/g, "").slice(0, 4).padStart(4, "0") || "0099"}`;
+    prId === TIED_DEMO_ROSTER_PR_ID
+      ? "PR-0001"
+      : `PR-${prId.replace(/\D/g, "").slice(0, 4).padStart(4, "0") || "0099"}`;
   return {
     receiptRef: receiptRef ?? picked.receiptRef,
     outlet: outlet.includes("KL") ? outlet : `${outlet} KL`,
@@ -1803,11 +1748,9 @@ export function buildDemoReceiptDraftForCategory(
   const totalLogged = items.reduce((s, i) => s + i.amount, 0);
   const comm = calcReceiptCommissions(items);
   const prCode =
-    prId === FREELANCER_DEMO_PR_ID
-      ? "PR-0042"
-      : prId === TIED_DEMO_ROSTER_PR_ID
-        ? "PR-0001"
-        : `PR-${prId.replace(/\D/g, "").slice(0, 4).padStart(4, "0") || "0099"}`;
+    prId === TIED_DEMO_ROSTER_PR_ID
+      ? "PR-0001"
+      : `PR-${prId.replace(/\D/g, "").slice(0, 4).padStart(4, "0") || "0099"}`;
   return {
     receiptRef: receiptRef ?? buildDemoReceiptRef(outlet),
     outlet: outlet.includes("KL") ? outlet : `${outlet} KL`,
@@ -2495,7 +2438,7 @@ export interface PrAgency {
   tagline: string;
 }
 
-/** Registered PR agencies on InnocenZ — Freelancers pick one for payroll */
+/** Registered PR agencies on InnocenZ — a PR ties to one for payroll */
 export const PR_AGENCIES: PrAgency[] = [
   {
     id: "atlas",
@@ -2557,24 +2500,26 @@ export const PR_AGENCIES: PrAgency[] = [
     financeHead: "Grace Wong",
     tagline: "Bilingual roster support",
   },
+  {
+    id: "delta",
+    name: "Delta Agency",
+    city: "Cheras",
+    address: "88 Jalan Cheras, Taman Midah, 56000 Kuala Lumpur",
+    initials: "D",
+    gradient: "linear-gradient(135deg,#F472B6,#9d2463)",
+    activePrs: 73,
+    rating: 4.8,
+    financeHead: "Nadia Rahman",
+    tagline: "Nightlife & event staffing",
+  },
 ];
 
 export const DEFAULT_TIED_AGENCY_ID = "atlas";
 
-/** Jaya Nair — freelancer demo IC (matches SEED_PR_PVS freelancer rows) */
-export const FREELANCER_DEMO_IC = PR_PROFILES.pr_free.ic;
+/** Second operating agency (peer to Atlas) — owner login owner@delta-agency.my */
+export const DELTA_AGENCY_ID = "delta";
 
 export function getPrAgencyById(id: string | null | undefined): PrAgency | undefined {
   if (!id) return undefined;
   return PR_AGENCIES.find((a) => a.id === id);
 }
-
-/** Shown to PR Freelancers — payroll is via a chosen agency, not a default tie */
-export const FREELANCER_PAYROLL_GUIDANCE =
-  "As a Freelancer you are not tied to one agency. Tell any registered PR agency on InnocenZ to run payroll for you — they raise your Payment Vouchers from sealed shifts and pay your bank.";
-
-export const FREELANCER_PAYROLL_STEPS = [
-  "Finish shifts — outlet seals them on InnocenZ.",
-  "Choose a PR agency on your profile — they must approve payroll before PVs unlock.",
-  "Sign the PV once their Finance Head has pre-signed; payment goes straight to your bank.",
-] as const;

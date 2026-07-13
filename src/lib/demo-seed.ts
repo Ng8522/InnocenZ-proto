@@ -9,8 +9,8 @@ import {
   SCALING_TIER_MULTIPLIERS,
   SEED_AGENCY_COLLECTIONS,
   SEED_AGENCY_PRS,
+  SEED_AGENCY_PRS_ALL,
   SEED_AGENCY_ROSTER,
-  SEED_PENDING_FREELANCER_PAYROLLS,
   SEED_PENDING_PRS,
   SEED_RECONCILIATION,
   buildDefaultTierRates,
@@ -39,7 +39,11 @@ import {
   recomputeAllOutletPnl,
   withShiftFinancialDefaults,
 } from "@/lib/outlet-financial-sync";
-import { marketplacePrsFromAgency, mergeOutletRequestRosterSlots, outletMatches } from "@/lib/portal-sync";
+import {
+  marketplacePrsFromAgency,
+  mergeOutletRequestRosterSlots,
+  outletMatches,
+} from "@/lib/portal-sync";
 import {
   DEMO_RECONCILIATION_WEEK,
   recomputeWeeklyReconciliation,
@@ -57,6 +61,7 @@ import {
   SEED_PR_AVATAR_IMAGE,
   PORTFOLIO_SLOT_COUNT,
   fmtDateLabelFromIso,
+  demoPayrollWeekBoundsForWeeksAgo,
   type PrPaymentVoucher,
 } from "@/lib/pr-demo";
 import { DEFAULT_NOTIFICATION_PREFS } from "@/lib/push-notifications";
@@ -69,10 +74,7 @@ import {
 import type { Booking, PV, ShiftRequest } from "@/lib/store";
 import { addDaysToIso, isoOnWeekday, weekdayEventName } from "@/lib/demo-clock";
 import { resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
-import {
-  allocateDiversePayTierSplit,
-  payTierRowsFromSplit,
-} from "@/lib/post-job-pay-tiers";
+import { allocateDiversePayTierSplit, payTierRowsFromSplit } from "@/lib/post-job-pay-tiers";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 
 const DEMO_BOOKINGS: Booking[] = [
@@ -137,6 +139,29 @@ const DEMO_COLLECTIONS: AgencyCollectionInvoice[] = [
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 200, group: "fees" },
     ],
   },
+  {
+    id: "COL-DELTA-0701",
+    outlet: "Onyx KL",
+    amount: 1680,
+    issueDate: "1 Jul 2026",
+    issueTime: "11:15",
+    dueDate: "8 Jul 2026",
+    status: "PENDING",
+    aging: "current",
+    linkedPvIds: [],
+    kind: "outlet",
+    agencyId: "delta",
+    lines: [
+      { label: "Daily wages", detail: "Onyx KL · Sofia + Rina", amount: 880, group: "payroll" },
+      {
+        label: "Commission – Drinks",
+        detail: "Floor sales passthrough",
+        amount: 720,
+        group: "commissions",
+      },
+      { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 80, group: "fees" },
+    ],
+  },
 ];
 
 function demoShiftDateLabel(daysFromToday: number): string {
@@ -174,6 +199,7 @@ export const HENNESSY_LAUNCH_PR_IDS = [
   "pr-comcard-charlotte",
   "pr-comcard-grace",
   "pr-comcard-hazel",
+  "delta-p1",
 ] as const;
 
 /** Demo tier demand for Hennessy — includes Tier 4–5 slots to match booked PR training levels. */
@@ -226,8 +252,7 @@ export function mergeDemoCalendarPastShifts(
 ): ShiftRequest[] {
   const existing = new Set(shifts.map((s) => s.id));
   const toAdd = seedShifts.filter(
-    (s) =>
-      (CALENDAR_PAST_SHIFT_IDS as readonly string[]).includes(s.id) && !existing.has(s.id),
+    (s) => (CALENDAR_PAST_SHIFT_IDS as readonly string[]).includes(s.id) && !existing.has(s.id),
   );
   return toAdd.length === 0 ? shifts : [...shifts, ...toAdd];
 }
@@ -242,20 +267,15 @@ export function mergeDemoShiftDates(
     const seed = seedById[sh.id];
     if (!seed) return sh;
     const dateIso =
-      seed.dateIso ??
-      resolveOutletShiftDateIso(seed.date, seed.dateIso, DEFAULT_ROSTER_DATE_ISO);
+      seed.dateIso ?? resolveOutletShiftDateIso(seed.date, seed.dateIso, DEFAULT_ROSTER_DATE_ISO);
     return { ...sh, date: seed.date, dateIso, event: seed.event, payTierRows: seed.payTierRows };
   });
 }
 
 /** Legacy: assignment-pending → scheduled (agency assign is now immediate). */
-export function mergeAutoConfirmAgencyAssignments(
-  roster: AgencyRosterSlot[],
-): AgencyRosterSlot[] {
+export function mergeAutoConfirmAgencyAssignments(roster: AgencyRosterSlot[]): AgencyRosterSlot[] {
   return roster.map((slot) =>
-    slot.status === "assignment-pending"
-      ? { ...slot, status: "scheduled" as const }
-      : slot,
+    slot.status === "assignment-pending" ? { ...slot, status: "scheduled" as const } : slot,
   );
 }
 
@@ -723,7 +743,13 @@ function buildDemoShifts(): ShiftRequest[] {
           event: "Friday lounge",
           shift: "22:00 — 04:00",
           quantity: 14,
-          prs: ["p1", "pr-comcard-alice", "pr-comcard-angie", "pr-comcard-charlotte", "pr-comcard-grace"],
+          prs: [
+            "p1",
+            "pr-comcard-alice",
+            "pr-comcard-angie",
+            "pr-comcard-charlotte",
+            "pr-comcard-grace",
+          ],
           tierRates: tonightTiers,
         },
         {
@@ -816,10 +842,7 @@ function buildDemoShifts(): ShiftRequest[] {
           ? payTierRowsFromSplit(tierRates, HENNESSY_DEMO_PAY_TIER_SPLIT, s.id)
           : payTierRowsFromSplit(tierRates, allocateDiversePayTierSplit(s.quantity), s.id),
       filled: s.prs?.length ?? 0,
-      liveSales:
-        (s.drinkUnits ?? 0) > 0 || s.drinkUnitCounts
-          ? computeShiftLiveSales(s)
-          : 0,
+      liveSales: (s.drinkUnits ?? 0) > 0 || s.drinkUnitCounts ? computeShiftLiveSales(s) : 0,
       dateIso: s.dateIso ?? resolveOutletShiftDateIso(s.date, s.dateIso, DEFAULT_ROSTER_DATE_ISO),
     };
   });
@@ -848,8 +871,24 @@ function clonePaymentVoucher(pv: PrPaymentVoucher): PrPaymentVoucher {
 }
 
 const DEMO_APPLICANTS: ShiftApplicant[] = [
-  { id: "app-s2-p5", shiftId: "s2", prId: "pr-comcard-victoria", prName: "Victoria", rating: 4.6, status: "pending", source: "freelancer" },
-  { id: "app-s2-p6", shiftId: "s2", prId: "pr-comcard-moon", prName: "Moon", rating: 4.4, status: "pending", source: "freelancer" },
+  {
+    id: "app-s2-p5",
+    shiftId: "s2",
+    prId: "pr-comcard-victoria",
+    prName: "Victoria",
+    rating: 4.6,
+    status: "pending",
+    source: "outlet_request",
+  },
+  {
+    id: "app-s2-p6",
+    shiftId: "s2",
+    prId: "pr-comcard-moon",
+    prName: "Moon",
+    rating: 4.4,
+    status: "pending",
+    source: "outlet_request",
+  },
   {
     id: "app-s2-p7",
     shiftId: "s2",
@@ -857,7 +896,7 @@ const DEMO_APPLICANTS: ShiftApplicant[] = [
     prName: "Sarah",
     rating: 4.2,
     status: "pending",
-    source: "freelancer",
+    source: "outlet_request",
   },
   {
     id: "app-s13-p1",
@@ -866,7 +905,7 @@ const DEMO_APPLICANTS: ShiftApplicant[] = [
     prName: "Charlotte",
     rating: 4.5,
     status: "pending",
-    source: "freelancer",
+    source: "outlet_request",
   },
   {
     id: "app-s13-p2",
@@ -875,7 +914,7 @@ const DEMO_APPLICANTS: ShiftApplicant[] = [
     prName: "Angie",
     rating: 4.3,
     status: "pending",
-    source: "freelancer",
+    source: "outlet_request",
   },
   {
     id: "app-s13-p3",
@@ -893,7 +932,7 @@ const DEMO_APPLICANTS: ShiftApplicant[] = [
     prName: "Sarah",
     rating: 4.2,
     status: "pending",
-    source: "freelancer",
+    source: "outlet_request",
   },
   {
     id: "app-s17-p2",
@@ -902,7 +941,7 @@ const DEMO_APPLICANTS: ShiftApplicant[] = [
     prName: "Victoria",
     rating: 4.6,
     status: "pending",
-    source: "freelancer",
+    source: "outlet_request",
   },
   {
     id: "app-s17-p3",
@@ -911,7 +950,7 @@ const DEMO_APPLICANTS: ShiftApplicant[] = [
     prName: "Charlotte",
     rating: 4.5,
     status: "pending",
-    source: "freelancer",
+    source: "outlet_request",
   },
   {
     id: "app-s17-p4",
@@ -955,7 +994,9 @@ function buildDemoRoster(): AgencyRosterSlot[] {
 }
 
 /** Fresh weekly reconciliation — both sides pending so Owner/Finance can confirm on Sunday */
-function buildDemoReconciliation(shiftHistory: import("@/lib/shift-history-utils").ShiftHistoryRow[]) {
+function buildDemoReconciliation(
+  shiftHistory: import("@/lib/shift-history-utils").ShiftHistoryRow[],
+) {
   return recomputeWeeklyReconciliation({
     shiftHistory,
     pvs: SEED_PR_PVS,
@@ -971,9 +1012,8 @@ import { defaultPrShiftSessionForRole, type PrShiftSessionState } from "@/lib/pr
 
 /** PR portal fields included in the full demo snapshot. */
 export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRoster()) {
-  const prSessionByRole: Record<"pr_tied" | "pr_free", PrShiftSessionState> = {
+  const prSessionByRole: Record<"pr_tied", PrShiftSessionState> = {
     pr_tied: defaultPrShiftSessionForRole("pr_tied", { agencyRoster }),
-    pr_free: defaultPrShiftSessionForRole("pr_free", { agencyRoster }),
   };
 
   const historyLedger = mergeHistoryDemoLedger({
@@ -1010,14 +1050,14 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
     prEmail: null as string | null,
     prAvatarPhoto: SEED_PR_AVATAR_IMAGE,
     prPayrollAgencyId: null as string | null,
+    /** Agencies this PR is linked to (demo PR is under Atlas + Delta). */
+    prAgencies: ["atlas", "delta"] as string[],
     prNotifications: [...SEED_PR_NOTIFICATIONS],
     prDeclinedOfferIds: [] as string[],
     prMarketplaceApplication: null,
     prUpcomingShifts: [...SEED_UPCOMING_SHIFTS],
     prSwapRequests: SEED_PR_SWAP_REQUESTS.map((s) => ({ ...s })),
     prAgencyTiedAt: DEMO_AGENCY_TIED_AT,
-    prFreelancerPayrollLinks: [] as string[],
-    prFreelancerLowRatingStrikes: 0,
     prCheckInMeta: {},
     prLeaveRequest: null,
     opsNotifications: [],
@@ -1026,11 +1066,128 @@ export function buildPrDemoReset(agencyRoster: AgencyRosterSlot[] = buildDemoRos
   };
 }
 
+/** Delta Agency's own scheduled roster (peer-agency demo — distinct outlets/PRs). */
+function buildDeltaRosterSlots(): AgencyRosterSlot[] {
+  const date = fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO);
+  const common = {
+    date,
+    dateIso: DEFAULT_ROSTER_DATE_ISO,
+    status: "scheduled" as const,
+    floorDrinks: 0,
+    floorTips: 0,
+    agencyId: "delta",
+  };
+  return [
+    {
+      id: "rs-delta-1",
+      prId: "delta-p1",
+      prName: "Sofia",
+      // Delta also staffs Velvet 23 tonight — shows a Delta PR on the outlet's floor.
+      outlet: "Velvet 23",
+      shift: "22:00 — 04:00",
+      shiftStart: "22:00",
+      shiftEnd: "04:00",
+      estPayout: 420,
+      ...common,
+    },
+    {
+      id: "rs-delta-2",
+      prId: "delta-p2",
+      prName: "Rina",
+      outlet: "Bear Lounge",
+      shift: "21:00 — 03:00",
+      shiftStart: "21:00",
+      shiftEnd: "03:00",
+      estPayout: 460,
+      ...common,
+    },
+  ];
+}
+
+/**
+ * Delta Agency's own payment vouchers (peer-agency demo). Kept OUT of the Atlas
+ * payroll ledger / history sync — appended straight onto the store's PV list so they
+ * only surface in Delta's Payroll (owned-PR scoping) and never generate Atlas rows.
+ * One SIGNED (To pay), one SENT (pending PR review), one PAID (History → Paid PVs).
+ */
+function buildDeltaPvs(): PrPaymentVoucher[] {
+  const lastWeek = demoPayrollWeekBoundsForWeeksAgo(0);
+  const lastLastWeek = demoPayrollWeekBoundsForWeeksAgo(1);
+  const financeHeadName = "Nadia Rahman";
+  const pvRows = (date: string, outlet: string) => [
+    { i: 1, date, day: "Sat", outlet, desc: "Daily Wages", qty: 1, amt: 400, ref: "Sealed" },
+    { i: 2, date, day: "Sat", outlet, desc: "Drink Commission", qty: 1, amt: 120, ref: "Sealed" },
+  ];
+  return [
+    {
+      id: "PV-DELTA-0001",
+      prName: "Sofia",
+      prIc: "970218-10-5623",
+      outlet: "Velvet 23",
+      cycle: lastLastWeek.cycle,
+      issued: fmtDateLabelFromIso(lastLastWeek.weekEndIso),
+      due: fmtDateLabelFromIso(lastLastWeek.weekEndIso),
+      weekStartIso: lastLastWeek.weekStartIso,
+      weekEndIso: lastLastWeek.weekEndIso,
+      rows: pvRows(fmtDateLabelFromIso(lastLastWeek.weekStartIso), "Velvet 23"),
+      subtotal: 520,
+      deduct: 20,
+      net: 500,
+      status: "SIGNED",
+      financeHeadName,
+      financeHeadSignedAt: `${fmtDateLabelFromIso(lastLastWeek.weekEndIso)} · 10:02`,
+      prSignedAt: `${fmtDateLabelFromIso(lastLastWeek.weekEndIso)} · 18:40`,
+    },
+    {
+      id: "PV-DELTA-0002",
+      prName: "Rina",
+      prIc: "960705-08-4412",
+      outlet: "Bear Lounge",
+      cycle: lastWeek.cycle,
+      issued: fmtDateLabelFromIso(lastWeek.weekEndIso),
+      due: fmtDateLabelFromIso(lastWeek.weekEndIso),
+      weekStartIso: lastWeek.weekStartIso,
+      weekEndIso: lastWeek.weekEndIso,
+      rows: pvRows(fmtDateLabelFromIso(lastWeek.weekStartIso), "Bear Lounge"),
+      subtotal: 520,
+      deduct: 20,
+      net: 500,
+      status: "SENT",
+      financeHeadName,
+      financeHeadSignedAt: `${fmtDateLabelFromIso(lastWeek.weekEndIso)} · 09:30`,
+    },
+    {
+      id: "PV-DELTA-0003",
+      prName: "Mei",
+      prIc: "980921-14-3390",
+      outlet: "Mermate",
+      cycle: lastLastWeek.cycle,
+      issued: fmtDateLabelFromIso(lastLastWeek.weekEndIso),
+      due: fmtDateLabelFromIso(lastLastWeek.weekEndIso),
+      weekStartIso: lastLastWeek.weekStartIso,
+      weekEndIso: lastLastWeek.weekEndIso,
+      rows: pvRows(fmtDateLabelFromIso(lastLastWeek.weekStartIso), "Mermate"),
+      subtotal: 520,
+      deduct: 20,
+      net: 500,
+      status: "PAID",
+      financeHeadName,
+      financeHeadSignedAt: `${fmtDateLabelFromIso(lastLastWeek.weekEndIso)} · 10:15`,
+      prSignedAt: `${fmtDateLabelFromIso(lastLastWeek.weekEndIso)} · 19:05`,
+      paidAt: `${fmtDateLabelFromIso(lastWeek.weekStartIso)} · 11:20`,
+      bankRef: "DELTA-TRX-88231",
+    },
+  ];
+}
+
 export function buildDemoStoreReset() {
   const shifts = buildDemoShifts();
-  const agencyRoster = mergeOutletRequestRosterSlots(buildDemoRoster(), shifts, DEMO_APPLICANTS);
+  const agencyRoster = [
+    ...mergeOutletRequestRosterSlots(buildDemoRoster(), shifts, DEMO_APPLICANTS),
+    ...buildDeltaRosterSlots(),
+  ];
   const outletPnl = recomputeAllOutletPnl(shifts, undefined, agencyRoster);
-  const agencyPRs = SEED_AGENCY_PRS.map(cloneAgencyPr);
+  const agencyPRs = SEED_AGENCY_PRS_ALL.map(cloneAgencyPr);
   const prDemo = buildPrDemoReset(agencyRoster);
   const shiftHistory = prepareShiftHistoryForDisplay(
     syncAgencyPayrollShiftHistory(
@@ -1068,9 +1225,22 @@ export function buildDemoStoreReset() {
     paymentCardLast4: "4242",
     postSealRatePrompt: null,
     pendingPRs: SEED_PENDING_PRS.map((p) => ({ ...p })),
-    pendingFreelancerPayrolls: SEED_PENDING_FREELANCER_PAYROLLS.map((p) => ({ ...p })),
+    pendingAgencyLinks: [
+      {
+        id: "pal-alice-delta",
+        prId: "pr-comcard-alice",
+        prName: "Alice",
+        agencyId: "delta",
+        agencyName: "Delta Agency",
+        status: "pending" as const,
+        requestedAt: "13 Jul 2026 · 12:40",
+      },
+    ],
     pendingCutlostRequests: [],
     specialServiceOrders: SEED_SPECIAL_SERVICES.map((r) => ({ ...r })),
     ...prDemo,
+    // Append Delta's own PVs AFTER the Atlas ledger spread so they reach the store's PV
+    // list (for Delta's owned-PR scoping) without feeding the Atlas payroll/history sync.
+    prPaymentVouchers: [...prDemo.prPaymentVouchers, ...buildDeltaPvs()],
   };
 }

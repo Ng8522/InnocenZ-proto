@@ -25,7 +25,7 @@ export function AgencyGpsPanel({
   agencyPRs: AgencyManagedPR[];
   dateIso: string;
   prCheckInMeta?: { gpsFallback?: boolean };
-  prSubRole?: "pr_tied" | "pr_free" | null;
+  prSubRole?: "pr_tied" | null;
 }) {
   const activePrId = prSubRole ? getPrRosterId(prSubRole) : undefined;
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -142,10 +142,7 @@ export function AgencyGpsPanel({
                 <div className="iz-roster-gps-outlet-head">
                   <button
                     type="button"
-                    className={cn(
-                      "iz-roster-gps-outlet-name",
-                      outletFilter === outlet && "on",
-                    )}
+                    className={cn("iz-roster-gps-outlet-name", outletFilter === outlet && "on")}
                     onClick={() => toggleOutletFilter(outlet)}
                   >
                     {outlet}

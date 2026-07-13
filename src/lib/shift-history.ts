@@ -3,7 +3,11 @@
 import { resolveRosterPrName } from "@/lib/agency-demo";
 import { buildAllVelvetSeedShiftHistory } from "@/lib/velvet-week-demo";
 import { sealedShiftTotalPayout } from "@/lib/pr-weekly-payment";
-import { prepareShiftHistoryForDisplay, mergeShiftHistory, type ShiftHistoryRow } from "@/lib/shift-history-utils";
+import {
+  prepareShiftHistoryForDisplay,
+  mergeShiftHistory,
+  type ShiftHistoryRow,
+} from "@/lib/shift-history-utils";
 
 export type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 export {
@@ -91,6 +95,65 @@ const SEED_SHIFT_HISTORY_OTHER: ShiftHistoryRow[] = [
     totalTips: 50,
     totalTables: 1,
     totalPayout: sealedShiftTotalPayout({ totalDrinks: 17, totalTips: 50, totalTables: 1 }),
+    durationHours: 6,
+  },
+  // --- Delta Agency's own sealed shifts (peer-agency demo) ---
+  // Tagged "Delta Agency" so they only surface in Delta's History, never Atlas's.
+  // Dated in early June (before the payroll demo weeks) so they survive the PV sync.
+  {
+    id: "hd1",
+    prName: "Sofia",
+    prId: "delta-p1",
+    outlet: "Velvet 23",
+    agencyName: "Delta Agency",
+    dateDisplay: "05 Jun 2026",
+    dateIso: "2026-06-05",
+    totalDrinks: 38,
+    totalTips: 44,
+    totalTables: 2,
+    totalPayout: sealedShiftTotalPayout({ totalDrinks: 38, totalTips: 44, totalTables: 2 }),
+    durationHours: 6,
+  },
+  {
+    id: "hd2",
+    prName: "Rina",
+    prId: "delta-p2",
+    outlet: "Bear Lounge",
+    agencyName: "Delta Agency",
+    dateDisplay: "06 Jun 2026",
+    dateIso: "2026-06-06",
+    totalDrinks: 51,
+    totalTips: 38,
+    totalTables: 3,
+    totalPayout: sealedShiftTotalPayout({ totalDrinks: 51, totalTips: 38, totalTables: 3 }),
+    durationHours: 6,
+  },
+  {
+    id: "hd3",
+    prName: "Mei",
+    prId: "delta-p3",
+    outlet: "Mermate",
+    agencyName: "Delta Agency",
+    dateDisplay: "07 Jun 2026",
+    dateIso: "2026-06-07",
+    totalDrinks: 29,
+    totalTips: 33,
+    totalTables: 1,
+    totalPayout: sealedShiftTotalPayout({ totalDrinks: 29, totalTips: 33, totalTables: 1 }),
+    durationHours: 5,
+  },
+  {
+    id: "hd4",
+    prName: "Sofia",
+    prId: "delta-p1",
+    outlet: "Bear Lounge",
+    agencyName: "Delta Agency",
+    dateDisplay: "08 Jun 2026",
+    dateIso: "2026-06-08",
+    totalDrinks: 42,
+    totalTips: 47,
+    totalTables: 2,
+    totalPayout: sealedShiftTotalPayout({ totalDrinks: 42, totalTips: 47, totalTables: 2 }),
     durationHours: 6,
   },
 ];

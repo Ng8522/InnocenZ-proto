@@ -10,9 +10,24 @@ import { StaticComcardVisual } from "@/components/pr/PortfolioComcardVisual";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import type { AgencyManagedPR } from "@/lib/agency-demo";
-import { collectAgencyPrLanguages, languagesFromPr, resolveAgencyPrPhoto, sortAgencyPrsByName } from "@/lib/agency-demo";
+import {
+  collectAgencyPrLanguages,
+  languagesFromPr,
+  resolveAgencyPrPhoto,
+  scopeToAgency,
+  sortAgencyPrsByName,
+} from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import { IzCard, IzCardTitle, IzKpiLabel, IzPageTitle, IzPill, IzSectionLabel, IzSelect, formatRM } from "@/components/iz/ui";
+import {
+  IzCard,
+  IzCardTitle,
+  IzKpiLabel,
+  IzPageTitle,
+  IzPill,
+  IzSectionLabel,
+  IzSelect,
+  formatRM,
+} from "@/components/iz/ui";
 import { publicAssetPath } from "@/lib/public-asset";
 import { ProfileLanguagePicker } from "@/components/iz/ProfileLanguagePicker";
 import { shiftHistoryForPr } from "@/lib/portal-sync";
@@ -24,7 +39,15 @@ import {
   isAgencyPrActive,
   tiedMonthsLabel,
 } from "@/lib/agency-pr-flags";
-import { AlertTriangle, Filter, Megaphone, MousePointerClick, Pencil, Star, UserMinus } from "lucide-react";
+import {
+  AlertTriangle,
+  Filter,
+  Megaphone,
+  MousePointerClick,
+  Pencil,
+  Star,
+  UserMinus,
+} from "lucide-react";
 
 const KPI_TIER_OPTIONS = ["A", "B", "C"] as const;
 const TRAINING_TIER_OPTIONS = ["Tier I", "Tier II", "Tier III", "Tier IV", "Tier V"] as const;
@@ -39,7 +62,12 @@ export const Route = createFileRoute("/agency/prs")({
 function AgencyManagePRs() {
   const { pr: prFromSearch } = Route.useSearch();
   const navigate = useNavigate({ from: "/agency/prs" });
-  const agencyPRs = useStore((s) => s.agencyPRs);
+  const allAgencyPRs = useStore((s) => s.agencyPRs);
+  const activeAgencyId = useStore((s) => s.activeAgencyId);
+  const agencyPRs = useMemo(
+    () => scopeToAgency(allAgencyPRs, activeAgencyId),
+    [allAgencyPRs, activeAgencyId],
+  );
   const shiftHistory = useStore((s) => s.shiftHistory);
   const ratings = useStore((s) => s.ratings);
   const agencySubRole = useStore((s) => s.agencySubRole);
@@ -191,12 +219,10 @@ function AgencyManagePRs() {
 
       <IzCard flat className="border-[var(--iz-line2)]">
         <p className="iz-tiny iz-muted2 leading-relaxed">
-          <b className="text-[var(--iz-muted)]">Bulk:</b> tap Select → pick PRs → broadcast shift or message.
-          {" "}
-          <b className="text-[var(--iz-amber)]">Warn</b> if avg &lt; {RATING_WARN_THRESHOLD}★.
-          {" "}
-          <b className="text-[var(--iz-red)]">Suspend flag</b> at {CONSECUTIVE_LOW_SUSPEND_COUNT} shifts &lt; {RATING_SUSPEND_SHIFT_THRESHOLD}★ in a row.
-          {" "}
+          <b className="text-[var(--iz-muted)]">Bulk:</b> tap Select → pick PRs → broadcast shift or
+          message. <b className="text-[var(--iz-amber)]">Warn</b> if avg &lt;{" "}
+          {RATING_WARN_THRESHOLD}★. <b className="text-[var(--iz-red)]">Suspend flag</b> at{" "}
+          {CONSECUTIVE_LOW_SUSPEND_COUNT} shifts &lt; {RATING_SUSPEND_SHIFT_THRESHOLD}★ in a row.{" "}
           <b className="text-[var(--iz-violet-l)]">Tied &lt; 1 yr</b> cannot detach without admin.
         </p>
       </IzCard>
@@ -240,7 +266,9 @@ function AgencyManagePRs() {
             <IzSelect block value={lang} onChange={(e) => setLang(e.target.value)}>
               <option value="">All languages</option>
               {languages.map((l) => (
-                <option key={l} value={l}>{l}</option>
+                <option key={l} value={l}>
+                  {l}
+                </option>
               ))}
             </IzSelect>
           </label>
@@ -248,7 +276,9 @@ function AgencyManagePRs() {
             <IzSelect block value={race} onChange={(e) => setRace(e.target.value)}>
               <option value="">All races</option>
               {races.map((r) => (
-                <option key={r} value={r}>{r}</option>
+                <option key={r} value={r}>
+                  {r}
+                </option>
               ))}
             </IzSelect>
           </label>
@@ -256,7 +286,9 @@ function AgencyManagePRs() {
             <IzSelect block value={place} onChange={(e) => setPlace(e.target.value)}>
               <option value="">All places</option>
               {places.map((pl) => (
-                <option key={pl} value={pl}>{pl}</option>
+                <option key={pl} value={pl}>
+                  {pl}
+                </option>
               ))}
             </IzSelect>
           </label>
@@ -270,49 +302,49 @@ function AgencyManagePRs() {
           </span>
           <span className="iz-pr-manage-stats__active">{activeCount} active</span>
         </div>
-      {selectMode && (
-        <p className="iz-tiny iz-muted2 mb-2">
-          {selected.size === 0 ? "Tap PR cards to multi-select" : `${selected.size} selected`}
-          {selected.size > 0 && (
-            <>
-              {" · "}
-              <button type="button" className="iz-link !text-xs" onClick={selectAllFiltered}>
-                Select all
-              </button>
-            </>
-          )}
-        </p>
-      )}
-      {selectMode && selected.size > 0 && (
-        <button
-          type="button"
-          className="iz-btn iz-btn-primary mb-3 w-full !py-2.5 !text-xs"
-          onClick={() => setBroadcastOpen(true)}
-        >
-          <Megaphone className="h-3.5 w-3.5" /> Broadcast shift / message ({selected.size})
-        </button>
-      )}
-      <div className="iz-pr-manage-grid">
-        {filtered.map((p) => {
-          const flags = getAgencyPrFlags(p);
-          const active = isAgencyPrActive(p);
-          const picked = selectMode && selected.has(p.id);
-          return (
-            <ManagePrGridCard
-              key={p.id}
-              pr={p}
-              active={active}
-              flags={flags}
-              selectMode={selectMode}
-              picked={picked}
-              onActivate={() => {
-                if (selectMode) toggleSelect(p.id);
-                else openPrProfile(p.id);
-              }}
-            />
-          );
-        })}
-      </div>
+        {selectMode && (
+          <p className="iz-tiny iz-muted2 mb-2">
+            {selected.size === 0 ? "Tap PR cards to multi-select" : `${selected.size} selected`}
+            {selected.size > 0 && (
+              <>
+                {" · "}
+                <button type="button" className="iz-link !text-xs" onClick={selectAllFiltered}>
+                  Select all
+                </button>
+              </>
+            )}
+          </p>
+        )}
+        {selectMode && selected.size > 0 && (
+          <button
+            type="button"
+            className="iz-btn iz-btn-primary mb-3 w-full !py-2.5 !text-xs"
+            onClick={() => setBroadcastOpen(true)}
+          >
+            <Megaphone className="h-3.5 w-3.5" /> Broadcast shift / message ({selected.size})
+          </button>
+        )}
+        <div className="iz-pr-manage-grid">
+          {filtered.map((p) => {
+            const flags = getAgencyPrFlags(p);
+            const active = isAgencyPrActive(p);
+            const picked = selectMode && selected.has(p.id);
+            return (
+              <ManagePrGridCard
+                key={p.id}
+                pr={p}
+                active={active}
+                flags={flags}
+                selectMode={selectMode}
+                picked={picked}
+                onActivate={() => {
+                  if (selectMode) toggleSelect(p.id);
+                  else openPrProfile(p.id);
+                }}
+              />
+            );
+          })}
+        </div>
       </section>
 
       <AgencyBroadcastSheet
@@ -485,10 +517,15 @@ function AgencyPrDetail({
         <p className="iz-tiny iz-muted2 uppercase tracking-widest">Managed PR</p>
         <IzPageTitle>{display.name}</IzPageTitle>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          <IzPill variant={isAgencyPrActive(detail) ? "green" : "ink"} className="!py-0.5 !text-[9px]">
+          <IzPill
+            variant={isAgencyPrActive(detail) ? "green" : "ink"}
+            className="!py-0.5 !text-[9px]"
+          >
             {isAgencyPrActive(detail) ? "Active" : "Inactive"}
           </IzPill>
-          <p className="iz-tiny iz-muted">IC {detail.ic} · {detail.rating} ★ avg</p>
+          <p className="iz-tiny iz-muted">
+            IC {detail.ic} · {detail.rating} ★ avg
+          </p>
         </div>
       </header>
       {editing && <span className="iz-pill iz-pill-amber mt-2 !text-[10px]">Editing</span>}
@@ -547,21 +584,35 @@ function AgencyPrDetail({
 
       <IzSectionLabel>
         {detail.comcardImageUrl ? "Photo comcard" : "3D Comcard"}
-        {editing && <span className="ml-auto text-[var(--iz-gold-l)] normal-case tracking-normal">Editable</span>}
+        {editing && (
+          <span className="ml-auto text-[var(--iz-gold-l)] normal-case tracking-normal">
+            Editable
+          </span>
+        )}
       </IzSectionLabel>
       <IzCard className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
         {editing ? (
           <div className="iz-comcard-edit">
-            <AgencyComcardInput label="Height (cm)" value={draft.height} onChange={(n) => setDraft((p) => ({ ...p, height: n }))} />
-            <AgencyComcardInput label="Weight (kg)" value={draft.weight} onChange={(n) => setDraft((p) => ({ ...p, weight: n }))} />
-            <AgencyComcardInput label="Age" value={draft.age} onChange={(n) => setDraft((p) => ({ ...p, age: n }))} />
+            <AgencyComcardInput
+              label="Height (cm)"
+              value={draft.height}
+              onChange={(n) => setDraft((p) => ({ ...p, height: n }))}
+            />
+            <AgencyComcardInput
+              label="Weight (kg)"
+              value={draft.weight}
+              onChange={(n) => setDraft((p) => ({ ...p, weight: n }))}
+            />
+            <AgencyComcardInput
+              label="Age"
+              value={draft.age}
+              onChange={(n) => setDraft((p) => ({ ...p, age: n }))}
+            />
           </div>
         ) : detail.comcardImageUrl ? (
           <StaticComcardVisual src={detail.comcardImageUrl} className="mx-auto" />
         ) : (
-          <Comcard3dPreviewVisual
-            pr={toComcardPreview(detail)}
-          />
+          <Comcard3dPreviewVisual pr={toComcardPreview(detail)} />
         )}
       </IzCard>
 
@@ -570,10 +621,13 @@ function AgencyPrDetail({
           <IzSectionLabel>Portfolio gallery</IzSectionLabel>
           <IzCard>
             <div className="grid grid-cols-4 gap-2">
-              {detail.portfolioPhotos!
-                .filter((src): src is string => Boolean(src))
+              {detail
+                .portfolioPhotos!.filter((src): src is string => Boolean(src))
                 .map((src, i) => (
-                  <div key={i} className="aspect-square overflow-hidden rounded-lg border border-[var(--iz-line)]">
+                  <div
+                    key={i}
+                    className="aspect-square overflow-hidden rounded-lg border border-[var(--iz-line)]"
+                  >
                     <img src={publicAssetPath(src)} alt="" className="h-full w-full object-cover" />
                   </div>
                 ))}
@@ -584,76 +638,130 @@ function AgencyPrDetail({
       )}
 
       <div className="iz-pr-profile-fields">
-      <div>
-      <IzSectionLabel>Contact</IzSectionLabel>
-      <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
-        {editing ? (
-          <div className="space-y-2">
-            <div className="iz-field !mb-0">
-              <label>IC name (legal full name)</label>
-              <input value={draft.icName} onChange={(e) => setDraft((p) => ({ ...p, icName: e.target.value }))} />
-            </div>
-            <div className="iz-field !mb-0">
-              <label>Mobile</label>
-              <input value={draft.mobile} onChange={(e) => setDraft((p) => ({ ...p, mobile: e.target.value }))} />
-            </div>
-            <div className="iz-field !mb-0">
-              <label>Email</label>
-              <input type="email" value={draft.email} onChange={(e) => setDraft((p) => ({ ...p, email: e.target.value }))} />
-            </div>
-          </div>
-        ) : (
-          <div className="iz-kv-list">
-            <div className="iz-v-sum"><span className="iz-muted">Mobile</span><b>{display.mobile}</b></div>
-            <div className="iz-v-sum"><span className="iz-muted">Email</span><b>{display.email}</b></div>
-            <div className="iz-v-sum"><span className="iz-muted">IC</span><b>{detail.ic}</b></div>
-          </div>
-        )}
-      </IzCard>
-      </div>
+        <div>
+          <IzSectionLabel>Contact</IzSectionLabel>
+          <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
+            {editing ? (
+              <div className="space-y-2">
+                <div className="iz-field !mb-0">
+                  <label>IC name (legal full name)</label>
+                  <input
+                    value={draft.icName}
+                    onChange={(e) => setDraft((p) => ({ ...p, icName: e.target.value }))}
+                  />
+                </div>
+                <div className="iz-field !mb-0">
+                  <label>Mobile</label>
+                  <input
+                    value={draft.mobile}
+                    onChange={(e) => setDraft((p) => ({ ...p, mobile: e.target.value }))}
+                  />
+                </div>
+                <div className="iz-field !mb-0">
+                  <label>Email</label>
+                  <input
+                    type="email"
+                    value={draft.email}
+                    onChange={(e) => setDraft((p) => ({ ...p, email: e.target.value }))}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="iz-kv-list">
+                <div className="iz-v-sum">
+                  <span className="iz-muted">Mobile</span>
+                  <b>{display.mobile}</b>
+                </div>
+                <div className="iz-v-sum">
+                  <span className="iz-muted">Email</span>
+                  <b>{display.email}</b>
+                </div>
+                <div className="iz-v-sum">
+                  <span className="iz-muted">IC</span>
+                  <b>{detail.ic}</b>
+                </div>
+              </div>
+            )}
+          </IzCard>
+        </div>
 
-      <div>
-      <IzSectionLabel>Profile details</IzSectionLabel>
-      <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
-        {editing ? (
-          <div className="space-y-2">
-            <div className="iz-field !mb-0">
-              <label>Race</label>
-              <input value={draft.race} onChange={(e) => setDraft((p) => ({ ...p, race: e.target.value }))} />
-            </div>
-            <div className="iz-field !mb-0">
-              <label>Place</label>
-              <input value={draft.place} onChange={(e) => setDraft((p) => ({ ...p, place: e.target.value }))} />
-            </div>
-            <AgencyComcardInput label="Years experience" value={draft.yearsExp} onChange={(n) => setDraft((p) => ({ ...p, yearsExp: n }))} />
-            <div className="iz-field !mb-0">
-              <label>KPI tier</label>
-              <IzSelect value={draft.kpiTier} onChange={(e) => setDraft((p) => ({ ...p, kpiTier: e.target.value }))}>
-                {KPI_TIER_OPTIONS.map((tier) => (
-                  <option key={tier} value={tier}>Tier {tier}</option>
-                ))}
-              </IzSelect>
-            </div>
-            <div className="iz-field !mb-0">
-              <label>Training tier</label>
-              <IzSelect value={draft.trainingLevel} onChange={(e) => setDraft((p) => ({ ...p, trainingLevel: e.target.value }))}>
-                {TRAINING_TIER_OPTIONS.map((tier) => (
-                  <option key={tier} value={tier}>{tier}</option>
-                ))}
-              </IzSelect>
-            </div>
-          </div>
-        ) : (
-          <div className="iz-kv-list">
-            <div className="iz-v-sum"><span className="iz-muted">Race</span><b>{display.race}</b></div>
-            <div className="iz-v-sum"><span className="iz-muted">Place</span><b>{display.place}</b></div>
-            <div className="iz-v-sum"><span className="iz-muted">Experience</span><b>{display.yearsExp} yrs</b></div>
-            <div className="iz-v-sum"><span className="iz-muted">KPI tier</span><b>{display.kpiTier}</b></div>
-            <div className="iz-v-sum"><span className="iz-muted">Training tier</span><b>{display.trainingLevel}</b></div>
-          </div>
-        )}
-      </IzCard>
-      </div>
+        <div>
+          <IzSectionLabel>Profile details</IzSectionLabel>
+          <IzCard flat className={editing ? "border-[rgba(217,185,122,.25)]" : undefined}>
+            {editing ? (
+              <div className="space-y-2">
+                <div className="iz-field !mb-0">
+                  <label>Race</label>
+                  <input
+                    value={draft.race}
+                    onChange={(e) => setDraft((p) => ({ ...p, race: e.target.value }))}
+                  />
+                </div>
+                <div className="iz-field !mb-0">
+                  <label>Place</label>
+                  <input
+                    value={draft.place}
+                    onChange={(e) => setDraft((p) => ({ ...p, place: e.target.value }))}
+                  />
+                </div>
+                <AgencyComcardInput
+                  label="Years experience"
+                  value={draft.yearsExp}
+                  onChange={(n) => setDraft((p) => ({ ...p, yearsExp: n }))}
+                />
+                <div className="iz-field !mb-0">
+                  <label>KPI tier</label>
+                  <IzSelect
+                    value={draft.kpiTier}
+                    onChange={(e) => setDraft((p) => ({ ...p, kpiTier: e.target.value }))}
+                  >
+                    {KPI_TIER_OPTIONS.map((tier) => (
+                      <option key={tier} value={tier}>
+                        Tier {tier}
+                      </option>
+                    ))}
+                  </IzSelect>
+                </div>
+                <div className="iz-field !mb-0">
+                  <label>Training tier</label>
+                  <IzSelect
+                    value={draft.trainingLevel}
+                    onChange={(e) => setDraft((p) => ({ ...p, trainingLevel: e.target.value }))}
+                  >
+                    {TRAINING_TIER_OPTIONS.map((tier) => (
+                      <option key={tier} value={tier}>
+                        {tier}
+                      </option>
+                    ))}
+                  </IzSelect>
+                </div>
+              </div>
+            ) : (
+              <div className="iz-kv-list">
+                <div className="iz-v-sum">
+                  <span className="iz-muted">Race</span>
+                  <b>{display.race}</b>
+                </div>
+                <div className="iz-v-sum">
+                  <span className="iz-muted">Place</span>
+                  <b>{display.place}</b>
+                </div>
+                <div className="iz-v-sum">
+                  <span className="iz-muted">Experience</span>
+                  <b>{display.yearsExp} yrs</b>
+                </div>
+                <div className="iz-v-sum">
+                  <span className="iz-muted">KPI tier</span>
+                  <b>{display.kpiTier}</b>
+                </div>
+                <div className="iz-v-sum">
+                  <span className="iz-muted">Training tier</span>
+                  <b>{display.trainingLevel}</b>
+                </div>
+              </div>
+            )}
+          </IzCard>
+        </div>
       </div>
 
       <IzSectionLabel>Languages</IzSectionLabel>
@@ -666,7 +774,9 @@ function AgencyPrDetail({
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {display.languages.map((l) => (
-              <IzPill key={l} variant="violet">{l}</IzPill>
+              <IzPill key={l} variant="violet">
+                {l}
+              </IzPill>
             ))}
           </div>
         )}
@@ -683,7 +793,8 @@ function AgencyPrDetail({
             <IzCard flat className="mt-2.5 border-[var(--iz-amber)]">
               <p className="iz-tiny flex items-center gap-1 text-[var(--iz-amber)]">
                 <AlertTriangle className="h-3 w-3" />
-                Warn · average {detail.rating}★ is below {RATING_WARN_THRESHOLD}★ — monitor performance
+                Warn · average {detail.rating}★ is below {RATING_WARN_THRESHOLD}★ — monitor
+                performance
               </p>
             </IzCard>
           )}
@@ -704,19 +815,29 @@ function AgencyPrDetail({
 
           <OutletSection title="Shift history" hint="Last 3 shifts">
             <IzCard flat>
-              {shiftHistoryForPr(shiftHistory, detail.id).slice(0, 3).map((h) => (
-                <p key={h.id} className="iz-tiny iz-muted border-t border-[var(--iz-line)] py-2 first:border-0 first:pt-0">
-                  {h.dateDisplay} · {h.outlet} · {formatRM(h.totalPayout)}
-                </p>
-              ))}
+              {shiftHistoryForPr(shiftHistory, detail.id)
+                .slice(0, 3)
+                .map((h) => (
+                  <p
+                    key={h.id}
+                    className="iz-tiny iz-muted border-t border-[var(--iz-line)] py-2 first:border-0 first:pt-0"
+                  >
+                    {h.dateDisplay} · {h.outlet} · {formatRM(h.totalPayout)}
+                  </p>
+                ))}
             </IzCard>
           </OutletSection>
 
           <OutletSection title="Ratings feed">
             <IzCard flat>
-              {ratings.filter((r) => r.pr === detail.name).slice(0, 3).map((r) => (
-                <p key={r.id} className="iz-tiny iz-muted py-1">{r.stars}★ · {r.note}</p>
-              ))}
+              {ratings
+                .filter((r) => r.pr === detail.name)
+                .slice(0, 3)
+                .map((r) => (
+                  <p key={r.id} className="iz-tiny iz-muted py-1">
+                    {r.stars}★ · {r.note}
+                  </p>
+                ))}
               {ratings.filter((r) => r.pr === detail.name).length === 0 && (
                 <p className="iz-tiny iz-muted">No ratings yet</p>
               )}
@@ -725,7 +846,12 @@ function AgencyPrDetail({
 
           <OutletSection title="Agency actions" hint="Discipline">
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" className="iz-btn iz-btn-soft !text-xs" disabled={detail.suspended} onClick={() => setSuspendOpen(true)}>
+              <button
+                type="button"
+                className="iz-btn iz-btn-soft !text-xs"
+                disabled={detail.suspended}
+                onClick={() => setSuspendOpen(true)}
+              >
                 Suspend
               </button>
               <button
@@ -760,35 +886,56 @@ function AgencyPrDetail({
       <IzSheet open={suspendOpen} onClose={() => setSuspendOpen(false)}>
         <IzCardTitle>Suspend {detail.name}?</IzCardTitle>
         <p className="iz-tiny iz-muted mb-3 leading-relaxed">
-          This pauses all shift offers and check-ins for this PR until you lift the suspension. Pending roster slots
-          may need to be reassigned.
+          This pauses all shift offers and check-ins for this PR until you lift the suspension.
+          Pending roster slots may need to be reassigned.
         </p>
         <div className="iz-grid2">
-          <button type="button" className="iz-btn iz-btn-ghost" onClick={() => setSuspendOpen(false)}>Cancel</button>
-          <button type="button" className="iz-btn iz-btn-primary" onClick={confirmSuspend}>Confirm suspend</button>
+          <button
+            type="button"
+            className="iz-btn iz-btn-ghost"
+            onClick={() => setSuspendOpen(false)}
+          >
+            Cancel
+          </button>
+          <button type="button" className="iz-btn iz-btn-primary" onClick={confirmSuspend}>
+            Confirm suspend
+          </button>
         </div>
       </IzSheet>
 
       <IzSheet open={detachOpen} onClose={() => setDetachOpen(false)}>
-        <IzCardTitle>{tiedUnderOneYear ? "Request detach" : "Detach"} {detail.name}?</IzCardTitle>
+        <IzCardTitle>
+          {tiedUnderOneYear ? "Request detach" : "Detach"} {detail.name}?
+        </IzCardTitle>
         <p className="iz-tiny iz-muted mb-3 leading-relaxed">
           {tiedUnderOneYear ? (
             <>
-              This PR has been tied for {tiedMonthsLabel(detail)} (under 1 year). Direct detach is blocked —
-              submit a request for InnocenZ admin to review.
+              This PR has been tied for {tiedMonthsLabel(detail)} (under 1 year). Direct detach is
+              blocked — submit a request for InnocenZ admin to review.
             </>
           ) : (
-            <>Detach removes this PR from your agency roster. They will no longer receive tied shifts or payroll from your agency.</>
+            <>
+              Detach removes this PR from your agency roster. They will no longer receive tied
+              shifts or payroll from your agency.
+            </>
           )}
         </p>
         <div className="iz-grid2">
-          <button type="button" className="iz-btn iz-btn-ghost" onClick={() => setDetachOpen(false)}>Cancel</button>
+          <button
+            type="button"
+            className="iz-btn iz-btn-ghost"
+            onClick={() => setDetachOpen(false)}
+          >
+            Cancel
+          </button>
           {tiedUnderOneYear ? (
             <button type="button" className="iz-btn iz-btn-primary" onClick={requestAdminDetach}>
               Submit admin request
             </button>
           ) : (
-            <button type="button" className="iz-btn iz-btn-primary" onClick={confirmDetach}>Confirm detach</button>
+            <button type="button" className="iz-btn iz-btn-primary" onClick={confirmDetach}>
+              Confirm detach
+            </button>
           )}
         </div>
       </IzSheet>

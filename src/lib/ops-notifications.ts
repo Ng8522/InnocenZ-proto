@@ -32,7 +32,7 @@ export interface SosIncident {
   prId: string;
   prName: string;
   prIc: string;
-  prType: "freelancer" | "agency_tied";
+  prType: "agency_tied";
   outlet: string;
   agencyName: string;
 }
@@ -73,11 +73,14 @@ export function opsNotificationsForPortal(
   });
 }
 
-export function sosIncidentById(incidents: SosIncident[], id: string | undefined): SosIncident | undefined {
+export function sosIncidentById(
+  incidents: SosIncident[],
+  id: string | undefined,
+): SosIncident | undefined {
   if (!id) return undefined;
   return incidents.find((i) => i.id === id);
 }
 
 export function prTypeLabel(prType: SosIncident["prType"]): string {
-  return prType === "freelancer" ? "Freelancer" : "Agency-tied";
+  return "Agency-tied";
 }

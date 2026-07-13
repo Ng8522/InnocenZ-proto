@@ -16,7 +16,11 @@ import {
   OUTLET_COMMISSION_RULES,
   resolveRosterPrName,
 } from "@/lib/agency-demo";
-import { findOutletShiftForRosterSlot, outletShiftDemandSupplied, shiftHoursFromLabel } from "@/lib/outlet-demo";
+import {
+  findOutletShiftForRosterSlot,
+  outletShiftDemandSupplied,
+  shiftHoursFromLabel,
+} from "@/lib/outlet-demo";
 import type { HistRow, PrPaymentVoucher } from "@/lib/pr-demo";
 import { formatPrDisplayName } from "@/lib/pr-demo";
 import { getPayrollWeekSundayIso } from "@/lib/demo-clock";
@@ -30,7 +34,12 @@ import {
   pvForPayrollDate,
 } from "@/lib/pr-payment-history";
 import { shiftRowIncomeBreakdown } from "@/lib/pr-weekly-payment";
-import { filterShiftHistoryThroughToday, prepareShiftHistoryForDisplay, sortShiftHistoryDesc, type ShiftHistoryRow } from "@/lib/shift-history-utils";
+import {
+  filterShiftHistoryThroughToday,
+  prepareShiftHistoryForDisplay,
+  sortShiftHistoryDesc,
+  type ShiftHistoryRow,
+} from "@/lib/shift-history-utils";
 import type { ShiftRequest } from "@/lib/store";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { addDaysToIso } from "@/lib/demo-clock";
@@ -90,7 +99,11 @@ export function estimateRosterSlotPayoutForPr(
   agencyPRs: { id: string; trainingLevel?: string }[] | undefined,
   rules: OutletCommissionRule[] = OUTLET_COMMISSION_RULES,
   perDrinkRm = 12,
-  outletShifts?: { outletName: string; shift: string; tierRates?: Record<OutletPrTier, OutletTierRateSettings> }[],
+  outletShifts?: {
+    outletName: string;
+    shift: string;
+    tierRates?: Record<OutletPrTier, OutletTierRateSettings>;
+  }[],
 ): number {
   const profile = agencyPRs?.find((p) => p.id === slot.prId);
   const outletShift = outletShifts ? findOutletShiftForRosterSlot(outletShifts, slot) : undefined;
@@ -154,7 +167,11 @@ export function patchPrRosterAttendanceFlags(
 }
 
 /** Add a PR to the first open outlet shift with capacity */
-export function addPrToOutletShift<T extends OutletShiftSlot>(shifts: T[], outlet: string, prId: string): T[] {
+export function addPrToOutletShift<T extends OutletShiftSlot>(
+  shifts: T[],
+  outlet: string,
+  prId: string,
+): T[] {
   const idx = shifts.findIndex(
     (s) =>
       outletMatches(s.outletName, outlet) &&
@@ -166,7 +183,11 @@ export function addPrToOutletShift<T extends OutletShiftSlot>(shifts: T[], outle
   return fillOutletShiftSlot(shifts, idx, prId);
 }
 
-function fillOutletShiftSlot<T extends OutletShiftSlot>(shifts: T[], idx: number, prId: string): T[] {
+function fillOutletShiftSlot<T extends OutletShiftSlot>(
+  shifts: T[],
+  idx: number,
+  prId: string,
+): T[] {
   if (idx < 0 || idx >= shifts.length) return shifts;
   const sh = shifts[idx];
   if (sh.status === "sealed" || sh.prs.includes(prId) || sh.filled >= sh.quantity) return shifts;
@@ -206,7 +227,14 @@ function postedShiftIdFromAssignment(outletShiftId?: string): string | undefined
 }
 
 function rosterSlotMatchesOutletShift<
-  T extends { id: string; outletName: string; date: string; dateIso?: string; shift: string; status: string },
+  T extends {
+    id: string;
+    outletName: string;
+    date: string;
+    dateIso?: string;
+    shift: string;
+    status: string;
+  },
 >(slot: AgencyRosterSlot, shift: T): boolean {
   if (!ROSTER_BOOKED_FOR_OUTLET.has(slot.status)) return false;
   if (!outletMatches(slot.outlet, shift.outletName)) return false;
@@ -236,7 +264,9 @@ export function syncAgencyRosterToOutletShifts<
     const rosterPrIds = roster
       .filter((slot) => rosterSlotMatchesOutletShift(slot, shift))
       .map((slot) => slot.prId);
-    const prs = [...new Set([...(shift.prs ?? []), ...rosterPrIds])].filter((id) => !released.has(id));
+    const prs = [...new Set([...(shift.prs ?? []), ...rosterPrIds])].filter(
+      (id) => !released.has(id),
+    );
     if (
       prs.length === (shift.prs ?? []).length &&
       prs.every((id, i) => id === (shift.prs ?? [])[i])
@@ -322,9 +352,7 @@ export function shiftHistoryToHistRows(
       .map((pv) => pv.weekStartIso!),
   );
   const inboxWeeks = new Set(
-    vouchers
-      .filter((pv) => pv.weekStartIso && pv.status === "SENT")
-      .map((pv) => pv.weekStartIso!),
+    vouchers.filter((pv) => pv.weekStartIso && pv.status === "SENT").map((pv) => pv.weekStartIso!),
   );
 
   const shiftRows: HistRow[] = list
@@ -371,7 +399,10 @@ export function shiftHistoryToHistRows(
   });
 }
 
-export function shiftHistoryForOutlet(rows: ShiftHistoryRow[] | undefined, outletName: string): ShiftHistoryRow[] {
+export function shiftHistoryForOutlet(
+  rows: ShiftHistoryRow[] | undefined,
+  outletName: string,
+): ShiftHistoryRow[] {
   return sortShiftHistoryDesc((rows ?? []).filter((r) => outletMatches(r.outlet, outletName)));
 }
 
@@ -526,7 +557,9 @@ export function ensureRosterSlot(
   const dateIso = seed.dateIso ?? DEFAULT_ROSTER_DATE_ISO;
   const existing = findRosterSlot(roster, seed.prId, seed.outlet, dateIso);
   if (existing) {
-    return roster.map((s) => (s.id === existing.id ? { ...s, ...patch, status: patch?.status ?? status } : s));
+    return roster.map((s) =>
+      s.id === existing.id ? { ...s, ...patch, status: patch?.status ?? status } : s,
+    );
   }
   const canon = canonicalOutlet(seed.outlet);
   const { shiftStart, shiftEnd } = parseShiftWindow(seed.shift ?? "22:00 — 04:00");
@@ -571,12 +604,10 @@ export function rosterEnRoute(
   if (!seed?.prName) return roster;
 
   const { shiftStart, shiftEnd } = parseShiftWindow(seed.shift ?? "22:00 — 04:00");
-  return ensureRosterSlot(
-    roster,
-    { prId, outlet: canon, dateIso, ...seed },
-    "en-route",
-    { shiftStart, shiftEnd },
-  );
+  return ensureRosterSlot(roster, { prId, outlet: canon, dateIso, ...seed }, "en-route", {
+    shiftStart,
+    shiftEnd,
+  });
 }
 
 export function rosterCheckIn(
@@ -615,12 +646,13 @@ export function rosterCheckIn(
   if (!seed?.prName) return roster;
 
   const { shiftStart, shiftEnd } = parseShiftWindow(seed.shift ?? "22:00 — 04:00");
-  return ensureRosterSlot(
-    roster,
-    { prId, outlet: canon, dateIso, ...seed },
-    "on-duty",
-    { checkedInAt: time, checkedOutAt: undefined, noShowFlag: false, shiftStart, shiftEnd },
-  );
+  return ensureRosterSlot(roster, { prId, outlet: canon, dateIso, ...seed }, "on-duty", {
+    checkedInAt: time,
+    checkedOutAt: undefined,
+    noShowFlag: false,
+    shiftStart,
+    shiftEnd,
+  });
 }
 
 /** Sync roster check-out */
@@ -707,8 +739,7 @@ export function syncPrAttendanceToRoster(
     return rosterCheckOut(roster, input.prId, input.session.outlet, checkOutTime);
   }
   if (!input.checkedIn) return roster;
-  const checkInTime =
-    input.session.timeIn.match(/\d{1,2}:\d{2}/)?.[0] ?? input.session.timeIn;
+  const checkInTime = input.session.timeIn.match(/\d{1,2}:\d{2}/)?.[0] ?? input.session.timeIn;
   return rosterCheckIn(roster, input.prId, input.session.outlet, checkInTime, {
     prName: input.prName,
     dateIso: input.dateIso ?? DEFAULT_ROSTER_DATE_ISO,
@@ -738,7 +769,6 @@ export function marketplacePrsFromAgency(
     p9: "💫",
     p10: "🔥",
     p11: "📋",
-    "freelancer-jaya": "🌸",
   };
   return agencyPRs.map((p) => ({
     id: p.id,

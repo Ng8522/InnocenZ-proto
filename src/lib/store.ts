@@ -34,14 +34,12 @@ import {
   getPrProfile,
   makeShiftSessionId,
   makeShiftPvId,
-  FREELANCER_DEMO_PR_ID,
   formatPrDisplayName,
   DEFAULT_TIED_AGENCY_ID,
   getPrAgencyById,
   getPrRosterId,
   filterPvsForPrProfile,
   filterReceiptScansForPrProfile,
-  isFreelancerPrId,
   TIED_DEMO_ROSTER_PR_ID,
   fmtDateLabelFromIso,
   formatPvSignTimestamp,
@@ -75,16 +73,18 @@ import {
   type OutletSwapRequest,
   DEFAULT_AGENCY_OWNER,
   DEFAULT_FINANCE_HEAD,
+  AGENCY_OWNERS_BY_ID,
+  AGENCY_FINANCE_HEADS_BY_ID,
+  agencyIdForOwnerEmail,
+  agencyIdOf,
   SEED_AGENCY_COLLECTIONS,
   SEED_AGENCY_ROSTER,
   SEED_RECONCILIATION,
   mergeAgencyRoster,
-  SEED_AGENCY_PRS,
+  SEED_AGENCY_PRS_ALL,
   syncAgencyOwnerSubscriptionPlan,
   SEED_PENDING_PRS,
-  SEED_PENDING_FREELANCER_PAYROLLS,
   RETIRED_PENDING_PR_IDS,
-  RETIRED_PENDING_FREELANCER_PAYROLL_IDS,
   pendingPRToManagedPR,
   OUTLET_COMMISSION_RULES,
   SCALING_TIER_MULTIPLIERS,
@@ -124,7 +124,12 @@ import {
   isWeekPvIssued,
   type WeeklyDisputeTarget,
 } from "@/lib/pr-weekly-payment";
-import { mergeAgencyCollections, syncAgencyPayrollReceiptScans, syncAgencyPayrollShiftHistory, getAgencyManagedPvs } from "@/lib/agency-payroll";
+import {
+  mergeAgencyCollections,
+  syncAgencyPayrollReceiptScans,
+  syncAgencyPayrollShiftHistory,
+  getAgencyManagedPvs,
+} from "@/lib/agency-payroll";
 import { getFreePrsWithDistances } from "@/lib/roster-availability";
 import {
   buildPlanningWeekOutletShiftMap,
@@ -225,7 +230,16 @@ import {
 import type { PendingCutlostRequest } from "@/lib/outlet-cutlost-requests";
 import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import type { PostJobPayTierRow } from "@/lib/post-job-pay-tiers";
-import { buildDemoStoreReset, buildPrDemoReset, mergeAutoConfirmAgencyAssignments, mergeDemoCalendarPastShifts, mergeDemoHennessyRosterFloor, mergeDemoRosterAssignmentSlots, mergeDemoShiftDates, mergeDemoShiftStaffing } from "@/lib/demo-seed";
+import {
+  buildDemoStoreReset,
+  buildPrDemoReset,
+  mergeAutoConfirmAgencyAssignments,
+  mergeDemoCalendarPastShifts,
+  mergeDemoHennessyRosterFloor,
+  mergeDemoRosterAssignmentSlots,
+  mergeDemoShiftDates,
+  mergeDemoShiftStaffing,
+} from "@/lib/demo-seed";
 import {
   SEED_SPECIAL_SERVICES,
   mergeSpecialServiceOrders,
@@ -249,7 +263,6 @@ import {
   defaultPrShiftSessionForRole,
   extractPrShiftSession,
   clearPrShiftSession,
-  patchFreelancerPrSession,
   patchPrSessionForRole,
   findAgencyRosterTonight,
   resolvePrShiftOfferForPr,
@@ -419,17 +432,15 @@ export interface PendingPR {
   source?: "self-signup" | "owner-invite";
   status: "pending" | "approved" | "rejected";
   rejectReason?: string;
+  /** Operating agency this sign-up belongs to — scopes the Approvals queue per tenant. Absent = Atlas. */
+  agencyId?: string;
 }
 
-/** Freelancer chose this agency for payroll — agency must approve before PVs */
-export interface PendingFreelancerPayroll {
+/** A PR's request to link to an operating agency — that agency approves/rejects it. */
+export interface PendingAgencyLink {
   id: string;
   prId: string;
   prName: string;
-  languages: string;
-  ic: string;
-  mobile: string;
-  email: string;
   agencyId: string;
   agencyName: string;
   status: "pending" | "approved" | "rejected";
@@ -447,6 +458,8 @@ interface StoreState {
   prSubRole: PrSubRole | null;
   outletSubRole: OutletSubRole | null;
   agencySubRole: AgencySubRole | null;
+  /** Which operating agency the signed-in owner belongs to (atlas | delta). */
+  activeAgencyId: string;
   user: { name: string; email: string } | null;
   setRole: (r: Role | null) => void;
   setPrSubRole: (r: PrSubRole | null) => void;
@@ -470,9 +483,6 @@ interface StoreState {
   acceptPrShift: (shiftIndex?: number) => void;
   approvePrShift: () => void;
   declinePrOffer: (offerId: string) => void;
-  applyFreelancerListing: (listingId: string) => boolean;
-  simulateOutletAcceptApplication: () => void;
-  simulateOutletDeclineApplication: () => void;
   cancelPrShift: () => void;
   /** Restore PR shift-flow snapshot only (used internally; not on role switch) */
   resetPrDemo: () => void;
@@ -515,8 +525,6 @@ interface StoreState {
   prUpcomingShifts: PrUpcomingShift[];
   prSwapRequests: PrSwapRequest[];
   prAgencyTiedAt: string;
-  prFreelancerPayrollLinks: string[];
-  prFreelancerLowRatingStrikes: number;
   prCheckInMeta: {
     late?: boolean;
     noShowRisk?: boolean;
@@ -533,7 +541,6 @@ interface StoreState {
   markPrNotificationRead: (id: string) => void;
   requestPrSwap: (targetId: string, reason: string) => void;
   linkPayrollByAgencyCode: (code: string) => void;
-  detachFreelancerPayroll: (agencyId: string) => void;
   submitSosIncident: (note: string, photoDataUrl?: string) => void;
   requestLeaveAgency: (note: string) => void;
   requestTransferAgency: (code: string, note: string) => void;
@@ -547,6 +554,11 @@ interface StoreState {
   prMobile: string | null;
   prAvatarPhoto: string | null;
   prPayrollAgencyId: string | null;
+  /** Agencies this PR is linked to (one PR can be under many agencies). */
+  prAgencies: string[];
+  setPrAgencies: (ids: string[]) => void;
+  /** PR self-selects which agencies they work with; each add/remove notifies that agency to dispatch or suspend. */
+  requestPrAgencyChange: (agencyIds: string[]) => void;
   setPrPayrollAgency: (agencyId: string) => void;
   savePrProfile: (data: {
     displayName: string;
@@ -577,7 +589,6 @@ interface StoreState {
   ) => void;
   escalatePrPvDispute: (id: string) => void;
   withdrawPrPvDispute: (id: string, targets: WeeklyDisputeTarget[]) => void;
-  demoFreelancerLowRatingStrike: () => void;
 
   prReceiptScans: PrReceiptScan[];
   addReceiptScan: (draft: {
@@ -755,15 +766,16 @@ interface StoreState {
   postSealRatePrompt: { shiftId: string; prIds: string[] } | null;
   paymentCardLast4: string;
   pendingPRs: PendingPR[];
-  pendingFreelancerPayrolls: PendingFreelancerPayroll[];
   pendingCutlostRequests: PendingCutlostRequest[];
 
   approvePendingPR: (id: string) => void;
   rejectPendingPR: (id: string, reason?: string) => void;
+  /** PR→agency link requests awaiting the target agency's approval. */
+  pendingAgencyLinks: PendingAgencyLink[];
+  approveAgencyLink: (id: string) => void;
+  rejectAgencyLink: (id: string) => void;
   invitePendingPR: (input: { name: string; ic: string; mobile: string; email: string }) => void;
   submitPrRegistration: (input: PrRegistrationInput) => void;
-  approveFreelancerPayroll: (id: string) => void;
-  rejectFreelancerPayroll: (id: string) => void;
   requestOutletCutlostReduction: (
     shiftId: string,
     payload:
@@ -811,7 +823,7 @@ interface StoreState {
   payOutletInvoice: (collectionId: string) => void;
   updateOutletPaymentCard: (last4: string) => void;
   clearPostSealRatePrompt: () => void;
-  /** Repair agency roster when PR checked in before roster slot existed (freelancers) */
+  /** Repair agency roster when PR checked in before roster slot existed */
   syncLivePrCheckInToRoster: () => void;
   /** Explicitly undo same-day check-out (demo check-in flow only — not auto on navigation). */
   ensurePrShiftResumed: (opts?: { silent?: boolean }) => boolean;
@@ -836,14 +848,14 @@ function mergeAgencyPRs(
   persisted: AgencyManagedPR[] | undefined,
   current: AgencyManagedPR[],
 ): AgencyManagedPR[] {
-  const seedIds = new Set(SEED_AGENCY_PRS.map((s) => s.id));
+  const seedIds = new Set(SEED_AGENCY_PRS_ALL.map((s) => s.id));
   const base = (persisted?.length ? persisted : current).filter((p) => seedIds.has(p.id));
   const byId = new Map(base.map((p) => [p.id, p]));
-  for (const seed of SEED_AGENCY_PRS) {
+  for (const seed of SEED_AGENCY_PRS_ALL) {
     if (!byId.has(seed.id)) byId.set(seed.id, seed);
   }
   return sortAgencyPrsByName(
-    SEED_AGENCY_PRS.map((seed) => {
+    SEED_AGENCY_PRS_ALL.map((seed) => {
       const p = byId.get(seed.id) ?? seed;
       return { ...p, trainingLevel: seed.trainingLevel };
     }),
@@ -872,7 +884,7 @@ function prIdForPayeeName(
 ): string {
   const match = agencyPRs.find((p) => p.name === prName || (prIc && p.ic === prIc));
   if (match) return match.id;
-  return FREELANCER_DEMO_PR_ID;
+  return TIED_DEMO_ROSTER_PR_ID;
 }
 
 function receiptQtyDelta(items: PrReceiptScan["items"]) {
@@ -916,10 +928,6 @@ function patchRosterFloorFromReceiptDelta(
 function activePrShiftOffer(
   st: Pick<StoreState, "prSubRole" | "acceptedShiftIndex" | "agencyRoster" | "shifts">,
 ) {
-  if (st.prSubRole === "pr_free") {
-    const idx = st.acceptedShiftIndex ?? 0;
-    return PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
-  }
   return resolvePrShiftOfferForPr(
     st.agencyRoster,
     getPrRosterId(st.prSubRole),
@@ -944,10 +952,7 @@ function shiftDatesEqual(a: [number, number, number], b: [number, number, number
   return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 }
 
-function withPrSessionRoleCache(
-  st: StoreState,
-  patch: Partial<StoreState>,
-): Partial<StoreState> {
+function withPrSessionRoleCache(st: StoreState, patch: Partial<StoreState>): Partial<StoreState> {
   const role = st.prSubRole;
   if (!role) return patch;
   const merged = { ...st, ...patch };
@@ -987,8 +992,7 @@ function resumePrShiftPatch(
   const scanIds = new Set(prActiveShift.receiptIds);
   const prId = getPrRosterId(st.prSubRole);
   const prName =
-    st.agencyPRs.find((p) => p.id === prId)?.name ??
-    getPrProfile(st.prSubRole ?? "pr_tied").name;
+    st.agencyPRs.find((p) => p.id === prId)?.name ?? getPrProfile(st.prSubRole ?? "pr_tied").name;
   const checkInTime =
     prActiveShift.timeIn.match(/\d{1,2}:\d{2}/)?.[0] ??
     new Date().toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
@@ -1063,10 +1067,7 @@ function rosterWithTiedPrAttendance(
     : tiedCache?.prCheckInMeta?.closedShift;
 
   if (checkedOut) {
-    const outlet =
-      closedShift?.outlet ??
-      st.prActiveShift?.outlet ??
-      activePrShiftOffer(st).outlet;
+    const outlet = closedShift?.outlet ?? st.prActiveShift?.outlet ?? activePrShiftOffer(st).outlet;
     const checkOutTime =
       closedShift?.timeOut?.match(/\d{1,2}:\d{2}/)?.[0] ??
       new Date().toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
@@ -1257,27 +1258,16 @@ function mergePendingPRs(persisted: PendingPR[] | undefined, current: PendingPR[
   for (const seed of SEED_PENDING_PRS) {
     if (!byId.has(seed.id)) byId.set(seed.id, seed);
   }
-  const seeds = SEED_PENDING_PRS.map((seed) => mergePendingSeedFields(byId.get(seed.id) ?? seed, seed));
-  const dedupedExtras = userSignups.filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+  const seeds = SEED_PENDING_PRS.map((seed) =>
+    mergePendingSeedFields(byId.get(seed.id) ?? seed, seed),
+  );
+  const dedupedExtras = userSignups.filter(
+    (p, i, arr) => arr.findIndex((x) => x.id === p.id) === i,
+  );
   return [
     ...seeds,
     ...dedupedExtras.filter((p) => !seedIds.has(p.id)).map(stripStockPortfolioFromPending),
   ];
-}
-
-function mergePendingFreelancerPayrolls(
-  persisted: PendingFreelancerPayroll[] | undefined,
-  current: PendingFreelancerPayroll[],
-): PendingFreelancerPayroll[] {
-  const seedIds = new Set(SEED_PENDING_FREELANCER_PAYROLLS.map((s) => s.id));
-  const base = (persisted?.length ? persisted : current).filter(
-    (p) => seedIds.has(p.id) && !RETIRED_PENDING_FREELANCER_PAYROLL_IDS.has(p.id),
-  );
-  const byId = new Map(base.map((p) => [p.id, p]));
-  for (const seed of SEED_PENDING_FREELANCER_PAYROLLS) {
-    if (!byId.has(seed.id)) byId.set(seed.id, seed);
-  }
-  return SEED_PENDING_FREELANCER_PAYROLLS.map((seed) => byId.get(seed.id) ?? seed);
 }
 
 let toastId = 0;
@@ -1289,6 +1279,7 @@ export const useStore = create<StoreState>()(
       prSubRole: null,
       outletSubRole: null,
       agencySubRole: null,
+      activeAgencyId: "atlas",
       user: null,
       setRole: (r) => set({ role: r }),
       setPrSubRole: (r) => {
@@ -1315,7 +1306,19 @@ export const useStore = create<StoreState>()(
       },
       setOutletSubRole: (r) => set({ outletSubRole: r }),
       setAgencySubRole: (r) => set({ agencySubRole: r }),
-      signIn: (name, email) => set({ user: { name, email } }),
+      signIn: (name, email) =>
+        set((st) => {
+          const agencyId = agencyIdForOwnerEmail(email);
+          if (!agencyId) return { user: { name, email } };
+          return {
+            user: { name, email },
+            activeAgencyId: agencyId,
+            agencyOwner: { ...(AGENCY_OWNERS_BY_ID[agencyId] ?? st.agencyOwner) },
+            agencyFinanceHead: {
+              ...(AGENCY_FINANCE_HEADS_BY_ID[agencyId] ?? st.agencyFinanceHead),
+            },
+          };
+        }),
       signOut: () => {
         const st = get();
         const prev = st.prSubRole;
@@ -1488,10 +1491,7 @@ export const useStore = create<StoreState>()(
           (r) => r.status === "pending" && outletMatches(r.outlet, outlet),
         );
         if (alreadyPending) {
-          get().toast(
-            "Quote request already sent — InnocenZ admin will contact you soon",
-            "info",
-          );
+          get().toast("Quote request already sent — InnocenZ admin will contact you soon", "info");
           return;
         }
         const at = notificationStamp();
@@ -1527,7 +1527,9 @@ export const useStore = create<StoreState>()(
           return;
         }
         set({
-          posIntegrationQuoteRequests: st.posIntegrationQuoteRequests.filter((r) => r.id !== pending.id),
+          posIntegrationQuoteRequests: st.posIntegrationQuoteRequests.filter(
+            (r) => r.id !== pending.id,
+          ),
           adminNotifications: st.adminNotifications.filter(
             (n) => n.id !== `admin-pos-${pending.id}`,
           ),
@@ -1547,8 +1549,6 @@ export const useStore = create<StoreState>()(
       prUpcomingShifts: [...SEED_UPCOMING_SHIFTS],
       prSwapRequests: [...SEED_PR_SWAP_REQUESTS],
       prAgencyTiedAt: DEMO_AGENCY_TIED_AT,
-      prFreelancerPayrollLinks: [],
-      prFreelancerLowRatingStrikes: 0,
       prCheckInMeta: {},
       prLeaveRequest: null,
 
@@ -1570,103 +1570,6 @@ export const useStore = create<StoreState>()(
             : [...st.prDeclinedOfferIds, offerId],
         }));
         get().toast("Offer declined", "info");
-      },
-      applyFreelancerListing: (listingId) => {
-        if (get().prSubRole !== "pr_free") {
-          get().toast(
-            "Freelancer mode required — enter as Freelancer from the welcome screen",
-            "warn",
-          );
-          return false;
-        }
-        if (get().prFreelancerLowRatingStrikes >= 3) {
-          get().toast("Account suspended — 3 ratings below 3.0★", "warn");
-          return false;
-        }
-        const st = get();
-        if (st.prMarketplaceApplication?.status === "pending") {
-          get().toast("You already have a pending application", "info");
-          return false;
-        }
-        const listing = listingById(listingId);
-        if (!listing) {
-          get().toast("Listing not found", "warn");
-          return false;
-        }
-        const prId = FREELANCER_DEMO_PR_ID;
-        const agencyPr = st.agencyPRs.find((p) => p.id === prId);
-        const prName = formatPrDisplayName(
-          prId,
-          st.prDisplayName?.trim() || agencyPr?.name || getPrProfile("pr_free").name,
-        );
-        const shift = st.shifts.find(
-          (s) =>
-            outletMatches(s.outletName, listing.outlet) &&
-            s.status !== "sealed" &&
-            s.filled < s.quantity,
-        );
-        const applicantId = shift
-          ? `app-${shift.id}-${prId}-${Date.now().toString(36)}`
-          : undefined;
-        set((cur) => ({
-          prMarketplaceApplication: {
-            listingId,
-            status: "pending",
-            applicantId,
-            shiftId: shift?.id,
-          },
-          acceptedShiftIndex: offerToShiftIndex(listingId),
-          shiftApplicants: shift
-            ? [
-                ...cur.shiftApplicants,
-                {
-                  id: applicantId!,
-                  shiftId: shift.id,
-                  prId,
-                  prName,
-                  rating: agencyPr?.rating ?? 4.6,
-                  status: "pending" as const,
-                },
-              ]
-            : cur.shiftApplicants,
-        }));
-        get().toast(
-          shift
-            ? "Application sent — outlet will review on Bookings"
-            : "Application sent — outlet or agency will accept or decline",
-          "info",
-        );
-        return true;
-      },
-      simulateOutletAcceptApplication: () => {
-        const app = get().prMarketplaceApplication;
-        if (!app || app.status !== "pending") return;
-        set({
-          prMarketplaceApplication: { ...app, status: "accepted" },
-          shiftAccepted: true,
-          pendingApproval: false,
-        });
-        const st = get();
-        const idx = st.acceptedShiftIndex ?? 0;
-        const offer = PR_SHIFT_OFFERS[idx] ?? PR_SHIFT_OFFERS[0];
-        const profile = getPrProfile("pr_free");
-        get().pushNotify({
-          type: "shift_assigned",
-          prId: FREELANCER_DEMO_PR_ID,
-          prName: profile.name,
-          outlet: offer.outlet,
-        });
-        get().toast("Outlet accepted your application — slot locked", "success");
-      },
-      simulateOutletDeclineApplication: () => {
-        const app = get().prMarketplaceApplication;
-        if (!app || app.status !== "pending") return;
-        set({
-          prMarketplaceApplication: { ...app, status: "declined" },
-          shiftAccepted: false,
-          acceptedShiftIndex: null,
-        });
-        get().toast("Outlet declined your application", "warn");
       },
       approvePrShift: () => {
         set({ pendingApproval: false, shiftAccepted: true });
@@ -2038,27 +1941,14 @@ export const useStore = create<StoreState>()(
         }
         get().setPrPayrollAgency(agencyId);
       },
-      detachFreelancerPayroll: (agencyId) => {
-        const st = get();
-        const nextLinks = st.prFreelancerPayrollLinks.filter((id) => id !== agencyId);
-        set({
-          prFreelancerPayrollLinks: nextLinks,
-          prPayrollAgencyId:
-            st.prPayrollAgencyId === agencyId ? (nextLinks[0] ?? null) : st.prPayrollAgencyId,
-        });
-        get().toast("Payroll unlinked — future PVs blocked until you link again", "warn");
-      },
       submitSosIncident: (note, photoDataUrl) => {
         const st = get();
         const profile = getPrProfile(st.prSubRole);
         const prId = getPrRosterId(st.prSubRole);
-        const prType = st.prSubRole === "pr_free" ? "freelancer" : "agency_tied";
+        const prType = "agency_tied";
         const offer = activePrShiftOffer(st);
         const outlet = st.prActiveShift?.outlet ?? offer.outlet ?? "Velvet 23";
-        const agencyName =
-          st.prSubRole === "pr_free"
-            ? (getPrAgencyById(st.prPayrollAgencyId)?.name ?? "Atlas Agency")
-            : (getPrAgencyById(DEFAULT_TIED_AGENCY_ID)?.name ?? "Atlas Agency");
+        const agencyName = getPrAgencyById(DEFAULT_TIED_AGENCY_ID)?.name ?? "Atlas Agency";
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -2113,61 +2003,13 @@ export const useStore = create<StoreState>()(
       prMobile: null,
       prAvatarPhoto: demoSnapshot.prAvatarPhoto,
       prPayrollAgencyId: null,
+      prAgencies: demoSnapshot.prAgencies ?? ["atlas"],
+      setPrAgencies: (ids) => set({ prAgencies: ids.length ? [...ids] : ["atlas"] }),
       setPrPayrollAgency: (agencyId) => {
         const agency = getPrAgencyById(agencyId);
         if (!agency) return;
-        const profile = getPrProfile("pr_free");
-        const prId = FREELANCER_DEMO_PR_ID;
-        const st = get();
-        const existing = st.pendingFreelancerPayrolls.find(
-          (p) => p.prId === prId && p.agencyId === agencyId,
-        );
-        if (existing?.status === "approved") {
-          set((st) => ({
-            prPayrollAgencyId: agencyId,
-            prFreelancerPayrollLinks: st.prFreelancerPayrollLinks.includes(agencyId)
-              ? st.prFreelancerPayrollLinks
-              : [...st.prFreelancerPayrollLinks, agencyId],
-          }));
-          get().toast(`Payroll linked to ${agency.name}`, "success");
-          return;
-        }
-        if (existing?.status === "pending") {
-          get().toast(`Waiting for ${agency.name} to approve payroll`, "info");
-          return;
-        }
-        const stamp = new Date().toLocaleString("en-MY", {
-          day: "numeric",
-          month: "short",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        const langs = st.prLanguages.length ? st.prLanguages : profile.langs;
-        set({
-          prPayrollAgencyId: null,
-          pendingFreelancerPayrolls: [
-            ...st.pendingFreelancerPayrolls.filter(
-              (p) => !(p.prId === prId && p.agencyId === agencyId),
-            ),
-            {
-              id: "fp-" + Date.now().toString(36),
-              prId,
-              prName: st.prDisplayName ?? profile.name,
-              ic: profile.ic,
-              mobile: profile.mobile,
-              email: profile.email,
-              languages: langs.slice(0, 3).join(" · "),
-              agencyId,
-              agencyName: agency.name,
-              status: "pending",
-              requestedAt: stamp,
-            },
-          ],
-        });
-        get().toast(
-          `Request sent to ${agency.name} — they must approve payroll before PVs unlock`,
-          "success",
-        );
+        set({ prPayrollAgencyId: agencyId });
+        get().toast(`Payroll linked to ${agency.name}`, "success");
       },
       savePrProfile: (data) => {
         const prId = getPrRosterId(get().prSubRole);
@@ -2240,8 +2082,7 @@ export const useStore = create<StoreState>()(
         if (!role) return;
         const profile = getPrProfile(role);
         const prId = getPrRosterId(role);
-        const demoWeek =
-          role === "pr_tied" ? demoPayrollWeekBoundsForWeeksAgo(0) : null;
+        const demoWeek = role === "pr_tied" ? demoPayrollWeekBoundsForWeeksAgo(0) : null;
         const prev = demoWeek
           ? {
               ...getPreviousWeekBounds(),
@@ -2330,11 +2171,7 @@ export const useStore = create<StoreState>()(
           );
           return {
             prPaymentVouchers: ledger.pvs,
-            prReceiptScans: syncAgencyPayrollReceiptScans(
-              ledger.scans,
-              ledger.pvs,
-              st.agencyPRs,
-            ),
+            prReceiptScans: syncAgencyPayrollReceiptScans(ledger.scans, ledger.pvs, st.agencyPRs),
           };
         });
         get().pushNotify({
@@ -2389,11 +2226,7 @@ export const useStore = create<StoreState>()(
           );
           return {
             prPaymentVouchers: ledger.pvs,
-            prReceiptScans: syncAgencyPayrollReceiptScans(
-              ledger.scans,
-              ledger.pvs,
-              st.agencyPRs,
-            ),
+            prReceiptScans: syncAgencyPayrollReceiptScans(ledger.scans, ledger.pvs, st.agencyPRs),
           };
         });
         get().pushNotify({
@@ -2498,13 +2331,15 @@ export const useStore = create<StoreState>()(
                   prDisputeReason: stillDisputed ? nextReason : undefined,
                   status: stillDisputed ? ("DISPUTED" as const) : ("SENT" as const),
                   ...(stillDisputed
-                    ? { disputeUpdatedAt: new Date().toLocaleString("en-MY", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      }) }
+                    ? {
+                        disputeUpdatedAt: new Date().toLocaleString("en-MY", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }),
+                      }
                     : {
                         disputedAt: undefined,
                         disputeUpdatedAt: undefined,
@@ -2522,11 +2357,7 @@ export const useStore = create<StoreState>()(
           );
           return {
             prPaymentVouchers: ledger.pvs,
-            prReceiptScans: syncAgencyPayrollReceiptScans(
-              ledger.scans,
-              ledger.pvs,
-              st.agencyPRs,
-            ),
+            prReceiptScans: syncAgencyPayrollReceiptScans(ledger.scans, ledger.pvs, st.agencyPRs),
           };
         });
         get().toast(
@@ -2534,17 +2365,6 @@ export const useStore = create<StoreState>()(
             ? "Dispute withdrawn for that amount — other disputed lines still open"
             : "Dispute withdrawn — review and sign when ready",
           "success",
-        );
-      },
-      demoFreelancerLowRatingStrike: () => {
-        if (get().prSubRole !== "pr_free") return;
-        set((st) => ({ prFreelancerLowRatingStrikes: st.prFreelancerLowRatingStrikes + 1 }));
-        const strikes = get().prFreelancerLowRatingStrikes;
-        get().toast(
-          strikes >= 3
-            ? "3 strikes below 3.0★ — marketplace suspended (demo)"
-            : `Low rating strike ${strikes}/3 logged (demo)`,
-          strikes >= 3 ? "warn" : "info",
         );
       },
 
@@ -2830,7 +2650,9 @@ export const useStore = create<StoreState>()(
         const outlet = scan.outlet.replace(/\s+KL$/i, "").trim() || scan.outlet;
         const dateIso = receiptDateIso(scan);
         set((st) => ({
-          prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).filter((s) => s.id !== scanId),
+          prReceiptScans: (st.prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS).filter(
+            (s) => s.id !== scanId,
+          ),
           prActiveShift: st.prActiveShift
             ? {
                 ...st.prActiveShift,
@@ -2969,11 +2791,7 @@ export const useStore = create<StoreState>()(
           );
           return {
             prPaymentVouchers: ledger.pvs,
-            prReceiptScans: syncAgencyPayrollReceiptScans(
-              ledger.scans,
-              ledger.pvs,
-              st.agencyPRs,
-            ),
+            prReceiptScans: syncAgencyPayrollReceiptScans(ledger.scans, ledger.pvs, st.agencyPRs),
           };
         });
         const prId = prIdForPayeeName(pv.prName, pv.prIc, get().agencyPRs);
@@ -3006,11 +2824,7 @@ export const useStore = create<StoreState>()(
           );
           return {
             prPaymentVouchers: ledger.pvs,
-            prReceiptScans: syncAgencyPayrollReceiptScans(
-              ledger.scans,
-              ledger.pvs,
-              st.agencyPRs,
-            ),
+            prReceiptScans: syncAgencyPayrollReceiptScans(ledger.scans, ledger.pvs, st.agencyPRs),
           };
         });
         get().toast("Dispute resolved — PV re-sent to PR", "success");
@@ -3247,9 +3061,6 @@ export const useStore = create<StoreState>()(
           if (slot.prId === TIED_DEMO_ROSTER_PR_ID && isTonight) {
             next = { ...next, ...patchPrSessionForRole(cur, "pr_tied", clearPrShiftSession()) };
           }
-          if (isFreelancerPrId(slot.prId) && isTonight) {
-            next = { ...next, ...patchFreelancerPrSession(cur, clearPrShiftSession()) };
-          }
           return next;
         });
         get().pushNotify({
@@ -3389,13 +3200,21 @@ export const useStore = create<StoreState>()(
           );
           return;
         }
-        const reusableExisting = st.agencyRoster.find(
-          (s) =>
-            s.prId === prId &&
-            s.dateIso === linkedDateIso &&
-            !s.checkedOutAt &&
-            (s.status === "unavailable" || s.status === "outlet-request-pending"),
-        );
+        if (
+          existing &&
+          existing.status !== "unavailable" &&
+          existing.status !== "outlet-request-pending"
+        ) {
+          const bookingAgencyName = getPrAgencyById(agencyIdOf(existing))?.name ?? "another agency";
+          const crossAgency = agencyIdOf(existing) !== st.activeAgencyId;
+          get().toast(
+            crossAgency
+              ? `${pr.name} already booked by ${bookingAgencyName} on ${linkedDateLabel} — cannot double-book across agencies`
+              : `${pr.name} already has a shift on this date`,
+            "warn",
+          );
+          return;
+        }
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
@@ -3417,10 +3236,9 @@ export const useStore = create<StoreState>()(
           shiftEnd,
           status: "scheduled",
           estPayout: payEstimate,
-          checkedOutAt: undefined,
-          checkedInAt: undefined,
+          agencyId: st.activeAgencyId,
           agencyAssignment: {
-            agencyName: "Atlas Agency",
+            agencyName: getPrAgencyById(st.activeAgencyId)?.name ?? "Atlas Agency",
             assignedAt: stamp,
             assignedAtMs: Date.now(),
             agencyNote: event,
@@ -3790,7 +3608,8 @@ export const useStore = create<StoreState>()(
               const key = `${u.date[0]}-${String(u.date[1]).padStart(2, "0")}-${String(u.date[2]).padStart(2, "0")}`;
               return !(key === slot.dateIso && u.outlet === slot.outlet);
             }),
-            ...(slot.dateIso === DEFAULT_ROSTER_DATE_ISO && slot.prId === getPrRosterId(cur.prSubRole)
+            ...(slot.dateIso === DEFAULT_ROSTER_DATE_ISO &&
+            slot.prId === getPrRosterId(cur.prSubRole)
               ? {
                   shiftAccepted: false,
                   pendingApproval: false,
@@ -3934,22 +3753,14 @@ export const useStore = create<StoreState>()(
           assignedAtMs: Date.now(),
         };
         set((cur) => {
-          const replacementSession = isFreelancerPrId(swap.replacementPrId!)
-            ? patchFreelancerPrSession(cur, {
-                shiftAccepted: true,
-                pendingApproval: false,
-                acceptedShiftIndex: sourceIdx,
-                checkedIn: false,
-                checkedOut: false,
-              })
-            : patchPrSessionForRole(cur, "pr_tied", {
-                shiftAccepted: true,
-                pendingApproval: false,
-                acceptedShiftIndex: sourceIdx,
-                checkedIn: false,
-                checkedOut: false,
-              });
-          const requestingRole = isFreelancerPrId(swap.requestingPrId) ? "pr_free" : "pr_tied";
+          const replacementSession = patchPrSessionForRole(cur, "pr_tied", {
+            shiftAccepted: true,
+            pendingApproval: false,
+            acceptedShiftIndex: sourceIdx,
+            checkedIn: false,
+            checkedOut: false,
+          });
+          const requestingRole = "pr_tied";
           const requestingSession = patchPrSessionForRole(
             { ...cur, ...replacementSession },
             requestingRole,
@@ -4751,7 +4562,80 @@ export const useStore = create<StoreState>()(
       postSealRatePrompt: demoSnapshot.postSealRatePrompt,
       paymentCardLast4: demoSnapshot.paymentCardLast4,
       pendingPRs: demoSnapshot.pendingPRs,
-      pendingFreelancerPayrolls: demoSnapshot.pendingFreelancerPayrolls,
+      pendingAgencyLinks: demoSnapshot.pendingAgencyLinks ?? [],
+      approveAgencyLink: (id) => {
+        const link = get().pendingAgencyLinks.find((l) => l.id === id);
+        if (!link) return;
+        set((st) => ({
+          pendingAgencyLinks: st.pendingAgencyLinks.map((l) =>
+            l.id === id ? { ...l, status: "approved" as const } : l,
+          ),
+          // If this is the logged-in PR, reflect the new agency on their profile.
+          prAgencies:
+            getPrRosterId(st.prSubRole) === link.prId && !st.prAgencies.includes(link.agencyId)
+              ? [...st.prAgencies, link.agencyId]
+              : st.prAgencies,
+        }));
+        get().toast(`${link.prName} linked to ${link.agencyName}`, "success");
+      },
+      rejectAgencyLink: (id) => {
+        const link = get().pendingAgencyLinks.find((l) => l.id === id);
+        if (!link) return;
+        set((st) => ({
+          pendingAgencyLinks: st.pendingAgencyLinks.map((l) =>
+            l.id === id ? { ...l, status: "rejected" as const } : l,
+          ),
+        }));
+        get().toast(`${link.prName}'s link to ${link.agencyName} declined`, "info");
+      },
+      requestPrAgencyChange: (nextIds) => {
+        const st = get();
+        const prId = getPrRosterId(st.prSubRole);
+        const prName =
+          st.agencyPRs.find((p) => p.id === prId)?.name ?? getPrProfile(st.prSubRole).name;
+        const current = st.prAgencies;
+        const added = nextIds.filter((id) => !current.includes(id));
+        const removed = current.filter((id) => !nextIds.includes(id));
+        if (added.length === 0 && removed.length === 0) return;
+        const stamp = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        // Adding an agency → a pending link request lands in that agency's Approvals (dispatch).
+        const newLinks: PendingAgencyLink[] = added.map((agencyId) => ({
+          id: `pal-${prId}-${agencyId}-${Date.now()}`,
+          prId,
+          prName,
+          agencyId,
+          agencyName: getPrAgencyById(agencyId)?.name ?? agencyId,
+          status: "pending" as const,
+          requestedAt: stamp,
+        }));
+        set((s) => ({
+          prAgencies: nextIds,
+          pendingAgencyLinks: [
+            ...s.pendingAgencyLinks.filter(
+              (l) => !(l.prId === prId && added.includes(l.agencyId) && l.status === "pending"),
+            ),
+            ...newLinks,
+          ],
+        }));
+        for (const agencyId of added) {
+          get().toast(
+            `${getPrAgencyById(agencyId)?.name ?? "Agency"} notified to dispatch you`,
+            "success",
+          );
+        }
+        for (const agencyId of removed) {
+          get().toast(
+            `${getPrAgencyById(agencyId)?.name ?? "Agency"} notified to suspend you`,
+            "info",
+          );
+        }
+      },
       pendingCutlostRequests: demoSnapshot.pendingCutlostRequests ?? [],
 
       approvePendingPR: (id) => {
@@ -4842,39 +4726,6 @@ export const useStore = create<StoreState>()(
           prMobile: input.mobile,
           prEmail: input.email,
         }));
-      },
-      approveFreelancerPayroll: (id) => {
-        const req = get().pendingFreelancerPayrolls.find((p) => p.id === id);
-        if (!req) return;
-        set((st) => ({
-          pendingFreelancerPayrolls: st.pendingFreelancerPayrolls.map((p) =>
-            p.id === id ? { ...p, status: "approved" as const } : p,
-          ),
-          prPayrollAgencyId:
-            st.prSubRole === "pr_free" && req.prId === FREELANCER_DEMO_PR_ID
-              ? req.agencyId
-              : st.prPayrollAgencyId,
-          prFreelancerPayrollLinks:
-            req.prId === FREELANCER_DEMO_PR_ID &&
-            !st.prFreelancerPayrollLinks.includes(req.agencyId)
-              ? [...st.prFreelancerPayrollLinks, req.agencyId]
-              : st.prFreelancerPayrollLinks,
-        }));
-        get().toast(`${req.prName} approved for payroll — PVs can now be raised`, "success");
-      },
-      rejectFreelancerPayroll: (id) => {
-        const req = get().pendingFreelancerPayrolls.find((p) => p.id === id);
-        if (!req) return;
-        set((st) => ({
-          pendingFreelancerPayrolls: st.pendingFreelancerPayrolls.map((p) =>
-            p.id === id ? { ...p, status: "rejected" as const } : p,
-          ),
-          prPayrollAgencyId:
-            st.prPayrollAgencyId === req.agencyId && req.prId === FREELANCER_DEMO_PR_ID
-              ? null
-              : st.prPayrollAgencyId,
-        }));
-        get().toast(`${req.prName} payroll request declined`, "warn");
       },
 
       createShift: (s) => {
@@ -5065,18 +4916,7 @@ export const useStore = create<StoreState>()(
           get().toast("Shift is already full", "warn");
           return;
         }
-        const isFreelancerApplicant = app.prId === FREELANCER_DEMO_PR_ID;
         set((cur) => {
-          const marketplaceApp = cur.prMarketplaceApplication;
-          const syncMarketplace =
-            isFreelancerApplicant &&
-            marketplaceApp?.status === "pending" &&
-            (!marketplaceApp.applicantId || marketplaceApp.applicantId === applicantId)
-              ? {
-                  ...marketplaceApp,
-                  status: accept ? ("accepted" as const) : ("declined" as const),
-                }
-              : marketplaceApp;
           const agencyPr = cur.agencyPRs.find((p) => p.id === app.prId);
           const rosterSeed = {
             prId: app.prId,
@@ -5103,14 +4943,6 @@ export const useStore = create<StoreState>()(
             agencyRoster: accept
               ? ensureRosterSlot(cur.agencyRoster, rosterSeed, "scheduled")
               : cur.agencyRoster,
-            prMarketplaceApplication: syncMarketplace,
-            ...(accept && isFreelancerApplicant
-              ? patchFreelancerPrSession(cur, {
-                  shiftAccepted: true,
-                  pendingApproval: false,
-                  acceptedShiftIndex: shiftIndexForOutlet(shift.outletName),
-                })
-              : {}),
           };
         });
         get().toast(
@@ -5523,7 +5355,9 @@ export const useStore = create<StoreState>()(
           model = "best_effort";
           const alreadyReleased = new Set(shift.releasedEarlyPrIds ?? []);
           const activePrIds = new Set(outletShiftActivePrIds(shift));
-          const validPrs = payload.prIds.filter((id) => activePrIds.has(id) && !alreadyReleased.has(id));
+          const validPrs = payload.prIds.filter(
+            (id) => activePrIds.has(id) && !alreadyReleased.has(id),
+          );
           const unfilled = outletUnfilledDemandSlots(shift);
           const cut = Math.min(payload.slotsCut, unfilled);
           releasedPrIds = validPrs.length ? validPrs : undefined;
@@ -5555,7 +5389,9 @@ export const useStore = create<StoreState>()(
           model = payload.model ?? "guaranteed";
           const alreadyReleased = new Set(shift.releasedEarlyPrIds ?? []);
           const activePrIds = new Set(outletShiftActivePrIds(shift));
-          const valid = payload.prIds.filter((id) => activePrIds.has(id) && !alreadyReleased.has(id));
+          const valid = payload.prIds.filter(
+            (id) => activePrIds.has(id) && !alreadyReleased.has(id),
+          );
           if (!valid.length) {
             get().toast("No PRs available to release", "warn");
             return;
@@ -5637,7 +5473,8 @@ export const useStore = create<StoreState>()(
 
         if (req.kind === "best_effort") {
           if (req.slotsCut) get().cutOutletUnfilledDemand(req.shiftId, req.slotsCut);
-          if (req.releasedPrIds?.length) get().releaseOutletPrsEarly(req.shiftId, req.releasedPrIds);
+          if (req.releasedPrIds?.length)
+            get().releaseOutletPrsEarly(req.shiftId, req.releasedPrIds);
         } else if (req.kind === "release_prs" && req.releasedPrIds?.length) {
           get().releaseOutletPrsEarly(req.shiftId, req.releasedPrIds);
         } else if (req.kind === "cut_slots" && req.slotsCut) {
@@ -5849,10 +5686,6 @@ export const useStore = create<StoreState>()(
             postSealRatePrompt: nextPrompt && nextPrompt.prIds.length > 0 ? nextPrompt : null,
             agencyPRs: nextAgencyPRs,
             prs: marketplacePrsFromAgency(nextAgencyPRs),
-            prFreelancerLowRatingStrikes:
-              prId === FREELANCER_DEMO_PR_ID && lowShift
-                ? st.prFreelancerLowRatingStrikes + 1
-                : st.prFreelancerLowRatingStrikes,
           };
         });
         get().toast("Rating submitted", "success");
@@ -5891,6 +5724,7 @@ export const useStore = create<StoreState>()(
           prSubRole: s.prSubRole,
           outletSubRole: s.outletSubRole,
           agencySubRole: s.agencySubRole,
+          activeAgencyId: s.activeAgencyId,
           user: s.user,
           shifts: s.shifts,
           outletPnl: s.outletPnl,
@@ -5901,7 +5735,7 @@ export const useStore = create<StoreState>()(
           walletBalance: s.walletBalance,
           ratings: s.ratings,
           pendingPRs: s.pendingPRs,
-          pendingFreelancerPayrolls: s.pendingFreelancerPayrolls,
+          pendingAgencyLinks: s.pendingAgencyLinks,
           pendingCutlostRequests: s.pendingCutlostRequests,
           prSessionByRole,
           shiftAccepted: s.shiftAccepted,
@@ -5919,6 +5753,7 @@ export const useStore = create<StoreState>()(
           prEmail: s.prEmail,
           prAvatarPhoto: s.prAvatarPhoto,
           prPayrollAgencyId: s.prPayrollAgencyId,
+          prAgencies: s.prAgencies,
           prNotifications: s.prNotifications,
           opsNotifications: s.opsNotifications,
           adminNotifications: s.adminNotifications,
@@ -5930,8 +5765,6 @@ export const useStore = create<StoreState>()(
           prUpcomingShifts: s.prUpcomingShifts,
           prSwapRequests: s.prSwapRequests,
           prAgencyTiedAt: s.prAgencyTiedAt,
-          prFreelancerPayrollLinks: s.prFreelancerPayrollLinks,
-          prFreelancerLowRatingStrikes: s.prFreelancerLowRatingStrikes,
           prCheckInMeta: s.prCheckInMeta,
           prLeaveRequest: s.prLeaveRequest,
           prReceiptScans: s.prReceiptScans,
@@ -6014,12 +5847,19 @@ export const useStore = create<StoreState>()(
                     : seed.status === "PAID" || seed.status === "SIGNED"
                       ? seed.status
                       : (pv.status ?? seed.status),
-                  issued: isDemoTimelinePv || seed.weekStartIso ? seed.issued : (pv.issued ?? seed.issued),
+                  issued:
+                    isDemoTimelinePv || seed.weekStartIso
+                      ? seed.issued
+                      : (pv.issued ?? seed.issued),
                   due: pv.due ?? seed.due,
-                  cycle: isDemoTimelinePv || seed.weekStartIso ? seed.cycle : (pv.cycle ?? seed.cycle),
+                  cycle:
+                    isDemoTimelinePv || seed.weekStartIso ? seed.cycle : (pv.cycle ?? seed.cycle),
                   weekStartIso: seed.weekStartIso ?? pv.weekStartIso,
                   weekEndIso: seed.weekEndIso ?? pv.weekEndIso,
-                  outlet: isDemoTimelinePv || seed.weekStartIso ? seed.outlet : (pv.outlet ?? seed.outlet),
+                  outlet:
+                    isDemoTimelinePv || seed.weekStartIso
+                      ? seed.outlet
+                      : (pv.outlet ?? seed.outlet),
                   financeHeadName:
                     pv.financeHeadName === LEGACY_FINANCE_HEAD_SIGNER
                       ? seed.financeHeadName
@@ -6028,8 +5868,7 @@ export const useStore = create<StoreState>()(
                   financeHeadSignatureDataUrl:
                     pv.financeHeadSignatureDataUrl ?? seed.financeHeadSignatureDataUrl,
                   prSignatureDataUrl: identityFromSeed
-                    ? (seed.prSignatureDataUrl ??
-                      buildDemoESignatureDataUrl(seed.prName))
+                    ? (seed.prSignatureDataUrl ?? buildDemoESignatureDataUrl(seed.prName))
                     : (pv.prSignatureDataUrl ??
                       seed.prSignatureDataUrl ??
                       (pv.prSignedAt || pv.status === "PAID" || pv.status === "SIGNED"
@@ -6046,15 +5885,16 @@ export const useStore = create<StoreState>()(
                   timeOut: seed.weekStartIso ? undefined : (pv.timeOut ?? seed.timeOut),
                   shiftTime: seed.weekStartIso ? undefined : (pv.shiftTime ?? seed.shiftTime),
                   receiptIds: pv.receiptIds?.length ? pv.receiptIds : seed.receiptIds,
-                  rows: isDemoTimelinePv || seed.weekStartIso
-                    ? seed.rows
-                    : pv.rows?.length
-                      ? pv.rows.map((row, idx) => ({
-                          ...seed.rows[idx],
-                          ...row,
-                          receiptIds: row.receiptIds ?? seed.rows[idx]?.receiptIds,
-                        }))
-                      : seed.rows,
+                  rows:
+                    isDemoTimelinePv || seed.weekStartIso
+                      ? seed.rows
+                      : pv.rows?.length
+                        ? pv.rows.map((row, idx) => ({
+                            ...seed.rows[idx],
+                            ...row,
+                            receiptIds: row.receiptIds ?? seed.rows[idx]?.receiptIds,
+                          }))
+                        : seed.rows,
                 };
               })
             : [];
@@ -6122,11 +5962,7 @@ export const useStore = create<StoreState>()(
         );
         const mergedShiftHistorySynced = prepareShiftHistoryForDisplay(
           migrateShiftHistoryPrNames(
-            syncAgencyPayrollShiftHistory(
-              mergedShiftHistory,
-              mergedPvs,
-              mergedAgencyPRsForLedger,
-            ),
+            syncAgencyPayrollShiftHistory(mergedShiftHistory, mergedPvs, mergedAgencyPRsForLedger),
             current.shiftHistory,
             mergedAgencyPRsForLedger,
           ),
@@ -6212,6 +6048,7 @@ export const useStore = create<StoreState>()(
             return raw;
           })(),
           prPayrollAgencyId: p?.prPayrollAgencyId ?? current.prPayrollAgencyId,
+          prAgencies: p?.prAgencies ?? current.prAgencies,
           prNotifications: p?.prNotifications?.length ? p.prNotifications : current.prNotifications,
           opsNotifications: p?.opsNotifications ?? current.opsNotifications,
           adminNotifications: p?.adminNotifications ?? current.adminNotifications ?? [],
@@ -6230,9 +6067,6 @@ export const useStore = create<StoreState>()(
             mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
           ),
           prAgencyTiedAt: p?.prAgencyTiedAt ?? current.prAgencyTiedAt,
-          prFreelancerPayrollLinks: p?.prFreelancerPayrollLinks ?? current.prFreelancerPayrollLinks,
-          prFreelancerLowRatingStrikes:
-            p?.prFreelancerLowRatingStrikes ?? current.prFreelancerLowRatingStrikes,
           prCheckInMeta: p?.prCheckInMeta ?? current.prCheckInMeta,
           prAvatarPhoto: migratePrPortfolioAssetPath(p?.prAvatarPhoto ?? current.prAvatarPhoto),
           prReceiptScans: mergedScans.length ? mergedScans : current.prReceiptScans,
@@ -6243,10 +6077,6 @@ export const useStore = create<StoreState>()(
             mergedAgencyPRs,
           ),
           pendingPRs: mergePendingPRs(p?.pendingPRs, current.pendingPRs),
-          pendingFreelancerPayrolls: mergePendingFreelancerPayrolls(
-            p?.pendingFreelancerPayrolls,
-            current.pendingFreelancerPayrolls,
-          ),
           pendingCutlostRequests: p?.pendingCutlostRequests ?? current.pendingCutlostRequests,
           agencyPRs: mergedAgencyPRs,
           specialServiceOrders: mergeSpecialServiceOrders(

@@ -21,8 +21,8 @@ import {
 import { outletCan } from "@/lib/outlet-rbac";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
-import { rosterSlotAgencyName, languagesFromPr } from "@/lib/agency-demo";
-import { TIED_DEMO_ROSTER_PR_ID } from "@/lib/pr-demo";
+import { rosterSlotAgencyName, languagesFromPr, agencyIdOf } from "@/lib/agency-demo";
+import { TIED_DEMO_ROSTER_PR_ID, getPrAgencyById } from "@/lib/pr-demo";
 import type { PrShiftSessionState } from "@/lib/pr-session";
 import { comcardPreviewFromSlot, toComcardPreview } from "@/components/agency/PrComcardIdentity";
 import {
@@ -43,7 +43,6 @@ import { OutletPrLiveSalesSheet } from "@/components/outlet/OutletPrLiveSalesShe
 import { OutletPrLiveSalesFloorTable } from "@/components/outlet/OutletPrLiveSalesFloorTable";
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
-
 
 type FloorDisplayStatus = "on-duty" | "en-route" | "scheduled" | "checked-out";
 
@@ -87,8 +86,7 @@ function resolveTiedPrLiveAttendance(
   const onTiedRole = prSubRole === "pr_tied";
   const liveCheckedIn = onTiedRole ? checkedIn : (cache?.checkedIn ?? checkedIn);
   const liveCheckedOut = onTiedRole ? checkedOut : (cache?.checkedOut ?? checkedOut);
-  const liveSession =
-    (onTiedRole ? prActiveShift : cache?.prActiveShift) ?? prActiveShift ?? null;
+  const liveSession = (onTiedRole ? prActiveShift : cache?.prActiveShift) ?? prActiveShift ?? null;
   return {
     onDuty: Boolean(liveCheckedIn && !liveCheckedOut && liveSession),
     checkedOutTonight: Boolean(liveCheckedOut),
@@ -178,13 +176,7 @@ export function OutletTodayOperationPanel({
 
   const tiedLive = useMemo(
     () =>
-      resolveTiedPrLiveAttendance(
-        prSessionByRole,
-        prSubRole,
-        checkedIn,
-        checkedOut,
-        prActiveShift,
-      ),
+      resolveTiedPrLiveAttendance(prSessionByRole, prSubRole, checkedIn, checkedOut, prActiveShift),
     [prSessionByRole, prSubRole, checkedIn, checkedOut, prActiveShift],
   );
 
@@ -267,9 +259,7 @@ export function OutletTodayOperationPanel({
         )
       : null;
   const historyPr = historyPrId ? prs.find((p) => p.id === historyPrId) : null;
-  const historyPrSlot = historyPrId
-    ? rosterTonight.find((s) => s.prId === historyPrId)
-    : undefined;
+  const historyPrSlot = historyPrId ? rosterTonight.find((s) => s.prId === historyPrId) : undefined;
   const historyPrAgency = historyPrSlot ? rosterSlotAgencyName(historyPrSlot) : undefined;
   const tierRates = useMemo(
     () => resolveShiftTierRates(shift, outletWorkspace),
@@ -341,22 +331,26 @@ export function OutletTodayOperationPanel({
     prReceiptScans,
   ]);
 
-  const tonightFloorTotals = useMemo(
-    () => {
-      if (!floorSalesStarted) {
-        return { totalSalesRm: 0, totalDrinksRm: 0, drinkUnits: 0, totalTipsRm: 0 };
-      }
-      return outletTonightFloorTotals({
-        shift,
-        outletName,
-        drinkMenu: outletWorkspace.drinkMenu ?? [],
-        rosterSlots: rosterTonight,
-        prIds: shift.prs ?? [],
-        receiptScans: prReceiptScans,
-      });
-    },
-    [floorSalesStarted, shift, outletName, outletWorkspace.drinkMenu, rosterTonight, prReceiptScans],
-  );
+  const tonightFloorTotals = useMemo(() => {
+    if (!floorSalesStarted) {
+      return { totalSalesRm: 0, totalDrinksRm: 0, drinkUnits: 0, totalTipsRm: 0 };
+    }
+    return outletTonightFloorTotals({
+      shift,
+      outletName,
+      drinkMenu: outletWorkspace.drinkMenu ?? [],
+      rosterSlots: rosterTonight,
+      prIds: shift.prs ?? [],
+      receiptScans: prReceiptScans,
+    });
+  }, [
+    floorSalesStarted,
+    shift,
+    outletName,
+    outletWorkspace.drinkMenu,
+    rosterTonight,
+    prReceiptScans,
+  ]);
 
   const toggleTag = (tag: string) => {
     setTags((cur) => (cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag]));
@@ -403,134 +397,148 @@ export function OutletTodayOperationPanel({
         onOpenChange={setPrTonightOpen}
         className="!mb-0"
       >
-          {staffTonight.length === 0 ? (
-            <p className="iz-tiny iz-muted rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
-              No PRs assigned for tonight yet.
-            </p>
-          ) : (
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {staffTonight.map(({ pr, slot, displayStatus }) => {
-                const agencyProfile = agencyPrById.get(pr.id);
-                const comcardPr = agencyProfile
-                  ? toComcardPreview(agencyProfile)
-                  : comcardPreviewFromSlot({ prId: pr.id, prName: pr.name });
-                const langs = agencyProfile ? languagesFromPr(agencyProfile) : pr.languages;
-                const drinkUnits = liveDrinkUnitsByPrId.get(pr.id);
-                const opsLine = [
-                  displayStatus === "on-duty" && slot?.checkedInAt
-                    ? `In ${slot.checkedInAt}`
-                    : displayStatus === "checked-out" && slot?.checkedOutAt
-                      ? `Out ${slot.checkedOutAt}`
-                      : null,
-                  drinkUnits ? `${drinkUnits} drinks` : null,
-                  slot ? rosterSlotAgencyName(slot) : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ");
+        {staffTonight.length === 0 ? (
+          <p className="iz-tiny iz-muted rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
+            No PRs assigned for tonight yet.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {staffTonight.map(({ pr, slot, displayStatus }) => {
+              const agencyProfile = agencyPrById.get(pr.id);
+              const comcardPr = agencyProfile
+                ? toComcardPreview(agencyProfile)
+                : comcardPreviewFromSlot({ prId: pr.id, prName: pr.name });
+              const langs = agencyProfile ? languagesFromPr(agencyProfile) : pr.languages;
+              const drinkUnits = liveDrinkUnitsByPrId.get(pr.id);
+              // Agency label: prefer the shift's assigning agency (slot), else fall back to the
+              // PR's own owning agency — so a Delta PR (e.g. Sofia) reads "Delta Agency" here,
+              // not the Atlas default, even when the slot carries no explicit agency tag.
+              const ownerAgencyName = agencyProfile
+                ? getPrAgencyById(agencyIdOf(agencyProfile))?.name
+                : undefined;
+              const agencyLabel = slot
+                ? rosterSlotAgencyName(slot, ownerAgencyName)
+                : ownerAgencyName;
+              const opsLine = [
+                displayStatus === "on-duty" && slot?.checkedInAt
+                  ? `In ${slot.checkedInAt}`
+                  : displayStatus === "checked-out" && slot?.checkedOutAt
+                    ? `Out ${slot.checkedOutAt}`
+                    : null,
+                drinkUnits ? `${drinkUnits} drinks` : null,
+                agencyLabel ?? null,
+              ]
+                .filter(Boolean)
+                .join(" · ");
 
-                return (
-                  <div
-                    key={pr.id}
-                    className="iz-outlet-pr-tonight-card flex flex-col gap-1.5 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-2"
+              return (
+                <div
+                  key={pr.id}
+                  className="iz-outlet-pr-tonight-card flex flex-col gap-1.5 rounded-xl border border-[var(--iz-line)] bg-[var(--iz-grad-card)] p-2"
+                >
+                  <button
+                    type="button"
+                    className="iz-comcard-3d-preview-btn relative w-full text-left"
+                    aria-label={`View comcard for ${pr.name}`}
+                    onClick={() => setComcardPreviewId(pr.id)}
                   >
-                    <button
-                      type="button"
-                      className="iz-comcard-3d-preview-btn relative w-full text-left"
-                      aria-label={`View comcard for ${pr.name}`}
-                      onClick={() => setComcardPreviewId(pr.id)}
+                    <IzPill
+                      variant={workforceStatusVariant(displayStatus)}
+                      className="absolute right-1 top-1 z-10 !py-0.5 shadow-sm"
                     >
-                      <IzPill
-                        variant={workforceStatusVariant(displayStatus)}
-                        className="absolute right-1 top-1 z-10 !py-0.5 shadow-sm"
-                      >
-                        {workforceStatusLabel(displayStatus)}
-                      </IzPill>
-                      <Comcard3dPreviewCard
-                        pr={comcardPr}
-                        trainingLevel={agencyProfile?.trainingLevel}
-                        rating={agencyProfile?.rating ?? pr.rating}
-                        languages={langs}
-                        place={agencyProfile?.place}
-                      />
-                    </button>
+                      {workforceStatusLabel(displayStatus)}
+                    </IzPill>
+                    <Comcard3dPreviewCard
+                      pr={comcardPr}
+                      trainingLevel={agencyProfile?.trainingLevel}
+                      rating={agencyProfile?.rating ?? pr.rating}
+                      languages={langs}
+                      place={agencyProfile?.place}
+                    />
+                  </button>
 
-                    {opsLine && (
-                      <p className="iz-outlet-pr-tonight-card__ops iz-muted2 line-clamp-2">
-                        {opsLine}
-                      </p>
-                    )}
+                  {opsLine && (
+                    <p className="iz-outlet-pr-tonight-card__ops iz-muted2 line-clamp-2">
+                      {opsLine}
+                    </p>
+                  )}
 
+                  <button
+                    type="button"
+                    onClick={() => setLiveSalesPrId(pr.id)}
+                    className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
+                  >
+                    <TitleWithIcon>Live sales</TitleWithIcon>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setHistoryPrId(pr.id)}
+                    className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
+                  >
+                    <TitleWithIcon>Shift history</TitleWithIcon>
+                  </button>
+
+                  {displayStatus === "checked-out" && (
                     <button
                       type="button"
-                      onClick={() => setLiveSalesPrId(pr.id)}
+                      onClick={() => setOpenPr(pr.id)}
                       className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
                     >
-                      <TitleWithIcon>Live sales</TitleWithIcon>
+                      <TitleWithIcon>Rate</TitleWithIcon>
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setHistoryPrId(pr.id)}
-                      className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
-                    >
-                      <TitleWithIcon>Shift history</TitleWithIcon>
-                    </button>
-
-                    {displayStatus === "checked-out" && (
-                      <button
-                        type="button"
-                        onClick={() => setOpenPr(pr.id)}
-                        className="iz-btn iz-btn-soft iz-btn-sm iz-outlet-pr-tonight-card__btn w-full"
-                      >
-                        <TitleWithIcon>Rate</TitleWithIcon>
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <OutletSection
-            id={OUTLET_LIVE_SALES_SECTION_ID}
-            title="Live sales"
-            collapsible
-            open={liveSalesOpen}
-            onOpenChange={setLiveSalesOpen}
-            className="iz-outlet-live-sales-section !mt-3"
-            collapsedPreview={
-              <OutletTonightSummaryTable
-                floorTotals={tonightFloorTotals}
-                outletSubRole={outletSubRole}
-                drinkMenu={outletWorkspace.drinkMenu ?? []}
-                shift={shift}
-                variant="collapsed"
-              />
-            }
-          >
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <OutletSection
+          id={OUTLET_LIVE_SALES_SECTION_ID}
+          title="Live sales"
+          collapsible
+          open={liveSalesOpen}
+          onOpenChange={setLiveSalesOpen}
+          className="iz-outlet-live-sales-section !mt-3"
+          collapsedPreview={
             <OutletTonightSummaryTable
               floorTotals={tonightFloorTotals}
               outletSubRole={outletSubRole}
               drinkMenu={outletWorkspace.drinkMenu ?? []}
               shift={shift}
-              variant="embedded"
+              variant="collapsed"
             />
-            <OutletPrLiveSalesFloorTable
-              rows={liveEarningsRows}
-              onRowClick={(prId) => setLiveSalesPrId(prId)}
-            />
-          </OutletSection>
+          }
+        >
+          <OutletTonightSummaryTable
+            floorTotals={tonightFloorTotals}
+            outletSubRole={outletSubRole}
+            drinkMenu={outletWorkspace.drinkMenu ?? []}
+            shift={shift}
+            variant="embedded"
+          />
+          <OutletPrLiveSalesFloorTable
+            rows={liveEarningsRows}
+            onRowClick={(prId) => setLiveSalesPrId(prId)}
+          />
+        </OutletSection>
       </OutletSection>
 
       <IzSheet open={!!comcardPreviewPr} onClose={() => setComcardPreviewId(null)} comcard>
         {comcardPreviewPr && (
           <div className="iz-outlet-comcard-sheet">
             <p className="iz-outlet-comcard-sheet__meta">
-              <span className="font-sora font-bold text-[var(--iz-txt)]">{comcardPreviewPr.name}</span>
+              <span className="font-sora font-bold text-[var(--iz-txt)]">
+                {comcardPreviewPr.name}
+              </span>
               {(() => {
                 const slot = rosterTonight.find((s) => s.prId === comcardPreviewId);
-                return slot ? (
-                  <span className="iz-muted"> · {rosterSlotAgencyName(slot)}</span>
-                ) : null;
+                const owner = comcardPreviewId ? agencyPrById.get(comcardPreviewId) : undefined;
+                const ownerAgencyName = owner
+                  ? getPrAgencyById(agencyIdOf(owner))?.name
+                  : undefined;
+                const label = slot ? rosterSlotAgencyName(slot, ownerAgencyName) : ownerAgencyName;
+                return label ? <span className="iz-muted"> · {label}</span> : null;
               })()}
             </p>
             <Comcard3dPreviewVisual pr={comcardPreviewPr} showName={false} compact />

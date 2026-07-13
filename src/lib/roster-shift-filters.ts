@@ -14,7 +14,7 @@ export type RosterShiftFilterState = {
 
 /** Extra filters for the weekly planning timetable */
 export type RosterTimetableFilterState = RosterShiftFilterState & {
-  prType: "" | "agency" | "freelancer";
+  prType: "" | "agency";
   showPrs: "" | "scheduled" | "free";
 };
 
@@ -120,10 +120,7 @@ export function filterRosterShifts(
   });
 }
 
-export function timetableSlotMatches(
-  slot: AgencyRosterSlot,
-  f: RosterShiftFilterState,
-): boolean {
+export function timetableSlotMatches(slot: AgencyRosterSlot, f: RosterShiftFilterState): boolean {
   return filterRosterShifts([slot], f).length > 0;
 }
 
@@ -139,8 +136,6 @@ export function filterTimetablePrs(
   return agencyPRs.filter((pr) => {
     if (pr.suspended || pr.detached) return false;
     if (q && !pr.name.toLowerCase().includes(q)) return false;
-    if (f.prType === "agency" && pr.id.startsWith("freelancer-")) return false;
-    if (f.prType === "freelancer" && !pr.id.startsWith("freelancer-")) return false;
 
     const weekSlots = roster.filter((s) => s.prId === pr.id && weekDays.includes(s.dateIso));
     const matchingSlots = filterRosterShifts(weekSlots, f);

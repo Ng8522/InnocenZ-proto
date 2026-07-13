@@ -5,7 +5,10 @@ import { outletCan } from "@/lib/outlet-rbac";
 import { IzPill } from "@/components/iz/ui";
 import { OutletShiftSalesPanel } from "@/components/outlet/OutletLogSales";
 // import { OutletSealReview } from "@/components/outlet/OutletSealReview";
-import { OutletCutLossActions, OUTLET_OPEN_CUTLOST_EVENT } from "@/components/outlet/OutletCutLossActions";
+import {
+  OutletCutLossActions,
+  OUTLET_OPEN_CUTLOST_EVENT,
+} from "@/components/outlet/OutletCutLossActions";
 import { WorkspaceTierRatesEditor } from "@/components/outlet/WorkspaceTierRatesEditor";
 import {
   OutletActionButton,
@@ -75,7 +78,7 @@ export function OutletShiftDetailPanel({
   hideLogSales?: boolean;
   /** Home page renders cutlost at page bottom — hide inline block here. */
   hideCutlost?: boolean;
-  /** When set, show linked agency instead of destination/freelancer labels. */
+  /** When set, show linked agency instead of destination labels. */
   staffingAgency?: string;
   onDelete?: () => void;
 }) {
@@ -99,10 +102,12 @@ export function OutletShiftDetailPanel({
   const todayIso = getLiveTodayIso();
   const shiftDateIso = resolveOutletShiftDateIso(shift.date, shift.dateIso, todayIso);
   const showCutlost = variant === "home" || shiftDateIso === todayIso;
-  const applicants = shiftApplicants.filter((a) => a.shiftId === shift.id && a.status === "pending");
+  const applicants = shiftApplicants.filter(
+    (a) => a.shiftId === shift.id && a.status === "pending",
+  );
   const outletRequests = applicants.filter((a) => a.source === "outlet_request");
-  const freelancerApplicants = applicants.filter((a) => a.source !== "outlet_request");
-  const visibleApplicants = showApplicantActions ? freelancerApplicants : outletRequests;
+  const selfApplicants = applicants.filter((a) => a.source !== "outlet_request");
+  const visibleApplicants = showApplicantActions ? selfApplicants : outletRequests;
 
   const drinkLines = shiftDrinkMenuDetailLines(shift, outletWorkspace.drinkMenu ?? []);
   const eventTypeLabel = formatShiftEventTypeSummary(
@@ -130,10 +135,7 @@ export function OutletShiftDetailPanel({
     () =>
       specialServicesForOutlet(specialServiceOrders, shift.outletName)
         .filter(
-          (r) =>
-            r.dateIso === shiftDateIso &&
-            r.status !== "declined" &&
-            r.status !== "rejected",
+          (r) => r.dateIso === shiftDateIso && r.status !== "declined" && r.status !== "rejected",
         )
         .reduce((sum, r) => sum + r.amountIn, 0),
     [specialServiceOrders, shift.outletName, shiftDateIso],
@@ -195,7 +197,9 @@ export function OutletShiftDetailPanel({
     window.dispatchEvent(
       new CustomEvent(OUTLET_OPEN_CUTLOST_EVENT, { detail: { sectionId: cutlostSectionId } }),
     );
-    document.getElementById(cutlostSectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document
+      .getElementById(cutlostSectionId)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (

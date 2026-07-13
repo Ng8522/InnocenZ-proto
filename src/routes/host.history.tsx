@@ -27,17 +27,11 @@ import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 import { downloadPvBreakdownCsv, downloadPvBreakdownPdf } from "@/lib/pv-pdf";
 import { payeeFromPrPortal } from "@/lib/pv-template";
 import { usePrPortalReady } from "@/lib/use-pr-sub-role";
+import { Calendar, ChevronDown, Clock, Download, Filter, Search, Wallet, X } from "lucide-react";
 import {
-  Calendar,
-  ChevronDown,
-  Clock,
-  Download,
-  Filter,
-  Search,
-  Wallet,
-  X,
-} from "lucide-react";
-import { PaymentHistStatusChips, PrPaymentHistoryPanel } from "@/components/pr/PrPaymentHistoryPanel";
+  PaymentHistStatusChips,
+  PrPaymentHistoryPanel,
+} from "@/components/pr/PrPaymentHistoryPanel";
 import {
   shiftHistoryStatusLabel,
   isPaymentHistoryPv,
@@ -47,7 +41,14 @@ import {
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
 import { HistPayrollWeekSection } from "@/components/pr/HistPayrollWeekSection";
 import { LabelWithIcon, TitleWithIcon } from "@/components/iz/TitleWithIcon";
-import { IzCard, IzCardTitle, IzPill, IzSectionLabel, IzTimeInput, formatRM } from "@/components/iz/ui";
+import {
+  IzCard,
+  IzCardTitle,
+  IzPill,
+  IzSectionLabel,
+  IzTimeInput,
+  formatRM,
+} from "@/components/iz/ui";
 import { calendarNavBounds, HistDateCalendar } from "@/components/iz/HistDateCalendar";
 import { parseDateInputMs, parseScannedAtMs } from "@/lib/payroll-filters";
 import { getPayrollWeekSundayIso } from "@/lib/demo-clock";
@@ -414,10 +415,7 @@ function pvShiftSessionIds(pv: PrPaymentVoucher): string[] {
   if (pv.shiftSessionId) ids.add(pv.shiftSessionId);
   for (const row of pv.rows) {
     if (!row.outlet || row.outlet === "—") continue;
-    const key = pvLineDateKey(
-      { date: row.date, cycle: pv.cycle } as PvLineRecord,
-      pv.issued,
-    );
+    const key = pvLineDateKey({ date: row.date, cycle: pv.cycle } as PvLineRecord, pv.issued);
     if (key) ids.add(shiftSessionIdForRow(key, row.outlet));
   }
   return [...ids];
@@ -426,10 +424,7 @@ function pvShiftSessionIds(pv: PrPaymentVoucher): string[] {
 function pvDateKeys(pv: PrPaymentVoucher, scansById: Record<string, PrReceiptScan>): string[] {
   const keys = new Set<string>();
   for (const row of pv.rows) {
-    const key = pvLineDateKey(
-      { date: row.date, cycle: pv.cycle } as PvLineRecord,
-      pv.issued,
-    );
+    const key = pvLineDateKey({ date: row.date, cycle: pv.cycle } as PvLineRecord, pv.issued);
     if (key) keys.add(key);
   }
   for (const scan of pvLinkedScans(pv, scansById)) {
@@ -508,7 +503,10 @@ function matchesPaymentHistFilters(
   scansById: Record<string, PrReceiptScan>,
 ): boolean {
   if (!isPaymentHistoryPv(pv)) return false;
-  if (filters.query.trim() && !paymentHistSearchBlob(pv, scansById).includes(filters.query.trim().toLowerCase())) {
+  if (
+    filters.query.trim() &&
+    !paymentHistSearchBlob(pv, scansById).includes(filters.query.trim().toLowerCase())
+  ) {
     return false;
   }
   if (filters.status && pv.status !== filters.status) return false;
@@ -608,7 +606,6 @@ function HistoryPage() {
   const { tab, pvId: searchPvId } = Route.useSearch();
   const navigate = useNavigate();
   const { ready, role: prSubRole } = usePrPortalReady();
-  const isFreelancer = prSubRole === "pr_free";
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   const prReceiptScans = useStore((s) => s.prReceiptScans ?? []);
   const prDisplayName = useStore((s) => s.prDisplayName);
@@ -665,15 +662,17 @@ function HistoryPage() {
   const [draft, setDraft] = useState<HistFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  const [paymentFilters, setPaymentFilters] = useState<PaymentHistFilters>(EMPTY_PAYMENT_HIST_FILTERS);
+  const [paymentFilters, setPaymentFilters] = useState<PaymentHistFilters>(
+    EMPTY_PAYMENT_HIST_FILTERS,
+  );
   const [paymentDraft, setPaymentDraft] = useState<PaymentHistFilters>(EMPTY_PAYMENT_HIST_FILTERS);
   const [paymentFilterOpen, setPaymentFilterOpen] = useState(false);
 
-  const paymentHistVouchers = useMemo(
-    () => myVouchers.filter(isPaymentHistoryPv),
-    [myVouchers],
+  const paymentHistVouchers = useMemo(() => myVouchers.filter(isPaymentHistoryPv), [myVouchers]);
+  const scanById = useMemo(
+    () => Object.fromEntries(myReceiptScans.map((s) => [s.id, s])),
+    [myReceiptScans],
   );
-  const scanById = useMemo(() => Object.fromEntries(myReceiptScans.map((s) => [s.id, s])), [myReceiptScans]);
 
   const paymentOutlets = useMemo(() => {
     const set = new Set<string>();
@@ -775,9 +774,7 @@ function HistoryPage() {
           filters.timeTo,
         );
       });
-    return matched
-      .slice()
-      .sort((a, b) => dateKey(b.d).localeCompare(dateKey(a.d)));
+    return matched.slice().sort((a, b) => dateKey(b.d).localeCompare(dateKey(a.d)));
   }, [histRows, filters, shiftMetaForHistRow]);
 
   const shiftPeriodEarnings = useMemo(
@@ -802,10 +799,7 @@ function HistoryPage() {
     [filteredRows, myVouchers],
   );
 
-  const disputedShiftWeeks = useMemo(
-    () => disputedPayrollWeekPvs(myVouchers),
-    [myVouchers],
-  );
+  const disputedShiftWeeks = useMemo(() => disputedPayrollWeekPvs(myVouchers), [myVouchers]);
 
   const historyWeekEntries = useMemo(() => {
     type Entry =
@@ -950,14 +944,20 @@ function HistoryPage() {
 
               {filterCount > 0 && (
                 <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-[var(--iz-line)] pt-2.5">
-                  {(filters.date || filters.venue || filters.status || filters.timeFrom || filters.timeTo) && (
+                  {(filters.date ||
+                    filters.venue ||
+                    filters.status ||
+                    filters.timeFrom ||
+                    filters.timeTo) && (
                     <HistInlineFilterChips
                       date={filters.date}
                       timeFrom={filters.timeFrom}
                       timeTo={filters.timeTo}
                       dateOptions={histDateOptions}
                       outlet={filters.venue}
-                      statusLabel={filters.status ? shiftHistoryStatusLabel(filters.status) : undefined}
+                      statusLabel={
+                        filters.status ? shiftHistoryStatusLabel(filters.status) : undefined
+                      }
                       onClearDate={() =>
                         setFilters((prev) => ({ ...prev, date: "", timeFrom: "", timeTo: "" }))
                       }
@@ -1009,11 +1009,15 @@ function HistoryPage() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="iz-tiny iz-muted2 tracking-widest">PAYROLL WEEK · DISPUTED</p>
-                          <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">{pv.cycle}</p>
+                          <p className="iz-tiny iz-muted2 tracking-widest">
+                            PAYROLL WEEK · DISPUTED
+                          </p>
+                          <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">
+                            {pv.cycle}
+                          </p>
                           <p className="iz-tiny mt-1 text-[var(--iz-red)]">
-                            Shift lines held while dispute is open — amounts frozen on Payment until agency
-                            resolves.
+                            Shift lines held while dispute is open — amounts frozen on Payment until
+                            agency resolves.
                           </p>
                         </div>
                         <IzPill variant="red">DISPUTED</IzPill>
@@ -1037,7 +1041,11 @@ function HistoryPage() {
                 return (
                   <HistPayrollWeekSection
                     key={cycle.weekStart}
-                    title={isCurrentWeek ? `Current week · ${cycle.label}` : `Payroll week · ${cycle.label}`}
+                    title={
+                      isCurrentWeek
+                        ? `Current week · ${cycle.label}`
+                        : `Payroll week · ${cycle.label}`
+                    }
                     hint={`${formatRM(cycle.earnings)} earned · ${formatRM(cycle.wages)} wages`}
                     shiftCount={cycle.rows.length}
                     isCurrent={isCurrentWeek}
@@ -1168,7 +1176,6 @@ function HistoryPage() {
           }}
         />
       )}
-
     </div>
   );
 }
@@ -1644,7 +1651,9 @@ function PaymentHistorySection({
               className="iz-hist-chip"
               onClick={() => setFilters((p) => ({ ...p, status: "" }))}
             >
-              Status: {PAYMENT_HIST_STATUS_OPTIONS.find((o) => o.value === filters.status)?.label ?? filters.status}
+              Status:{" "}
+              {PAYMENT_HIST_STATUS_OPTIONS.find((o) => o.value === filters.status)?.label ??
+                filters.status}
               <X className="h-3 w-3" />
             </button>
           )}
@@ -1936,12 +1945,7 @@ function HistInlineFilterChips({
   onClearAll: () => void;
   hideClearAll?: boolean;
 }) {
-  const hasChip =
-    date ||
-    (date && timeFrom) ||
-    (date && timeTo) ||
-    outlet ||
-    statusLabel;
+  const hasChip = date || (date && timeFrom) || (date && timeTo) || outlet || statusLabel;
   if (!hasChip && hideClearAll) return null;
 
   return (
@@ -1977,7 +1981,11 @@ function HistInlineFilterChips({
         </button>
       )}
       {!hideClearAll && (
-        <button type="button" className="iz-tiny font-semibold text-[var(--iz-gold-l)]" onClick={onClearAll}>
+        <button
+          type="button"
+          className="iz-tiny font-semibold text-[var(--iz-gold-l)]"
+          onClick={onClearAll}
+        >
           Clear all filters
         </button>
       )}
@@ -2003,14 +2011,12 @@ function PvBreakdownSection({
   pvDateOptions,
   pvDefaultMonth,
   onClear,
-  isFreelancer,
   highlightPvId,
 }: {
   lines: PvLineRecord[];
   scans: PrReceiptScan[];
   vouchers: PrPaymentVoucher[];
   onDownloadPdf: (pv: PrPaymentVoucher) => void;
-  isFreelancer: boolean;
   highlightPvId?: string;
   filters: PvFilters;
   setFilters: Dispatch<SetStateAction<PvFilters>>;
@@ -2265,7 +2271,7 @@ function PvBreakdownSection({
       )}
 
       <Link to="/host/PaymentVoucher" className="iz-btn iz-btn-soft mt-3">
-        {isFreelancer ? "Open Payment Vouchers" : "Sign or dispute PV"}
+        Sign or dispute PV
       </Link>
 
       <IzSheet open={pvFilterOpen} onClose={() => setPvFilterOpen(false)}>

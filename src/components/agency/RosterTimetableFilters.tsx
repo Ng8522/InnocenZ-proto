@@ -51,11 +51,12 @@ export function RosterTimetableFilters({
           <IzSelect
             block
             value={filters.prType}
-            onChange={(e) => onChange({ prType: e.target.value as RosterTimetableFilterState["prType"] })}
+            onChange={(e) =>
+              onChange({ prType: e.target.value as RosterTimetableFilterState["prType"] })
+            }
           >
-            <option value="">Agency &amp; freelancer</option>
+            <option value="">All PRs</option>
             <option value="agency">Agency-tied only</option>
-            <option value="freelancer">Freelancer only</option>
           </IzSelect>
         </label>
 
@@ -64,7 +65,9 @@ export function RosterTimetableFilters({
           <IzSelect
             block
             value={filters.showPrs}
-            onChange={(e) => onChange({ showPrs: e.target.value as RosterTimetableFilterState["showPrs"] })}
+            onChange={(e) =>
+              onChange({ showPrs: e.target.value as RosterTimetableFilterState["showPrs"] })
+            }
           >
             <option value="">Everyone</option>
             <option value="scheduled">With shifts</option>
@@ -93,7 +96,9 @@ export function RosterTimetableFilters({
           <IzSelect
             block
             value={filters.status}
-            onChange={(e) => onChange({ status: e.target.value as RosterTimetableFilterState["status"] })}
+            onChange={(e) =>
+              onChange({ status: e.target.value as RosterTimetableFilterState["status"] })
+            }
           >
             <option value="">Any status</option>
             <option value="scheduled">Scheduled</option>

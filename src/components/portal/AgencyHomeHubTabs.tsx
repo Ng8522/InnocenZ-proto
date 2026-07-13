@@ -9,12 +9,21 @@ import { agencyCan, type AgencySubRole } from "@/lib/agency-rbac";
 import { agencyPvStatusLabel } from "@/lib/agency-payroll";
 import { pvStatusPillVariant } from "@/lib/pr-demo";
 import { deriveLiveWorkforce } from "@/lib/portal-sync";
+import { scopeToAgency } from "@/lib/agency-demo";
 import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 
 type HubTab = "on-duty" | "approvals" | "review" | "disputes";
 
-function HubPanelLink({ to, search, label }: { to: string; search?: Record<string, string>; label: string }) {
+function HubPanelLink({
+  to,
+  search,
+  label,
+}: {
+  to: string;
+  search?: Record<string, string>;
+  label: string;
+}) {
   return (
     <Link to={to} search={search} className="iz-portal-hub-link">
       {label} <ChevronRight className="shrink-0" />
@@ -23,7 +32,12 @@ function HubPanelLink({ to, search, label }: { to: string; search?: Record<strin
 }
 
 export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubRole | null }) {
-  const agencyRoster = useStore((s) => s.agencyRoster);
+  const allAgencyRoster = useStore((s) => s.agencyRoster);
+  const activeAgencyId = useStore((s) => s.activeAgencyId);
+  const agencyRoster = useMemo(
+    () => scopeToAgency(allAgencyRoster, activeAgencyId),
+    [allAgencyRoster, activeAgencyId],
+  );
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
   const pendingPRs = useStore((s) => s.pendingPRs);
@@ -50,7 +64,8 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
   const activeTab = tabs.some((t) => t.id === tab) ? tab : defaultTab;
 
   const workforce = useMemo(
-    () => deriveLiveWorkforce(agencyRoster, DEFAULT_ROSTER_DATE_ISO, outletCommissionRules, perDrinkRm),
+    () =>
+      deriveLiveWorkforce(agencyRoster, DEFAULT_ROSTER_DATE_ISO, outletCommissionRules, perDrinkRm),
     [agencyRoster, outletCommissionRules, perDrinkRm],
   );
 
@@ -98,9 +113,7 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
         ))}
       </div>
 
-      {activeTab === "on-duty" && showWorkforce && (
-        <LiveWorkforceTable embedded linkPrProfiles />
-      )}
+      {activeTab === "on-duty" && showWorkforce && <LiveWorkforceTable embedded linkPrProfiles />}
 
       {activeTab === "approvals" && showApprovals && (
         <>
@@ -146,7 +159,8 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
                       </td>
                       <td className="iz-portal-table-meta">Cutlost request</td>
                       <td className="iz-portal-table-meta">
-                        {cutlostRequestTitle(req)} · ~RM {Math.round(req.estimatedSavings).toLocaleString("en-MY")}
+                        {cutlostRequestTitle(req)} · ~RM{" "}
+                        {Math.round(req.estimatedSavings).toLocaleString("en-MY")}
                       </td>
                     </PortalClickableTableRow>
                   ))}
@@ -161,7 +175,11 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
         <>
           <div className="iz-portal-panel-head">
             <h3 className="font-sora text-base font-bold">PV pending review</h3>
-            <HubPanelLink to="/agency/pv" search={{ status: "PENDING_REVIEW" }} label="Open payroll" />
+            <HubPanelLink
+              to="/agency/pv"
+              search={{ status: "PENDING_REVIEW" }}
+              label="Open payroll"
+            />
           </div>
           {pendingReview.length === 0 ? (
             <p className="iz-tiny iz-muted px-4 py-6 text-center">No PVs awaiting review.</p>
@@ -191,7 +209,10 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
                       <td className="iz-portal-table-meta">{pv.outlet}</td>
                       <td className="iz-portal-table-meta">{formatRM(pv.net)}</td>
                       <td className="iz-portal-table-status">
-                        <IzPill variant={pvStatusPillVariant(pv.status)} className="!py-0.5 !text-[9px]">
+                        <IzPill
+                          variant={pvStatusPillVariant(pv.status)}
+                          className="!py-0.5 !text-[9px]"
+                        >
                           {agencyPvStatusLabel(pv.status)}
                         </IzPill>
                       </td>
@@ -238,7 +259,10 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
                       <td className="iz-portal-table-meta">{pv.outlet}</td>
                       <td className="iz-portal-table-meta">{formatRM(pv.net)}</td>
                       <td className="iz-portal-table-status">
-                        <IzPill variant={pvStatusPillVariant(pv.status)} className="!py-0.5 !text-[9px]">
+                        <IzPill
+                          variant={pvStatusPillVariant(pv.status)}
+                          className="!py-0.5 !text-[9px]"
+                        >
                           {agencyPvStatusLabel(pv.status)}
                         </IzPill>
                       </td>

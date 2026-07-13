@@ -36,19 +36,11 @@ import {
   syncWeeklyPvWithSummary,
 } from "@/lib/pr-weekly-payment";
 import { usePrPortalReady } from "@/lib/use-pr-sub-role";
-import {
-  FileText,
-  Check,
-  Shield,
-  Star,
-  Clock,
-  ChevronDown,
-} from "lucide-react";
+import { FileText, Check, Shield, Star, Clock, ChevronDown } from "lucide-react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppTopbar } from "@/components/Nav";
 import { useStore } from "@/lib/store";
-import { FreelancerPayrollNotice } from "@/components/iz/FreelancerPayrollNotice";
 import { IzSheet } from "@/components/iz/Sheet";
 import { PrSignaturePad } from "@/components/pr/PrSignaturePad";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
@@ -112,8 +104,6 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
       }),
     [prSubRole, profile, prDisplayName, prIcName, prMobile, agencyPr],
   );
-  const isFreelancer = prSubRole === "pr_free";
-  const payrollAgency = isFreelancer ? getPrAgencyById(prPayrollAgencyId) : undefined;
   const myVouchers = useMemo(
     () => filterPvsForPrProfile(prPaymentVouchers, profile, prSubRole),
     [prPaymentVouchers, profile, prSubRole],
@@ -223,7 +213,6 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
         <PvDetail
           pv={pv}
           profile={profile}
-          isFreelancer={isFreelancer}
           receiptScans={myReceiptScans}
           shiftHistory={shiftHistory}
           prId={prId}
@@ -251,7 +240,7 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
       : null;
   const lastWeekNeedsReview = Boolean(
     lastWeekActionPv &&
-      (pvNeedsPrReview(lastWeekActionPv.status) || lastWeekActionPv.status === "DISPUTED"),
+    (pvNeedsPrReview(lastWeekActionPv.status) || lastWeekActionPv.status === "DISPUTED"),
   );
 
   return (
@@ -261,32 +250,13 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
       <PrPageHeader
         label="Payroll"
         title="Payment"
-        meta={
-          isFreelancer
-            ? "Inbox · SENT only — sign last week's PV, then view signed/paid in History"
-            : "Review & sign · unsigned PVs only — signed/paid moved to History"
-        }
+        meta="Review & sign · unsigned PVs only — signed/paid moved to History"
       />
 
-      {isFreelancer ? (
-        payrollAgency ? (
-          <p className="iz-tiny iz-muted mt-3 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
-            Payroll via <b className="text-[var(--iz-gold-l)]">{payrollAgency.name}</b> · change on{" "}
-            <Link to="/host/profile" className="text-[var(--iz-blue)]">
-              Profile
-            </Link>
-          </p>
-        ) : (
-          <div className="mt-3">
-            <FreelancerPayrollNotice compact />
-          </div>
-        )
-      ) : (
-        <p className="iz-tiny iz-muted mt-3 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
-          <Shield className="mr-1 inline h-3 w-3" />
-          Outlet → Agency → your bank · one PV per week (issued Sunday)
-        </p>
-      )}
+      <p className="iz-tiny iz-muted mt-3 rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
+        <Shield className="mr-1 inline h-3 w-3" />
+        Outlet → Agency → your bank · one PV per week (issued Sunday)
+      </p>
 
       <div className="iz-hist-tabs mt-3" role="tablist" aria-label="Payroll week">
         <button
@@ -331,7 +301,13 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
           onDispute={
             lastWeekActionPv
               ? (reason, photos, targets) =>
-                  handlePvDispute(lastWeekActionPv.id, lastWeekActionPv.status, reason, photos, targets)
+                  handlePvDispute(
+                    lastWeekActionPv.id,
+                    lastWeekActionPv.status,
+                    reason,
+                    photos,
+                    targets,
+                  )
               : undefined
           }
           onWithdrawDispute={
@@ -358,7 +334,6 @@ function PvDetail({
   pv,
   profile,
   payee,
-  isFreelancer,
   receiptScans,
   shiftHistory,
   prId,
@@ -371,7 +346,6 @@ function PvDetail({
   pv: PrPaymentVoucher;
   profile: ReturnType<typeof getPrProfile>;
   payee: ReturnType<typeof payeeFromPrPortal>;
-  isFreelancer: boolean;
   receiptScans: PrReceiptScan[];
   shiftHistory: ReturnType<typeof useStore.getState>["shiftHistory"];
   prId: string;
@@ -506,8 +480,8 @@ function PvDetail({
         >
           <p className="iz-sm font-bold text-[var(--iz-red)]">Dispute open</p>
           <p className="iz-tiny iz-muted mt-1">
-            E-signature and PDF are hidden until your agency resolves the disputed amount(s). Tap a red
-            amount to withdraw a mistaken dispute.
+            E-signature and PDF are hidden until your agency resolves the disputed amount(s). Tap a
+            red amount to withdraw a mistaken dispute.
           </p>
         </IzCard>
       )}
@@ -608,14 +582,6 @@ function PvDetail({
         </IzCard>
       )}
 
-      {isFreelancer && (
-        <IzCard flat className="iz-tiny iz-muted mt-2.5">
-          <p className="text-[var(--iz-blue)]">
-            Payroll via your appointed PR agency — ask them to raise PVs for your sealed shifts.
-          </p>
-        </IzCard>
-      )}
-
       {canSign && (
         <div className="mt-2.5">
           <button
@@ -644,8 +610,8 @@ function PvDetail({
       <IzSheet open={signOpen} onClose={() => setSignOpen(false)}>
         <IzCardTitle>Sign payment voucher</IzCardTitle>
         <p className="iz-tiny iz-muted mb-3">
-          Draw your signature below to confirm {formatRM(weekSummary.totals.net)} for {pv.id}. Your sign time is
-          stamped on the PV and sent to your agency.
+          Draw your signature below to confirm {formatRM(weekSummary.totals.net)} for {pv.id}. Your
+          sign time is stamped on the PV and sent to your agency.
         </p>
         <PrSignaturePad
           signerName={profile.name}

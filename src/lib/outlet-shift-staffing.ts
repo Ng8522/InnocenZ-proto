@@ -1,4 +1,9 @@
-import { managedPrAgencyLabel, type AgencyManagedPR, type AgencyRosterSlot } from "@/lib/agency-demo";
+import {
+  managedPrAgencyLabel,
+  rosterSlotAgencyName,
+  type AgencyManagedPR,
+  type AgencyRosterSlot,
+} from "@/lib/agency-demo";
 import {
   outletShiftDemandSupplied,
   outletShiftEffectiveDemand,
@@ -46,13 +51,10 @@ export function agencyNameForShift(
 ): string {
   const slots = roster.filter(
     (s) =>
-      outletMatches(s.outlet, shift.outletName) &&
-      s.dateIso === dateIso &&
-      s.shift === shift.shift,
+      outletMatches(s.outlet, shift.outletName) && s.dateIso === dateIso && s.shift === shift.shift,
   );
-  return (
-    slots.find((s) => s.agencyAssignment?.agencyName)?.agencyAssignment?.agencyName ?? fallback
-  );
+  const slot = slots.find((s) => s.agencyAssignment?.agencyName || s.agencyId);
+  return slot ? rosterSlotAgencyName(slot, fallback) : fallback;
 }
 
 export function prAgencyLabel(
@@ -64,10 +66,7 @@ export function prAgencyLabel(
 }
 
 /** Posted demand — sourced from the outlet's linked agency. */
-export function shiftDemandBreakdown(
-  shift: ShiftRequest,
-  agencyName: string,
-): ShiftDemandRow[] {
+export function shiftDemandBreakdown(shift: ShiftRequest, agencyName: string): ShiftDemandRow[] {
   const demand = outletShiftEffectiveDemand(shift);
   return [{ source: agencyName, slots: demand }];
 }

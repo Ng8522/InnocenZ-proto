@@ -1,19 +1,14 @@
 /** Agency portal demo data — roster, commission rules, history, PR roster */
 
-import type { PendingFreelancerPayroll, PendingPR } from "@/lib/store";
+import type { PendingPR } from "@/lib/store";
 import { buildDemoESignatureDataUrl } from "@/lib/finance-head-stamp";
-import {
-  addDaysToIso,
-  isoOnWeekday,
-  migrateDemoDateIso,
-} from "@/lib/demo-clock";
+import { addDaysToIso, isoOnWeekday, migrateDemoDateIso } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { SEED_COMCARD_AGENCY_PRS } from "@/lib/agency-pr-comcards";
 import {
   buildSeedPrPortfolio,
   fmtDateLabelFromIso,
   DEFAULT_PR_AGENCY_NAME,
-  isFreelancerPrId,
   SEED_PR_AVATAR_IMAGE,
   SEED_PR_COMCARD_IMAGE,
   TIED_DEMO_ROSTER_PR_ID,
@@ -34,10 +29,23 @@ export interface OutletCommissionRule {
   tierMultipliers?: Record<OutletPrTier, number>;
 }
 
-export const OUTLET_PR_TIERS = ["Tier I", "Tier II", "Tier III", "Tier IV", "Tier V", "Servant"] as const;
+export const OUTLET_PR_TIERS = [
+  "Tier I",
+  "Tier II",
+  "Tier III",
+  "Tier IV",
+  "Tier V",
+  "Servant",
+] as const;
 export type OutletPrTier = (typeof OUTLET_PR_TIERS)[number];
 /** Tiers I–V — ascending pay ladder (Servant sits below Tier I). */
-export const OUTLET_RANKED_PR_TIERS = ["Tier I", "Tier II", "Tier III", "Tier IV", "Tier V"] as const;
+export const OUTLET_RANKED_PR_TIERS = [
+  "Tier I",
+  "Tier II",
+  "Tier III",
+  "Tier IV",
+  "Tier V",
+] as const;
 export const OUTLET_SERVANT_TIER: OutletPrTier = "Servant";
 /** Canonical base tier — flat commission fields and 1× multiplier */
 export const OUTLET_BASE_TIER: OutletPrTier = "Tier I";
@@ -176,7 +184,9 @@ function snapTierRatesWages(
   return out;
 }
 
-export function buildDefaultTierRates(base: OutletTierRateSettings): Record<OutletPrTier, OutletTierRateSettings> {
+export function buildDefaultTierRates(
+  base: OutletTierRateSettings,
+): Record<OutletPrTier, OutletTierRateSettings> {
   const baseWage = snapTierWage(base.wagePerHour);
   const otAfterHours = base.otAfterHours ?? 6;
   const out = {} as Record<OutletPrTier, OutletTierRateSettings>;
@@ -199,7 +209,9 @@ export function ensureDistinctTierCommissions(
   tierRates: Record<OutletPrTier, OutletTierRateSettings>,
 ): Record<OutletPrTier, OutletTierRateSettings> {
   const base = tierRates[OUTLET_BASE_TIER];
-  const allSameDrink = OUTLET_RANKED_PR_TIERS.every((tier) => tierRates[tier].drinkPct === base.drinkPct);
+  const allSameDrink = OUTLET_RANKED_PR_TIERS.every(
+    (tier) => tierRates[tier].drinkPct === base.drinkPct,
+  );
   const allSameHappyHour = OUTLET_RANKED_PR_TIERS.every(
     (tier) => tierHappyHourDrinkPct(tierRates[tier]) === tierHappyHourDrinkPct(base),
   );
@@ -322,7 +334,9 @@ export function estimateShiftLaborCost(opts: {
   return Math.round(averageTierWage(tierRates) * quantity);
 }
 
-export function formatTierWageRange(tierRates: Record<OutletPrTier, OutletTierRateSettings>): string {
+export function formatTierWageRange(
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+): string {
   const wages = OUTLET_PR_TIERS.map((t) => tierRates[t].wagePerHour);
   const min = Math.min(...wages);
   const max = Math.max(...wages);
@@ -358,7 +372,10 @@ export function normalizeTierRates(
         ...partial[tier],
         wagePerHour: snapTierWage(partial[tier].wagePerHour ?? defaults[tier].wagePerHour),
         otAfterHours:
-          partial[tier].otAfterHours ?? defaults[tier].otAfterHours ?? snappedBase.otAfterHours ?? 6,
+          partial[tier].otAfterHours ??
+          defaults[tier].otAfterHours ??
+          snappedBase.otAfterHours ??
+          6,
       };
     }
   }
@@ -381,7 +398,10 @@ export function normalizeWorkspaceTierRates(
         ...partial[tier],
         wagePerHour: snapTierWage(partial[tier].wagePerHour ?? defaults[tier].wagePerHour),
         otAfterHours:
-          partial[tier].otAfterHours ?? defaults[tier].otAfterHours ?? snappedBase.otAfterHours ?? 6,
+          partial[tier].otAfterHours ??
+          defaults[tier].otAfterHours ??
+          snappedBase.otAfterHours ??
+          6,
       };
     }
   }
@@ -527,10 +547,42 @@ export const OUTLET_COMMISSION_RULES: OutletCommissionRule[] = [
     otAfterHours: 6,
     platformPct: 5,
   }),
-  commissionRuleSeed({ outlet: "Mermate", wagePerHour: OUTLET_STANDARD_SHIFT_PAY, drinkPct: 10, tipPct: 12, tablePct: 8, otAfterHours: 6, platformPct: 5 }),
-  commissionRuleSeed({ outlet: "Bear Lounge", wagePerHour: OUTLET_STANDARD_SHIFT_PAY, drinkPct: 9, tipPct: 14, tablePct: 10, otAfterHours: 5, platformPct: 5 }),
-  commissionRuleSeed({ outlet: "Onyx KL", wagePerHour: OUTLET_STANDARD_SHIFT_PAY, drinkPct: 7, tipPct: 16, tablePct: 12, otAfterHours: 6, platformPct: 5 }),
-  commissionRuleSeed({ outlet: "Urban Soul", wagePerHour: OUTLET_STANDARD_SHIFT_PAY, drinkPct: 11, tipPct: 10, tablePct: 8, otAfterHours: 6, platformPct: 5 }),
+  commissionRuleSeed({
+    outlet: "Mermate",
+    wagePerHour: OUTLET_STANDARD_SHIFT_PAY,
+    drinkPct: 10,
+    tipPct: 12,
+    tablePct: 8,
+    otAfterHours: 6,
+    platformPct: 5,
+  }),
+  commissionRuleSeed({
+    outlet: "Bear Lounge",
+    wagePerHour: OUTLET_STANDARD_SHIFT_PAY,
+    drinkPct: 9,
+    tipPct: 14,
+    tablePct: 10,
+    otAfterHours: 5,
+    platformPct: 5,
+  }),
+  commissionRuleSeed({
+    outlet: "Onyx KL",
+    wagePerHour: OUTLET_STANDARD_SHIFT_PAY,
+    drinkPct: 7,
+    tipPct: 16,
+    tablePct: 12,
+    otAfterHours: 6,
+    platformPct: 5,
+  }),
+  commissionRuleSeed({
+    outlet: "Urban Soul",
+    wagePerHour: OUTLET_STANDARD_SHIFT_PAY,
+    drinkPct: 11,
+    tipPct: 10,
+    tablePct: 8,
+    otAfterHours: 6,
+    platformPct: 5,
+  }),
 ];
 
 /** Bump legacy per-shift pay (≤80) to the current standard and rebuild tier rates. */
@@ -652,6 +704,8 @@ export interface AgencyRosterSlot {
   agencyAssignment?: AgencyAssignmentMeta;
   /** Agency requests moving PR to another outlet — PR approves or declines */
   outletSwap?: OutletSwapRequest;
+  /** Operating agency that owns this roster slot (defaults to "atlas" when unset). */
+  agencyId?: string;
 }
 
 export type OutletSwapStatus = "pending_pr" | "approved" | "declined";
@@ -671,7 +725,12 @@ export function rosterSlotAgencyName(
   slot: AgencyRosterSlot,
   fallback = DEFAULT_PR_AGENCY_NAME,
 ): string {
-  return slot.agencyAssignment?.agencyName ?? slot.outletSwap?.agencyName ?? fallback;
+  return (
+    slot.agencyAssignment?.agencyName ??
+    slot.outletSwap?.agencyName ??
+    (slot.agencyId ? AGENCY_OWNERS_BY_ID[slot.agencyId]?.orgName : undefined) ??
+    fallback
+  );
 }
 
 /** Agency label for a managed PR row — roster assignment, payroll link, or default tied agency. */
@@ -680,17 +739,13 @@ export function managedPrAgencyLabel(
   roster: AgencyRosterSlot[],
   options: {
     agencyName?: string;
-    freelancerPayrollByPrId?: Map<string, string>;
   } = {},
 ): string {
   const slotAgency = roster.find(
-    (s) => s.prId === prId && (s.agencyAssignment?.agencyName || s.outletSwap?.agencyName),
+    (s) =>
+      s.prId === prId && (s.agencyAssignment?.agencyName || s.outletSwap?.agencyName || s.agencyId),
   );
   if (slotAgency) return rosterSlotAgencyName(slotAgency, options.agencyName);
-
-  if (isFreelancerPrId(prId)) {
-    return options.freelancerPayrollByPrId?.get(prId) ?? "—";
-  }
 
   return options.agencyName ?? DEFAULT_PR_AGENCY_NAME;
 }
@@ -699,7 +754,9 @@ function rosterDate(iso: string) {
   return fmtDateLabelFromIso(iso);
 }
 
-function withRosterDate<T extends Pick<AgencyRosterSlot, "dateIso">>(slot: T): T & { date: string } {
+function withRosterDate<T extends Pick<AgencyRosterSlot, "dateIso">>(
+  slot: T,
+): T & { date: string } {
   return { ...slot, date: rosterDate(slot.dateIso) };
 }
 
@@ -876,12 +933,14 @@ export interface AgencyManagedPR {
   avatarPhoto?: string | null;
   comcardImageUrl?: string | null;
   portfolioPhotos?: (string | null)[];
+  /** Operating agency this PR is managed by (defaults to "atlas" when unset). */
+  agencyId?: string;
+  /** All operating agencies this PR is linked to — membership (a PR can be under many). */
+  agencyIds?: string[];
 }
 
 export function sortAgencyPrsByName(prs: AgencyManagedPR[]): AgencyManagedPR[] {
-  return [...prs].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-  );
+  return [...prs].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
 
 export const SEED_AGENCY_PRS: AgencyManagedPR[] = sortAgencyPrsByName([
@@ -909,12 +968,141 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = sortAgencyPrsByName([
     kpiScore: 92,
     kpiTier: "A",
     tiedSince: "2022-03-01",
+    agencyIds: ["atlas", "delta"],
     avatarPhoto: SEED_PR_AVATAR_IMAGE,
     comcardImageUrl: SEED_PR_COMCARD_IMAGE,
     portfolioPhotos: buildSeedPrPortfolio(),
   },
   ...SEED_COMCARD_AGENCY_PRS,
 ]);
+
+/** Delta Agency's own managed PRs (peer agency demo — distinct people from Atlas). */
+export const SEED_DELTA_AGENCY_PRS: AgencyManagedPR[] = sortAgencyPrsByName([
+  {
+    id: "delta-p1",
+    name: "Sofia",
+    icName: "Sofia Binti Adnan",
+    ic: "970218-10-5623",
+    mobile: "+60 13-552 7781",
+    email: "sofia@inz.my",
+    age: 22,
+    height: 165,
+    weight: 50,
+    race: "Malay",
+    languages: ["English", "Malay"],
+    place: "Cheras",
+    yearsExp: 2,
+    rating: 4.7,
+    trainingLevel: "Tier III",
+    totalPaid: 8600,
+    attendancePct: 95,
+    checkIns: 18,
+    checkOuts: 18,
+    noShows: 0,
+    kpiScore: 84,
+    kpiTier: "B",
+    tiedSince: "2025-01-10",
+    agencyId: "delta",
+    avatarPhoto: null,
+    comcardImageUrl: null,
+  },
+  {
+    id: "delta-p2",
+    name: "Rina",
+    icName: "Katherine Rina Joseph",
+    ic: "960705-08-4412",
+    mobile: "+60 17-330 2245",
+    email: "rina@inz.my",
+    age: 23,
+    height: 160,
+    weight: 46,
+    race: "Indian",
+    languages: ["English", "Tamil", "Malay"],
+    place: "Ampang",
+    yearsExp: 3,
+    rating: 4.8,
+    trainingLevel: "Tier IV",
+    totalPaid: 11200,
+    attendancePct: 97,
+    checkIns: 24,
+    checkOuts: 24,
+    noShows: 0,
+    kpiScore: 88,
+    kpiTier: "A",
+    tiedSince: "2024-08-01",
+    agencyId: "delta",
+    avatarPhoto: null,
+    comcardImageUrl: null,
+  },
+  {
+    id: "delta-p3",
+    name: "Mei",
+    icName: "Chong Mei Yee",
+    ic: "980921-14-3390",
+    mobile: "+60 11-2887 9902",
+    email: "mei@inz.my",
+    age: 21,
+    height: 158,
+    weight: 44,
+    race: "Chinese",
+    languages: ["English", "Mandarin", "Cantonese"],
+    place: "Kepong",
+    yearsExp: 1,
+    rating: 4.6,
+    trainingLevel: "Tier II",
+    totalPaid: 5400,
+    attendancePct: 93,
+    checkIns: 12,
+    checkOuts: 12,
+    noShows: 1,
+    kpiScore: 80,
+    kpiTier: "B",
+    tiedSince: "2025-05-15",
+    agencyId: "delta",
+    avatarPhoto: null,
+    comcardImageUrl: null,
+  },
+]);
+
+/** All managed PRs across operating agencies (Atlas + Delta). */
+export const SEED_AGENCY_PRS_ALL: AgencyManagedPR[] = [
+  ...SEED_AGENCY_PRS,
+  ...SEED_DELTA_AGENCY_PRS,
+];
+
+/** Which operating agency a record belongs to (untagged = Atlas). */
+export function agencyIdOf(item: { agencyId?: string }): string {
+  return item.agencyId ?? "atlas";
+}
+
+/**
+ * Filter agency records to one operating agency — visible if the record is OWNED
+ * by it (`agencyId`) OR the PR is a MEMBER of it (`agencyIds`, so a PR under many
+ * agencies shows in each one's Manage PR list).
+ */
+export function scopeToAgency<T extends { agencyId?: string; agencyIds?: string[] }>(
+  items: T[],
+  activeAgencyId: string,
+): T[] {
+  return items.filter(
+    (i) => agencyIdOf(i) === activeAgencyId || (i.agencyIds?.includes(activeAgencyId) ?? false),
+  );
+}
+
+/**
+ * Filter agency records to those OWNED by one operating agency (`agencyId` only —
+ * membership via `agencyIds` does NOT count). Use this to scope records that carry
+ * no agency tag of their own (PVs, receipts, shift history) — they are attributed to
+ * an agency through its owned PRs, so a shared PR (member of many) must not drag another
+ * agency's financials into this one. Contrast with {@link scopeToAgency}, which is
+ * membership-aware and used for the roster / Manage-PR lists.
+ */
+export function ownedByAgency<T extends { agencyId?: string }>(
+  items: T[],
+  activeAgencyId: string,
+): T[] {
+  return items.filter((i) => agencyIdOf(i) === activeAgencyId);
+}
 
 function parsePendingLanguages(raw: string): string[] {
   return raw
@@ -1042,6 +1230,7 @@ export const SEED_PENDING_PRS: PendingPR[] = [
     submittedAt: "9 Jun 2026 · 09:14",
     source: "self-signup",
     status: "pending",
+    agencyId: "atlas",
   },
   {
     id: "signup-amira",
@@ -1061,23 +1250,58 @@ export const SEED_PENDING_PRS: PendingPR[] = [
     submittedAt: "8 Jun 2026 · 22:41",
     source: "self-signup",
     status: "pending",
+    agencyId: "atlas",
+  },
+  // --- Delta Agency's own pending sign-ups (peer-agency demo) ---
+  // Sofia/Rina/Mei are already CONFIRMED Delta PRs (see SEED_DELTA_AGENCY_PRS); these
+  // are fresh applicants awaiting Delta's approval, scoped so Atlas never sees them.
+  {
+    id: "signup-nurul",
+    name: "Nurul Aina",
+    languages: "EN · Malay",
+    ic: "990304-14-5521",
+    mobile: "+60 12-664 3390",
+    email: "nurul.a@inz.my",
+    age: 22,
+    height: 162,
+    weight: 49,
+    race: "Malay",
+    hasIcPhotos: true,
+    hasSelfie: true,
+    ...seedPendingDocuments("Nurul Aina", "NA"),
+    submittedAt: "11 Jul 2026 · 14:08",
+    source: "self-signup",
+    status: "pending",
+    agencyId: "delta",
+  },
+  {
+    id: "signup-chloe",
+    name: "Chloe Lim",
+    languages: "EN · Mandarin · Cantonese",
+    ic: "000917-10-4432",
+    mobile: "+60 16-228 7745",
+    email: "chloe.l@inz.my",
+    age: 21,
+    height: 166,
+    weight: 50,
+    race: "Chinese",
+    hasIcPhotos: true,
+    hasSelfie: true,
+    ...seedPendingDocuments("Chloe Lim", "CL"),
+    submittedAt: "12 Jul 2026 · 20:52",
+    source: "self-signup",
+    status: "pending",
+    agencyId: "delta",
   },
 ];
 
 /** Dropped from pending sign-ups — male names / legacy demo rows */
 export const RETIRED_PENDING_PR_IDS = new Set(["signup-raj", "signup-kevin-invite"]);
 
-export const SEED_PENDING_FREELANCER_PAYROLLS: PendingFreelancerPayroll[] = [];
-
-/** Legacy freelancer payroll demo row (Jaya Nair) — strip on hydrate */
-export const RETIRED_PENDING_FREELANCER_PAYROLL_IDS = new Set(["fp-seed-jaya"]);
-
 export function pendingPRToManagedPR(p: PendingPR): AgencyManagedPR {
   const langs =
     p.languages === "Pending profile" ? ["English"] : parsePendingLanguages(p.languages);
-  const portfolioPhotos = p.portfolioPhotos?.some(Boolean)
-    ? p.portfolioPhotos
-    : undefined;
+  const portfolioPhotos = p.portfolioPhotos?.some(Boolean) ? p.portfolioPhotos : undefined;
   const galleryCount = portfolioPhotos?.filter(Boolean).length ?? p.portfolioCount ?? 0;
   return {
     id: p.targetPrId ?? `p-new-${p.id}`,
@@ -1127,10 +1351,38 @@ export interface OutletPnlRow {
 }
 
 export const SEED_OUTLET_PNL: OutletPnlRow[] = [
-  { outlet: "Velvet 23", grossRevenue: 14820, prPayout: 2180, agencyNet: 4200, outletNet: 7940, platformFee: 741 },
-  { outlet: "Mermate", grossRevenue: 9200, prPayout: 1640, agencyNet: 2800, outletNet: 4380, platformFee: 460 },
-  { outlet: "Bear Lounge", grossRevenue: 7600, prPayout: 1420, agencyNet: 2100, outletNet: 3740, platformFee: 380 },
-  { outlet: "Onyx KL", grossRevenue: 11200, prPayout: 1980, agencyNet: 3200, outletNet: 5640, platformFee: 560 },
+  {
+    outlet: "Velvet 23",
+    grossRevenue: 14820,
+    prPayout: 2180,
+    agencyNet: 4200,
+    outletNet: 7940,
+    platformFee: 741,
+  },
+  {
+    outlet: "Mermate",
+    grossRevenue: 9200,
+    prPayout: 1640,
+    agencyNet: 2800,
+    outletNet: 4380,
+    platformFee: 460,
+  },
+  {
+    outlet: "Bear Lounge",
+    grossRevenue: 7600,
+    prPayout: 1420,
+    agencyNet: 2100,
+    outletNet: 3740,
+    platformFee: 380,
+  },
+  {
+    outlet: "Onyx KL",
+    grossRevenue: 11200,
+    prPayout: 1980,
+    agencyNet: 3200,
+    outletNet: 5640,
+    platformFee: 560,
+  },
 ];
 
 export type AgencySubscriptionPlanId =
@@ -1212,9 +1464,7 @@ export const AGENCY_SUBSCRIPTION_PLANS: AgencySubscriptionPlan[] = [
 /** Demo billing: 1 PV issued per active PR per payroll week. */
 export const AGENCY_PVS_PER_PR_PER_WEEK = 1;
 
-export function resolveAgencySubscriptionPlanForWeeklyPv(
-  weeklyPv: number,
-): AgencySubscriptionPlan {
+export function resolveAgencySubscriptionPlanForWeeklyPv(weeklyPv: number): AgencySubscriptionPlan {
   for (const plan of AGENCY_SUBSCRIPTION_PLANS) {
     if (plan.renegotiate) continue;
     if (weeklyPv <= plan.pvLimit) return plan;
@@ -1264,7 +1514,9 @@ export function agencyWeeklyPvCount(
   return pvs.filter((pv) => pv.weekStartIso === weekStartIso).length;
 }
 
-export function getAgencySubscriptionPlan(id?: AgencySubscriptionPlanId | null): AgencySubscriptionPlan {
+export function getAgencySubscriptionPlan(
+  id?: AgencySubscriptionPlanId | null,
+): AgencySubscriptionPlan {
   return AGENCY_SUBSCRIPTION_PLANS.find((p) => p.id === id) ?? AGENCY_SUBSCRIPTION_PLANS[0];
 }
 
@@ -1309,6 +1561,45 @@ export const DEFAULT_FINANCE_HEAD: AgencyFinanceHead = {
   signatureDataUrl: buildDemoESignatureDataUrl("Sarah Tan"),
 };
 
+/** Delta Agency — second operating agency, peer to Atlas (owner@delta-agency.my). */
+export const DELTA_AGENCY_OWNER: AgencyOwnerSettings = {
+  ownerName: "Rajesh Kumar",
+  mobile: "+60 16-778 2210",
+  email: "owner@delta-agency.my",
+  ic: "820714-10-3344",
+  orgName: "Delta Agency",
+  otpChannel: "email",
+  accountActivated: true,
+  avatarPhoto: null,
+  subscriptionPlanId: "growth",
+};
+
+export const DELTA_FINANCE_HEAD: AgencyFinanceHead = {
+  name: "Nadia Rahman",
+  ic: "880903-06-5521",
+  email: "finance@delta-agency.my",
+  eSignatureStored: true,
+  signatureDataUrl: buildDemoESignatureDataUrl("Nadia Rahman"),
+};
+
+/** Owner/finance identity per operating agency id — used to switch portal on login. */
+export const AGENCY_OWNERS_BY_ID: Record<string, AgencyOwnerSettings> = {
+  atlas: DEFAULT_AGENCY_OWNER,
+  delta: DELTA_AGENCY_OWNER,
+};
+
+export const AGENCY_FINANCE_HEADS_BY_ID: Record<string, AgencyFinanceHead> = {
+  atlas: DEFAULT_FINANCE_HEAD,
+  delta: DELTA_FINANCE_HEAD,
+};
+
+/** Resolve which operating agency an owner email belongs to (null if not an agency owner). */
+export function agencyIdForOwnerEmail(email: string): string | null {
+  const e = email.trim().toLowerCase();
+  const found = Object.entries(AGENCY_OWNERS_BY_ID).find(([, o]) => o.email.toLowerCase() === e);
+  return found ? found[0] : null;
+}
+
 export type CollectionAging = "current" | "7d" | "14d" | "30d" | "60d+";
 export type CollectionStatus = "SETTLED" | "PENDING";
 
@@ -1340,6 +1631,8 @@ export interface AgencyCollectionInvoice {
   reminderSent?: boolean;
   kind?: CollectionInvoiceKind;
   counterparty?: string;
+  /** Operating agency that owns this invoice (defaults to "atlas" when unset). */
+  agencyId?: string;
 }
 
 export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
@@ -1355,9 +1648,24 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     linkedPvIds: ["PV-2026-0611-A"],
     kind: "outlet",
     lines: [
-      { label: "Daily wages", detail: "Vicky · 18 Jun sealed shift", amount: 360, group: "payroll" },
-      { label: "Commission – Drinks", detail: "Velvet 23 floor · tap log", amount: 2940, group: "commissions" },
-      { label: "Commission – Tips", detail: "100% passthrough to PR payroll", amount: 680, group: "commissions" },
+      {
+        label: "Daily wages",
+        detail: "Vicky · 18 Jun sealed shift",
+        amount: 360,
+        group: "payroll",
+      },
+      {
+        label: "Commission – Drinks",
+        detail: "Velvet 23 floor · tap log",
+        amount: 2940,
+        group: "commissions",
+      },
+      {
+        label: "Commission – Tips",
+        detail: "100% passthrough to PR payroll",
+        amount: 680,
+        group: "commissions",
+      },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 300, group: "fees" },
     ],
   },
@@ -1373,9 +1681,24 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     linkedPvIds: ["PV-2026-0498", "PV-2026-0548-J"],
     kind: "outlet",
     lines: [
-      { label: "Daily wages", detail: "Bernice · 27 Apr + Hazel · 20–22 May shifts", amount: 1050, group: "payroll" },
-      { label: "Commission – Drinks", detail: "Mermate POS reconciled", amount: 1620, group: "commissions" },
-      { label: "Commission – Tips", detail: "Receipt scans rc-seed-1…3", amount: 350, group: "commissions" },
+      {
+        label: "Daily wages",
+        detail: "Bernice · 27 Apr + Hazel · 20–22 May shifts",
+        amount: 1050,
+        group: "payroll",
+      },
+      {
+        label: "Commission – Drinks",
+        detail: "Mermate POS reconciled",
+        amount: 1620,
+        group: "commissions",
+      },
+      {
+        label: "Commission – Tips",
+        detail: "Receipt scans rc-seed-1…3",
+        amount: 350,
+        group: "commissions",
+      },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 100, group: "fees" },
     ],
   },
@@ -1392,9 +1715,24 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     reminderSent: true,
     kind: "outlet",
     lines: [
-      { label: "Daily wages", detail: "Charlotte · 9 May sealed shift", amount: 350, group: "payroll" },
-      { label: "Overtime (OT)", detail: "Check-out past shift end · 47 min", amount: 280, group: "payroll" },
-      { label: "Commission – Drinks", detail: "Disputed · rc-seed-4 · outlet reconciling", amount: 1890, group: "commissions" },
+      {
+        label: "Daily wages",
+        detail: "Charlotte · 9 May sealed shift",
+        amount: 350,
+        group: "payroll",
+      },
+      {
+        label: "Overtime (OT)",
+        detail: "Check-out past shift end · 47 min",
+        amount: 280,
+        group: "payroll",
+      },
+      {
+        label: "Commission – Drinks",
+        detail: "Disputed · rc-seed-4 · outlet reconciling",
+        amount: 1890,
+        group: "commissions",
+      },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 120, group: "fees" },
     ],
   },
@@ -1410,9 +1748,24 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     linkedPvIds: [],
     kind: "outlet",
     lines: [
-      { label: "Daily wages", detail: "Alice + guest PR · 2 shifts", amount: 1420, group: "payroll" },
-      { label: "Commission – Drinks", detail: "Onyx KL · weekend cycle", amount: 1980, group: "commissions" },
-      { label: "Commission – Tables", detail: "VIP tables · 3 units", amount: 360, group: "commissions" },
+      {
+        label: "Daily wages",
+        detail: "Alice + guest PR · 2 shifts",
+        amount: 1420,
+        group: "payroll",
+      },
+      {
+        label: "Commission – Drinks",
+        detail: "Onyx KL · weekend cycle",
+        amount: 1980,
+        group: "commissions",
+      },
+      {
+        label: "Commission – Tables",
+        detail: "VIP tables · 3 units",
+        amount: 360,
+        group: "commissions",
+      },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 130, group: "fees" },
     ],
   },
@@ -1430,7 +1783,12 @@ export const SEED_AGENCY_COLLECTIONS: AgencyCollectionInvoice[] = [
     kind: "outlet",
     lines: [
       { label: "Daily wages", detail: "Grace · 14 May shift", amount: 350, group: "payroll" },
-      { label: "Commission – Drinks", detail: "Urban Soul tap log", amount: 1420, group: "commissions" },
+      {
+        label: "Commission – Drinks",
+        detail: "Urban Soul tap log",
+        amount: 1420,
+        group: "commissions",
+      },
       { label: "Platform fee (5%)", detail: "InnocenZ cycle fee", amount: 180, group: "fees" },
     ],
   },
@@ -1499,7 +1857,12 @@ export const OUTLET_NAMES = [...new Set(OUTLET_COMMISSION_RULES.map((r) => r.out
 export function nowAgencyDateTime() {
   const d = new Date();
   return {
-    date: d.toLocaleDateString("en-MY", { weekday: "short", day: "numeric", month: "short", year: "numeric" }),
+    date: d.toLocaleDateString("en-MY", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }),
     time: d.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" }),
   };
 }
@@ -1517,15 +1880,7 @@ const RETIRED_DEMO_ROSTER_IDS = new Set([
 ]);
 
 /** Placeholder demo PRs removed from Manage PR — migrate roster slots on hydrate. */
-export const RETIRED_DEMO_PR_IDS = new Set([
-  "p2",
-  "p3",
-  "p4",
-  "p5",
-  "p6",
-  "p7",
-  "freelancer-jaya",
-]);
+export const RETIRED_DEMO_PR_IDS = new Set(["p2", "p3", "p4", "p5", "p6", "p7"]);
 
 function rosterSlotUsesRetiredPr(slot: Pick<AgencyRosterSlot, "prId">): boolean {
   return RETIRED_DEMO_PR_IDS.has(slot.prId);
@@ -1620,9 +1975,7 @@ export function mergeAgencyRoster(
   const extras = persisted
     .filter(
       (s) =>
-        !seedIds.has(s.id) &&
-        !RETIRED_DEMO_ROSTER_IDS.has(s.id) &&
-        !rosterSlotUsesRetiredPr(s),
+        !seedIds.has(s.id) && !RETIRED_DEMO_ROSTER_IDS.has(s.id) && !rosterSlotUsesRetiredPr(s),
     )
     .map((slot) =>
       slot.prId === TIED_DEMO_ROSTER_PR_ID && slot.prName === "Luna"
@@ -1637,7 +1990,7 @@ export function mergeAgencyRoster(
       const dateIso = migrateDemoDateIso(
         saved.dateIso < DEFAULT_ROSTER_DATE_ISO && seedSlot.dateIso >= DEFAULT_ROSTER_DATE_ISO
           ? seedSlot.dateIso
-          : saved.dateIso ?? seedSlot.dateIso,
+          : (saved.dateIso ?? seedSlot.dateIso),
       );
       if (rosterSlotUsesRetiredPr(saved)) {
         return normalize(mergeRosterSlotFromSeed(saved, seedSlot, dateIso));
@@ -1666,62 +2019,58 @@ export function mergeAgencyRoster(
         saved.status !== "scheduled" &&
         saved.status !== "assignment-pending";
       const keepSwapPending =
-        seedSlot.outletSwap?.status === "pending_pr" &&
-        saved.outletSwap?.status !== "approved";
+        seedSlot.outletSwap?.status === "pending_pr" && saved.outletSwap?.status !== "approved";
       const preserveLiveOnDuty =
-        saved.status === "on-duty" &&
-        seedSlot.status !== "on-duty" &&
-        !!saved.checkedInAt;
+        saved.status === "on-duty" && seedSlot.status !== "on-duty" && !!saved.checkedInAt;
       const staleOnDuty =
-        saved.status === "on-duty" &&
-        seedSlot.status !== "on-duty" &&
-        !saved.checkedInAt;
+        saved.status === "on-duty" && seedSlot.status !== "on-duty" && !saved.checkedInAt;
       const seedFloorActive =
-        seedSlot.status === "en-route" ||
-        (seedSlot.status === "on-duty" && !!seedSlot.checkedInAt);
+        seedSlot.status === "en-route" || (seedSlot.status === "on-duty" && !!seedSlot.checkedInAt);
       const savedFloorIdle = saved.status === "scheduled" && !saved.checkedInAt;
       const restoreSeedFloor =
         seedFloorActive && savedFloorIdle && !preserveLiveOnDuty && !staleOnDuty;
-      const reassigned =
-        !rosterSlotUsesRetiredPr(saved) && saved.prId !== seedSlot.prId;
+      const reassigned = !rosterSlotUsesRetiredPr(saved) && saved.prId !== seedSlot.prId;
       return normalize({
         ...seedSlot,
         ...saved,
         dateIso,
-        prId: reassigned ? saved.prId : saved.prId ?? seedSlot.prId,
+        prId: reassigned ? saved.prId : (saved.prId ?? seedSlot.prId),
         prName: mergeRosterSlotPrName(saved, seedSlot, reassigned),
         status: keepOutletRequestPending
           ? seedSlot.status
           : keepAssignmentPending
-          ? seedSlot.status
-          : preserveLiveOnDuty
-            ? "on-duty"
-            : staleOnDuty
-              ? seedSlot.status
-              : restoreSeedFloor
+            ? seedSlot.status
+            : preserveLiveOnDuty
+              ? "on-duty"
+              : staleOnDuty
                 ? seedSlot.status
-                : saved.status,
+                : restoreSeedFloor
+                  ? seedSlot.status
+                  : saved.status,
         checkedInAt: preserveLiveOnDuty
           ? saved.checkedInAt
           : staleOnDuty
             ? undefined
             : restoreSeedFloor
               ? seedSlot.checkedInAt
-              : saved.checkedInAt ?? seedSlot.checkedInAt,
-        floorDrinks: staleOnDuty || restoreSeedFloor
-          ? seedSlot.floorDrinks
-          : saved.floorDrinks ?? seedSlot.floorDrinks,
-        floorTips: staleOnDuty || restoreSeedFloor
-          ? seedSlot.floorTips
-          : saved.floorTips ?? seedSlot.floorTips,
-        agencyAssignment: keepOutletRequestPending || keepAssignmentPending
-          ? seedSlot.agencyAssignment
-          : saved.agencyAssignment ?? seedSlot.agencyAssignment,
+              : (saved.checkedInAt ?? seedSlot.checkedInAt),
+        floorDrinks:
+          staleOnDuty || restoreSeedFloor
+            ? seedSlot.floorDrinks
+            : (saved.floorDrinks ?? seedSlot.floorDrinks),
+        floorTips:
+          staleOnDuty || restoreSeedFloor
+            ? seedSlot.floorTips
+            : (saved.floorTips ?? seedSlot.floorTips),
+        agencyAssignment:
+          keepOutletRequestPending || keepAssignmentPending
+            ? seedSlot.agencyAssignment
+            : (saved.agencyAssignment ?? seedSlot.agencyAssignment),
         outletSwap: FORCE_SEED_OUTLET_SWAP_IDS.has(seedSlot.id)
           ? seedSlot.outletSwap
           : keepSwapPending
             ? seedSlot.outletSwap
-            : saved.outletSwap ?? seedSlot.outletSwap,
+            : (saved.outletSwap ?? seedSlot.outletSwap),
       });
     }),
   ];

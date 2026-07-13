@@ -11,6 +11,7 @@ import { useStore } from "@/lib/store";
 import {
   OUTLET_NAMES,
   rosterPageDisplayStatus,
+  scopeToAgency,
   type AgencyRosterSlot,
   type RosterSlotStatus,
 } from "@/lib/agency-demo";
@@ -35,7 +36,10 @@ import { ArrowLeftRight, Calendar, ChevronRight, MapPin, Trash2, Users, X } from
 
 const EDITABLE_STATUSES: RosterSlotStatus[] = ["scheduled", "on-duty", "unavailable"];
 
-const STATUS_LABEL: Record<RosterSlotStatus, { label: string; variant: "green" | "amber" | "red" | "violet" | "ink" }> = {
+const STATUS_LABEL: Record<
+  RosterSlotStatus,
+  { label: string; variant: "green" | "amber" | "red" | "violet" | "ink" }
+> = {
   "on-duty": { label: "On duty", variant: "green" },
   "en-route": { label: "Scheduled", variant: "ink" },
   scheduled: { label: "Scheduled", variant: "ink" },
@@ -58,8 +62,14 @@ function AgencyRoster() {
   const navigate = useNavigate({ from: Route.fullPath });
   const { view } = Route.useSearch();
   const viewMode: ViewMode = view ?? "live";
-  const setViewMode = (next: ViewMode) => navigate({ search: next === "live" ? {} : { view: next } });
-  const agencyRoster = useStore((s) => s.agencyRoster);
+  const setViewMode = (next: ViewMode) =>
+    navigate({ search: next === "live" ? {} : { view: next } });
+  const allAgencyRoster = useStore((s) => s.agencyRoster);
+  const activeAgencyId = useStore((s) => s.activeAgencyId);
+  const agencyRoster = useMemo(
+    () => scopeToAgency(allAgencyRoster, activeAgencyId),
+    [allAgencyRoster, activeAgencyId],
+  );
   const agencyPRs = useStore((s) => s.agencyPRs);
   const prCheckInMeta = useStore((s) => s.prCheckInMeta);
   const prSubRole = useStore((s) => s.prSubRole);
@@ -75,7 +85,9 @@ function AgencyRoster() {
   const syncLivePrCheckInToRoster = useStore((s) => s.syncLivePrCheckInToRoster);
   const syncOutletRequestRoster = useStore((s) => s.syncOutletRequestRoster);
   const [planningDate, setPlanningDate] = useState(DEFAULT_ROSTER_DATE_ISO);
-  const [shiftFilters, setShiftFilters] = useState<RosterShiftFilterState>(EMPTY_ROSTER_SHIFT_FILTERS);
+  const [shiftFilters, setShiftFilters] = useState<RosterShiftFilterState>(
+    EMPTY_ROSTER_SHIFT_FILTERS,
+  );
   const [timetableFilters, setTimetableFilters] = useState<RosterTimetableFilterState>(
     EMPTY_ROSTER_TIMETABLE_FILTERS,
   );
@@ -120,7 +132,9 @@ function AgencyRoster() {
       }),
     [prSwapRequests, agencyRoster],
   );
-  const outletRequestCount = agencyRoster.filter((s) => s.status === "outlet-request-pending").length;
+  const outletRequestCount = agencyRoster.filter(
+    (s) => s.status === "outlet-request-pending",
+  ).length;
   const swapCount = pendingPrSwaps.length;
   const swapToApprove = approveSwapId
     ? prSwapRequests.find((s) => s.id === approveSwapId && s.status === "pending_agency")
@@ -128,10 +142,7 @@ function AgencyRoster() {
   const replacementCandidates = useMemo(
     () =>
       agencyPRs.filter(
-        (p) =>
-          !p.suspended &&
-          !p.detached &&
-          p.id !== swapToApprove?.requestingPrId,
+        (p) => !p.suspended && !p.detached && p.id !== swapToApprove?.requestingPrId,
       ),
     [agencyPRs, swapToApprove?.requestingPrId],
   );
@@ -154,15 +165,15 @@ function AgencyRoster() {
     [agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm],
   );
   const activeCount = dateFiltered.filter((s) => s.status === "on-duty" && !!s.checkedInAt).length;
-  const liveWorkforce = useMemo(
-    () => workforce.filter((w) => w.status === "on-duty"),
-    [workforce],
-  );
+  const liveWorkforce = useMemo(() => workforce.filter((w) => w.status === "on-duty"), [workforce]);
   const plannedCount = useMemo(
     () => dateFiltered.filter((s) => s.status !== "unavailable").length,
     [dateFiltered],
   );
-  const estPayoutLive = useMemo(() => liveWorkforce.reduce((s, w) => s + w.estPayout, 0), [liveWorkforce]);
+  const estPayoutLive = useMemo(
+    () => liveWorkforce.reduce((s, w) => s + w.estPayout, 0),
+    [liveWorkforce],
+  );
   const weekScheduled = useMemo(
     () => agencyRoster.filter((s) => weekDays.includes(s.dateIso) && s.status !== "unavailable"),
     [agencyRoster, weekDays],
@@ -202,7 +213,6 @@ function AgencyRoster() {
 
   return (
     <div className="iz-screen iz-roster-page">
-
       <header className="iz-roster-head">
         <TitleWithIcon
           icon={Calendar}
@@ -349,16 +359,18 @@ function AgencyRoster() {
       )}
 
       {canAssign && pendingPrSwaps.length > 0 && (
-        <OutletSection title="PR swap requests" hint={`${pendingPrSwaps.length} pending`} className="!mt-4">
+        <OutletSection
+          title="PR swap requests"
+          hint={`${pendingPrSwaps.length} pending`}
+          className="!mt-4"
+        >
           <div className="grid gap-2 md:grid-cols-2">
             {pendingPrSwaps.map((swap) => (
               <IzCard key={swap.id}>
                 <p className="font-sora text-sm font-bold">{swap.requestingPrName}</p>
                 <p className="iz-tiny iz-muted mt-0.5">
-                  {swap.targetOutlet
-                    ? `${swap.outlet} → ${swap.targetOutlet}`
-                    : swap.outlet}{" "}
-                  · {swap.date} · {swap.shift}
+                  {swap.targetOutlet ? `${swap.outlet} → ${swap.targetOutlet}` : swap.outlet} ·{" "}
+                  {swap.date} · {swap.shift}
                 </p>
                 {swap.reason && (
                   <p className="iz-tiny iz-muted mt-1 line-clamp-2">&ldquo;{swap.reason}&rdquo;</p>
@@ -370,7 +382,8 @@ function AgencyRoster() {
                 )}
                 {swap.replacementDeclineReason && (
                   <p className="iz-tiny mt-1 text-[var(--iz-red)] line-clamp-2">
-                    {swap.replacementPrName ?? "Replacement"} declined: &ldquo;{swap.replacementDeclineReason}&rdquo;
+                    {swap.replacementPrName ?? "Replacement"} declined: &ldquo;
+                    {swap.replacementDeclineReason}&rdquo;
                   </p>
                 )}
                 {swap.status === "pending_agency" && (
@@ -401,37 +414,37 @@ function AgencyRoster() {
       )}
 
       {viewMode === "live" && (
-      <OutletSection
-        title="Shifts"
-        hint="Editable roster · synced with outlet floor"
-        className="!mt-4"
-      >
-        <RosterShiftFilters
-          filters={shiftFilters}
-          onChange={(patch) => setShiftFilters((prev) => ({ ...prev, ...patch }))}
-          resultCount={filtered.length}
-          totalCount={dateFiltered.length}
-        />
-        <RosterShiftTable
-          slots={filtered}
-          agencyPRs={agencyPRs}
-          prSwapRequests={prSwapRequests}
-          outletCommissionRules={outletCommissionRules}
-          perDrinkRm={perDrinkRm}
-          outletShifts={shifts}
-          drinkMenu={drinkMenu}
-          receiptScans={prReceiptScans}
-          rosterScopeSlots={dateFiltered}
-          happyHourStart={outletWorkspace.happyHourStart}
-          happyHourEnd={outletWorkspace.happyHourEnd}
-          workspaceTierRates={outletWorkspace.tierRates}
-          canAssign={canAssign}
-          onEdit={openEdit}
-          onFlagLate={(id) => flagRosterAttendance(id, "late")}
-          onFlagNoShow={(id) => flagRosterAttendance(id, "no-show")}
-          onCancelPrSwap={declinePrSwapRequest}
-        />
-      </OutletSection>
+        <OutletSection
+          title="Shifts"
+          hint="Editable roster · synced with outlet floor"
+          className="!mt-4"
+        >
+          <RosterShiftFilters
+            filters={shiftFilters}
+            onChange={(patch) => setShiftFilters((prev) => ({ ...prev, ...patch }))}
+            resultCount={filtered.length}
+            totalCount={dateFiltered.length}
+          />
+          <RosterShiftTable
+            slots={filtered}
+            agencyPRs={agencyPRs}
+            prSwapRequests={prSwapRequests}
+            outletCommissionRules={outletCommissionRules}
+            perDrinkRm={perDrinkRm}
+            outletShifts={shifts}
+            drinkMenu={drinkMenu}
+            receiptScans={prReceiptScans}
+            rosterScopeSlots={dateFiltered}
+            happyHourStart={outletWorkspace.happyHourStart}
+            happyHourEnd={outletWorkspace.happyHourEnd}
+            workspaceTierRates={outletWorkspace.tierRates}
+            canAssign={canAssign}
+            onEdit={openEdit}
+            onFlagLate={(id) => flagRosterAttendance(id, "late")}
+            onFlagNoShow={(id) => flagRosterAttendance(id, "no-show")}
+            onCancelPrSwap={declinePrSwapRequest}
+          />
+        </OutletSection>
       )}
 
       {editSlot && (
@@ -467,7 +480,8 @@ function AgencyRoster() {
               {swapToApprove.requestingPrName} wants to leave{" "}
               <strong className="text-[var(--iz-txt)]">{swapToApprove.outlet}</strong> for{" "}
               <strong className="text-[var(--iz-txt)]">{swapToApprove.targetOutlet}</strong> ·{" "}
-              {swapToApprove.targetDate} · {swapToApprove.targetShift}. Pick a replacement for their current slot.
+              {swapToApprove.targetDate} · {swapToApprove.targetShift}. Pick a replacement for their
+              current slot.
             </p>
             <label className="iz-tiny iz-muted mb-1 block">Replacement PR</label>
             <IzSelect
@@ -549,7 +563,13 @@ function EditRosterModal({
             <p className="iz-tiny iz-muted2 uppercase tracking-widest">Edit shift</p>
             <h3>{slot.prName}</h3>
           </div>
-          <button type="button" className="iz-sheet-close" onClick={onClose} disabled={busy} aria-label="Close">
+          <button
+            type="button"
+            className="iz-sheet-close"
+            onClick={onClose}
+            disabled={busy}
+            aria-label="Close"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -590,7 +610,11 @@ function EditRosterModal({
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div>
             <span className="iz-field-label">Start</span>
-            <IzTimeInput value={shiftStart} onChange={setShiftStart} aria-label="Shift start time" />
+            <IzTimeInput
+              value={shiftStart}
+              onChange={setShiftStart}
+              aria-label="Shift start time"
+            />
           </div>
           <div>
             <span className="iz-field-label">End</span>
@@ -614,7 +638,13 @@ function EditRosterModal({
             </p>
             <div className="mt-3">
               <span className="iz-field-label">New outlet</span>
-              <IzSelect block className="!text-sm" value={swapOutlet} onChange={(e) => setSwapOutlet(e.target.value)} disabled={busy}>
+              <IzSelect
+                block
+                className="!text-sm"
+                value={swapOutlet}
+                onChange={(e) => setSwapOutlet(e.target.value)}
+                disabled={busy}
+              >
                 <option value="">Select outlet…</option>
                 {swapTargets.map((o) => (
                   <option key={o} value={o}>
@@ -665,7 +695,12 @@ function EditRosterModal({
         )}
 
         <div className="iz-sheet-actions">
-          <button type="button" className="iz-btn iz-btn-soft flex-1 !py-3" onClick={onClose} disabled={busy}>
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft flex-1 !py-3"
+            onClick={onClose}
+            disabled={busy}
+          >
             Close
           </button>
           <button type="submit" className="iz-btn iz-btn-primary flex-1 !py-3" disabled={busy}>
@@ -677,8 +712,8 @@ function EditRosterModal({
       <IzSheet open={cancelConfirmOpen} onClose={() => !busy && setCancelConfirmOpen(false)}>
         <IzCardTitle>Cancel this shift?</IzCardTitle>
         <p className="iz-tiny iz-muted mb-3">
-          {slot.prName} at <strong className="text-[var(--iz-txt)]">{slot.outlet}</strong> · {slot.date} ·{" "}
-          {slot.shift}. This cannot be undone.
+          {slot.prName} at <strong className="text-[var(--iz-txt)]">{slot.outlet}</strong> ·{" "}
+          {slot.date} · {slot.shift}. This cannot be undone.
         </p>
         <div className="flex gap-2">
           <button

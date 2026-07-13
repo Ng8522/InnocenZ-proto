@@ -6,7 +6,7 @@ const STORE_KEY = "innocenz-store";
 const SESSION_ROLE_KEY = "innocenz-pr-sub-role";
 
 function parsePrSubRole(value: unknown): PrSubRole | null {
-  return value === "pr_free" || value === "pr_tied" ? value : null;
+  return value === "pr_tied" ? value : null;
 }
 
 /** Synchronous read — sessionStorage first, then Zustand persist blob. */
@@ -37,8 +37,7 @@ export function writePersistedPrSubRole(role: PrSubRole | null) {
 }
 
 /**
- * Resolves PR sub-role only after client mount so SSR + first hydration paint stay neutral
- * (avoids flashing agency-tied Luna before freelancer Jaya loads).
+ * Resolves PR sub-role only after client mount so SSR + first hydration paint stay neutral.
  */
 export function usePrPortalReady(): { ready: boolean; role: PrSubRole | null } {
   const storeRole = useStore((s) => s.prSubRole);

@@ -45,7 +45,7 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
 
   const outletName = outletWorkspace.outletName;
   const prId = getPrRosterId(prSubRole);
-  const prTied = prSubRole !== "pr_free";
+  const prTied = true;
   const prTiedLocked = prTied && isWithinOneYearTie(prAgencyTiedAt);
   const serviceOffers = useMemo(
     () => bookableServiceOffers(role, { prTiedLocked }),
@@ -75,7 +75,10 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
     note: "",
   });
 
-  const bookingDateIsos = useMemo(() => collectSpecialServiceDateIsos(scopedRecords), [scopedRecords]);
+  const bookingDateIsos = useMemo(
+    () => collectSpecialServiceDateIsos(scopedRecords),
+    [scopedRecords],
+  );
 
   const filtered = useMemo(
     () => filterSpecialServiceRecords(scopedRecords, bookingFilters),
@@ -153,7 +156,10 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
   return (
     <div className={role === "pr" ? "" : "mt-3"}>
       {pendingAction.length > 0 && (
-        <IzCard flat className="mb-3 border-[rgba(159,122,234,.35)] bg-[linear-gradient(180deg,rgba(159,122,234,.08),transparent)]">
+        <IzCard
+          flat
+          className="mb-3 border-[rgba(159,122,234,.35)] bg-[linear-gradient(180deg,rgba(159,122,234,.08),transparent)]"
+        >
           <p className="iz-tiny font-semibold text-[var(--iz-violet-l)]">
             {pendingAction.length} booking{pendingAction.length !== 1 ? "s" : ""} need your response
           </p>
@@ -171,7 +177,10 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
         </IzCard>
       )}
 
-      <IzCard flat className="border-[rgba(159,122,234,.2)] bg-[linear-gradient(180deg,rgba(159,122,234,.04),transparent)]">
+      <IzCard
+        flat
+        className="border-[rgba(159,122,234,.2)] bg-[linear-gradient(180deg,rgba(159,122,234,.04),transparent)]"
+      >
         <p className="iz-tiny iz-muted2 leading-relaxed">
           <Sparkles className="mr-1 inline h-3 w-3 text-[var(--iz-violet-l)]" />
           {role === "outlet"
@@ -184,7 +193,8 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
 
       {role === "pr" && prLeaveRequest && (
         <p className="iz-tiny iz-muted2 mt-2">
-          {prLeaveRequest.type === "leave" ? "Leave ticket" : "Transfer request"} submitted {prLeaveRequest.at}
+          {prLeaveRequest.type === "leave" ? "Leave ticket" : "Transfer request"} submitted{" "}
+          {prLeaveRequest.at}
         </p>
       )}
 
@@ -206,7 +216,10 @@ export function SpecialServicePortalSection({ role }: { role: "outlet" | "pr" })
         </button>
       </div>
 
-      <IzCard flat className={`iz-pr-manage-filters-card !mt-3${role === "pr" ? " iz-special-service-filters-card--compact" : ""}`}>
+      <IzCard
+        flat
+        className={`iz-pr-manage-filters-card !mt-3${role === "pr" ? " iz-special-service-filters-card--compact" : ""}`}
+      >
         <SpecialServiceFilters
           filters={bookingFilters}
           onChange={(patch) => setBookingFilters((prev) => ({ ...prev, ...patch }))}

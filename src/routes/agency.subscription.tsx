@@ -5,6 +5,7 @@ import {
   AGENCY_SUBSCRIPTION_PLANS,
   agencySubscriptionBillingForWeeklyPv,
   agencyWeeklyPvCount,
+  scopeToAgency,
 } from "@/lib/agency-demo";
 import { getPreviousWeekSundayIso } from "@/lib/demo-clock";
 import { getAgencyManagedPvs } from "@/lib/agency-payroll";
@@ -24,9 +25,18 @@ export const Route = createFileRoute("/agency/subscription")({
 function AgencySubscription() {
   const agencyOwner = useStore((s) => s.agencyOwner);
   const agencySubRole = useStore((s) => s.agencySubRole);
-  const agencyPRs = useStore((s) => s.agencyPRs);
+  const activeAgencyId = useStore((s) => s.activeAgencyId);
+  const allAgencyPRs = useStore((s) => s.agencyPRs);
+  const agencyPRs = useMemo(
+    () => scopeToAgency(allAgencyPRs, activeAgencyId),
+    [allAgencyPRs, activeAgencyId],
+  );
   const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
-  const agencyCollections = useStore((s) => s.agencyCollections);
+  const allAgencyCollections = useStore((s) => s.agencyCollections);
+  const agencyCollections = useMemo(
+    () => scopeToAgency(allAgencyCollections, activeAgencyId),
+    [allAgencyCollections, activeAgencyId],
+  );
   const saveAgencyOwner = useStore((s) => s.saveAgencyOwner);
   const toast = useStore((s) => s.toast);
   const canEdit = agencyCan(agencySubRole, "editSettings");
@@ -36,10 +46,7 @@ function AgencySubscription() {
   const nextChargeDate = format(parseISO(demoPvIssueIsoForWeeksAgo(0)), "d MMM yyyy");
   const issuedWeeklyPv = useMemo(
     () =>
-      agencyWeeklyPvCount(
-        getAgencyManagedPvs(prPaymentVouchers, agencyPRs),
-        payrollWeekStartIso,
-      ),
+      agencyWeeklyPvCount(getAgencyManagedPvs(prPaymentVouchers, agencyPRs), payrollWeekStartIso),
     [prPaymentVouchers, agencyPRs, payrollWeekStartIso],
   );
   const billing = useMemo(
@@ -125,14 +132,13 @@ function AgencySubscription() {
         {AGENCY_SUBSCRIPTION_PLANS.map((plan) => {
           const isBilledTier = plan.id === billing.plan.id;
           const priceDisplay =
-            plan.priceLabel ?? (plan.weeklyRm != null ? formatRM(plan.weeklyRm) : "Renegotiate Price");
+            plan.priceLabel ??
+            (plan.weeklyRm != null ? formatRM(plan.weeklyRm) : "Renegotiate Price");
           return (
             <IzCard
               key={plan.id}
               className={
-                isBilledTier
-                  ? "border-[rgba(57,217,138,.35)] bg-[rgba(57,217,138,.06)]"
-                  : undefined
+                isBilledTier ? "border-[rgba(57,217,138,.35)] bg-[rgba(57,217,138,.06)]" : undefined
               }
             >
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -205,8 +211,8 @@ function AgencySubscription() {
             <div>
               <p className="iz-sm font-semibold">Visa ···· {CARD_LAST4}</p>
               <p className="iz-tiny iz-muted">
-                Billed weekly from PV usage · current tier {billing.plan.label} · {billing.priceLabel}{" "}
-                · auto-renew
+                Billed weekly from PV usage · current tier {billing.plan.label} ·{" "}
+                {billing.priceLabel} · auto-renew
               </p>
             </div>
           </div>

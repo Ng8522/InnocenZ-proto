@@ -75,13 +75,6 @@ const ROLE_LABELS: Record<string, { name: string; label: string; av: string; gra
     gradient: "linear-gradient(135deg,#C99B4E,#8a5e22)",
   },
 
-  host_free: {
-    name: "Jaya Nair",
-    label: "PR \u00b7 Freelancer",
-    av: "J",
-    gradient: "linear-gradient(135deg,#5BA8FF,#2d63b8)",
-  },
-
   agency: { name: "Atlas Agency", label: "PR Agency", av: "A", gradient: "var(--iz-grad)" },
 
   vendor: {
@@ -216,9 +209,7 @@ export function AppTopbar({
   if (pathname.startsWith("/outlet")) role = "vendor";
   else if (pathname.startsWith("/agency")) role = "agency";
   else if (pathname.startsWith("/host")) {
-    if (prSubRole === "pr_free") role = "host_free";
-    else if (prSubRole === "pr_tied") role = "host_tied";
-    else role = "host";
+    role = prSubRole === "pr_tied" ? "host_tied" : "host";
   }
 
   const prProfile = prSubRole ? getPrProfile(prSubRole) : null;

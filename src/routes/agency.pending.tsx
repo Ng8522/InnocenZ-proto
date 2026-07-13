@@ -5,7 +5,7 @@ import type { PendingCutlostRequest } from "@/lib/outlet-cutlost-requests";
 import { cutlostRequestDetail, cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import { nowAgencyDateTime } from "@/lib/agency-demo";
 import { agencyCan } from "@/lib/agency-rbac";
-import type { PendingPR } from "@/lib/store";
+import type { PendingPR, PendingAgencyLink } from "@/lib/store";
 import { IzCard, IzPill } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import {
@@ -31,7 +31,10 @@ import {
   portfolioPhotosForComcard,
   StaticComcardVisual,
 } from "@/components/pr/PortfolioComcardVisual";
-import { Comcard3dPreviewVisual, type ComcardPreviewData } from "@/components/agency/Comcard3dPreview";
+import {
+  Comcard3dPreviewVisual,
+  type ComcardPreviewData,
+} from "@/components/agency/Comcard3dPreview";
 import { cn } from "@/lib/utils";
 
 function docImageSrc(src: string) {
@@ -52,7 +55,8 @@ function pendingPRToComcardPreview(signup: PendingPR): ComcardPreviewData {
 
 function comcardTabMeta(signup: PendingPR) {
   if (signup.comcardImageUrl) return { ready: true, label: "Photo comcard" };
-  if (canGeneratePortfolioComcard(signup.portfolioPhotos ?? [])) return { ready: true, label: "Photo comcard" };
+  if (canGeneratePortfolioComcard(signup.portfolioPhotos ?? []))
+    return { ready: true, label: "Photo comcard" };
   if (signup.name) return { ready: true, label: "3D preview" };
   return { ready: false, label: "Empty" };
 }
@@ -76,7 +80,13 @@ function PendingComcardVisual({
     return <PortfolioComcardVisual photos={photos} pr={pr} className={className} />;
   }
   return (
-    <Comcard3dPreviewVisual pr={pr} className={className} showName={!compact} compact={compact} showStats={!compact} />
+    <Comcard3dPreviewVisual
+      pr={pr}
+      className={className}
+      showName={!compact}
+      compact={compact}
+      showStats={!compact}
+    />
   );
 }
 
@@ -268,8 +278,15 @@ function DocPreviewSheet({
       {preview === "gallery" && (
         <div className="grid grid-cols-3 gap-2 px-4 pb-4">
           {gallerySlots.map((src, i) => (
-            <div key={i} className="aspect-square overflow-hidden rounded-lg border border-[var(--iz-line)]">
-              <img src={docImageSrc(src)} alt={`Portfolio ${i + 1}`} className="h-full w-full object-cover" />
+            <div
+              key={i}
+              className="aspect-square overflow-hidden rounded-lg border border-[var(--iz-line)]"
+            >
+              <img
+                src={docImageSrc(src)}
+                alt={`Portfolio ${i + 1}`}
+                className="h-full w-full object-cover"
+              />
             </div>
           ))}
         </div>
@@ -336,7 +353,11 @@ function DocumentTabs({
         type="button"
         role="tab"
         aria-selected={activeTab === "gallery"}
-        className={cn("iz-approvals-doc-tab", galleryCount > 0 && "gallery", activeTab === "gallery" && "on")}
+        className={cn(
+          "iz-approvals-doc-tab",
+          galleryCount > 0 && "gallery",
+          activeTab === "gallery" && "on",
+        )}
         onClick={() => onTabChange("gallery")}
       >
         <Image className="h-4 w-4" />
@@ -394,11 +415,7 @@ function DocumentPreviewStack({
     >
       <span className="cell-label">{label}</span>
       <div className="cell-media">
-        {src ? (
-          <img src={docImageSrc(src)} alt={aria} />
-        ) : (
-          <span className="cell-fill ic" />
-        )}
+        {src ? <img src={docImageSrc(src)} alt={aria} /> : <span className="cell-fill ic" />}
       </div>
     </button>
   );
@@ -535,10 +552,18 @@ function SignupDetailPanel({
           </div>
         </div>
         <div className="iz-approvals-detail-actions">
-          <button type="button" className="iz-btn iz-btn-primary !py-2 !text-xs" onClick={onApprove}>
+          <button
+            type="button"
+            className="iz-btn iz-btn-primary !py-2 !text-xs"
+            onClick={onApprove}
+          >
             Approve
           </button>
-          <button type="button" className="iz-btn iz-btn-soft !py-2 !text-xs" onClick={() => setRejectOpen(true)}>
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft !py-2 !text-xs"
+            onClick={() => setRejectOpen(true)}
+          >
             Reject
           </button>
         </div>
@@ -655,10 +680,18 @@ function CutlostDetailPanel({
           </div>
         </div>
         <div className="iz-approvals-detail-actions">
-          <button type="button" className="iz-btn iz-btn-primary !py-2 !text-xs" onClick={onApprove}>
+          <button
+            type="button"
+            className="iz-btn iz-btn-primary !py-2 !text-xs"
+            onClick={onApprove}
+          >
             Approve
           </button>
-          <button type="button" className="iz-btn iz-btn-soft !py-2 !text-xs" onClick={() => setRejectOpen(true)}>
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft !py-2 !text-xs"
+            onClick={() => setRejectOpen(true)}
+          >
             Decline
           </button>
         </div>
@@ -667,7 +700,9 @@ function CutlostDetailPanel({
       <div className="iz-approvals-cutlost-summary">
         <Icon className="h-4 w-4 shrink-0 text-[var(--iz-gold-l)]" />
         <div className="min-w-0">
-          <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">{cutlostRequestTitle(req)}</p>
+          <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">
+            {cutlostRequestTitle(req)}
+          </p>
           <p className="iz-tiny iz-muted2 mt-0.5">{cutlostRequestDetail(req)}</p>
         </div>
       </div>
@@ -676,8 +711,12 @@ function CutlostDetailPanel({
         <IzPill variant="violet">{req.dateLabel}</IzPill>
         <IzPill variant="violet">{req.shiftLabel}</IzPill>
         {req.model === "best_effort" && <IzPill variant="violet">Best effort</IzPill>}
-        <IzPill variant="red">Cutlost RM {Math.round(req.cutlostBefore).toLocaleString("en-MY")}</IzPill>
-        <IzPill variant="green">Saves ~RM {Math.round(req.estimatedSavings).toLocaleString("en-MY")}</IzPill>
+        <IzPill variant="red">
+          Cutlost RM {Math.round(req.cutlostBefore).toLocaleString("en-MY")}
+        </IzPill>
+        <IzPill variant="green">
+          Saves ~RM {Math.round(req.estimatedSavings).toLocaleString("en-MY")}
+        </IzPill>
       </div>
 
       {req.releasedPrNames?.length ? (
@@ -714,10 +753,64 @@ function CutlostDetailPanel({
   );
 }
 
+function LinkRequestDetailPanel({
+  link,
+  onApprove,
+  onReject,
+}: {
+  link: PendingAgencyLink;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <>
+      <div className="iz-approvals-detail-head">
+        <div className="iz-approvals-detail-profile">
+          <ApprovalsAvatar name={link.prName} id={link.id} size="lg" />
+          <div className="min-w-0">
+            <h2 className="iz-approvals-detail-name">{link.prName}</h2>
+            <p className="iz-approvals-detail-meta">
+              Wants to link to {link.agencyName} · {link.requestedAt}
+            </p>
+            <IzPill variant="amber" className="mt-1.5">
+              Agency-link request
+            </IzPill>
+          </div>
+        </div>
+        <div className="iz-approvals-detail-actions">
+          <button
+            type="button"
+            className="iz-btn iz-btn-primary !py-2 !text-xs"
+            onClick={onApprove}
+          >
+            Approve link
+          </button>
+          <button type="button" className="iz-btn iz-btn-soft !py-2 !text-xs" onClick={onReject}>
+            Reject
+          </button>
+        </div>
+      </div>
+
+      <div className="iz-approvals-info-grid">
+        <div className="iz-approvals-info-card">
+          <h3 className="iz-approvals-info-title">Link request</h3>
+          <p className="iz-approvals-info-line">
+            <UserPlus className="h-3.5 w-3.5 shrink-0" />
+            {link.prName} is asking to join {link.agencyName}.
+          </p>
+          <p className="iz-tiny iz-muted2 mt-1">
+            Approve to add them to your roster — they can then be scheduled like any tied PR.
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export const Route = createFileRoute("/agency/pending")({
   component: AgencyPending,
   validateSearch: (search: Record<string, unknown>): { tab?: Tab } => ({
-    tab: search.tab === "cutlost" || search.tab === "freelancer" ? "cutlost" : undefined,
+    tab: search.tab === "cutlost" ? "cutlost" : undefined,
   }),
 });
 
@@ -732,7 +825,15 @@ function AgencyPending() {
     rejectCutlostRequest,
     invitePendingPR,
     agencySubRole,
+    pendingAgencyLinks,
+    activeAgencyId,
+    approveAgencyLink,
+    rejectAgencyLink,
   } = useStore();
+  const agencyLinkRequests = useMemo(
+    () => pendingAgencyLinks.filter((l) => l.status === "pending" && l.agencyId === activeAgencyId),
+    [pendingAgencyLinks, activeAgencyId],
+  );
   const { date, time } = nowAgencyDateTime();
   const [tab, setTab] = useState<Tab>("signups");
   const [selectedSignupId, setSelectedSignupId] = useState<string | null>(null);
@@ -744,7 +845,13 @@ function AgencyPending() {
     if (tabFromSearch) setTab(tabFromSearch);
   }, [tabFromSearch]);
 
-  const signups = useMemo(() => pendingPRs.filter((p) => p.status === "pending"), [pendingPRs]);
+  const signups = useMemo(
+    () =>
+      pendingPRs.filter(
+        (p) => p.status === "pending" && (p.agencyId ?? "atlas") === activeAgencyId,
+      ),
+    [pendingPRs, activeAgencyId],
+  );
   const cutlostRequests = useMemo(
     () => pendingCutlostRequests.filter((r) => r.status === "pending"),
     [pendingCutlostRequests],
@@ -752,17 +859,19 @@ function AgencyPending() {
 
   useEffect(() => {
     if (tab === "signups") {
-      setSelectedSignupId((id) =>
-        id && signups.some((s) => s.id === id) ? id : signups[0]?.id ?? null,
-      );
+      setSelectedSignupId((id) => {
+        const ids = [...signups.map((s) => s.id), ...agencyLinkRequests.map((l) => l.id)];
+        return id && ids.includes(id) ? id : (ids[0] ?? null);
+      });
     } else {
       setSelectedCutlostId((id) =>
-        id && cutlostRequests.some((r) => r.id === id) ? id : cutlostRequests[0]?.id ?? null,
+        id && cutlostRequests.some((r) => r.id === id) ? id : (cutlostRequests[0]?.id ?? null),
       );
     }
-  }, [tab, signups, cutlostRequests]);
+  }, [tab, signups, agencyLinkRequests, cutlostRequests]);
 
   const selectedSignup = signups.find((s) => s.id === selectedSignupId) ?? null;
+  const selectedLink = agencyLinkRequests.find((l) => l.id === selectedSignupId) ?? null;
   const selectedCutlost = cutlostRequests.find((r) => r.id === selectedCutlostId) ?? null;
 
   if (!agencyCan(agencySubRole, "approvePrSignups")) {
@@ -792,7 +901,7 @@ function AgencyPending() {
               className={cn("iz-approvals-tab", tab === "signups" && "on")}
               onClick={() => setTab("signups")}
             >
-              Agency-Tied ({signups.length})
+              Agency-Tied ({signups.length + agencyLinkRequests.length})
             </button>
             <button
               type="button"
@@ -812,33 +921,60 @@ function AgencyPending() {
 
           <div className="iz-approvals-list">
             {tab === "signups" ? (
-              signups.length === 0 ? (
+              signups.length === 0 && agencyLinkRequests.length === 0 ? (
                 <p className="iz-tiny iz-muted px-1 py-4 text-center">No pending sign-ups</p>
               ) : (
-                signups.map((p) => {
-                  const galleryCount = portfolioFilledCount(p.portfolioPhotos ?? []);
-                  const comcardReady = comcardTabMeta(p).ready;
-                  return (
+                <>
+                  {signups.map((p) => {
+                    const galleryCount = portfolioFilledCount(p.portfolioPhotos ?? []);
+                    const comcardReady = comcardTabMeta(p).ready;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={cn("iz-approvals-list-item", selectedSignupId === p.id && "on")}
+                        onClick={() => setSelectedSignupId(p.id)}
+                      >
+                        <ApprovalsAvatar name={p.name} id={p.id} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <span className="name">{p.name}</span>
+                          <span className="sub">{p.languages}</span>
+                          <span className="badges">
+                            <VerificationBadge ok={!!p.hasIcPhotos} label="IC" />
+                            <VerificationBadge ok={!!p.hasSelfie} label="Selfie" />
+                            <VerificationBadge
+                              ok={galleryCount > 0}
+                              label="Gallery"
+                              count={galleryCount}
+                            />
+                            <VerificationBadge
+                              ok={comcardReady}
+                              label="Comcard"
+                              variant="comcard"
+                            />
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {agencyLinkRequests.map((l) => (
                     <button
-                      key={p.id}
+                      key={l.id}
                       type="button"
-                      className={cn("iz-approvals-list-item", selectedSignupId === p.id && "on")}
-                      onClick={() => setSelectedSignupId(p.id)}
+                      className={cn("iz-approvals-list-item", selectedSignupId === l.id && "on")}
+                      onClick={() => setSelectedSignupId(l.id)}
                     >
-                      <ApprovalsAvatar name={p.name} id={p.id} size="sm" />
+                      <ApprovalsAvatar name={l.prName} id={l.id} size="sm" />
                       <div className="min-w-0 flex-1">
-                        <span className="name">{p.name}</span>
-                        <span className="sub">{p.languages}</span>
+                        <span className="name">{l.prName}</span>
+                        <span className="sub">Wants to link · {l.requestedAt}</span>
                         <span className="badges">
-                          <VerificationBadge ok={!!p.hasIcPhotos} label="IC" />
-                          <VerificationBadge ok={!!p.hasSelfie} label="Selfie" />
-                          <VerificationBadge ok={galleryCount > 0} label="Gallery" count={galleryCount} />
-                          <VerificationBadge ok={comcardReady} label="Comcard" variant="comcard" />
+                          <span className="iz-approvals-verify-badge gallery">Link request</span>
                         </span>
                       </div>
                     </button>
-                  );
-                })
+                  ))}
+                </>
               )
             ) : cutlostRequests.length === 0 ? (
               <p className="iz-tiny iz-muted px-1 py-4 text-center">No cutlost requests</p>
@@ -863,7 +999,9 @@ function AgencyPending() {
                     <span className="name">{req.outletName}</span>
                     <span className="sub">{cutlostRequestTitle(req)}</span>
                     <span className="badges">
-                      <span className="iz-approvals-verify-badge gallery">~RM {Math.round(req.estimatedSavings).toLocaleString("en-MY")}</span>
+                      <span className="iz-approvals-verify-badge gallery">
+                        ~RM {Math.round(req.estimatedSavings).toLocaleString("en-MY")}
+                      </span>
                     </span>
                   </div>
                 </button>
@@ -879,6 +1017,12 @@ function AgencyPending() {
                 signup={selectedSignup}
                 onApprove={() => approvePendingPR(selectedSignup.id)}
                 onReject={(reason) => rejectPendingPR(selectedSignup.id, reason)}
+              />
+            ) : selectedLink ? (
+              <LinkRequestDetailPanel
+                link={selectedLink}
+                onApprove={() => approveAgencyLink(selectedLink.id)}
+                onReject={() => rejectAgencyLink(selectedLink.id)}
               />
             ) : (
               <div className="iz-approvals-empty">
@@ -912,11 +1056,18 @@ function AgencyPending() {
               </button>
               <h3>Owner-initiated onboarding</h3>
             </div>
-            <button type="button" className="iz-sheet-close" onClick={() => setAddOpen(false)} aria-label="Close">
+            <button
+              type="button"
+              className="iz-sheet-close"
+              onClick={() => setAddOpen(false)}
+              aria-label="Close"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
-          <p className="iz-tiny iz-muted mb-3">Enter IC + contact → invite sent to complete profile</p>
+          <p className="iz-tiny iz-muted mb-3">
+            Enter IC + contact → invite sent to complete profile
+          </p>
           {(["name", "ic", "mobile", "email"] as const).map((field) => (
             <div key={field} className="mb-2">
               <span className="iz-field-label capitalize">{field}</span>

@@ -1,9 +1,21 @@
 /** PR spec features beyond base pr-demo — marketplace, notifications, swaps */
 
 import type { PrShiftOffer } from "@/lib/pr-demo";
-import { PR_SHIFT_OFFERS, SHIFT_TODAY, fmtDateLabelFromIso, fmtDtable, shiftTodayIso } from "@/lib/pr-demo";
+import {
+  PR_SHIFT_OFFERS,
+  SHIFT_TODAY,
+  fmtDateLabelFromIso,
+  fmtDtable,
+  shiftTodayIso,
+} from "@/lib/pr-demo";
 import { SEED_AGENCY_ROSTER, type AgencyRosterSlot } from "@/lib/agency-demo";
-import { getLiveTodayIso, isoOnWeekday, migrateDemoYmd, weekdayEventName, ymdFromIso } from "@/lib/demo-clock";
+import {
+  getLiveTodayIso,
+  isoOnWeekday,
+  migrateDemoYmd,
+  weekdayEventName,
+  ymdFromIso,
+} from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO, isDemoDateOnOrAfter } from "@/lib/roster-availability";
 import { outletMatches } from "@/lib/portal-sync";
 
@@ -240,6 +252,7 @@ export const PR_AGENCY_CODES: Record<string, string> = {
   ATLAS2026: "atlas",
   LUNA26: "luna",
   NOVA26: "nova",
+  DELTA26: "delta",
 };
 
 function tiedOfferYmd(weekday: number, allowToday = false): [number, number, number] {

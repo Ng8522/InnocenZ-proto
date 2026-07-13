@@ -36,8 +36,8 @@ export type ShiftDestination = "agency" | "marketplace" | "both";
 
 export const SHIFT_DESTINATION_LABELS: Record<ShiftDestination, string> = {
   agency: "Linked agency only",
-  marketplace: "Freelancers",
-  both: "Agency + Freelancers",
+  marketplace: "Marketplace",
+  both: "Agency + Marketplace",
 };
 
 export const DRESS_CODE_OPTIONS = [
@@ -330,8 +330,7 @@ const OUTLET_RATING_FALLBACK: OutletRatingSeed[] = [
 export function buildSeedOutletRatings(prNames: string[]): OutletSubmittedRating[] {
   return prNames.map((name, index) => {
     const seed =
-      OUTLET_RATING_BY_PR[name] ??
-      OUTLET_RATING_FALLBACK[index % OUTLET_RATING_FALLBACK.length]!;
+      OUTLET_RATING_BY_PR[name] ?? OUTLET_RATING_FALLBACK[index % OUTLET_RATING_FALLBACK.length]!;
     return {
       id: `r-demo-${index + 1}`,
       pr: name,
@@ -437,9 +436,7 @@ export function typicalDrinkPrice(menu: OutletDrinkPrice[]): number {
     .sort((a, b) => a - b);
   if (prices.length === 0) return averageDrinkPrice(menu);
   const mid = Math.floor(prices.length / 2);
-  return prices.length % 2 === 1
-    ? prices[mid]
-    : Math.round((prices[mid - 1] + prices[mid]) / 2);
+  return prices.length % 2 === 1 ? prices[mid] : Math.round((prices[mid - 1] + prices[mid]) / 2);
 }
 
 export function drinkMenuPriceRange(menu: OutletDrinkPrice[]): { min: number; max: number } {
@@ -454,7 +451,8 @@ export function cloneDrinkMenu(menu: OutletDrinkPrice[]): OutletDrinkPrice[] {
 
 export function sortOutletDrinkMenuByPrice(menu: OutletDrinkPrice[]): OutletDrinkPrice[] {
   return [...menu].sort(
-    (a, b) => a.priceRm - b.priceRm || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    (a, b) =>
+      a.priceRm - b.priceRm || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
   );
 }
 
@@ -497,7 +495,9 @@ export function normalizeOutletWorkspace(
       menu = DEFAULT_OUTLET_DRINK_MENU.map((d) => ({ ...d }));
     }
     if (!menu.some((d) => d.id === BOOKING_COMMISSION_MENU_ID)) {
-      const bookingDefault = DEFAULT_OUTLET_DRINK_MENU.find((d) => d.id === BOOKING_COMMISSION_MENU_ID);
+      const bookingDefault = DEFAULT_OUTLET_DRINK_MENU.find(
+        (d) => d.id === BOOKING_COMMISSION_MENU_ID,
+      );
       if (bookingDefault) {
         menu = [...menu, { ...bookingDefault }];
       }
@@ -557,9 +557,7 @@ export function normalizeOutletWorkspace(
         ...defaultCommissionOnlyRateSettings(),
         ...ws?.commissionOnlyRates,
       };
-  if (
-    commissionOnlyRates.targetSalesRm === COMMISSION_ONLY_DEFAULT_TARGET_SALES_RM
-  ) {
+  if (commissionOnlyRates.targetSalesRm === COMMISSION_ONLY_DEFAULT_TARGET_SALES_RM) {
     commissionOnlyRates.targetSalesRm = undefined;
   }
   if (
@@ -996,7 +994,9 @@ export function formatOutletPlanDailyHeadcountHint(
   if (remaining <= 0) {
     return `${plan.label} plan · ${plan.prPerDayMax} PRs/day limit reached for ${dateLabel}`;
   }
-  const band = plan.prPerDayMin ? `${plan.prPerDayMin}–${plan.prPerDayMax}` : String(plan.prPerDayMax);
+  const band = plan.prPerDayMin
+    ? `${plan.prPerDayMin}–${plan.prPerDayMax}`
+    : String(plan.prPerDayMax);
   return `${plan.label} plan · ${band} PRs/day · ${remaining} available on ${dateLabel}`;
 }
 
@@ -1012,9 +1012,7 @@ export function outletPrHeadcountForDate(
 ): number {
   const canon = canonicalOutletName(outletName);
   return shifts
-    .filter(
-      (s) => canonicalOutletName(s.outletName) === canon && (s.dateIso ?? "") === dateIso,
-    )
+    .filter((s) => canonicalOutletName(s.outletName) === canon && (s.dateIso ?? "") === dateIso)
     .reduce((sum, s) => sum + s.quantity, 0);
 }
 
@@ -1026,9 +1024,7 @@ export function outletNamedPrCountForDate(
 ): number {
   const canon = canonicalOutletName(outletName);
   return shifts
-    .filter(
-      (s) => canonicalOutletName(s.outletName) === canon && (s.dateIso ?? "") === dateIso,
-    )
+    .filter((s) => canonicalOutletName(s.outletName) === canon && (s.dateIso ?? "") === dateIso)
     .reduce((sum, s) => sum + (s.requestedPrIds?.length ?? 0), 0);
 }
 
@@ -1095,7 +1091,11 @@ export function outletSubscriptionInvoiceForPlan(
   issueDate = new Date(),
 ): OutletSubscriptionInvoice {
   const month = issueDate.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-  const day = issueDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const day = issueDate.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
   return {
     id: `SUB-${issueDate.getFullYear()}-${String(issueDate.getMonth() + 1).padStart(2, "0")}-${plan.id}`,
     issueDate: day,
@@ -1157,7 +1157,7 @@ export interface OutletOpsHead {
   email: string;
 }
 
-export type ShiftApplicantSource = "freelancer" | "outlet_request";
+export type ShiftApplicantSource = "outlet_request";
 
 export interface ShiftApplicant {
   id: string;
@@ -1166,7 +1166,7 @@ export interface ShiftApplicant {
   prName: string;
   rating: number;
   status: "pending" | "accepted" | "declined";
-  /** outlet_request = agency approval flow; freelancer = marketplace applicant */
+  /** outlet_request = agency approval flow */
   source?: ShiftApplicantSource;
 }
 
@@ -1300,16 +1300,11 @@ export function outletShiftTargetSalesRm(
 }
 
 /** Unique PR ids marked released early for this shift. */
-export function outletShiftReleasedEarlyIds(shift: {
-  releasedEarlyPrIds?: string[];
-}): string[] {
+export function outletShiftReleasedEarlyIds(shift: { releasedEarlyPrIds?: string[] }): string[] {
   return [...new Set(shift.releasedEarlyPrIds ?? [])];
 }
 
-export function mergeReleasedEarlyPrIds(
-  existing: string[] | undefined,
-  toAdd: string[],
-): string[] {
+export function mergeReleasedEarlyPrIds(existing: string[] | undefined, toAdd: string[]): string[] {
   return [...new Set([...(existing ?? []), ...toAdd])];
 }
 

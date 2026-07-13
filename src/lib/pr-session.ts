@@ -104,8 +104,7 @@ export function resolvePrShiftOfferFromRoster(
   const outletTemplate = outletIdx >= 0 ? PR_SHIFT_OFFERS[outletIdx] : template;
   const [y, m, d] = parseYmdIso(slot.dateIso);
   const comm = outletTemplate.comm;
-  const base =
-    slot.estPayout != null ? Math.max(0, slot.estPayout - comm) : outletTemplate.base;
+  const base = slot.estPayout != null ? Math.max(0, slot.estPayout - comm) : outletTemplate.base;
 
   return {
     outlet: slot.outlet,
@@ -146,10 +145,11 @@ export function findAgencyRosterTonight(
   return slot;
 }
 
-/** Bootstrap tied PR shift flow from agency roster; freelancer starts empty. */
-export function defaultPrShiftSessionForRole(role: PrSubRole, ctx: PrSessionContext): PrShiftSessionState {
-  if (role !== "pr_tied") return { ...EMPTY_PR_SHIFT_SESSION };
-
+/** Bootstrap the tied PR shift flow from the agency roster. */
+export function defaultPrShiftSessionForRole(
+  _role: PrSubRole,
+  ctx: PrSessionContext,
+): PrShiftSessionState {
   const swaps = ctx.prSwapRequests ?? [];
   if (swapBlocksRequestingPrShift(swaps, TIED_DEMO_ROSTER_PR_ID)) {
     return { ...EMPTY_PR_SHIFT_SESSION };
@@ -158,8 +158,7 @@ export function defaultPrShiftSessionForRole(role: PrSubRole, ctx: PrSessionCont
   const slot = findAgencyRosterTonight(ctx.agencyRoster, TIED_DEMO_ROSTER_PR_ID);
   if (!slot) return { ...EMPTY_PR_SHIFT_SESSION };
 
-  const pending =
-    slot.status === "outlet-pending" || slot.status === "outlet-request-pending";
+  const pending = slot.status === "outlet-pending" || slot.status === "outlet-request-pending";
 
   return {
     shiftAccepted: !pending,
@@ -198,7 +197,9 @@ export function extractPrShiftSession(st: {
     tables: st.tables,
     prActiveShift: st.prActiveShift,
     prCheckInMeta: { ...st.prCheckInMeta },
-    prMarketplaceApplication: st.prMarketplaceApplication ? { ...st.prMarketplaceApplication } : null,
+    prMarketplaceApplication: st.prMarketplaceApplication
+      ? { ...st.prMarketplaceApplication }
+      : null,
   };
 }
 
@@ -221,33 +222,11 @@ export function applyPrShiftSession(session: PrShiftSessionState): PrShiftSessio
   };
 }
 
-/** Outlet-side freelancer accept — never overwrite the active tied PR session. */
-export function patchFreelancerPrSession(
-  st: {
-    prSubRole: PrSubRole | null;
-    prSessionByRole: Partial<Record<PrSubRole, PrShiftSessionState>>;
-    agencyRoster: AgencyRosterSlot[];
-  },
-  patch: Partial<PrShiftSessionState>,
-): {
-  prSessionByRole: Partial<Record<PrSubRole, PrShiftSessionState>>;
-} & Partial<PrShiftSessionState> {
-  const base =
-    st.prSessionByRole.pr_free ?? defaultPrShiftSessionForRole("pr_free", { agencyRoster: st.agencyRoster });
-  const nextFree = { ...base, ...patch };
-  const prSessionByRole = { ...st.prSessionByRole, pr_free: nextFree };
-
-  if (st.prSubRole === "pr_free") {
-    return { prSessionByRole, ...applyPrShiftSession(nextFree) };
-  }
-  return { prSessionByRole };
-}
-
 export function clearPrShiftSession(): PrShiftSessionState {
   return { ...EMPTY_PR_SHIFT_SESSION, prCheckInMeta: {}, prMarketplaceApplication: null };
 }
 
-/** Clear tied or freelancer cached session when a swap completes for that PR. */
+/** Clear the cached session when a swap completes for that PR. */
 export function patchPrSessionForRole(
   st: {
     prSubRole: PrSubRole | null;
@@ -260,7 +239,8 @@ export function patchPrSessionForRole(
   prSessionByRole: Partial<Record<PrSubRole, PrShiftSessionState>>;
 } & Partial<PrShiftSessionState> {
   const base =
-    st.prSessionByRole[role] ?? defaultPrShiftSessionForRole(role, { agencyRoster: st.agencyRoster });
+    st.prSessionByRole[role] ??
+    defaultPrShiftSessionForRole(role, { agencyRoster: st.agencyRoster });
   const next = { ...base, ...patch };
   const prSessionByRole = { ...st.prSessionByRole, [role]: next };
 

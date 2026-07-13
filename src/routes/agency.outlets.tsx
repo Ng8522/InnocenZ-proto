@@ -11,6 +11,7 @@ import {
   filterAgencyOutletSummaries,
 } from "@/lib/agency-outlet-shifts";
 import { agencyCan } from "@/lib/agency-rbac";
+import { scopeToAgency } from "@/lib/agency-demo";
 import { useStore } from "@/lib/store";
 import { IzCard, IzPageTitle } from "@/components/iz/ui";
 import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
@@ -28,7 +29,13 @@ export const Route = createFileRoute("/agency/outlets")({
 function AgencyManageOutlets() {
   const { outlet: outletFromSearch } = Route.useSearch();
   const shifts = useStore((s) => s.shifts);
-  const agencyRoster = useStore((s) => s.agencyRoster);
+  const activeAgencyId = useStore((s) => s.activeAgencyId);
+  const allAgencyRoster = useStore((s) => s.agencyRoster);
+  // Tenant scoping — outlet demand/sales summaries reflect only this agency's roster.
+  const agencyRoster = useMemo(
+    () => scopeToAgency(allAgencyRoster, activeAgencyId),
+    [allAgencyRoster, activeAgencyId],
+  );
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const agencySubRole = useStore((s) => s.agencySubRole);
@@ -120,7 +127,9 @@ function AgencyManageOutlets() {
       <header className="iz-pr-manage-header">
         <div className="min-w-0">
           <IzPageTitle>Manage Outlet</IzPageTitle>
-          <p className="iz-tiny iz-muted mt-0.5">Browse venues · open shifts · assign from roster</p>
+          <p className="iz-tiny iz-muted mt-0.5">
+            Browse venues · open shifts · assign from roster
+          </p>
         </div>
         <div className="iz-pr-manage-header__actions">
           <button
@@ -140,7 +149,8 @@ function AgencyManageOutlets() {
       <IzCard flat className="border-[var(--iz-line2)]">
         <p className="iz-tiny iz-muted2 leading-relaxed">
           Outlets post shifts and request PRs through your agency. Assignments stay{" "}
-          <b className="text-[var(--iz-amber)]">awaiting PR</b> until the PR approves on their portal.
+          <b className="text-[var(--iz-amber)]">awaiting PR</b> until the PR approves on their
+          portal.
         </p>
       </IzCard>
 

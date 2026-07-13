@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { AgencyManagedPR, AgencyRosterSlot, LiveWorkforceEntry } from "@/lib/agency-demo";
-import { resolveRosterPrName, rosterSlotAgencyName } from "@/lib/agency-demo";
+import { resolveRosterPrName, rosterSlotAgencyName, scopeToAgency } from "@/lib/agency-demo";
 import { deriveLiveWorkforce, outletMatches } from "@/lib/portal-sync";
 import { formatPrDisplayName } from "@/lib/pr-demo";
 import { formatRosterShiftTime } from "@/lib/pr-session";
@@ -157,7 +157,14 @@ export function LiveWorkforceTable({
   embedded?: boolean;
   className?: string;
 }) {
-  const agencyRoster = useStore((s) => s.agencyRoster);
+  // Agency portal — scope live workforce to the signed-in agency so Delta never sees
+  // Atlas's on-duty PRs (and vice-versa). The outlet live floor uses a separate component.
+  const activeAgencyId = useStore((s) => s.activeAgencyId);
+  const allAgencyRoster = useStore((s) => s.agencyRoster);
+  const agencyRoster = useMemo(
+    () => scopeToAgency(allAgencyRoster, activeAgencyId),
+    [allAgencyRoster, activeAgencyId],
+  );
   const agencyPRs = useStore((s) => s.agencyPRs);
   const shifts = useStore((s) => s.shifts);
   const drinkMenu = useStore((s) => s.outletWorkspace.drinkMenu ?? []);
@@ -371,7 +378,11 @@ export function LiveWorkforceList({
   const rows = useMemo(() => {
     const bookedIds = tonightShift?.prs ?? [];
     const seen = new Set<string>();
-    const list: { id: string; prName: string; status: LiveWorkforceEntry["status"] | "scheduled" }[] = [];
+    const list: {
+      id: string;
+      prName: string;
+      status: LiveWorkforceEntry["status"] | "scheduled";
+    }[] = [];
 
     for (const prId of bookedIds) {
       if (seen.has(prId)) continue;
@@ -396,8 +407,7 @@ export function LiveWorkforceList({
 
     if (list.length > 0) {
       return list.sort((a, b) => {
-        const rank = (s: typeof a.status) =>
-          s === "on-duty" ? 0 : s === "en-route" ? 1 : 2;
+        const rank = (s: typeof a.status) => (s === "on-duty" ? 0 : s === "en-route" ? 1 : 2);
         return rank(a.status) - rank(b.status);
       });
     }

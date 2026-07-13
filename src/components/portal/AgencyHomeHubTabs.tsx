@@ -9,7 +9,8 @@ import { agencyCan, type AgencySubRole } from "@/lib/agency-rbac";
 import { agencyPvStatusLabel } from "@/lib/agency-payroll";
 import { pvStatusPillVariant } from "@/lib/pr-demo";
 import { deriveLiveWorkforce } from "@/lib/portal-sync";
-import { scopeToAgency } from "@/lib/agency-demo";
+import { scopeToAgency, ownedByAgency } from "@/lib/agency-demo";
+import { getAgencyManagedPvs } from "@/lib/agency-payroll";
 import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 
@@ -42,7 +43,13 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
   const pendingPRs = useStore((s) => s.pendingPRs);
   const pendingCutlostRequests = useStore((s) => s.pendingCutlostRequests);
-  const prPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
+  const allPrPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
+  const allAgencyPRs = useStore((s) => s.agencyPRs);
+  // Tenant scoping — PVs attributed via OWNED PRs so Delta's tiles never count Atlas PVs.
+  const prPaymentVouchers = useMemo(
+    () => getAgencyManagedPvs(allPrPaymentVouchers, ownedByAgency(allAgencyPRs, activeAgencyId)),
+    [allPrPaymentVouchers, allAgencyPRs, activeAgencyId],
+  );
 
   const showWorkforce = agencyCan(agencySubRole, "viewWorkforce");
   const showApprovals = agencyCan(agencySubRole, "approvePrSignups");
@@ -69,7 +76,9 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
     [agencyRoster, outletCommissionRules, perDrinkRm],
   );
 
-  const signups = pendingPRs.filter((p) => p.status === "pending");
+  const signups = pendingPRs.filter(
+    (p) => p.status === "pending" && (p.agencyId ?? "atlas") === activeAgencyId,
+  );
   const cutlostRequests = pendingCutlostRequests.filter((r) => r.status === "pending");
   const pendingReview = prPaymentVouchers.filter((p) => p.status === "PENDING_REVIEW");
   const disputes = prPaymentVouchers.filter((p) => p.status === "DISPUTED");

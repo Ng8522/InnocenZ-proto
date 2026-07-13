@@ -524,6 +524,65 @@ export function isUpcomingOutletShift(
   return /^\d{4}-\d{2}-\d{2}$/.test(dateIso) && dateIso >= todayIso;
 }
 
+/**
+ * Open slots the agency can send an early-released PR to (other outlets, same calendar day only).
+ * Includes open + confirmed posted shifts with remaining demand.
+ */
+export function listAvailableShiftsForEarlyReleaseReassign(input: {
+  shifts: ShiftRequest[];
+  excludeOutlet: string;
+  dateIso?: string;
+  todayIso?: string;
+  commissionRules?: OutletCommissionRule[];
+  outletWorkspace?: Pick<OutletWorkspaceSettings, "outletName" | "tierRates">;
+}): AgencyOutletAvailableShift[] {
+  const todayIso = input.todayIso ?? DEFAULT_ROSTER_DATE_ISO;
+  const dayIso = input.dateIso ?? todayIso;
+  const tierCtx: TierRatesContext = {
+    commissionRules: input.commissionRules ?? [],
+    workspace: input.outletWorkspace,
+  };
+
+  const rows: AgencyOutletAvailableShift[] = [];
+  for (const outlet of OUTLET_NAMES) {
+    if (outlet === input.excludeOutlet) continue;
+    for (const s of input.shifts) {
+      if (s.outletName !== outlet) continue;
+      if (s.status !== "open" && s.status !== "confirmed") continue;
+      if (s.destination !== "agency" && s.destination !== "both") continue;
+      const { demand, supplied, openSlots } = outletShiftDemandSupplied(s);
+      if (openSlots <= 0) continue;
+      const dateIso = s.dateIso ?? resolveOutletShiftDateIso(s.date, s.date, todayIso);
+      if (dateIso !== dayIso) continue;
+      const tierRates = s.tierRates ?? outletDefaultTierRates(outlet, tierCtx);
+      rows.push({
+        id: `posted-${s.id}`,
+        source: "posted",
+        outlet,
+        date: s.date,
+        dateIso,
+        shift: s.shift,
+        event: s.event,
+        demandSlots: demand,
+        suppliedSlots: supplied,
+        openSlots,
+        payEstimate: s.estimatedCost,
+        languages: s.languages,
+        destination: s.destination,
+        tierRates,
+        quantity: s.quantity,
+        payTierRows: resolveAgencyPayTierRows(tierRates, s.quantity, s.payTierRows, s.id),
+        briefing: postedShiftBriefing(s),
+        ...postedShiftEventFields(s),
+      });
+    }
+  }
+
+  return rows.sort(
+    (a, b) => a.outlet.localeCompare(b.outlet) || a.shift.localeCompare(b.shift),
+  );
+}
+
 export function buildOutletDayDemandSummaries(input: {
   outlet: string;
   posted: ShiftRequest[];

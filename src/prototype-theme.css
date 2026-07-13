@@ -5986,6 +5986,8 @@
 .iz-outlet-stat-chip--warn .iz-outlet-stat-chip__value { color: #f5c842; }
 .iz-outlet-stat-chip--danger { border-color: rgba(248, 113, 113, 0.35); }
 .iz-outlet-stat-chip--danger .iz-outlet-stat-chip__value { color: #f87171; }
+.iz-outlet-stat-chip--green { border-color: rgba(52, 211, 153, 0.35); }
+.iz-outlet-stat-chip--green .iz-outlet-stat-chip__value { color: var(--iz-green); }
 .iz-outlet-stat-chip--interactive {
   width: 100%;
   cursor: pointer;

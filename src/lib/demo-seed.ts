@@ -207,6 +207,7 @@ export function mergeDemoShiftStaffing(
       payTierRows: seed?.payTierRows ?? sh.payTierRows,
       demandCut: sh.demandCut ?? 0,
       releasedEarlyPrIds: releasedEarly.length ? releasedEarly : undefined,
+      releasedEarlyAt: sh.releasedEarlyAt,
       prs: activePrs,
       filled: activePrs.length,
       drinkUnits: seed?.drinkUnits ?? 0,

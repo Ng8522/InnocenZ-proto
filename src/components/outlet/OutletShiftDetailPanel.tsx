@@ -25,6 +25,7 @@ import {
   shiftSpecialEventLabel,
   outletShiftCutLossAdjustmentsLabel,
   outletShiftCutLossForShift,
+  outletShiftBestEffortSaveCredited,
   outletShiftDemandSupplied,
   outletShiftActivePrIds,
   outletShiftActualLaborCostForShift,
@@ -162,6 +163,7 @@ export function OutletShiftDetailPanel({
     ],
   );
   const cutLoss = outletShiftCutLossForShift(shift, tierRates, prTierById);
+  const bestEffortSaved = outletShiftBestEffortSaveCredited(shift, tierRates, prTierById);
   const { demand: staffingDemand, supplied } = outletShiftDemandSupplied(shift);
   const adjustmentsLabel = outletShiftCutLossAdjustmentsLabel(shift);
   const tierStaffingByPayTier = useMemo(
@@ -187,7 +189,7 @@ export function OutletShiftDetailPanel({
   );
   const demandLevel = trafficLevelForRatio(supplied, staffingDemand);
   const demandTone =
-    demandLevel === "green" ? "neutral" : demandLevel === "yellow" ? "warn" : "violet";
+    demandLevel === "green" ? "green" : demandLevel === "yellow" ? "warn" : "violet";
   const cutlostSectionId = hideCutlost
     ? OUTLET_REDUCE_CUTLOST_SECTION_ID
     : `${OUTLET_REDUCE_CUTLOST_SECTION_ID}-${shift.id}`;
@@ -278,9 +280,13 @@ export function OutletShiftDetailPanel({
           </div>
         </div>
 
-        {adjustmentsLabel && (
+        {(adjustmentsLabel || bestEffortSaved > 0) && (
           <p className="iz-tiny iz-muted2 mt-2 text-center">
-            Posted {shift.quantity} · {adjustmentsLabel}
+            Posted {shift.quantity}
+            {adjustmentsLabel ? ` · ${adjustmentsLabel}` : ""}
+            {bestEffortSaved > 0
+              ? ` · Saved ${formatOutletShiftMetricAmount(bestEffortSaved)}`
+              : ""}
           </p>
         )}
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { AgencyManagedPR, AgencyRosterSlot, LiveWorkforceEntry } from "@/lib/agency-demo";
-import { resolveRosterPrName, rosterSlotAgencyName, scopeToAgency } from "@/lib/agency-demo";
+import { resolveRosterPrName, rosterSlotAgencyName, agencyPortalLabel, rosterSlotsForAgency, scopeToAgency } from "@/lib/agency-demo";
 import { deriveLiveWorkforce, outletMatches } from "@/lib/portal-sync";
 import { formatPrDisplayName } from "@/lib/pr-demo";
 import { formatRosterShiftTime } from "@/lib/pr-session";
@@ -66,6 +66,7 @@ function WorkforceRow({
   profile,
   floor,
   prId,
+  agencyLabel,
   onOpenEarningsSheet,
 }: {
   entry: LiveWorkforceEntry;
@@ -73,10 +74,12 @@ function WorkforceRow({
   profile?: AgencyManagedPR;
   floor: OutletPrLiveSales;
   prId?: string;
+  agencyLabel?: string;
   onOpenEarningsSheet?: (kind: RosterEarningsSheetKind, slot: AgencyRosterSlot) => void;
 }) {
   const st = LIVE_STATUS_LABEL[entry.status];
   const previewSlot = slot ?? { prId: prId ?? entry.id, prName: entry.prName };
+  const label = agencyLabel ?? (slot ? rosterSlotAgencyName(slot) : undefined);
 
   return (
     <PortalClickableTableRow
@@ -87,7 +90,7 @@ function WorkforceRow({
           <PrComcardIdentity
             pr={comcardPreviewFromSlot(previewSlot, profile)}
             profile={profile}
-            agencyName={slot ? rosterSlotAgencyName(slot) : undefined}
+            agencyName={label}
           />
           <div className="iz-portal-table-pr-meta">
             <span className="iz-portal-table-name">{entry.prName}</span>
@@ -97,7 +100,7 @@ function WorkforceRow({
           </div>
         </div>
       </td>
-      <td className="iz-portal-table-meta">{slot ? rosterSlotAgencyName(slot) : "—"}</td>
+      <td className="iz-portal-table-meta">{label ?? "—"}</td>
       <td className="iz-portal-table-meta">{entry.outlet}</td>
       <td className="iz-portal-table-meta iz-portal-table-shift">
         {slot ? formatRosterShiftTime(slot) : "—"}
@@ -157,15 +160,19 @@ export function LiveWorkforceTable({
   embedded?: boolean;
   className?: string;
 }) {
-  // Agency portal — scope live workforce to the signed-in agency so Delta never sees
-  // Atlas's on-duty PRs (and vice-versa). The outlet live floor uses a separate component.
+  // Agency portal — scope live workforce to PRs under the signed-in agency
+  // (ownership or dual-tied membership). Outlet live floor uses a separate component.
   const activeAgencyId = useStore((s) => s.activeAgencyId);
   const allAgencyRoster = useStore((s) => s.agencyRoster);
-  const agencyRoster = useMemo(
-    () => scopeToAgency(allAgencyRoster, activeAgencyId),
-    [allAgencyRoster, activeAgencyId],
+  const allAgencyPRs = useStore((s) => s.agencyPRs);
+  const agencyPRs = useMemo(
+    () => scopeToAgency(allAgencyPRs, activeAgencyId),
+    [allAgencyPRs, activeAgencyId],
   );
-  const agencyPRs = useStore((s) => s.agencyPRs);
+  const agencyRoster = useMemo(
+    () => rosterSlotsForAgency(allAgencyRoster, allAgencyPRs, activeAgencyId),
+    [allAgencyRoster, allAgencyPRs, activeAgencyId],
+  );
   const shifts = useStore((s) => s.shifts);
   const drinkMenu = useStore((s) => s.outletWorkspace.drinkMenu ?? []);
   const receiptScans = useStore((s) => s.prReceiptScans ?? []);
@@ -236,6 +243,7 @@ export function LiveWorkforceTable({
   }, [agencyRoster]);
 
   const prById = useMemo(() => new Map(agencyPRs.map((p) => [p.id, p])), [agencyPRs]);
+  const viewingAgencyLabel = agencyPortalLabel(activeAgencyId);
 
   const panelClass = ["iz-portal-panel", className].filter(Boolean).join(" ");
   const wrapClass = embedded ? className : panelClass;
@@ -311,6 +319,7 @@ export function LiveWorkforceTable({
                   profile={prId ? prById.get(prId) : undefined}
                   floor={floor}
                   prId={prId}
+                  agencyLabel={viewingAgencyLabel}
                   onOpenEarningsSheet={earningsContext ? openEarningsSheet : undefined}
                 />
               );

@@ -11,7 +11,7 @@ import {
   filterAgencyOutletSummaries,
 } from "@/lib/agency-outlet-shifts";
 import { agencyCan } from "@/lib/agency-rbac";
-import { scopeToAgency } from "@/lib/agency-demo";
+import { rosterSlotsForAgency } from "@/lib/agency-demo";
 import { useStore } from "@/lib/store";
 import { IzCard, IzPageTitle } from "@/components/iz/ui";
 import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
@@ -31,10 +31,11 @@ function AgencyManageOutlets() {
   const shifts = useStore((s) => s.shifts);
   const activeAgencyId = useStore((s) => s.activeAgencyId);
   const allAgencyRoster = useStore((s) => s.agencyRoster);
-  // Tenant scoping — outlet demand/sales summaries reflect only this agency's roster.
+  const allAgencyPRs = useStore((s) => s.agencyPRs);
+  // Tenant scoping — outlet demand/sales summaries reflect only this agency's PRs.
   const agencyRoster = useMemo(
-    () => scopeToAgency(allAgencyRoster, activeAgencyId),
-    [allAgencyRoster, activeAgencyId],
+    () => rosterSlotsForAgency(allAgencyRoster, allAgencyPRs, activeAgencyId),
+    [allAgencyRoster, allAgencyPRs, activeAgencyId],
   );
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const outletWorkspace = useStore((s) => s.outletWorkspace);

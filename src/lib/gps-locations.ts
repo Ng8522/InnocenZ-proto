@@ -1,4 +1,5 @@
 import type { AgencyManagedPR, AgencyRosterSlot } from "@/lib/agency-demo";
+import { resolveRosterPrName } from "@/lib/agency-demo";
 
 export interface GeoCoord {
   lat: number;
@@ -306,7 +307,7 @@ export function buildGpsTrackingRows(
     return {
       slotId: slot.id,
       prId: slot.prId,
-      prName: slot.prName,
+      prName: resolveRosterPrName(slot.prId, slot.prName, agencyPRs),
       outlet: slot.outlet,
       status,
       meters: gpsFallback ? Math.max(meters, 120) : meters,

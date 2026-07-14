@@ -2,6 +2,9 @@
 
 import { addDaysToIso, getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/demo-clock";
 
+/** Fallback menu unit price when drinkSalesRm is missing (Workspace typical ~RM150). */
+export const SHIFT_HISTORY_FALLBACK_PER_DRINK_RM = 150;
+
 export interface ShiftHistoryRow {
   id: string;
   prName: string;
@@ -10,11 +13,22 @@ export interface ShiftHistoryRow {
   agencyName: string;
   dateDisplay: string;
   dateIso: string;
+  /** PR take-home — wages + OT + commissions (Workspace rates). */
   totalPayout: number;
+  /** Drink units sold (kept for inventory / reports). */
   totalDrinks: number;
+  /** Full tip sales RM logged for the outlet (not tip-commission %). */
   totalTips: number;
+  /** Full drink sales RM for the outlet (menu prices, not PR drink commission). */
+  drinkSalesRm?: number;
   /** VIP / table units logged on shift */
   totalTables?: number;
+  /** Sealed payout parts — wages / OT / commissions (Workspace snapshot). */
+  wagesRm?: number;
+  otRm?: number;
+  drinkCommissionRm?: number;
+  tipCommissionRm?: number;
+  tableCommissionRm?: number;
   durationHours: number;
 }
 
@@ -130,6 +144,8 @@ export type ShiftHistoryVenueRollup = {
   totalPayout: number;
   totalDrinks: number;
   totalTips: number;
+  drinkSalesRm: number;
+  totalReceived: number;
   totalTables: number;
   shifts: ShiftHistoryRow[];
 };
@@ -152,14 +168,24 @@ export function aggregateShiftHistoryByVenue(
         totalPayout: 0,
         totalDrinks: 0,
         totalTips: 0,
+        drinkSalesRm: 0,
+        totalReceived: 0,
         totalTables: 0,
         shifts: [],
       } satisfies ShiftHistoryVenueRollup);
+
+    const drinkSales =
+      typeof row.drinkSalesRm === "number" && Number.isFinite(row.drinkSalesRm)
+        ? row.drinkSalesRm
+        : row.totalDrinks * SHIFT_HISTORY_FALLBACK_PER_DRINK_RM;
+    const received = drinkSales + row.totalTips;
 
     cur.shiftCount += 1;
     cur.totalPayout += row.totalPayout;
     cur.totalDrinks += row.totalDrinks;
     cur.totalTips += row.totalTips;
+    cur.drinkSalesRm += drinkSales;
+    cur.totalReceived += received;
     cur.totalTables += row.totalTables ?? 0;
     cur.shifts.push(row);
     map.set(venue, cur);
@@ -175,9 +201,19 @@ export function sumShiftHistoryVenueRollups(rollups: ShiftHistoryVenueRollup[]) 
       totalPayout: acc.totalPayout + r.totalPayout,
       totalDrinks: acc.totalDrinks + r.totalDrinks,
       totalTips: acc.totalTips + r.totalTips,
+      drinkSalesRm: acc.drinkSalesRm + r.drinkSalesRm,
+      totalReceived: acc.totalReceived + r.totalReceived,
       totalTables: acc.totalTables + r.totalTables,
     }),
-    { shiftCount: 0, totalPayout: 0, totalDrinks: 0, totalTips: 0, totalTables: 0 },
+    {
+      shiftCount: 0,
+      totalPayout: 0,
+      totalDrinks: 0,
+      totalTips: 0,
+      drinkSalesRm: 0,
+      totalReceived: 0,
+      totalTables: 0,
+    },
   );
 }
 
@@ -191,6 +227,8 @@ export type ShiftHistoryPrRollup = {
   totalPayout: number;
   totalDrinks: number;
   totalTips: number;
+  drinkSalesRm: number;
+  totalReceived: number;
   totalTables: number;
 };
 
@@ -219,14 +257,24 @@ export function aggregateShiftHistoryByPr(
         totalPayout: 0,
         totalDrinks: 0,
         totalTips: 0,
+        drinkSalesRm: 0,
+        totalReceived: 0,
         totalTables: 0,
       };
       map.set(row.prId, cur);
     }
+    const drinkSales =
+      typeof row.drinkSalesRm === "number" && Number.isFinite(row.drinkSalesRm)
+        ? row.drinkSalesRm
+        : row.totalDrinks * SHIFT_HISTORY_FALLBACK_PER_DRINK_RM;
+    const received = drinkSales + row.totalTips;
+
     cur.shiftCount += 1;
     cur.totalPayout += row.totalPayout;
     cur.totalDrinks += row.totalDrinks;
     cur.totalTips += row.totalTips;
+    cur.drinkSalesRm += drinkSales;
+    cur.totalReceived += received;
     cur.totalTables += row.totalTables ?? 0;
     cur.venueSet.add(row[venueKey]);
     if (row.dateIso > cur.latestDateIso) {

@@ -22,6 +22,7 @@ import {
 import {
   dedupeShiftHistorySlots,
   sortShiftHistoryDesc,
+  SHIFT_HISTORY_FALLBACK_PER_DRINK_RM,
   type ShiftHistoryRow,
 } from "@/lib/shift-history-utils";
 
@@ -347,21 +348,40 @@ function buildShiftHistoryFromPayrollPvs(
     }
   }
 
-  const { drinkPerUnit, tablePerUnit } = RECEIPT_COMMISSION_RULES;
-  return [...slots.values()].map((acc) => ({
-    id: `${PAYROLL_SHIFT_ROW_PREFIX}${acc.pvId}-${acc.dateIso}-${outletSlug(acc.outlet)}`,
-    prName: acc.prName,
-    prId: acc.prId,
-    outlet: acc.outlet,
-    agencyName: PAYROLL_AGENCY_NAME,
-    dateDisplay: acc.dateDisplay,
-    dateIso: acc.dateIso,
-    totalPayout: Math.round(acc.totalPayout * 100) / 100,
-    totalDrinks: drinkPerUnit > 0 ? Math.max(0, Math.round(acc.drinksAmt / drinkPerUnit)) : 0,
-    totalTips: Math.round(acc.tipsAmt * 100) / 100,
-    totalTables: tablePerUnit > 0 ? Math.max(0, Math.round(acc.tablesAmt / tablePerUnit)) : 0,
-    durationHours: 6,
-  }));
+  const { drinkPerUnit } = RECEIPT_COMMISSION_RULES;
+  return [...slots.values()].map((acc) => {
+    const totalDrinks =
+      drinkPerUnit > 0 ? Math.max(0, Math.round(acc.drinksAmt / drinkPerUnit)) : 0;
+    const drinkSalesRm = Math.round(totalDrinks * SHIFT_HISTORY_FALLBACK_PER_DRINK_RM * 100) / 100;
+    const drinkCommissionRm = Math.round(acc.drinksAmt * 100) / 100;
+    const tipCommissionRm = Math.round(acc.tipsAmt * 100) / 100;
+    // Table commission retired from History — fold any PV table lines out of payout display parts.
+    const totalPayout = Math.round(acc.totalPayout * 100) / 100;
+    const wagesRm = Math.max(
+      0,
+      Math.round((totalPayout - drinkCommissionRm - tipCommissionRm) * 100) / 100,
+    );
+    return {
+      id: `${PAYROLL_SHIFT_ROW_PREFIX}${acc.pvId}-${acc.dateIso}-${outletSlug(acc.outlet)}`,
+      prName: acc.prName,
+      prId: acc.prId,
+      outlet: acc.outlet,
+      agencyName: PAYROLL_AGENCY_NAME,
+      dateDisplay: acc.dateDisplay,
+      dateIso: acc.dateIso,
+      totalPayout,
+      totalDrinks,
+      drinkSalesRm,
+      totalTips: tipCommissionRm,
+      totalTables: 0,
+      wagesRm,
+      otRm: 0,
+      drinkCommissionRm,
+      tipCommissionRm,
+      tableCommissionRm: 0,
+      durationHours: 6,
+    };
+  });
 }
 
 /**

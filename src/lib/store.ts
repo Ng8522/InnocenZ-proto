@@ -148,6 +148,7 @@ import { mergeHistoryDemoLedger, syncStoreHistoryLedger } from "@/lib/history-de
 import {
   mergeShiftHistory,
   migrateShiftHistoryPrNames,
+  migrateShiftHistoryFinancials,
   prepareShiftHistoryForDisplay,
   shiftHistorySlotKey,
   type ShiftHistoryRow,
@@ -223,6 +224,7 @@ import {
   outletSubscriptionInvoiceForPlan,
   syncOutletSubscriptionBilling,
   getOutletSubscriptionPlan,
+  typicalDrinkPrice,
   type OutletDrinkPrice,
   type OutletSubscriptionInvoice,
   type OutletSubscriptionPlanId,
@@ -273,7 +275,9 @@ import {
   calcDutyWagesFromOutlet,
   shiftPayoutTotal,
   receiptItemsForShift,
+  aggregateShiftSales,
 } from "@/lib/pr-shift-status";
+import { sealShiftHistoryAmounts } from "@/lib/shift-history-amounts";
 import {
   syncCommissionRulesFromWorkspace,
   syncWorkspaceFromCommissionRules,
@@ -392,7 +396,10 @@ export interface Booking {
 }
 
 export interface PrRegistrationInput {
-  displayName: string;
+  /** Floor / roster nickname shown to outlets */
+  floorNickname: string;
+  /** Legal name as on IC / passport */
+  icName: string;
   email: string;
   mobile: string;
   ic: string;
@@ -407,7 +414,10 @@ export interface PrRegistrationInput {
 
 export interface PendingPR {
   id: string;
+  /** Floor nickname (roster / GPS / outlet) */
   name: string;
+  /** Legal name when known (self-signup); falls back to `name` for legacy invites */
+  icName?: string;
   languages: string;
   ic?: string;
   mobile?: string;
@@ -1239,8 +1249,11 @@ function stripStockPortfolioFromPending(p: PendingPR): PendingPR {
 function mergePendingSeedFields(p: PendingPR, seed: PendingPR): PendingPR {
   return stripStockPortfolioFromPending({
     ...p,
-    icPhotoFront: p.icPhotoFront ?? seed.icPhotoFront,
-    icPhotoBack: p.icPhotoBack ?? seed.icPhotoBack,
+    // Keep demo floor nicknames + legal IC names in sync (persisted rows may predate the split).
+    name: seed.name,
+    icName: seed.icName,
+    icPhotoFront: seed.icPhotoFront ?? p.icPhotoFront,
+    icPhotoBack: seed.icPhotoBack ?? p.icPhotoBack,
     selfiePhoto: p.selfiePhoto ?? seed.selfiePhoto,
     portfolioPhotos: p.portfolioPhotos?.some(Boolean) ? p.portfolioPhotos : seed.portfolioPhotos,
     portfolioCount: p.portfolioPhotos?.some(Boolean)
@@ -1873,21 +1886,47 @@ export const useStore = create<StoreState>()(
           get().prReceiptScans ?? LIVE_SEED_RECEIPT_SCANS,
         ).filter((r) => r.shiftSessionId === shift.id || shift.receiptIds.includes(r.id));
         const profile = getPrProfile(get().prSubRole);
-        const shiftPayout = shiftPayoutTotal(closed.baseWages, scans);
+        const sales = aggregateShiftSales(scans);
+        const drinkSalesRm = scans.reduce(
+          (sum, scan) =>
+            sum +
+            scan.items
+              .filter((item) => item.category === "drinks")
+              .reduce((line, item) => line + item.amount, 0),
+          0,
+        );
+        const hoursWorked = closed.shiftHours || 6;
         const scanIds = new Set(scans.map((s) => s.id));
         const [y, m, d] = shift.date;
         const dateIso = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
         const managedPr = get().agencyPRs.find((p) => p.id === prId);
+        const sealed = sealShiftHistoryAmounts({
+          outlet: shift.outlet,
+          drinkUnits: sales.drinkUnits,
+          tipSalesRm: sales.tipRm,
+          tableUnits: sales.tableUnits,
+          hoursWorked,
+          drinkSalesRm: drinkSalesRm > 0 ? drinkSalesRm : undefined,
+          rules: get().outletCommissionRules,
+          prTier: managedPr?.trainingLevel,
+        });
         const historyRow = buildShiftHistoryRow({
           prId,
           prName: managedPr?.name ?? profile.name,
           outlet: shift.outlet,
           dateIso,
           dateDisplay: stamp.split("·")[0]?.trim() ?? stamp,
-          totalPayout: shiftPayout,
-          totalDrinks: scans.reduce((s, r) => s + r.drinkCommission, 0),
-          totalTips: scans.reduce((s, r) => s + r.tipCommission, 0),
-          durationHours: 6,
+          totalPayout: sealed.totalPayout,
+          totalDrinks: sealed.totalDrinks,
+          drinkSalesRm: sealed.drinkSalesRm,
+          totalTips: sealed.totalTips,
+          totalTables: sealed.totalTables,
+          wagesRm: sealed.wagesRm,
+          otRm: sealed.otRm,
+          drinkCommissionRm: sealed.drinkCommissionRm,
+          tipCommissionRm: sealed.tipCommissionRm,
+          tableCommissionRm: sealed.tableCommissionRm,
+          durationHours: hoursWorked,
         });
         const checkOutTime = new Date().toLocaleTimeString("en-MY", {
           hour: "2-digit",
@@ -4700,11 +4739,14 @@ export const useStore = create<StoreState>()(
           ...Array(Math.max(0, PORTFOLIO_SLOT_COUNT - input.portfolio.length)).fill(null),
         ].slice(0, PORTFOLIO_SLOT_COUNT) as (string | null)[];
         const portfolioCount = portfolioPhotos.filter(Boolean).length;
+        const floorNickname = input.floorNickname.trim();
+        const icName = input.icName.trim() || floorNickname;
         set((st) => ({
           pendingPRs: [
             {
               id,
-              name: input.displayName,
+              name: floorNickname,
+              icName,
               languages: input.nationality ? `EN · ${input.nationality}` : "Pending profile",
               ic: input.ic,
               mobile: input.mobile,
@@ -4716,13 +4758,14 @@ export const useStore = create<StoreState>()(
               submittedAt,
               source: "self-signup",
               status: "pending",
+              agencyId: input.agencyId || undefined,
             },
             ...st.pendingPRs,
           ],
           prPortfolio: portfolioPhotos,
           prAvatarPhoto: input.profilePhoto ?? st.prAvatarPhoto,
-          prDisplayName: input.displayName,
-          prIcName: input.displayName,
+          prDisplayName: floorNickname,
+          prIcName: icName,
           prMobile: input.mobile,
           prEmail: input.email,
         }));
@@ -5553,18 +5596,37 @@ export const useStore = create<StoreState>()(
               s.status === "on-duty" &&
               outletMatches(s.outlet, shift.outletName),
           );
-          const payout =
-            Math.round((shift.estimatedCost / Math.max(shift.prs.length, 1)) * 100) / 100;
+          const drinkUnits = Math.round((shift.drinkUnits ?? 0) / Math.max(shift.prs.length, 1));
+          const tipSalesRm = roster?.floorTips ?? 0;
+          const perDrinkRm =
+            shift.perDrinkRm ??
+            typicalDrinkPrice(st.outletWorkspace.drinkMenu ?? []) ??
+            st.outletWorkspace.perDrinkRm;
+          const sealed = sealShiftHistoryAmounts({
+            outlet: shift.outletName,
+            drinkUnits,
+            tipSalesRm,
+            hoursWorked: 6,
+            perDrinkRm,
+            rules: st.outletCommissionRules,
+            prTier: pr?.trainingLevel,
+          });
           return buildShiftHistoryRow({
             prId,
             prName: pr?.name ?? prId,
             outlet: shift.outletName,
             dateIso,
             dateDisplay,
-            totalPayout: payout,
-            totalDrinks: Math.round((shift.drinkUnits ?? 0) / Math.max(shift.prs.length, 1)),
-            totalTips: roster?.floorTips ?? 0,
-            totalTables: 0,
+            totalPayout: sealed.totalPayout,
+            totalDrinks: sealed.totalDrinks,
+            drinkSalesRm: sealed.drinkSalesRm,
+            totalTips: sealed.totalTips,
+            totalTables: sealed.totalTables,
+            wagesRm: sealed.wagesRm,
+            otRm: sealed.otRm,
+            drinkCommissionRm: sealed.drinkCommissionRm,
+            tipCommissionRm: sealed.tipCommissionRm,
+            tableCommissionRm: sealed.tableCommissionRm,
             durationHours: 6,
           });
         });
@@ -5930,19 +5992,23 @@ export const useStore = create<StoreState>()(
             ),
           ),
         ].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt));
-        const persistedShiftRows = migrateShiftHistoryPrNames(
-          (p?.shiftHistory ?? []).map((row) => {
-            const dateIso = migrateDemoDateIso(row.dateIso);
-            return dateIso === row.dateIso
-              ? row
-              : { ...row, dateIso, dateDisplay: fmtDateLabelFromIso(dateIso) };
-          }),
-          current.shiftHistory,
+        const persistedShiftRows = migrateShiftHistoryFinancials(
+          migrateShiftHistoryPrNames(
+            (p?.shiftHistory ?? []).map((row) => {
+              const dateIso = migrateDemoDateIso(row.dateIso);
+              return dateIso === row.dateIso
+                ? row
+                : { ...row, dateIso, dateDisplay: fmtDateLabelFromIso(dateIso) };
+            }),
+            current.shiftHistory,
+          ),
         );
         const mergedShiftHistory = prepareShiftHistoryForDisplay(
-          migrateShiftHistoryPrNames(
-            mergeShiftHistory(persistedShiftRows, current.shiftHistory),
-            current.shiftHistory,
+          migrateShiftHistoryFinancials(
+            migrateShiftHistoryPrNames(
+              mergeShiftHistory(persistedShiftRows, current.shiftHistory),
+              current.shiftHistory,
+            ),
           ),
         );
         const mergedAgencyPRsForLedger = normalizeAgencyPrs(
@@ -5961,10 +6027,12 @@ export const useStore = create<StoreState>()(
           mergedAgencyPRsForLedger,
         );
         const mergedShiftHistorySynced = prepareShiftHistoryForDisplay(
-          migrateShiftHistoryPrNames(
-            syncAgencyPayrollShiftHistory(mergedShiftHistory, mergedPvs, mergedAgencyPRsForLedger),
-            current.shiftHistory,
-            mergedAgencyPRsForLedger,
+          migrateShiftHistoryFinancials(
+            migrateShiftHistoryPrNames(
+              syncAgencyPayrollShiftHistory(mergedShiftHistory, mergedPvs, mergedAgencyPRsForLedger),
+              current.shiftHistory,
+              mergedAgencyPRsForLedger,
+            ),
           ),
         );
         const portalForAgencySync = {
@@ -6071,10 +6139,12 @@ export const useStore = create<StoreState>()(
           prAvatarPhoto: migratePrPortfolioAssetPath(p?.prAvatarPhoto ?? current.prAvatarPhoto),
           prReceiptScans: mergedScans.length ? mergedScans : current.prReceiptScans,
           prActiveShift: p?.prActiveShift ?? current.prActiveShift,
-          shiftHistory: migrateShiftHistoryPrNames(
-            mergedShiftHistorySynced,
-            current.shiftHistory,
-            mergedAgencyPRs,
+          shiftHistory: migrateShiftHistoryFinancials(
+            migrateShiftHistoryPrNames(
+              mergedShiftHistorySynced,
+              current.shiftHistory,
+              mergedAgencyPRs,
+            ),
           ),
           pendingPRs: mergePendingPRs(p?.pendingPRs, current.pendingPRs),
           pendingCutlostRequests: p?.pendingCutlostRequests ?? current.pendingCutlostRequests,

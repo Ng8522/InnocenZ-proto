@@ -121,7 +121,7 @@ const MY_STATES = [
 ] as const;
 
 type RegisterDraft = {
-  username: string;
+  floorNickname: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -204,7 +204,7 @@ function buildDemoPortfolio(): (string | null)[] {
 
 function buildEmptyRegisterDraft(): RegisterDraft {
   return {
-    username: "",
+    floorNickname: "",
     firstName: "",
     lastName: "",
     email: "",
@@ -235,7 +235,7 @@ function buildEmptyRegisterDraft(): RegisterDraft {
 function buildDemoRegisterDraft(): RegisterDraft {
   const dob = "1995-03-12";
   return {
-    username: "CF Tan",
+    floorNickname: "Cee",
     firstName: "Chee Fung",
     lastName: "Tan",
     email: "cheefung.tan@gmail.com",
@@ -763,17 +763,21 @@ function RegisterPage() {
     digitsOnlyNric(draft.idNo).length > 0 &&
     !digitsOnlyNric(draft.idNo).startsWith(nricPrefix);
 
-  const displayName =
-    [draft.firstName, draft.lastName].filter(Boolean).join(" ").trim() || draft.username;
+  const legalName = [draft.firstName, draft.lastName].filter(Boolean).join(" ").trim();
+  const floorNickname = draft.floorNickname.trim();
 
   const validateStep = (n: number): boolean => {
     if (n === 1) {
-      if (!draft.username.trim()) {
-        toast("Enter a username", "warn");
+      if (!floorNickname) {
+        toast("Enter a floor nickname", "warn");
+        return false;
+      }
+      if (floorNickname.length < 2 || floorNickname.length > 20) {
+        toast("Floor nickname must be 2–20 characters", "warn");
         return false;
       }
       if (!draft.firstName.trim() || !draft.lastName.trim()) {
-        toast("Enter your first and last name", "warn");
+        toast("Enter your legal first and last name (as on IC)", "warn");
         return false;
       }
       if (!fullPhone) {
@@ -897,7 +901,8 @@ function RegisterPage() {
       return;
     }
     submitPrRegistration({
-      displayName,
+      floorNickname,
+      icName: legalName,
       email: draft.email,
       mobile: fullPhone,
       ic: draft.idNo,
@@ -1012,31 +1017,35 @@ function RegisterPage() {
         <div className="iz-reg-body mt-4 flex flex-1 flex-col gap-3">
           {step === 1 && (
             <>
-              <Field label="Username">
+              <Field label="Floor nickname">
                 <input
                   className="iz-field-input w-full"
-                  value={draft.username}
-                  onChange={(e) => patch({ username: e.target.value })}
-                  placeholder="e.g. alex.tan"
-                  autoComplete="username"
+                  value={draft.floorNickname}
+                  onChange={(e) => patch({ floorNickname: e.target.value.slice(0, 20) })}
+                  placeholder="e.g. Moon, Charlotte"
+                  autoComplete="nickname"
                 />
+                <p className="iz-tiny iz-muted2 mt-1">
+                  Shown on roster, Live GPS, and the outlet floor. Keep legal name private for
+                  payroll.
+                </p>
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="First name">
+                <Field label="Legal first name">
                   <input
                     className="iz-field-input w-full"
                     value={draft.firstName}
                     onChange={(e) => patch({ firstName: e.target.value })}
-                    placeholder="First name"
+                    placeholder="As on IC"
                     autoComplete="given-name"
                   />
                 </Field>
-                <Field label="Last name">
+                <Field label="Legal last name">
                   <input
                     className="iz-field-input w-full"
                     value={draft.lastName}
                     onChange={(e) => patch({ lastName: e.target.value })}
-                    placeholder="Last name"
+                    placeholder="As on IC"
                     autoComplete="family-name"
                   />
                 </Field>
@@ -1326,8 +1335,8 @@ function RegisterPage() {
                   <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
                 </summary>
                 <dl className="iz-reg-summary-details__body">
-                  <SummaryRow label="Username" value={draft.username} />
-                  <SummaryRow label="Name" value={displayName} />
+                  <SummaryRow label="Floor nickname" value={floorNickname} />
+                  <SummaryRow label="Legal name" value={legalName} />
                   <SummaryRow label="Email" value={draft.email} />
                   <SummaryRow label="Phone" value={fullPhone} />
                   <SummaryRow label="Nationality" value={draft.nationality} />

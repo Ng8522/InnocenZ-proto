@@ -45,7 +45,7 @@ export function ProfileLanguagePicker({
 
   return (
     <>
-      <p className="iz-tiny iz-muted2 mb-2">{hint}</p>
+      {hint ? <p className="iz-tiny iz-muted2 mb-2">{hint}</p> : null}
       <div className="flex flex-wrap gap-1.5">
         {PR_LANGUAGE_OPTIONS.map((lang) => {
           const on = value.includes(lang);

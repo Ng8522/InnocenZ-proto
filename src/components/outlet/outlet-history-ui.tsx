@@ -1,10 +1,16 @@
 import { format, parseISO } from "date-fns";
 import { Crown, Star } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ShiftHistoryPrRollup, ShiftHistoryRow } from "@/lib/shift-history-utils";
 import { findAgencyManagedPr, resolveAgencyPrPhoto } from "@/lib/agency-demo";
 import { formatRM } from "@/components/iz/ui";
 import { ShiftMetricIconLabel } from "@/components/outlet/outlet-history-metrics";
+import { ShiftHistoryMoneyBreakdownView } from "@/components/outlet/ShiftHistoryMoneyBreakdownView";
+import {
+  resolveShiftHistoryBreakdown,
+  shiftHistoryTotalReceived,
+  type ShiftHistoryMoneyBreakdown,
+} from "@/lib/shift-history-amounts";
 import { publicAssetPath } from "@/lib/public-asset";
 import { useStore } from "@/lib/store";
 import { shiftHistorySubline } from "@/lib/shift-history";
@@ -158,6 +164,26 @@ export function OutletShiftLogRatingBlock({ rating }: { rating: OutletPrRating }
 }
 
 export function OutletShiftLogShiftCard({ row }: { row: ShiftHistoryRow }) {
+  const [openKind, setOpenKind] = useState<"received" | "payout" | null>(null);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const agencyPRs = useStore((s) => s.agencyPRs);
+  const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
+  const prTier = agencyPRs.find((p) => p.id === row.prId)?.trainingLevel;
+
+  const breakdown = useMemo(
+    () =>
+      resolveShiftHistoryBreakdown(row, {
+        rules: outletCommissionRules,
+        prTier,
+        perDrinkRm,
+      }),
+    [row, outletCommissionRules, prTier, perDrinkRm],
+  );
+
+  const toggle = (kind: "received" | "payout") => {
+    setOpenKind((prev) => (prev === kind ? null : kind));
+  };
+
   return (
     <article className="iz-outlet-shift-log-card">
       <div className="iz-outlet-shift-log-card__head">
@@ -166,24 +192,45 @@ export function OutletShiftLogShiftCard({ row }: { row: ShiftHistoryRow }) {
           <p className="iz-outlet-shift-log-card__sub">{shiftHistorySubline(row, "outlet")}</p>
         </div>
         <div className="iz-outlet-shift-log-card__total-wrap">
-          <p className="iz-outlet-shift-log-card__total">{formatRM(row.totalPayout)}</p>
+          <p className="iz-outlet-shift-log-card__total">{formatRM(breakdown.totalPayout)}</p>
           <p className="iz-outlet-shift-log-card__hours">{row.durationHours}h shift</p>
         </div>
       </div>
-      <div className="iz-outlet-shift-log-card__metrics">
-        <div className="iz-outlet-shift-log-card__metric iz-outlet-shift-log-card__metric--earned">
-          <span className="iz-outlet-shift-log-card__metric-label">Earned</span>
-          <span className="iz-outlet-shift-log-card__metric-value">{formatOutletHistRm(row.totalPayout)}</span>
-        </div>
-        <div className="iz-outlet-shift-log-card__metric iz-outlet-shift-log-card__metric--drinks">
-          <span className="iz-outlet-shift-log-card__metric-label">Drinks</span>
-          <span className="iz-outlet-shift-log-card__metric-value">{row.totalDrinks}</span>
-        </div>
-        <div className="iz-outlet-shift-log-card__metric iz-outlet-shift-log-card__metric--tips">
-          <span className="iz-outlet-shift-log-card__metric-label">Tips</span>
-          <span className="iz-outlet-shift-log-card__metric-value">{formatOutletHistRm(row.totalTips)}</span>
-        </div>
+      <div className="iz-outlet-shift-log-card__metrics iz-outlet-shift-log-card__metrics--pair">
+        <button
+          type="button"
+          className={cn(
+            "iz-outlet-shift-log-card__metric iz-outlet-shift-log-card__metric--btn",
+            "iz-outlet-shift-log-card__metric--received",
+            openKind === "received" && "is-open",
+          )}
+          onClick={() => toggle("received")}
+          aria-expanded={openKind === "received"}
+        >
+          <span className="iz-outlet-shift-log-card__metric-label">Total received</span>
+          <span className="iz-outlet-shift-log-card__metric-value">
+            {formatOutletHistRm(breakdown.totalReceived)}
+          </span>
+        </button>
+        <button
+          type="button"
+          className={cn(
+            "iz-outlet-shift-log-card__metric iz-outlet-shift-log-card__metric--btn",
+            "iz-outlet-shift-log-card__metric--payout",
+            openKind === "payout" && "is-open",
+          )}
+          onClick={() => toggle("payout")}
+          aria-expanded={openKind === "payout"}
+        >
+          <span className="iz-outlet-shift-log-card__metric-label">Total payout</span>
+          <span className="iz-outlet-shift-log-card__metric-value">
+            {formatOutletHistRm(breakdown.totalPayout)}
+          </span>
+        </button>
       </div>
+      {openKind ? (
+        <ShiftHistoryMoneyBreakdownView breakdown={breakdown} kind={openKind} />
+      ) : null}
     </article>
   );
 }
@@ -194,37 +241,83 @@ export function OutletShiftLogSummaryCard({
   prName,
   agencyLabel,
   totalPayout,
+  totalReceived,
   totalDrinks,
   totalTips,
+  drinkSalesRm,
+  breakdown,
 }: {
   shiftCount: number;
   outletName: string;
   prName: string;
   agencyLabel?: string;
   totalPayout: number;
-  totalDrinks: number;
-  totalTips: number;
+  totalReceived?: number;
+  /** @deprecated Prefer totalReceived */
+  totalDrinks?: number;
+  totalTips?: number;
+  drinkSalesRm?: number;
+  breakdown?: ShiftHistoryMoneyBreakdown;
 }) {
+  const [openKind, setOpenKind] = useState<"received" | "payout" | null>(null);
+  const received =
+    breakdown?.totalReceived ??
+    totalReceived ??
+    shiftHistoryTotalReceived({
+      drinkSalesRm,
+      totalDrinks: totalDrinks ?? 0,
+      totalTips: totalTips ?? 0,
+    });
+  const payout = breakdown?.totalPayout ?? totalPayout;
+
+  const toggle = (kind: "received" | "payout") => {
+    if (!breakdown) return;
+    setOpenKind((prev) => (prev === kind ? null : kind));
+  };
+
   return (
     <article className="iz-outlet-shift-log-summary">
       <p className="iz-outlet-shift-log-summary__hint">
         {shiftCount} shift{shiftCount !== 1 ? "s" : ""} at {outletName} · {prName}
         {agencyLabel ? ` · ${agencyLabel}` : ""}
       </p>
-      <div className="iz-outlet-shift-log-summary__metrics">
-        <div className="iz-outlet-shift-log-summary__metric">
-          <span className="iz-outlet-shift-log-summary__metric-label">Total earned</span>
-          <span className="iz-outlet-shift-log-summary__metric-value">{formatOutletHistRm(totalPayout)}</span>
-        </div>
-        <div className="iz-outlet-shift-log-summary__metric">
-          <span className="iz-outlet-shift-log-summary__metric-label">Total drinks</span>
-          <span className="iz-outlet-shift-log-summary__metric-value">{totalDrinks}</span>
-        </div>
-        <div className="iz-outlet-shift-log-summary__metric">
-          <span className="iz-outlet-shift-log-summary__metric-label">Total tips</span>
-          <span className="iz-outlet-shift-log-summary__metric-value">{formatOutletHistRm(totalTips)}</span>
-        </div>
+      <div className="iz-outlet-shift-log-summary__metrics iz-outlet-shift-log-summary__metrics--pair">
+        <button
+          type="button"
+          className={cn(
+            "iz-outlet-shift-log-summary__metric iz-outlet-shift-log-summary__metric--btn",
+            "iz-outlet-shift-log-summary__metric--received",
+            openKind === "received" && "is-open",
+          )}
+          onClick={() => toggle("received")}
+          aria-expanded={openKind === "received"}
+          disabled={!breakdown}
+        >
+          <span className="iz-outlet-shift-log-summary__metric-label">Total received</span>
+          <span className="iz-outlet-shift-log-summary__metric-value">
+            {formatOutletHistRm(received)}
+          </span>
+        </button>
+        <button
+          type="button"
+          className={cn(
+            "iz-outlet-shift-log-summary__metric iz-outlet-shift-log-summary__metric--btn",
+            "iz-outlet-shift-log-summary__metric--payout",
+            openKind === "payout" && "is-open",
+          )}
+          onClick={() => toggle("payout")}
+          aria-expanded={openKind === "payout"}
+          disabled={!breakdown}
+        >
+          <span className="iz-outlet-shift-log-summary__metric-label">Total payout</span>
+          <span className="iz-outlet-shift-log-summary__metric-value">
+            {formatOutletHistRm(payout)}
+          </span>
+        </button>
       </div>
+      {breakdown && openKind ? (
+        <ShiftHistoryMoneyBreakdownView breakdown={breakdown} kind={openKind} />
+      ) : null}
     </article>
   );
 }
@@ -288,24 +381,18 @@ export function OutletPrHistoryCard({
         </div>
       </div>
 
-      <div className="iz-outlet-hist-metrics">
-        <div className="iz-outlet-hist-metric iz-outlet-hist-metric--earned">
+      <div className="iz-outlet-hist-metrics iz-outlet-hist-metrics--pair">
+        <div className="iz-outlet-hist-metric iz-outlet-hist-metric--received">
           <span className="iz-outlet-hist-metric__label">
-            <ShiftMetricIconLabel kind="earned" size="lg" />
+            <ShiftMetricIconLabel kind="received" total size="lg" />
+          </span>
+          <span className="iz-outlet-hist-metric__value">{formatRM(rollup.totalReceived)}</span>
+        </div>
+        <div className="iz-outlet-hist-metric iz-outlet-hist-metric--payout">
+          <span className="iz-outlet-hist-metric__label">
+            <ShiftMetricIconLabel kind="payout" total size="lg" />
           </span>
           <span className="iz-outlet-hist-metric__value">{formatRM(rollup.totalPayout)}</span>
-        </div>
-        <div className="iz-outlet-hist-metric iz-outlet-hist-metric--drinks">
-          <span className="iz-outlet-hist-metric__label">
-            <ShiftMetricIconLabel kind="drinks" size="lg" />
-          </span>
-          <span className="iz-outlet-hist-metric__value">{rollup.totalDrinks}</span>
-        </div>
-        <div className="iz-outlet-hist-metric iz-outlet-hist-metric--tips">
-          <span className="iz-outlet-hist-metric__label">
-            <ShiftMetricIconLabel kind="tips" size="lg" />
-          </span>
-          <span className="iz-outlet-hist-metric__value">{formatRM(rollup.totalTips)}</span>
         </div>
       </div>
 

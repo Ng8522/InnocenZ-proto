@@ -23,6 +23,7 @@ import {
   CreditCard,
   Crown,
   Filter,
+  HandCoins,
   History,
   Home,
   IdCard,
@@ -53,6 +54,7 @@ import {
   User,
   UserCheck,
   Users,
+  UserX,
   Wallet,
   Wine,
   Zap,
@@ -111,6 +113,10 @@ const EXACT_LABEL_ICONS: Record<string, LucideIcon> = {
   // Shift metrics
   earned: Coins,
   "total earned": Coins,
+  received: HandCoins,
+  "total received": HandCoins,
+  payout: Coins,
+  "total payout": Coins,
   drinks: Wine,
   "total drinks": Wine,
   tips: Banknote,
@@ -136,6 +142,7 @@ const EXACT_LABEL_ICONS: Record<string, LucideIcon> = {
   "pending payout": Wallet,
   "planned prs": Users,
   "active prs": UserCheck,
+  "unavailable prs": UserX,
   "est payout": Coins,
   "shifts this week": Briefcase,
   "est. labour cost": Receipt,
@@ -264,7 +271,7 @@ export const SUB_ROLE_TITLE_ICONS: Record<string, LucideIcon> = {
 };
 
 /** Shift history metrics — shared outlet/agency/PR views. */
-export type ShiftMetricKind = "earned" | "drinks" | "tips";
+export type ShiftMetricKind = "received" | "payout";
 
 export const SHIFT_METRIC_DEFS: {
   id: ShiftMetricKind;
@@ -273,22 +280,16 @@ export const SHIFT_METRIC_DEFS: {
   hint: string;
 }[] = [
   {
-    id: "earned",
-    label: "Earned",
+    id: "received",
+    label: "Received",
+    Icon: iconForNav("Received"),
+    hint: "Full drink sales + tips the PR generated for the outlet (before commission %).",
+  },
+  {
+    id: "payout",
+    label: "Payout",
     Icon: iconForNav("Earned"),
-    hint: "Shift payout — wages plus drink commission for the night.",
-  },
-  {
-    id: "drinks",
-    label: "Drinks",
-    Icon: iconForNav("Drinks"),
-    hint: "Drinks sold and logged by the PR during the shift.",
-  },
-  {
-    id: "tips",
-    label: "Tips",
-    Icon: iconForNav("Tips"),
-    hint: "Guest tips collected on the shift.",
+    hint: "What the PR takes home — wages, OT, and commissions from Workspace rates.",
   },
 ];
 

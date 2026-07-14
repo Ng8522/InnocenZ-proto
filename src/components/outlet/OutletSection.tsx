@@ -91,7 +91,7 @@ export function OutletSection({
           </span>
           {collapsedPreview && !open ? (
             <div className="iz-collapsible-section__preview">{collapsedPreview}</div>
-          ) : hint && !open ? (
+          ) : hint ? (
             <span className="iz-collapsible-section__hint">{hint}</span>
           ) : null}
           <span className="iz-collapsible-section__action">{open ? "Tap to collapse" : "Tap to expand"}</span>

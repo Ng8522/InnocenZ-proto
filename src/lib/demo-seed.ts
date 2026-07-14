@@ -190,16 +190,14 @@ function demoShiftDateOnWeekday(weekday: number, allowToday = false): string {
 /** Outlet home — Private VIP Hennessy Launch (Velvet 23 tonight). */
 export const HENNESSY_LAUNCH_SHIFT_ID = "s1";
 
+/** Atlas-tied Hennessy floor only — Delta PRs live on `buildDeltaRosterSlots`. */
 export const HENNESSY_LAUNCH_PR_IDS = [
   "p1",
   "pr-comcard-alice",
-  "pr-comcard-angie",
   "pr-comcard-ava",
   "pr-comcard-bernice",
-  "pr-comcard-charlotte",
   "pr-comcard-grace",
   "pr-comcard-hazel",
-  "delta-p1",
 ] as const;
 
 /** Demo tier demand for Hennessy — includes Tier 4–5 slots to match booked PR training levels. */
@@ -214,7 +212,7 @@ export const HENNESSY_DEMO_PAY_TIER_SPLIT: Array<{
   { payTierId: "tier_5", prCount: 1 },
 ];
 
-const AGENCY_PR_NAME_BY_ID = Object.fromEntries(SEED_AGENCY_PRS.map((p) => [p.id, p.name]));
+const AGENCY_PR_NAME_BY_ID = Object.fromEntries(SEED_AGENCY_PRS_ALL.map((p) => [p.id, p.name]));
 
 /** Re-apply demo staffing on the Hennessy shift after localStorage hydrate. */
 export function mergeDemoShiftStaffing(
@@ -300,24 +298,58 @@ export function mergeDemoRosterAssignmentSlots(
   });
 }
 
-/** Re-apply Hennessy tonight floor counts after localStorage hydrate. */
+/** Drop stale Hennessy slots for PRs no longer on the Atlas launch list; refresh floor counts. */
 export function mergeDemoHennessyRosterFloor(
   roster: AgencyRosterSlot[],
   seedRoster: AgencyRosterSlot[] = buildDemoRoster(),
 ): AgencyRosterSlot[] {
+  const allowed = new Set<string>(HENNESSY_LAUNCH_PR_IDS);
   const seedByPrId = Object.fromEntries(
     seedRoster.filter((s) => s.id.startsWith("rs-hennessy-")).map((s) => [s.prId, s]),
   );
-  return roster.map((slot) => {
-    const seed = seedByPrId[slot.prId];
-    if (!seed || !slot.id.startsWith("rs-hennessy-")) return slot;
-    return {
-      ...slot,
-      floorDrinks: seed.floorDrinks,
-      floorTips: seed.floorTips,
-      estPayout: seed.estPayout,
-    };
-  });
+  const seedOnDuty = seedRoster.filter((s) => s.status === "on-duty" && !!s.checkedInAt);
+  const onDutyById = Object.fromEntries(seedOnDuty.map((s) => [s.id, s]));
+
+  let next = roster
+    .filter((slot) => !(slot.id.startsWith("rs-hennessy-") && !allowed.has(slot.prId)))
+    .map((slot) => {
+      const onDuty = onDutyById[slot.id];
+      if (onDuty) {
+        const { agencyAssignment: _a, outletSwap: _o, ...base } = slot;
+        return {
+          ...base,
+          dateIso: onDuty.dateIso,
+          date: onDuty.date,
+          outlet: onDuty.outlet,
+          shift: onDuty.shift,
+          shiftStart: onDuty.shiftStart,
+          shiftEnd: onDuty.shiftEnd,
+          status: "on-duty" as const,
+          checkedInAt: onDuty.checkedInAt,
+          floorDrinks: onDuty.floorDrinks,
+          floorTips: onDuty.floorTips,
+          estPayout: onDuty.estPayout,
+        };
+      }
+      const seed = seedByPrId[slot.prId];
+      if (!seed || !slot.id.startsWith("rs-hennessy-")) return slot;
+      return {
+        ...slot,
+        prName: seed.prName,
+        agencyId: seed.agencyId ?? "atlas",
+        floorDrinks: seed.floorDrinks,
+        floorTips: seed.floorTips,
+        estPayout: seed.estPayout,
+      };
+    });
+
+  for (const seed of seedOnDuty) {
+    if (!next.some((s) => s.id === seed.id)) {
+      next = [...next, { ...seed }];
+    }
+  }
+
+  return next;
 }
 
 function velvetTonightRosterSlot(
@@ -342,6 +374,7 @@ function velvetTonightRosterSlot(
     floorDrinks,
     floorTips,
     estPayout,
+    agencyId: "atlas",
   };
 }
 
@@ -387,7 +420,7 @@ function buildDemoShifts(): ShiftRequest[] {
       date: "Tonight",
       shift: "22:00 — 04:00",
       quantity: 16,
-      filled: 11,
+      filled: HENNESSY_LAUNCH_PR_IDS.length,
       languages: "English / Mandarin",
       event: "Private VIP — Hennessy Launch",
       eventKind: "special",
@@ -965,6 +998,7 @@ const DEMO_APPLICANTS: ShiftApplicant[] = [
 
 function buildDemoRoster(): AgencyRosterSlot[] {
   const patched = SEED_AGENCY_ROSTER.map(cloneRosterSlot).map((slot) => {
+    // Prototype Live GPS: three outlets with on-duty PRs (Onyx + Bear Lounge + Mermate).
     if (slot.id === "rs3") {
       const { outletSwap: _swap, ...rest } = slot;
       return {
@@ -974,6 +1008,35 @@ function buildDemoRoster(): AgencyRosterSlot[] {
         floorDrinks: 9,
         floorTips: 35,
         estPayout: 523,
+      };
+    }
+    if (slot.id === "rs5") {
+      return {
+        ...slot,
+        dateIso: DEFAULT_ROSTER_DATE_ISO,
+        date: fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO),
+        status: "on-duty" as const,
+        checkedInAt: "22:10",
+        floorDrinks: 4,
+        floorTips: 20,
+        estPayout: 780,
+      };
+    }
+    if (slot.id === "rs7") {
+      const { agencyAssignment: _assignment, ...rest } = slot;
+      return {
+        ...rest,
+        outlet: "Mermate",
+        dateIso: DEFAULT_ROSTER_DATE_ISO,
+        date: fmtDateLabelFromIso(DEFAULT_ROSTER_DATE_ISO),
+        shift: "22:00 — 04:00",
+        shiftStart: "22:00",
+        shiftEnd: "04:00",
+        status: "on-duty" as const,
+        checkedInAt: "22:05",
+        floorDrinks: 6,
+        floorTips: 28,
+        estPayout: 520,
       };
     }
     return slot;

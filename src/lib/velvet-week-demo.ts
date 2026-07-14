@@ -3,8 +3,8 @@
  */
 
 import { addDaysToIso, getLiveTodayIso, getPayrollWeekSundayIso } from "@/lib/demo-clock";
-import { fmtDateLabelFromIso, fmtDtable, RECEIPT_COMMISSION_RULES } from "@/lib/pr-demo";
-import { SHIFT_SEALED_BASE_WAGE } from "@/lib/pr-weekly-payment";
+import { fmtDateLabelFromIso, fmtDtable } from "@/lib/pr-demo";
+import { sealShiftHistoryAmounts, sealedAmountsToHistoryFields } from "@/lib/shift-history-amounts";
 import type { ShiftHistoryRow } from "@/lib/shift-history-utils";
 
 export const VELVET_OUTLET_NAME = "Velvet 23";
@@ -280,15 +280,6 @@ function demoTablesForShift(night: VelvetNightShift, pr: VelvetPrNight): number 
   return 0;
 }
 
-function sealedShiftPayout(pr: VelvetPrNight, tables: number): number {
-  return (
-    SHIFT_SEALED_BASE_WAGE +
-    pr.drinks * RECEIPT_COMMISSION_RULES.drinkPerUnit +
-    pr.tips * RECEIPT_COMMISSION_RULES.tipRate +
-    tables * RECEIPT_COMMISSION_RULES.tablePerUnit
-  );
-}
-
 function nightsToShiftHistory(nights: VelvetNightShift[], weekSundayIso: string): ShiftHistoryRow[] {
   const todayIso = getLiveTodayIso();
   return nights.flatMap((night, index) => {
@@ -296,6 +287,13 @@ function nightsToShiftHistory(nights: VelvetNightShift[], weekSundayIso: string)
     if (dateIso > todayIso) return [];
     return night.prs.map((pr) => {
       const totalTables = demoTablesForShift(night, pr);
+      const sealed = sealShiftHistoryAmounts({
+        outlet: VELVET_OUTLET_NAME,
+        drinkUnits: pr.drinks,
+        tipSalesRm: pr.tips,
+        tableUnits: totalTables,
+        hoursWorked: pr.durationHours,
+      });
       return {
         id: `vh-${dateIso}-${pr.prId}`,
         prName: pr.prName,
@@ -304,10 +302,7 @@ function nightsToShiftHistory(nights: VelvetNightShift[], weekSundayIso: string)
         agencyName: VELVET_AGENCY,
         dateDisplay: fmtDateLabelFromIso(dateIso),
         dateIso,
-        totalPayout: sealedShiftPayout(pr, totalTables),
-        totalDrinks: pr.drinks,
-        totalTips: pr.tips,
-        totalTables,
+        ...sealedAmountsToHistoryFields(sealed),
         durationHours: pr.durationHours,
       };
     });
@@ -483,7 +478,13 @@ function buildReportFromNights(
   const prEarned = new Map<string, { name: string; earned: number }>();
   for (const night of sealed) {
     for (const pr of night.prs) {
-      const earned = sealedShiftPayout(pr, demoTablesForShift(night, pr));
+      const earned = sealShiftHistoryAmounts({
+        outlet: VELVET_OUTLET_NAME,
+        drinkUnits: pr.drinks,
+        tipSalesRm: pr.tips,
+        tableUnits: demoTablesForShift(night, pr),
+        hoursWorked: pr.durationHours,
+      }).totalPayout;
       const cur = prEarned.get(pr.prId) ?? { name: pr.prName, earned: 0 };
       prEarned.set(pr.prId, { name: pr.prName, earned: cur.earned + earned });
     }

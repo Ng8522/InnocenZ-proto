@@ -452,12 +452,16 @@ function AgencyPrDetail({
   const saveEdit = () => {
     const name = draft.name.trim();
     if (!name) {
-      toast("Enter PR display name", "warn");
+      toast("Enter floor nickname", "warn");
+      return;
+    }
+    if (name.length < 2 || name.length > 20) {
+      toast("Floor nickname must be 2–20 characters", "warn");
       return;
     }
     const icName = draft.icName.trim();
     if (!icName) {
-      toast("Enter IC name (legal full name)", "warn");
+      toast("Enter legal IC name", "warn");
       return;
     }
     if (!draft.mobile.trim()) {
@@ -541,11 +545,11 @@ function AgencyPrDetail({
             <div className="iz-between items-start gap-2">
               {editing ? (
                 <div className="iz-field !mb-0 min-w-0 flex-1">
-                  <label className="!text-[9px]">Display name</label>
+                  <label className="!text-[9px]">Floor nickname</label>
                   <input
                     type="text"
                     value={draft.name}
-                    maxLength={40}
+                    maxLength={20}
                     onChange={(e) => setDraft((p) => ({ ...p, name: e.target.value }))}
                   />
                 </div>
@@ -644,7 +648,7 @@ function AgencyPrDetail({
             {editing ? (
               <div className="space-y-2">
                 <div className="iz-field !mb-0">
-                  <label>IC name (legal full name)</label>
+                  <label>Legal IC name</label>
                   <input
                     value={draft.icName}
                     onChange={(e) => setDraft((p) => ({ ...p, icName: e.target.value }))}

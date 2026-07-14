@@ -29,7 +29,7 @@ import {
 import { isoKeyFromDate, dateFromIsoKey } from "@/components/iz/HistDateCalendar";
 import { getLiveTodayIso } from "@/lib/demo-clock";
 import { IzSheet } from "@/components/iz/Sheet";
-import { IzCard, IzCardTitle, IzPill } from "@/components/iz/ui";
+import { IzCardTitle, IzPill } from "@/components/iz/ui";
 import {
   OutletShiftDetailPanel,
   OutletShiftStatusBadge,
@@ -131,12 +131,11 @@ export function OutletOperationsCalendar() {
   const agencyRoster = useStore((s) => s.agencyRoster);
   const agencyPRs = useStore((s) => s.agencyPRs);
   const shiftApplicants = useStore((s) => s.shiftApplicants);
-  const { shifts, deleteShift } = useStore();
+  const shifts = useStore((s) => s.shifts);
 
   const todayIso = getLiveTodayIso();
   const [viewMonth, setViewMonth] = useState(() => dateFromIsoKey(todayIso) ?? new Date());
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const visibleShifts = useMemo(
     () =>
@@ -178,9 +177,6 @@ export function OutletOperationsCalendar() {
 
   const selectedShift = selectedShiftId
     ? visibleShifts.find((s) => s.id === selectedShiftId) ?? null
-    : null;
-  const deleteTarget = deleteTargetId
-    ? visibleShifts.find((s) => s.id === deleteTargetId) ?? null
     : null;
 
   if (visibleShifts.length === 0) {
@@ -348,10 +344,6 @@ export function OutletOperationsCalendar() {
               variant="future"
               hideLogSales
               staffingAgency={linkedAgency}
-              onDelete={() => {
-                setSelectedShiftId(null);
-                setDeleteTargetId(selectedShift.id);
-              }}
             />
             <div className="mt-3 border-t border-[var(--iz-line)] px-1 pt-3">
               <OutletShiftStaffingSection shift={selectedShift} />
@@ -359,35 +351,6 @@ export function OutletOperationsCalendar() {
           </>
           );
         })()}
-      </IzSheet>
-
-      <IzSheet open={deleteTarget !== null} onClose={() => setDeleteTargetId(null)}>
-        <IzCardTitle>Delete this shift?</IzCardTitle>
-        {deleteTarget && (
-          <IzCard flat className="mt-2">
-            <p className="text-sm font-semibold">{deleteTarget.event}</p>
-            <p className="iz-tiny iz-muted mt-1">
-              {deleteTarget.date} · {deleteTarget.shift}
-            </p>
-          </IzCard>
-        )}
-        <button
-          type="button"
-          className="iz-btn iz-btn-danger mt-3 w-full"
-          onClick={() => {
-            if (deleteTargetId) deleteShift(deleteTargetId);
-            setDeleteTargetId(null);
-          }}
-        >
-          Delete shift
-        </button>
-        <button
-          type="button"
-          className="iz-btn iz-btn-soft mt-2 w-full"
-          onClick={() => setDeleteTargetId(null)}
-        >
-          Cancel
-        </button>
       </IzSheet>
     </>
   );

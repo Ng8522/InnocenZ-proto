@@ -5,6 +5,8 @@ import {
   ShiftTxnMetric,
   ShiftTxnMetricsRow,
 } from "@/components/outlet/outlet-history-metrics";
+import { shiftHistoryTotalReceived, sumShiftHistoryBreakdowns, resolveShiftHistoryBreakdown } from "@/lib/shift-history-amounts";
+import { ShiftHistoryExpandableMoneyBlock } from "@/components/outlet/ShiftHistoryExpandableMoneyBlock";
 import {
   aggregateShiftHistoryByPr,
   aggregateShiftHistoryByVenue,
@@ -55,6 +57,22 @@ export function ShiftHistoryLog({
   const [detailPrVenue, setDetailPrVenue] = useState<string | null>(null);
   const [detailVenue, setDetailVenue] = useState<string | null>(null);
   const outletRatings = useStore((s) => s.ratings);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const agencyPRs = useStore((s) => s.agencyPRs);
+  const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
+
+  const breakdownOpts = useMemo(() => {
+    const forRows = (shiftRows: ShiftHistoryRow[]) => {
+      const prId = shiftRows[0]?.prId;
+      const pr = prId ? agencyPRs.find((p) => p.id === prId) : undefined;
+      return {
+        rules: outletCommissionRules,
+        prTier: pr?.trainingLevel,
+        perDrinkRm,
+      };
+    };
+    return forRows;
+  }, [agencyPRs, outletCommissionRules, perDrinkRm]);
 
   const agencyByVenue = portal === "agency" && groupBy === "venue";
 
@@ -156,6 +174,14 @@ export function ShiftHistoryLog({
     [detailPrVenueRollup],
   );
   const detailPrShifts = useMemo(() => sortShiftHistoryDesc(detailPrRows), [detailPrRows]);
+  const detailBreakdown = useMemo(
+    () => sumShiftHistoryBreakdowns(detailPrShifts, breakdownOpts(detailPrShifts)),
+    [detailPrShifts, breakdownOpts],
+  );
+  const detailPrVenueBreakdown = useMemo(
+    () => sumShiftHistoryBreakdowns(detailPrVenueShifts, breakdownOpts(detailPrVenueShifts)),
+    [detailPrVenueShifts, breakdownOpts],
+  );
   const detailOutletName = detailPrRows[0]?.outlet ?? "";
   const detailPrRating = useMemo(
     () => (detailPr ? findOutletRatingForPr(detailPr.prName, outletRatings) : undefined),
@@ -183,6 +209,10 @@ export function ShiftHistoryLog({
   const detailOutletPrRollups = useMemo(
     () => aggregateShiftHistoryByPr(detailOutletRows, "agency"),
     [detailOutletRows],
+  );
+  const detailOutletBreakdown = useMemo(
+    () => sumShiftHistoryBreakdowns(detailOutletRows, breakdownOpts(detailOutletRows)),
+    [detailOutletRows, breakdownOpts],
   );
 
   const logCountLabel = agencyByVenue
@@ -370,8 +400,10 @@ export function ShiftHistoryLog({
                       : undefined
                 }
                 totalPayout={detailTotals.totalPayout}
+                totalReceived={detailTotals.totalReceived}
                 totalDrinks={detailTotals.totalDrinks}
                 totalTips={detailTotals.totalTips}
+                breakdown={detailBreakdown}
               />
 
               {detailPrRating && <OutletShiftLogRatingBlock rating={detailPrRating} />}
@@ -389,12 +421,9 @@ export function ShiftHistoryLog({
                   {detailPrVenueShifts.length} shift{detailPrVenueShifts.length !== 1 ? "s" : ""} at{" "}
                   {detailPrVenue} · {detailPr.prName}
                 </p>
-                <ShiftTxnMetricsRow
-                  className="iz-txn-card-metrics--sheet mt-2"
-                  total
-                  totalPayout={detailPrVenueRollup.totalPayout}
-                  totalDrinks={detailPrVenueRollup.totalDrinks}
-                  totalTips={detailPrVenueRollup.totalTips}
+                <ShiftHistoryExpandableMoneyBlock
+                  className="mt-2"
+                  breakdown={detailPrVenueBreakdown}
                 />
               </IzCard>
 
@@ -415,13 +444,7 @@ export function ShiftHistoryLog({
                       ? ` · ${detailVenueRollups[0].venue}`
                       : ""}
                 </p>
-                <ShiftTxnMetricsRow
-                  className="iz-txn-card-metrics--sheet mt-2"
-                  total
-                  totalPayout={detailTotals.totalPayout}
-                  totalDrinks={detailTotals.totalDrinks}
-                  totalTips={detailTotals.totalTips}
-                />
+                <ShiftHistoryExpandableMoneyBlock className="mt-2" breakdown={detailBreakdown} />
               </IzCard>
 
               <p className="iz-tiny iz-muted2 mb-2">Tap an outlet to see every shift</p>
@@ -444,6 +467,7 @@ export function ShiftHistoryLog({
                       <ShiftTxnMetricsRow
                         className="iz-txn-card-metrics--sheet"
                         totalPayout={rollup.totalPayout}
+                        totalReceived={rollup.totalReceived}
                         totalDrinks={rollup.totalDrinks}
                         totalTips={rollup.totalTips}
                       />
@@ -484,12 +508,9 @@ export function ShiftHistoryLog({
               {detailOutletRollup.shiftCount} shift{detailOutletRollup.shiftCount !== 1 ? "s" : ""} ·{" "}
               {detailOutletPrRollups.length} PR{detailOutletPrRollups.length !== 1 ? "s" : ""}
             </p>
-            <ShiftTxnMetricsRow
-              className="iz-txn-card-metrics--sheet mt-2"
-              total
-              totalPayout={detailOutletRollup.totalPayout}
-              totalDrinks={detailOutletRollup.totalDrinks}
-              totalTips={detailOutletRollup.totalTips}
+            <ShiftHistoryExpandableMoneyBlock
+              className="mt-2"
+              breakdown={detailOutletBreakdown}
             />
           </IzCard>
 
@@ -505,6 +526,7 @@ export function ShiftHistoryLog({
                 <ShiftTxnMetricsRow
                   className="iz-txn-card-metrics--sheet"
                   totalPayout={rollup.totalPayout}
+                  totalReceived={rollup.totalReceived}
                   totalDrinks={rollup.totalDrinks}
                   totalTips={rollup.totalTips}
                 />
@@ -526,6 +548,20 @@ function ShiftHistoryShiftCard({
   row: ShiftHistoryRow;
   portal?: "agency" | "outlet";
 }) {
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const agencyPRs = useStore((s) => s.agencyPRs);
+  const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
+  const prTier = agencyPRs.find((p) => p.id === row.prId)?.trainingLevel;
+  const breakdown = useMemo(
+    () =>
+      resolveShiftHistoryBreakdown(row, {
+        rules: outletCommissionRules,
+        prTier,
+        perDrinkRm,
+      }),
+    [row, outletCommissionRules, prTier, perDrinkRm],
+  );
+
   return (
     <IzCard flat>
       <div className="iz-between items-start gap-2">
@@ -535,16 +571,12 @@ function ShiftHistoryShiftCard({
         </div>
         <div className="text-right">
           <div className="font-sora text-sm font-bold text-[var(--iz-gold-l)]">
-            {formatRM(row.totalPayout)}
+            {formatRM(breakdown.totalPayout)}
           </div>
           <p className="iz-tiny iz-muted2">{row.durationHours}h shift</p>
         </div>
       </div>
-      <div className="iz-txn-card-metrics iz-txn-card-metrics--sheet">
-        <ShiftTxnMetric kind="earned" value={formatRM(row.totalPayout)} />
-        <ShiftTxnMetric kind="drinks" value={row.totalDrinks} />
-        <ShiftTxnMetric kind="tips" value={formatRM(row.totalTips)} />
-      </div>
+      <ShiftHistoryExpandableMoneyBlock className="mt-2" breakdown={breakdown} />
     </IzCard>
   );
 }
@@ -567,6 +599,9 @@ export function OutletPrShiftHistorySheet({
 }) {
   const shiftHistory = useStore((s) => s.shiftHistory) ?? [];
   const outletRatings = useStore((s) => s.ratings);
+  const outletCommissionRules = useStore((s) => s.outletCommissionRules);
+  const agencyPRs = useStore((s) => s.agencyPRs);
+  const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
   const rows = useMemo(
     () =>
       sortShiftHistoryDesc(
@@ -577,10 +612,21 @@ export function OutletPrShiftHistorySheet({
   const totals = useMemo(
     () => ({
       totalPayout: rows.reduce((a, r) => a + r.totalPayout, 0),
+      totalReceived: rows.reduce((a, r) => a + shiftHistoryTotalReceived(r), 0),
       totalDrinks: rows.reduce((a, r) => a + r.totalDrinks, 0),
       totalTips: rows.reduce((a, r) => a + r.totalTips, 0),
     }),
     [rows],
+  );
+  const prTier = agencyPRs.find((p) => p.id === prId)?.trainingLevel;
+  const breakdown = useMemo(
+    () =>
+      sumShiftHistoryBreakdowns(rows, {
+        rules: outletCommissionRules,
+        prTier,
+        perDrinkRm,
+      }),
+    [rows, outletCommissionRules, prTier, perDrinkRm],
   );
   const agencyLabel = useMemo(() => {
     if (agencyName) return agencyName;
@@ -625,8 +671,10 @@ export function OutletPrShiftHistorySheet({
             prName={prName}
             agencyLabel={agencyLabel || undefined}
             totalPayout={totals.totalPayout}
+            totalReceived={totals.totalReceived}
             totalDrinks={totals.totalDrinks}
             totalTips={totals.totalTips}
+            breakdown={breakdown}
           />
 
           {prRating && <OutletShiftLogRatingBlock rating={prRating} />}
@@ -680,6 +728,7 @@ function VenueHistoryCard({
       <ShiftTxnMetricsRow
         total
         totalPayout={rollup.totalPayout}
+        totalReceived={rollup.totalReceived}
         totalDrinks={rollup.totalDrinks}
         totalTips={rollup.totalTips}
       />
@@ -731,6 +780,7 @@ function PrHistoryCard({
       <ShiftTxnMetricsRow
         total
         totalPayout={rollup.totalPayout}
+        totalReceived={rollup.totalReceived}
         totalDrinks={rollup.totalDrinks}
         totalTips={rollup.totalTips}
       />

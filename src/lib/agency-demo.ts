@@ -720,7 +720,11 @@ export interface OutletSwapRequest {
   respondedAt?: string;
 }
 
-/** Agency tied to this roster shift — assignment, swap request, or default tied agency. */
+/**
+ * Agency tied to this roster shift — assignment, swap request, or default tied agency.
+ * On agency portals, prefer {@link agencyPortalLabel} for the viewing agency so dual-tied
+ * PRs show that portal's name.
+ */
 export function rosterSlotAgencyName(
   slot: AgencyRosterSlot,
   fallback = DEFAULT_PR_AGENCY_NAME,
@@ -835,7 +839,7 @@ export const SEED_AGENCY_ROSTER: AgencyRosterSlot[] = [
     prId: "pr-comcard-charlotte",
     prName: "Charlotte",
     outlet: "Bear Lounge",
-    dateIso: addDaysToIso(DEFAULT_ROSTER_DATE_ISO, 1),
+    dateIso: DEFAULT_ROSTER_DATE_ISO,
     shift: "22:30 — 04:30",
     shiftStart: "22:30",
     shiftEnd: "04:30",
@@ -1075,6 +1079,14 @@ export function agencyIdOf(item: { agencyId?: string }): string {
   return item.agencyId ?? "atlas";
 }
 
+/** Whether a PR / record is under an operating agency (owner or multi-agency member). */
+export function prIsUnderAgency(
+  item: { agencyId?: string; agencyIds?: string[] },
+  agencyId: string,
+): boolean {
+  return agencyIdOf(item) === agencyId || (item.agencyIds?.includes(agencyId) ?? false);
+}
+
 /**
  * Filter agency records to one operating agency — visible if the record is OWNED
  * by it (`agencyId`) OR the PR is a MEMBER of it (`agencyIds`, so a PR under many
@@ -1084,9 +1096,29 @@ export function scopeToAgency<T extends { agencyId?: string; agencyIds?: string[
   items: T[],
   activeAgencyId: string,
 ): T[] {
-  return items.filter(
-    (i) => agencyIdOf(i) === activeAgencyId || (i.agencyIds?.includes(activeAgencyId) ?? false),
-  );
+  return items.filter((i) => prIsUnderAgency(i, activeAgencyId));
+}
+
+/**
+ * Roster rows an operating agency should see: PR is under that agency (including
+ * dual-tied members). Orphan / unknown-PR slots fall back to slot ownership.
+ */
+export function rosterSlotsForAgency(
+  slots: AgencyRosterSlot[],
+  agencyPRs: Array<{ id: string; agencyId?: string; agencyIds?: string[] }>,
+  activeAgencyId: string,
+): AgencyRosterSlot[] {
+  const prById = new Map(agencyPRs.map((p) => [p.id, p]));
+  return slots.filter((slot) => {
+    const pr = prById.get(slot.prId);
+    if (pr) return prIsUnderAgency(pr, activeAgencyId);
+    return agencyIdOf(slot) === activeAgencyId;
+  });
+}
+
+/** Org label for the agency portal currently being viewed. */
+export function agencyPortalLabel(agencyId: string): string {
+  return AGENCY_OWNERS_BY_ID[agencyId]?.orgName ?? DEFAULT_PR_AGENCY_NAME;
 }
 
 /**
@@ -1193,17 +1225,17 @@ export function collectAgencyPrLanguages(
 
 import { demoPlaceholderImage } from "@/lib/demo-placeholder-image";
 
-function seedPendingDocuments(name: string, initial: string) {
+function seedPendingDocuments(floorName: string, legalName: string, initial: string) {
   const icSize = { w: 480, h: 320 };
   const portrait = { w: 320, h: 400 };
   const square = { w: 400, h: 400 };
   const portfolioPhotos: (string | null)[] = Array.from({ length: 8 }, () => null);
   for (let i = 0; i < 4; i++) {
-    portfolioPhotos[i] = demoPlaceholderImage(`Photo ${i + 1}`, name, "#b79ce8", square);
+    portfolioPhotos[i] = demoPlaceholderImage(`Photo ${i + 1}`, floorName, "#b79ce8", square);
   }
   return {
-    icPhotoFront: demoPlaceholderImage("IC · Front", `${name} · NRIC`, "#6ee7b7", icSize),
-    icPhotoBack: demoPlaceholderImage("IC · Back", `${name} · NRIC`, "#6ee7b7", icSize),
+    icPhotoFront: demoPlaceholderImage("IC · Front", `${legalName} · NRIC`, "#6ee7b7", icSize),
+    icPhotoBack: demoPlaceholderImage("IC · Back", `${legalName} · NRIC`, "#6ee7b7", icSize),
     selfiePhoto: demoPlaceholderImage(initial, "Selfie · demo", "#C99B4E", portrait),
     portfolioPhotos,
     portfolioCount: 4,
@@ -1215,7 +1247,8 @@ export const SEED_PENDING_PRS: PendingPR[] = [
   {
     id: "signup-siti",
     targetPrId: "p8",
-    name: "Siti Rahman",
+    name: "Sophie",
+    icName: "Siti Rahman",
     languages: "EN · Malay",
     ic: "960101-14-7788",
     mobile: "+60 12-881 9901",
@@ -1226,7 +1259,7 @@ export const SEED_PENDING_PRS: PendingPR[] = [
     race: "Malay",
     hasIcPhotos: true,
     hasSelfie: true,
-    ...seedPendingDocuments("Siti Rahman", "SR"),
+    ...seedPendingDocuments("Sophie", "Siti Rahman", "SO"),
     submittedAt: "9 Jun 2026 · 09:14",
     source: "self-signup",
     status: "pending",
@@ -1235,7 +1268,8 @@ export const SEED_PENDING_PRS: PendingPR[] = [
   {
     id: "signup-amira",
     targetPrId: "p9",
-    name: "Amira Hassan",
+    name: "Amber",
+    icName: "Amira Hassan",
     languages: "EN · Malay · Arabic",
     ic: "980712-08-4410",
     mobile: "+60 13-220 7788",
@@ -1246,7 +1280,7 @@ export const SEED_PENDING_PRS: PendingPR[] = [
     race: "Malay",
     hasIcPhotos: true,
     hasSelfie: true,
-    ...seedPendingDocuments("Amira Hassan", "AH"),
+    ...seedPendingDocuments("Amber", "Amira Hassan", "AB"),
     submittedAt: "8 Jun 2026 · 22:41",
     source: "self-signup",
     status: "pending",
@@ -1257,7 +1291,8 @@ export const SEED_PENDING_PRS: PendingPR[] = [
   // are fresh applicants awaiting Delta's approval, scoped so Atlas never sees them.
   {
     id: "signup-nurul",
-    name: "Nurul Aina",
+    name: "Nina",
+    icName: "Nurul Aina",
     languages: "EN · Malay",
     ic: "990304-14-5521",
     mobile: "+60 12-664 3390",
@@ -1268,7 +1303,7 @@ export const SEED_PENDING_PRS: PendingPR[] = [
     race: "Malay",
     hasIcPhotos: true,
     hasSelfie: true,
-    ...seedPendingDocuments("Nurul Aina", "NA"),
+    ...seedPendingDocuments("Nina", "Nurul Aina", "NA"),
     submittedAt: "11 Jul 2026 · 14:08",
     source: "self-signup",
     status: "pending",
@@ -1276,7 +1311,8 @@ export const SEED_PENDING_PRS: PendingPR[] = [
   },
   {
     id: "signup-chloe",
-    name: "Chloe Lim",
+    name: "Chloe",
+    icName: "Chloe Lim",
     languages: "EN · Mandarin · Cantonese",
     ic: "000917-10-4432",
     mobile: "+60 16-228 7745",
@@ -1287,7 +1323,7 @@ export const SEED_PENDING_PRS: PendingPR[] = [
     race: "Chinese",
     hasIcPhotos: true,
     hasSelfie: true,
-    ...seedPendingDocuments("Chloe Lim", "CL"),
+    ...seedPendingDocuments("Chloe", "Chloe Lim", "CL"),
     submittedAt: "12 Jul 2026 · 20:52",
     source: "self-signup",
     status: "pending",
@@ -1303,10 +1339,12 @@ export function pendingPRToManagedPR(p: PendingPR): AgencyManagedPR {
     p.languages === "Pending profile" ? ["English"] : parsePendingLanguages(p.languages);
   const portfolioPhotos = p.portfolioPhotos?.some(Boolean) ? p.portfolioPhotos : undefined;
   const galleryCount = portfolioPhotos?.filter(Boolean).length ?? p.portfolioCount ?? 0;
+  const floorName = p.name.trim() || "PR";
+  const legalName = p.icName?.trim() || floorName;
   return {
     id: p.targetPrId ?? `p-new-${p.id}`,
-    name: p.name,
-    icName: p.name,
+    name: floorName,
+    icName: legalName,
     ic: p.ic ?? "—",
     mobile: p.mobile ?? "—",
     email: p.email ?? "—",
@@ -1325,6 +1363,7 @@ export function pendingPRToManagedPR(p: PendingPR): AgencyManagedPR {
     checkOuts: 0,
     noShows: 0,
     kpiScore: 72,
+    ...(p.agencyId ? { agencyId: p.agencyId } : {}),
     ...(portfolioPhotos ? { portfolioPhotos } : {}),
   };
 }

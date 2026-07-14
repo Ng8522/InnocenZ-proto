@@ -72,7 +72,6 @@ export function OutletShiftDetailPanel({
   hideLogSales = false,
   hideCutlost = false,
   staffingAgency,
-  onDelete,
 }: {
   shift: ShiftRequest;
   variant?: "home" | "future";
@@ -81,7 +80,6 @@ export function OutletShiftDetailPanel({
   hideCutlost?: boolean;
   /** When set, show linked agency instead of destination labels. */
   staffingAgency?: string;
-  onDelete?: () => void;
 }) {
   const outletSubRole = useStore((s) => s.outletSubRole);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
@@ -94,7 +92,6 @@ export function OutletShiftDetailPanel({
   const canLogSales = outletCan(outletSubRole, "logSales");
   const canConfirm = outletCan(outletSubRole, "confirmShift");
   // const canSeal = outletCan(outletSubRole, "sealShift");
-  const canDelete = outletCan(outletSubRole, "postJob");
   const canStaff = outletCan(outletSubRole, "manageShiftStaffing");
 
   // const [sealOpen, setSealOpen] = useState(false);
@@ -387,15 +384,6 @@ export function OutletShiftDetailPanel({
             />
           )}
           */}
-          {canDelete && shift.status !== "sealed" && onDelete && (
-            <OutletActionButton
-              icon={Trash2}
-              title="Cancel shift"
-              hint="Remove this shift and release all PRs"
-              tone="danger"
-              onClick={onDelete}
-            />
-          )}
           {shift.status === "sealed" && (
             <div className="flex justify-center py-1">
               <IzPill variant="green">Payroll sent · shift sealed</IzPill>

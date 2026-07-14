@@ -78,7 +78,10 @@ function floorBreakdownFromHistory(
   const byDay = new Map<string, Omit<FloorSalesDayRow, "total">>();
 
   for (const row of rows) {
-    const drinkSales = drinkSalesRmFromUnits(row.totalDrinks, perDrinkRm);
+    const drinkSales =
+      typeof row.drinkSalesRm === "number" && Number.isFinite(row.drinkSalesRm)
+        ? row.drinkSalesRm
+        : drinkSalesRmFromUnits(row.totalDrinks, perDrinkRm);
     const tipsSales = tipsSalesRmFromUnits(row.totalTips);
     const cur =
       byDay.get(row.dateIso) ??

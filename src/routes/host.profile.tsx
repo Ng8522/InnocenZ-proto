@@ -120,12 +120,16 @@ function ProfilePage() {
   const saveEdit = () => {
     const name = draft.displayName.trim();
     if (!name) {
-      toast("Enter your display name", "warn");
+      toast("Enter your floor nickname", "warn");
+      return;
+    }
+    if (name.length < 2 || name.length > 20) {
+      toast("Floor nickname must be 2–20 characters", "warn");
       return;
     }
     const icName = draft.icName.trim();
     if (!icName) {
-      toast("Enter your IC name (legal full name)", "warn");
+      toast("Enter your legal IC name", "warn");
       return;
     }
     const mobile = account.mobile.trim();
@@ -326,17 +330,17 @@ function ProfilePage() {
             {editing ? (
               <>
                 <div className="iz-field iz-pr-account-hero__name-field !mb-0">
-                  <label className="!text-[9px]">Display name</label>
+                  <label className="!text-[9px]">Floor nickname</label>
                   <input
                     type="text"
                     value={draft.displayName}
-                    maxLength={40}
-                    placeholder="Your name"
+                    maxLength={20}
+                    placeholder="Name used on the floor"
                     onChange={(e) => setDraft((p) => ({ ...p, displayName: e.target.value }))}
                   />
                 </div>
                 <div className="iz-field iz-pr-account-hero__name-field !mb-0 mt-2">
-                  <label className="!text-[9px]">IC name (legal full name)</label>
+                  <label className="!text-[9px]">Legal IC name</label>
                   <input
                     type="text"
                     value={draft.icName}
@@ -346,17 +350,6 @@ function ProfilePage() {
                     onChange={(e) => setDraft((p) => ({ ...p, icName: e.target.value }))}
                   />
                 </div>
-                <p className="iz-tiny iz-muted2 mt-2">
-                  Mobile and email are updated in{" "}
-                  <button
-                    type="button"
-                    className="text-[var(--iz-gold-l)] underline"
-                    onClick={() => setSecurityOpen(true)}
-                  >
-                    Security settings
-                  </button>{" "}
-                  (OTP required).
-                </p>
               </>
             ) : (
               <>
@@ -370,14 +363,16 @@ function ProfilePage() {
               <span className="iz-tier iz-pr-account-hero__tier">
                 <Star className="h-3 w-3" /> {u.tier}
               </span>
-              <span className="iz-pr-account-hero__meta-text">
-                Agency-Tied · {linkedAgencyNames}
-              </span>
+              {!editing && (
+                <span className="iz-pr-account-hero__meta-text">
+                  Agency-Tied · {linkedAgencyNames}
+                </span>
+              )}
               <span className="iz-pr-account-hero__meta-ic">IC {account.ic}</span>
             </div>
             {editing && (
               <div className="iz-pr-account-hero__agency-edit mt-2">
-                <p className="iz-tiny iz-muted2 mb-1">Agencies you work with</p>
+                <p className="iz-tiny iz-muted2 mb-1">Agencies</p>
                 <div className="relative">
                   <button
                     type="button"
@@ -431,18 +426,7 @@ function ProfilePage() {
                     </>
                   )}
                 </div>
-                <p className="iz-tiny iz-muted mt-1.5">
-                  Selecting an agency notifies them to{" "}
-                  <b className="text-[var(--iz-gold-l)]">dispatch</b> you; removing one notifies
-                  them to <b className="text-[var(--iz-amber)]">suspend</b> you.
-                </p>
               </div>
-            )}
-            {editing && (
-              <p className="iz-pr-account-hero__hint">
-                IC name and mobile sync to Atlas Agency when you save. Tap the camera on your photo
-                to upload a new picture.
-              </p>
             )}
           </div>
         </div>
@@ -476,9 +460,6 @@ function ProfilePage() {
           )}
           {editing && (
             <div className="iz-pr-account-hero__measure-edit">
-              <p className="iz-pr-account-hero__measure-hint">
-                Adjust measurements — preview updates live
-              </p>
               <div className="iz-pr-account-hero__measure-grid">
                 <ComcardInput
                   compact
@@ -587,7 +568,7 @@ function ProfilePage() {
               <ProfileLanguagePicker
                 value={languages}
                 onChange={(next) => setDraft((p) => ({ ...p, languages: next }))}
-                hint="Tap to select all languages you speak (shown to outlets)."
+                hint=""
               />
             ) : (
               <div className="iz-pr-account-hero__lang-chips">

@@ -5,18 +5,20 @@ import { RosterTimetableFilters } from "@/components/agency/RosterTimetableFilte
 import { RosterWeeklyTimetable } from "@/components/agency/RosterWeeklyTimetable";
 import { RosterPlanningDatePicker } from "@/components/agency/RosterPlanningDatePicker";
 import { RosterShiftFilters } from "@/components/agency/RosterShiftFilters";
-import { RosterShiftTable } from "@/components/agency/RosterShiftTable";
+import { RosterShiftTable, rosterSlotDisplayPayout } from "@/components/agency/RosterShiftTable";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { useStore } from "@/lib/store";
 import {
   OUTLET_NAMES,
   rosterPageDisplayStatus,
+  rosterSlotsForAgency,
   scopeToAgency,
   type AgencyRosterSlot,
   type RosterSlotStatus,
 } from "@/lib/agency-demo";
 import { listEarlyReleasedPrsForReassign } from "@/lib/outlet-demo";
-import { deriveLiveWorkforce, parseShiftWindow } from "@/lib/portal-sync";
+import { parseShiftWindow } from "@/lib/portal-sync";
+import type { RosterShiftEarningsContext } from "@/lib/outlet-financial-sync";
 import { IzSheet } from "@/components/iz/Sheet";
 import { LabelWithIcon, TitleWithIcon } from "@/components/iz/TitleWithIcon";
 import { IzCard, IzCardTitle, IzPill, IzSelect, IzTimeInput, formatRM } from "@/components/iz/ui";
@@ -70,12 +72,16 @@ function AgencyRoster() {
   const setViewMode = (next: ViewMode) =>
     navigate({ search: next === "live" ? {} : { view: next } });
   const allAgencyRoster = useStore((s) => s.agencyRoster);
+  const allAgencyPRs = useStore((s) => s.agencyPRs);
   const activeAgencyId = useStore((s) => s.activeAgencyId);
-  const agencyRoster = useMemo(
-    () => scopeToAgency(allAgencyRoster, activeAgencyId),
-    [allAgencyRoster, activeAgencyId],
+  const agencyPRs = useMemo(
+    () => scopeToAgency(allAgencyPRs, activeAgencyId),
+    [allAgencyPRs, activeAgencyId],
   );
-  const agencyPRs = useStore((s) => s.agencyPRs);
+  const agencyRoster = useMemo(
+    () => rosterSlotsForAgency(allAgencyRoster, allAgencyPRs, activeAgencyId),
+    [allAgencyRoster, allAgencyPRs, activeAgencyId],
+  );
   const prCheckInMeta = useStore((s) => s.prCheckInMeta);
   const prSubRole = useStore((s) => s.prSubRole);
   const editRosterSlot = useStore((s) => s.editRosterSlot);
@@ -171,20 +177,65 @@ function AgencyRoster() {
     [shifts, agencyPRs],
   );
 
-  const workforce = useMemo(
-    () => deriveLiveWorkforce(agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm),
-    [agencyRoster, liveDateIso, outletCommissionRules, perDrinkRm],
-  );
-  const activeCount = dateFiltered.filter((s) => s.status === "on-duty" && !!s.checkedInAt).length;
-  const liveWorkforce = useMemo(() => workforce.filter((w) => w.status === "on-duty"), [workforce]);
-  const plannedCount = useMemo(
-    () => dateFiltered.filter((s) => s.status !== "unavailable").length,
+  const activeCount = useMemo(
+    () => dateFiltered.filter((s) => s.status === "on-duty" && !!s.checkedInAt).length,
     [dateFiltered],
   );
-  const estPayoutLive = useMemo(
-    () => liveWorkforce.reduce((s, w) => s + w.estPayout, 0),
-    [liveWorkforce],
+  const unavailableCount = useMemo(
+    () => dateFiltered.filter((s) => s.status === "unavailable").length,
+    [dateFiltered],
   );
+  /** Scheduled / pending — excludes on-duty (active) and unavailable so KPIs partition tonight. */
+  const plannedCount = useMemo(
+    () =>
+      dateFiltered.filter(
+        (s) => s.status !== "unavailable" && !(s.status === "on-duty" && !!s.checkedInAt),
+      ).length,
+    [dateFiltered],
+  );
+  /** Same formula + same rows as the Shifts table Est. payout column. */
+  const estPayoutLive = useMemo(() => {
+    const prById = new Map(agencyPRs.map((p) => [p.id, p]));
+    const earningsContext: RosterShiftEarningsContext | null = outletWorkspace.tierRates
+      ? {
+          rosterScope: dateFiltered,
+          agencyPRs,
+          outletShifts: shifts,
+          drinkMenu,
+          receiptScans: prReceiptScans,
+          happyHourStart: outletWorkspace.happyHourStart,
+          happyHourEnd: outletWorkspace.happyHourEnd,
+          workspaceTierRates: outletWorkspace.tierRates,
+        }
+      : null;
+    return filtered.reduce(
+      (sum, slot) =>
+        sum +
+        rosterSlotDisplayPayout(
+          slot,
+          prById.get(slot.prId),
+          outletCommissionRules,
+          perDrinkRm,
+          shifts,
+          drinkMenu,
+          prReceiptScans,
+          earningsContext,
+        ),
+      0,
+    );
+  }, [
+    filtered,
+    agencyPRs,
+    dateFiltered,
+    outletCommissionRules,
+    perDrinkRm,
+    shifts,
+    drinkMenu,
+    prReceiptScans,
+    outletWorkspace.tierRates,
+    outletWorkspace.happyHourStart,
+    outletWorkspace.happyHourEnd,
+  ]);
   const weekScheduled = useMemo(
     () => agencyRoster.filter((s) => weekDays.includes(s.dateIso) && s.status !== "unavailable"),
     [agencyRoster, weekDays],
@@ -293,7 +344,7 @@ function AgencyRoster() {
         )}
       </div>
 
-      <div className={`iz-roster-kpis${viewMode === "live" ? " cols-3" : ""}`}>
+      <div className={`iz-roster-kpis${viewMode === "live" ? " cols-4" : ""}`}>
         {viewMode === "live" ? (
           <>
             <div className="iz-roster-kpi">
@@ -303,6 +354,10 @@ function AgencyRoster() {
             <div className="iz-roster-kpi">
               <span className="n">{activeCount}</span>
               <LabelWithIcon label="Active PRs" className="l" />
+            </div>
+            <div className="iz-roster-kpi">
+              <span className="n">{unavailableCount}</span>
+              <LabelWithIcon label="Unavailable PRs" className="l" />
             </div>
             <div className="iz-roster-kpi">
               <span className="n gold">{formatRM(estPayoutLive)}</span>
@@ -456,6 +511,7 @@ function AgencyRoster() {
           <RosterShiftTable
             slots={filtered}
             agencyPRs={agencyPRs}
+            viewingAgencyId={activeAgencyId}
             prSwapRequests={prSwapRequests}
             outletCommissionRules={outletCommissionRules}
             perDrinkRm={perDrinkRm}

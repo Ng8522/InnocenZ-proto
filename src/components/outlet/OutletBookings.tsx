@@ -1,10 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { outletHomeShiftRequests, resolveOutletShiftDateIso } from "@/lib/agency-outlet-shifts";
 import { PR_AGENCY_TIED_OFFERS } from "@/lib/pr-features";
-import { outletCan } from "@/lib/outlet-rbac";
-import { IzSheet } from "@/components/iz/Sheet";
-import { IzCard, IzCardTitle, IzPill } from "@/components/iz/ui";
+import { IzPill } from "@/components/iz/ui";
 import { OutletTodayOperationPanel } from "@/components/outlet/OutletTodayOperationPanel";
 import { OutletLaborCostReport } from "@/components/outlet/OutletLaborCostReport";
 import {
@@ -22,19 +20,16 @@ import {
   OutletShiftDetailPanel,
   OutletShiftStatusBadge,
 } from "@/components/outlet/OutletShiftDetailPanel";
-import { OutletEmptyState, OutletActionButton } from "@/components/outlet/outlet-portal-ui";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { OutletEmptyState } from "@/components/outlet/outlet-portal-ui";
+import { ChevronDown } from "lucide-react";
 
 export function OutletBookings({ variant = "home" }: { variant?: "home" | "future" }) {
-  const outletSubRole = useStore((s) => s.outletSubRole);
   const outletWorkspace = useStore((s) => s.outletWorkspace);
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const agencyRoster = useStore((s) => s.agencyRoster);
   const prReceiptScans = useStore((s) => s.prReceiptScans);
   const specialServiceOrders = useStore((s) => s.specialServiceOrders);
-  const { shifts, deleteShift } = useStore();
-  const canDelete = outletCan(outletSubRole, "postJob");
-  const canStaff = outletCan(outletSubRole, "manageShiftStaffing");
+  const shifts = useStore((s) => s.shifts);
 
   const visibleShifts = useMemo(
     () =>
@@ -49,8 +44,6 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
     [shifts, outletWorkspace, agencyRoster, outletCommissionRules],
   );
 
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-
   const liveShift =
     visibleShifts.find((s) => s.status === "confirmed" && s.date === "Tonight") ??
     visibleShifts.find((s) => s.status === "confirmed");
@@ -59,7 +52,6 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
     : visibleShifts;
 
   const defaultOpenId = variant === "future" ? futureShifts[0]?.id : undefined;
-  const deleteTarget = deleteTargetId ? visibleShifts.find((s) => s.id === deleteTargetId) : null;
 
   if (variant === "home" && !liveShift) {
     return (
@@ -132,71 +124,22 @@ export function OutletBookings({ variant = "home" }: { variant?: "home" | "futur
           variant={variant}
           hideLogSales={hideLogSales}
           hideCutlost={variant === "home"}
-          onDelete={
-            canDelete && s.status !== "sealed" && variant !== "home"
-              ? () => setDeleteTargetId(s.id)
-              : undefined
-          }
         />
       </details>
     );
   };
 
   return (
-    <>
-      <div className="space-y-2">
-        {variant === "home" && liveShift && renderShiftCard(liveShift, true)}
-        {variant === "home" && liveShift && (
-          <OutletTodayOperationPanel shift={liveShift} outletName={outletWorkspace.outletName} />
-        )}
-        {variant === "home" && liveShift && <OutletLaborCostReport shift={liveShift} />}
-        {variant === "home" && liveShift && liveShift.status === "confirmed" && (
-          <OutletCutLossActions shift={liveShift} />
-        )}
-        {variant === "home" && liveShift && (canStaff || canDelete) && (
-          <div className="mt-2 flex flex-col gap-2">
-            {canDelete && liveShift.status !== "sealed" && (
-              <OutletActionButton
-                icon={Trash2}
-                title="Cancel shift"
-                hint="Remove this shift and release all PRs"
-                tone="danger"
-                onClick={() => setDeleteTargetId(liveShift.id)}
-              />
-            )}
-          </div>
-        )}
-        {variant === "future" && futureShifts.map((s) => renderShiftCard(s))}
-      </div>
-
-      <IzSheet open={deleteTarget !== null} onClose={() => setDeleteTargetId(null)}>
-        <IzCardTitle>Delete this shift?</IzCardTitle>
-        {deleteTarget && (
-          <IzCard flat className="mt-2">
-            <p className="text-sm font-semibold">{deleteTarget.event}</p>
-            <p className="iz-tiny iz-muted mt-1">
-              {deleteTarget.date} · {deleteTarget.shift}
-            </p>
-          </IzCard>
-        )}
-        <button
-          type="button"
-          className="iz-btn iz-btn-danger mt-3 w-full"
-          onClick={() => {
-            if (deleteTargetId) deleteShift(deleteTargetId);
-            setDeleteTargetId(null);
-          }}
-        >
-          Delete shift
-        </button>
-        <button
-          type="button"
-          className="iz-btn iz-btn-soft mt-2 w-full"
-          onClick={() => setDeleteTargetId(null)}
-        >
-          Cancel
-        </button>
-      </IzSheet>
-    </>
+    <div className="space-y-2">
+      {variant === "home" && liveShift && renderShiftCard(liveShift, true)}
+      {variant === "home" && liveShift && (
+        <OutletTodayOperationPanel shift={liveShift} outletName={outletWorkspace.outletName} />
+      )}
+      {variant === "home" && liveShift && <OutletLaborCostReport shift={liveShift} />}
+      {variant === "home" && liveShift && liveShift.status === "confirmed" && (
+        <OutletCutLossActions shift={liveShift} />
+      )}
+      {variant === "future" && futureShifts.map((s) => renderShiftCard(s))}
+    </div>
   );
 }

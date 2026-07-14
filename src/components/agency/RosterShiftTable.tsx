@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import {
+  agencyPortalLabel,
+  resolveRosterPrName,
   rosterPageDisplayStatus,
   rosterSlotAgencyName,
   type AgencyManagedPR,
@@ -64,7 +66,7 @@ function formatRosterSlotTips(floor: OutletPrLiveSales): string {
   return floor.tipRm > 0 ? formatRM(floor.tipRm) : "—";
 }
 
-function rosterSlotDisplayPayout(
+export function rosterSlotDisplayPayout(
   slot: AgencyRosterSlot,
   profile: AgencyManagedPR | undefined,
   outletCommissionRules: OutletCommissionRule[],
@@ -110,21 +112,29 @@ function RosterPrNameCell({
   slot,
   profile,
   prSwap,
+  agencyPRs,
+  viewingAgencyId,
 }: {
   slot: AgencyRosterSlot;
   profile?: AgencyManagedPR;
   prSwap?: PrSwapRequest;
+  agencyPRs?: AgencyManagedPR[];
+  viewingAgencyId?: string;
 }) {
+  const displayName = resolveRosterPrName(slot.prId, slot.prName, agencyPRs ?? (profile ? [profile] : []));
+  const agencyLabel = viewingAgencyId
+    ? agencyPortalLabel(viewingAgencyId)
+    : rosterSlotAgencyName(slot);
   return (
     <>
       <div className="iz-portal-table-pr">
         <PrComcardIdentity
-          pr={comcardPreviewFromSlot(slot, profile)}
+          pr={comcardPreviewFromSlot({ ...slot, prName: displayName }, profile)}
           profile={profile}
-          agencyName={rosterSlotAgencyName(slot)}
+          agencyName={agencyLabel}
         />
         <div className="iz-portal-table-pr-meta">
-          <span className="iz-portal-table-name">{slot.prName}</span>
+          <span className="iz-portal-table-name">{displayName}</span>
           {profile?.trainingLevel && (
             <span className="iz-roster-tier-tag">{profile.trainingLevel}</span>
           )}
@@ -156,6 +166,7 @@ const STATUS_LABEL: Record<
 export function RosterShiftTable({
   slots,
   agencyPRs,
+  viewingAgencyId,
   prSwapRequests = [],
   outletCommissionRules,
   perDrinkRm,
@@ -174,6 +185,8 @@ export function RosterShiftTable({
 }: {
   slots: AgencyRosterSlot[];
   agencyPRs: AgencyManagedPR[];
+  /** Active agency portal — agency column uses this label (dual-tied PRs included). */
+  viewingAgencyId?: string;
   prSwapRequests?: PrSwapRequest[];
   outletCommissionRules: OutletCommissionRule[];
   perDrinkRm: number;
@@ -267,6 +280,8 @@ export function RosterShiftTable({
                 key={slot.id}
                 slot={slot}
                 profile={prById.get(slot.prId)}
+                agencyPRs={agencyPRs}
+                viewingAgencyId={viewingAgencyId}
                 prSwap={activePrSwapForRosterSlot(prSwapRequests, slot.id)}
                 floor={floor}
                 estPayout={rosterSlotDisplayPayout(
@@ -300,6 +315,8 @@ export function RosterShiftTable({
             key={slot.id}
             slot={slot}
             profile={prById.get(slot.prId)}
+            agencyPRs={agencyPRs}
+            viewingAgencyId={viewingAgencyId}
             prSwap={activePrSwapForRosterSlot(prSwapRequests, slot.id)}
             floor={floor}
             estPayout={rosterSlotDisplayPayout(
@@ -358,6 +375,8 @@ function StatusPills({ slot }: { slot: AgencyRosterSlot }) {
 function RosterTableRow({
   slot,
   profile,
+  agencyPRs,
+  viewingAgencyId,
   prSwap,
   floor,
   estPayout,
@@ -370,6 +389,8 @@ function RosterTableRow({
 }: {
   slot: AgencyRosterSlot;
   profile?: AgencyManagedPR;
+  agencyPRs: AgencyManagedPR[];
+  viewingAgencyId?: string;
   prSwap?: import("@/lib/pr-features").PrSwapRequest;
   floor: OutletPrLiveSales;
   estPayout: number;
@@ -394,13 +415,22 @@ function RosterTableRow({
     slot.status !== "assignment-pending" &&
     slot.status !== "outlet-request-pending";
   const showReassign = canAssign && releasedEarly;
+  const agencyLabel = viewingAgencyId
+    ? agencyPortalLabel(viewingAgencyId)
+    : rosterSlotAgencyName(slot);
 
   return (
     <tr className={prSwap ? "iz-roster-row--swap" : undefined}>
       <td>
-        <RosterPrNameCell slot={slot} profile={profile} prSwap={prSwap} />
+        <RosterPrNameCell
+          slot={slot}
+          profile={profile}
+          agencyPRs={agencyPRs}
+          viewingAgencyId={viewingAgencyId}
+          prSwap={prSwap}
+        />
       </td>
-      <td className="iz-portal-table-meta">{rosterSlotAgencyName(slot)}</td>
+      <td className="iz-portal-table-meta">{agencyLabel}</td>
       <td className="iz-portal-table-meta">{slot.outlet}</td>
       <td className="iz-portal-table-meta iz-portal-table-shift">
         {formatRosterShiftTime(slot)}
@@ -491,6 +521,8 @@ function RosterTableRow({
 function RosterShiftCard({
   slot,
   profile,
+  agencyPRs,
+  viewingAgencyId,
   prSwap,
   floor,
   estPayout,
@@ -503,6 +535,8 @@ function RosterShiftCard({
 }: {
   slot: AgencyRosterSlot;
   profile?: AgencyManagedPR;
+  agencyPRs: AgencyManagedPR[];
+  viewingAgencyId?: string;
   prSwap?: import("@/lib/pr-features").PrSwapRequest;
   floor: OutletPrLiveSales;
   estPayout: number;
@@ -513,21 +547,25 @@ function RosterShiftCard({
   onCancelPrSwap: (swapId: string) => void;
   onOpenEarningsSheet?: (kind: RosterEarningsSheetKind, slot: AgencyRosterSlot) => void;
 }) {
+  const displayName = resolveRosterPrName(slot.prId, slot.prName, agencyPRs);
+  const agencyLabel = viewingAgencyId
+    ? agencyPortalLabel(viewingAgencyId)
+    : rosterSlotAgencyName(slot);
   return (
     <IzCard>
       <div className="iz-between gap-2">
         <div className="flex min-w-0 items-start gap-2.5">
           <PrComcardIdentity
-            pr={comcardPreviewFromSlot(slot, profile)}
+            pr={comcardPreviewFromSlot({ ...slot, prName: displayName }, profile)}
             profile={profile}
-            agencyName={rosterSlotAgencyName(slot)}
+            agencyName={agencyLabel}
           />
           <div className="min-w-0">
-            <div className="font-sora text-[15px] font-bold">{slot.prName}</div>
+            <div className="font-sora text-[15px] font-bold">{displayName}</div>
             {profile?.trainingLevel && (
               <span className="iz-roster-tier-tag">{profile.trainingLevel}</span>
             )}
-            <p className="iz-tiny iz-portal-table-meta mt-0.5">{rosterSlotAgencyName(slot)}</p>
+            <p className="iz-tiny iz-portal-table-meta mt-0.5">{agencyLabel}</p>
             <p className="iz-tiny iz-muted2 mt-0.5">{slot.outlet}</p>
           </div>
         </div>

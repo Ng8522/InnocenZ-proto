@@ -416,7 +416,13 @@ export function buildShiftHistoryRow(input: {
   totalPayout: number;
   totalDrinks: number;
   totalTips: number;
+  drinkSalesRm?: number;
   totalTables?: number;
+  wagesRm?: number;
+  otRm?: number;
+  drinkCommissionRm?: number;
+  tipCommissionRm?: number;
+  tableCommissionRm?: number;
   durationHours?: number;
 }): ShiftHistoryRow {
   return {
@@ -430,7 +436,13 @@ export function buildShiftHistoryRow(input: {
     totalPayout: input.totalPayout,
     totalDrinks: input.totalDrinks,
     totalTips: input.totalTips,
+    drinkSalesRm: input.drinkSalesRm,
     totalTables: input.totalTables ?? 0,
+    wagesRm: input.wagesRm,
+    otRm: input.otRm,
+    drinkCommissionRm: input.drinkCommissionRm,
+    tipCommissionRm: input.tipCommissionRm,
+    tableCommissionRm: input.tableCommissionRm,
     durationHours: input.durationHours ?? 6,
   };
 }

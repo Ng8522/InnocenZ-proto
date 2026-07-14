@@ -6,6 +6,7 @@ import {
   ChevronDown,
   CircleHelp,
 } from "@/lib/lucide-label-icons";
+import { shiftHistoryTotalReceived } from "@/lib/shift-history-amounts";
 import { cn } from "@/lib/utils";
 
 const METRIC_BY_ID = Object.fromEntries(SHIFT_METRIC_DEFS.map((m) => [m.id, m])) as Record<
@@ -21,7 +22,7 @@ export function shiftMetricLabelText(kind: ShiftMetricKind, total?: boolean): st
   return total ? `Total ${base.toLowerCase()}` : base;
 }
 
-/** Icon + word label — e.g. wine glass + “Drinks”. */
+/** Icon + word label — e.g. wine glass + “Received”. */
 export function ShiftMetricIconLabel({
   kind,
   total,
@@ -62,34 +63,46 @@ export function ShiftTxnMetric({
   total?: boolean;
 }) {
   return (
-    <div className={kind === "earned" ? "iz-txn-metric earned" : "iz-txn-metric"}>
+    <div className={kind === "payout" ? "iz-txn-metric earned" : "iz-txn-metric"}>
       <div className="label">
         <ShiftMetricIconLabel kind={kind} total={total} size="lg" />
       </div>
-      <div className={kind === "earned" || kind === "tips" ? "value iz-ledger" : "value"}>{value}</div>
+      <div className="value iz-ledger">{value}</div>
     </div>
   );
 }
 
-/** Three metric tiles in a row — earned, drinks, tips. */
+/** Two metric tiles — Total Received (outlet sales) + Total Payout (PR take-home). */
 export function ShiftTxnMetricsRow({
   totalPayout,
   totalDrinks,
   totalTips,
+  drinkSalesRm,
+  totalReceived,
   total,
   className,
 }: {
   totalPayout: number;
-  totalDrinks: number;
-  totalTips: number;
+  /** @deprecated Prefer totalReceived / drinkSalesRm — kept for call-site compatibility. */
+  totalDrinks?: number;
+  totalTips?: number;
+  drinkSalesRm?: number;
+  totalReceived?: number;
   total?: boolean;
   className?: string;
 }) {
+  const received =
+    totalReceived ??
+    shiftHistoryTotalReceived({
+      drinkSalesRm,
+      totalDrinks: totalDrinks ?? 0,
+      totalTips: totalTips ?? 0,
+    });
+
   return (
-    <div className={cn("iz-txn-card-metrics", className)}>
-      <ShiftTxnMetric kind="earned" total={total} value={formatRM(totalPayout)} />
-      <ShiftTxnMetric kind="drinks" total={total} value={totalDrinks} />
-      <ShiftTxnMetric kind="tips" total={total} value={formatRM(totalTips)} />
+    <div className={cn("iz-txn-card-metrics iz-txn-card-metrics--pair", className)}>
+      <ShiftTxnMetric kind="received" total={total} value={formatRM(received)} />
+      <ShiftTxnMetric kind="payout" total={total} value={formatRM(totalPayout)} />
     </div>
   );
 }

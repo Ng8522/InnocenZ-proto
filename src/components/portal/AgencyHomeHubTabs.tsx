@@ -9,7 +9,7 @@ import { agencyCan, type AgencySubRole } from "@/lib/agency-rbac";
 import { agencyPvStatusLabel } from "@/lib/agency-payroll";
 import { pvStatusPillVariant } from "@/lib/pr-demo";
 import { deriveLiveWorkforce } from "@/lib/portal-sync";
-import { scopeToAgency, ownedByAgency } from "@/lib/agency-demo";
+import { ownedByAgency, rosterSlotsForAgency } from "@/lib/agency-demo";
 import { getAgencyManagedPvs } from "@/lib/agency-payroll";
 import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
@@ -34,17 +34,17 @@ function HubPanelLink({
 
 export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubRole | null }) {
   const allAgencyRoster = useStore((s) => s.agencyRoster);
+  const allAgencyPRs = useStore((s) => s.agencyPRs);
   const activeAgencyId = useStore((s) => s.activeAgencyId);
   const agencyRoster = useMemo(
-    () => scopeToAgency(allAgencyRoster, activeAgencyId),
-    [allAgencyRoster, activeAgencyId],
+    () => rosterSlotsForAgency(allAgencyRoster, allAgencyPRs, activeAgencyId),
+    [allAgencyRoster, allAgencyPRs, activeAgencyId],
   );
   const outletCommissionRules = useStore((s) => s.outletCommissionRules);
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
   const pendingPRs = useStore((s) => s.pendingPRs);
   const pendingCutlostRequests = useStore((s) => s.pendingCutlostRequests);
   const allPrPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
-  const allAgencyPRs = useStore((s) => s.agencyPRs);
   // Tenant scoping — PVs attributed via OWNED PRs so Delta's tiles never count Atlas PVs.
   const prPaymentVouchers = useMemo(
     () => getAgencyManagedPvs(allPrPaymentVouchers, ownedByAgency(allAgencyPRs, activeAgencyId)),

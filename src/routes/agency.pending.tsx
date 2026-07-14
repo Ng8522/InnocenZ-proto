@@ -117,6 +117,17 @@ function ApprovalsAvatar({
   );
 }
 
+function pendingFloorNickname(signup: PendingPR) {
+  return signup.name.trim() || "PR";
+}
+
+function pendingLegalIcName(signup: PendingPR) {
+  const legal = signup.icName?.trim();
+  if (!legal) return "";
+  if (legal.toLowerCase() === pendingFloorNickname(signup).toLowerCase()) return "";
+  return legal;
+}
+
 function VerificationBadge({
   ok,
   label,
@@ -537,9 +548,12 @@ function SignupDetailPanel({
     <>
       <div className="iz-approvals-detail-head">
         <div className="iz-approvals-detail-profile">
-          <ApprovalsAvatar name={signup.name} id={signup.id} size="lg" />
+          <ApprovalsAvatar name={pendingFloorNickname(signup)} id={signup.id} size="lg" />
           <div className="min-w-0">
-            <h2 className="iz-approvals-detail-name">{signup.name}</h2>
+            <h2 className="iz-approvals-detail-name">{pendingFloorNickname(signup)}</h2>
+            {pendingLegalIcName(signup) && (
+              <p className="iz-approvals-detail-meta">Legal · {pendingLegalIcName(signup)}</p>
+            )}
             <p className="iz-approvals-detail-meta">
               {signup.languages}
               {signup.submittedAt ? ` · Applied ${signup.submittedAt}` : ""}
@@ -582,6 +596,12 @@ function SignupDetailPanel({
             <p className="iz-approvals-info-line">
               <Calendar className="h-3.5 w-3.5 shrink-0" />
               IC {signup.ic}
+            </p>
+          )}
+          {pendingLegalIcName(signup) && (
+            <p className="iz-approvals-info-line">
+              <Contact className="h-3.5 w-3.5 shrink-0" />
+              {pendingLegalIcName(signup)}
             </p>
           )}
         </div>
@@ -627,7 +647,7 @@ function SignupDetailPanel({
 
       <RejectSheet
         open={rejectOpen}
-        title={`Reject ${signup.name}`}
+        title={`Reject ${pendingFloorNickname(signup)}`}
         subtitle="Reason is sent to PR (mandatory)"
         placeholder="e.g. Incomplete IC verification…"
         confirmLabel="Confirm reject"
@@ -932,6 +952,8 @@ function AgencyPending() {
                   {signups.map((p) => {
                     const galleryCount = portfolioFilledCount(p.portfolioPhotos ?? []);
                     const comcardReady = comcardTabMeta(p).ready;
+                    const floorName = pendingFloorNickname(p);
+                    const legalName = pendingLegalIcName(p);
                     return (
                       <button
                         key={p.id}
@@ -939,10 +961,13 @@ function AgencyPending() {
                         className={cn("iz-approvals-list-item", selectedSignupId === p.id && "on")}
                         onClick={() => setSelectedSignupId(p.id)}
                       >
-                        <ApprovalsAvatar name={p.name} id={p.id} size="sm" />
+                        <ApprovalsAvatar name={floorName} id={p.id} size="sm" />
                         <div className="min-w-0 flex-1">
-                          <span className="name">{p.name}</span>
-                          <span className="sub">{p.languages}</span>
+                          <span className="name">{floorName}</span>
+                          <span className="sub">
+                            {legalName ? `Legal · ${legalName} · ` : ""}
+                            {p.languages}
+                          </span>
                           <span className="badges">
                             <VerificationBadge ok={!!p.hasIcPhotos} label="IC" />
                             <VerificationBadge ok={!!p.hasSelfie} label="Selfie" />

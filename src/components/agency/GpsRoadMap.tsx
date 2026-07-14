@@ -79,7 +79,16 @@ export function GpsRoadMap({
     startY: number;
     startCenter: GeoCoord;
     pointerId: number | null;
-  }>({ active: false, moved: false, startX: 0, startY: 0, startCenter: { lat: 0, lng: 0 }, pointerId: null });
+    pinSlotId: string | null;
+  }>({
+    active: false,
+    moved: false,
+    startX: 0,
+    startY: 0,
+    startCenter: { lat: 0, lng: 0 },
+    pointerId: null,
+    pinSlotId: null,
+  });
 
   const [width, setWidth] = useState(340);
   const [zoomOverride, setZoomOverride] = useState<number | null>(null);
@@ -122,6 +131,7 @@ export function GpsRoadMap({
   const endDrag = useCallback(() => {
     dragRef.current.active = false;
     dragRef.current.pointerId = null;
+    dragRef.current.pinSlotId = null;
     setIsDragging(false);
   }, []);
 
@@ -130,6 +140,7 @@ export function GpsRoadMap({
       if (e.button !== 0) return;
       if ((e.target as HTMLElement).closest(".iz-gmaps-controls, .iz-gmaps-infowindow")) return;
 
+      const pin = (e.target as HTMLElement).closest<HTMLElement>("[data-slot-id]");
       dragRef.current = {
         active: true,
         moved: false,
@@ -137,6 +148,8 @@ export function GpsRoadMap({
         startY: e.clientY,
         startCenter: mapCenter,
         pointerId: e.pointerId,
+        // Remember the pin at press time — pointer capture retargets later events to the map.
+        pinSlotId: pin?.dataset.slotId ?? null,
       };
       tilesRef.current?.setPointerCapture(e.pointerId);
       setIsDragging(true);
@@ -164,11 +177,11 @@ export function GpsRoadMap({
       tilesRef.current?.releasePointerCapture(e.pointerId);
 
       if (!drag.moved) {
-        const pin = (e.target as HTMLElement).closest<HTMLElement>("[data-slot-id]");
-        if (pin?.dataset.slotId) {
-          const id = pin.dataset.slotId;
-          onSelect(id === selectedId ? null : id);
-        }
+        const fromPoint = document
+          .elementFromPoint(e.clientX, e.clientY)
+          ?.closest<HTMLElement>("[data-slot-id]")?.dataset.slotId;
+        const id = drag.pinSlotId ?? fromPoint ?? null;
+        if (id) onSelect(id === selectedId ? null : id);
       }
 
       endDrag();
@@ -305,13 +318,9 @@ export function GpsRoadMap({
           </p>
         </div>
       ) : (
-        <button
-          type="button"
-          className="iz-gmaps-infowindow iz-gmaps-infowindow-hint"
-          onClick={() => onSelect(rows[0]?.slotId ?? null)}
-        >
+        <div className="iz-gmaps-infowindow iz-gmaps-infowindow-hint" aria-hidden>
           <p className="text-[10px] text-[#5f6368]">Drag map · tap a pin or row</p>
-        </button>
+        </div>
       )}
 
       <p className="iz-gmaps-attrib">Map © OpenStreetMap · CARTO</p>

@@ -125,6 +125,13 @@ import {
   type WeeklyDisputeTarget,
 } from "@/lib/pr-weekly-payment";
 import {
+  applyPayClassChange,
+  penaltyDeductRmForPr,
+  normalizePenaltyRules,
+  prPayClass,
+  prPayClassOnDate,
+} from "@/lib/pr-penalties";
+import {
   mergeAgencyCollections,
   syncAgencyPayrollReceiptScans,
   syncAgencyPayrollShiftHistory,
@@ -727,6 +734,7 @@ interface StoreState {
         | "yearsExp"
         | "kpiTier"
         | "trainingLevel"
+        | "payClass"
       >
     >,
   ) => void;
@@ -1909,6 +1917,7 @@ export const useStore = create<StoreState>()(
           drinkSalesRm: drinkSalesRm > 0 ? drinkSalesRm : undefined,
           rules: get().outletCommissionRules,
           prTier: managedPr?.trainingLevel,
+          payClass: managedPr ? prPayClassOnDate(managedPr, dateIso) : undefined,
         });
         const historyRow = buildShiftHistoryRow({
           prId,
@@ -2150,12 +2159,17 @@ export const useStore = create<StoreState>()(
         });
         if (summary.totals.net <= 0 && !existing) return;
 
+        const penaltyPr = st.agencyPRs.find((p) => p.id === prId);
+        const penaltyDeductRm = penaltyPr
+          ? penaltyDeductRmForPr(penaltyPr, normalizePenaltyRules(st.outletWorkspace.penaltyRules))
+          : 0;
         const sentPv = buildSentWeeklyPv({
           profile,
           prSuffix: prId.charAt(0).toUpperCase(),
           summary,
           existing,
           fallbackOutlet: existing?.outlet ?? "Velvet 23",
+          penaltyDeductRm: penaltyDeductRm > 0 ? penaltyDeductRm : undefined,
         });
         const nextPv =
           existing?.status === "DISPUTED"
@@ -3226,7 +3240,15 @@ export const useStore = create<StoreState>()(
             s.status !== "outlet-request-pending",
         );
         if (existingActive) {
-          get().toast(`${pr.name} already has a shift on this date`, "warn");
+          const crossAgency = agencyIdOf(existingActive) !== st.activeAgencyId;
+          const bookingAgencyName =
+            getPrAgencyById(agencyIdOf(existingActive))?.name ?? "another agency";
+          get().toast(
+            crossAgency
+              ? `${pr.name} already booked by ${bookingAgencyName} on ${linkedDateLabel} — cannot double-book across agencies`
+              : `${pr.name} already has a shift on this date`,
+            "warn",
+          );
           return;
         }
         const existingDayOff = st.agencyRoster.find(
@@ -3239,27 +3261,16 @@ export const useStore = create<StoreState>()(
           );
           return;
         }
-        if (
-          existing &&
-          existing.status !== "unavailable" &&
-          existing.status !== "outlet-request-pending"
-        ) {
-          const bookingAgencyName = getPrAgencyById(agencyIdOf(existing))?.name ?? "another agency";
-          const crossAgency = agencyIdOf(existing) !== st.activeAgencyId;
-          get().toast(
-            crossAgency
-              ? `${pr.name} already booked by ${bookingAgencyName} on ${linkedDateLabel} — cannot double-book across agencies`
-              : `${pr.name} already has a shift on this date`,
-            "warn",
-          );
-          return;
-        }
         const stamp = new Date().toLocaleString("en-MY", {
           day: "numeric",
           month: "short",
           hour: "2-digit",
           minute: "2-digit",
         });
+        const reusableExisting = st.agencyRoster.find(
+          (s) =>
+            s.prId === prId && s.dateIso === linkedDateIso && s.status === "outlet-request-pending",
+        );
         const id = reusableExisting?.id ?? "rs" + Date.now().toString(36).slice(-6);
         const shift = shiftLabel ?? `${shiftStart} — ${shiftEnd}`;
         const isTonight = linkedDateIso === DEFAULT_ROSTER_DATE_ISO;
@@ -3276,6 +3287,7 @@ export const useStore = create<StoreState>()(
           status: "scheduled",
           estPayout: payEstimate,
           agencyId: st.activeAgencyId,
+          payTierId: prPayClass(pr) === "commissionOnly" ? "commission_only" : undefined,
           agencyAssignment: {
             agencyName: getPrAgencyById(st.activeAgencyId)?.name ?? "Atlas Agency",
             assignedAt: stamp,
@@ -4174,9 +4186,17 @@ export const useStore = create<StoreState>()(
                 ...(patch.email?.trim() ? { prEmail: patch.email.trim() } : {}),
               }
             : {};
+        // Pay-class flips are recorded to an audit trail effective from the current
+        // roster date, so past shifts keep paying the class in force when they ran.
+        const payClassPatch =
+          patch.payClass != null && patch.payClass !== prPayClass(pr)
+            ? applyPayClassChange(pr, patch.payClass, DEFAULT_ROSTER_DATE_ISO)
+            : {};
         set((st) => ({
           ...syncPortal,
-          agencyPRs: st.agencyPRs.map((p) => (p.id === prId ? { ...p, ...patch } : p)),
+          agencyPRs: st.agencyPRs.map((p) =>
+            p.id === prId ? { ...p, ...patch, ...payClassPatch } : p,
+          ),
           agencyRoster:
             patch.name && patch.name !== pr.name
               ? st.agencyRoster.map((slot) =>
@@ -5334,7 +5354,8 @@ export const useStore = create<StoreState>()(
             prId,
             prName: pr?.name ?? prId,
             outlet: shift.outletName,
-            detail: "Released early — paid for hours worked + commissions; available to reassign or sent home",
+            detail:
+              "Released early — paid for hours worked + commissions; available to reassign or sent home",
           });
         }
         get().toast(
@@ -5610,6 +5631,7 @@ export const useStore = create<StoreState>()(
             perDrinkRm,
             rules: st.outletCommissionRules,
             prTier: pr?.trainingLevel,
+            payClass: pr ? prPayClassOnDate(pr, dateIso) : undefined,
           });
           return buildShiftHistoryRow({
             prId,
@@ -6029,7 +6051,11 @@ export const useStore = create<StoreState>()(
         const mergedShiftHistorySynced = prepareShiftHistoryForDisplay(
           migrateShiftHistoryFinancials(
             migrateShiftHistoryPrNames(
-              syncAgencyPayrollShiftHistory(mergedShiftHistory, mergedPvs, mergedAgencyPRsForLedger),
+              syncAgencyPayrollShiftHistory(
+                mergedShiftHistory,
+                mergedPvs,
+                mergedAgencyPRsForLedger,
+              ),
               current.shiftHistory,
               mergedAgencyPRsForLedger,
             ),

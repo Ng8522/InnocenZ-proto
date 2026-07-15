@@ -19,6 +19,13 @@ import {
   type OutletTierRateSettings,
 } from "@/lib/agency-demo";
 import { DEFAULT_PER_DRINK_RM, DEFAULT_PER_TABLE_RM } from "@/lib/outlet-financial-sync";
+import {
+  DEFAULT_PENALTY_RULES,
+  normalizePenaltyRules,
+  prPayClass,
+  type OutletPenaltyRules,
+  type PrPayClass,
+} from "@/lib/pr-penalties";
 import { outletMatches } from "@/lib/portal-sync";
 import {
   COMMISSION_ONLY_DEFAULT_DRINK_PCT,
@@ -26,9 +33,13 @@ import {
   COMMISSION_ONLY_DEFAULT_TARGET_SALES_RM,
   defaultCommissionOnlyRateSettings,
   estimatePayTierRowsLaborCost,
+  isCommissionOnlyPayTier,
+  outletTierForPostJobPayTier,
+  postJobPayTierIdForOutletTier,
   resolveShiftPayTierRows,
   resolveEffectiveShiftPayTierRows,
   type CommissionOnlyRateSettings,
+  type PostJobPayTierId,
   type PostJobPayTierRow,
 } from "@/lib/post-job-pay-tiers";
 
@@ -586,6 +597,7 @@ export function normalizeOutletWorkspace(
     happyHourStart: ws?.happyHourStart ?? merged.happyHourStart ?? "20:00",
     happyHourEnd: ws?.happyHourEnd ?? merged.happyHourEnd ?? "22:00",
     happyHourDrinkDiscountPct: resolveHappyHourDrinkDiscountPct(ws),
+    penaltyRules: normalizePenaltyRules(ws?.penaltyRules),
   };
 }
 
@@ -713,6 +725,53 @@ export function resolveOutletPrTier(trainingLevel?: string): OutletPrTier {
   return OUTLET_BASE_TIER;
 }
 
+/** Effective per-shift rate a PR earns — commission-only pays no basic wage. */
+export interface EffectiveShiftRate {
+  wagePerHour: number;
+  drinkPct: number;
+  happyHourDrinkPct: number;
+  tipPct: number;
+}
+
+/** Resolve the rate for a pay tier — commission_only uses commissionOnlyRates (RM 0 wage). */
+export function resolveShiftRateForPayTier(
+  payTierId: PostJobPayTierId,
+  tierRates: Record<OutletPrTier, OutletTierRateSettings>,
+  commissionOnlyRates: CommissionOnlyRateSettings,
+): EffectiveShiftRate {
+  if (isCommissionOnlyPayTier(payTierId)) {
+    return {
+      wagePerHour: 0,
+      drinkPct: commissionOnlyRates.drinkPct,
+      happyHourDrinkPct: commissionOnlyRates.happyHourDrinkPct ?? commissionOnlyRates.drinkPct,
+      tipPct: commissionOnlyRates.tipPct,
+    };
+  }
+  const tier = outletTierForPostJobPayTier(payTierId) ?? OUTLET_BASE_TIER;
+  const rate = tierRates[tier] ?? tierRates[OUTLET_BASE_TIER];
+  return {
+    wagePerHour: rate.wagePerHour,
+    drinkPct: rate.drinkPct,
+    happyHourDrinkPct: tierHappyHourDrinkPct(rate),
+    tipPct: rate.tipPct,
+  };
+}
+
+/**
+ * The pay tier a PR's shift should be paid at. The slot's recorded payTierId
+ * (captured at booking) wins; otherwise it's derived from the PR's pay class,
+ * then their training level. This is what makes a basic→commission-only switch
+ * apply per shift without rewriting already-booked shifts.
+ */
+export function effectiveShiftPayTierId(
+  slotPayTierId: PostJobPayTierId | undefined,
+  pr: { payClass?: PrPayClass; trainingLevel?: string },
+): PostJobPayTierId {
+  if (slotPayTierId) return slotPayTierId;
+  if (prPayClass(pr) === "commissionOnly") return "commission_only";
+  return postJobPayTierIdForOutletTier(resolveOutletPrTier(pr.trainingLevel));
+}
+
 /** Per-PR sales target (RM) from outlet shift tier rates. */
 export function tierSalesTargetForPr(
   tierRates: Record<OutletPrTier, OutletTierRateSettings> | undefined,
@@ -809,6 +868,8 @@ export interface OutletWorkspaceSettings {
   happyHourEnd: string;
   /** % discount off menu drink prices during happy hour (e.g. 15 = 15% off). */
   happyHourDrinkDiscountPct: number;
+  /** Attendance & discipline rules, scoped per pay class. */
+  penaltyRules: OutletPenaltyRules;
 }
 
 export const DEFAULT_HAPPY_HOUR_DRINK_DISCOUNT_PCT = 15;
@@ -1205,6 +1266,7 @@ export const DEFAULT_OUTLET_WORKSPACE: OutletWorkspaceSettings = {
   happyHourStart: "20:00",
   happyHourEnd: "22:00",
   happyHourDrinkDiscountPct: DEFAULT_HAPPY_HOUR_DRINK_DISCOUNT_PCT,
+  penaltyRules: DEFAULT_PENALTY_RULES,
 };
 
 export const DEFAULT_OUTLET_SETTINGS: OutletSettings = {
@@ -1402,7 +1464,10 @@ export function outletPrEarlyReleaseUnusedWage(
   prTierById: Record<string, string | undefined>,
 ): number {
   const flat = outletPrFlatShiftWage(prId, tierRates, prTierById);
-  return Math.max(0, flat - outletPrEarlyReleaseWage(prId, shiftLabel, releaseClock, tierRates, prTierById));
+  return Math.max(
+    0,
+    flat - outletPrEarlyReleaseWage(prId, shiftLabel, releaseClock, tierRates, prTierById),
+  );
 }
 
 /** PRs still on the floor (booked minus early releases). */
@@ -1488,10 +1553,7 @@ export function outletShiftTargetLaborCost(
       demandCut: shift.demandCut,
       releasedEarlyPrIds: undefined,
       tierRates,
-      bookedPrIds: [
-        ...outletShiftActivePrIds(shift),
-        ...outletShiftReleasedEarlyIds(shift),
-      ],
+      bookedPrIds: [...outletShiftActivePrIds(shift), ...outletShiftReleasedEarlyIds(shift)],
       prTierById,
     });
     return estimatePayTierRowsLaborCost(rows, tierRates);
@@ -1545,7 +1607,9 @@ export const OUTLET_CUTLOSS_BEST_EFFORT_UNUSED_SHARE = 0.8;
 /** Guaranteed early-release unused share — Phase 2. */
 export const OUTLET_CUTLOSS_GUARANTEED_UNUSED_SHARE = 0.6;
 
-export function outletCutlostUnusedShare(model: "best_effort" | "guaranteed" = "best_effort"): number {
+export function outletCutlostUnusedShare(
+  model: "best_effort" | "guaranteed" = "best_effort",
+): number {
   return model === "guaranteed"
     ? OUTLET_CUTLOSS_GUARANTEED_UNUSED_SHARE
     : OUTLET_CUTLOSS_BEST_EFFORT_UNUSED_SHARE;
@@ -1580,10 +1644,7 @@ export function outletShiftFillableLaborCost(
       demandCut: shift.demandCut,
       releasedEarlyPrIds: shift.releasedEarlyPrIds,
       tierRates,
-      bookedPrIds: [
-        ...outletShiftActivePrIds(shift),
-        ...outletShiftReleasedEarlyIds(shift),
-      ],
+      bookedPrIds: [...outletShiftActivePrIds(shift), ...outletShiftReleasedEarlyIds(shift)],
       prTierById,
     });
     return estimatePayTierRowsLaborCost(rows, tierRates);

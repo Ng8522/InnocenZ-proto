@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { AgencyManagedPR, AgencyRosterSlot, LiveWorkforceEntry } from "@/lib/agency-demo";
-import { resolveRosterPrName, rosterSlotAgencyName, agencyPortalLabel, rosterSlotsForAgency, scopeToAgency } from "@/lib/agency-demo";
+import {
+  resolveRosterPrName,
+  rosterSlotAgencyName,
+  agencyPortalLabel,
+  rosterSlotsForAgency,
+  scopeToAgency,
+} from "@/lib/agency-demo";
 import { deriveLiveWorkforce, outletMatches } from "@/lib/portal-sync";
 import { formatPrDisplayName } from "@/lib/pr-demo";
 import { formatRosterShiftTime } from "@/lib/pr-session";
@@ -181,6 +187,7 @@ export function LiveWorkforceTable({
   const happyHourStart = useStore((s) => s.outletWorkspace.happyHourStart);
   const happyHourEnd = useStore((s) => s.outletWorkspace.happyHourEnd);
   const workspaceTierRates = useStore((s) => s.outletWorkspace.tierRates);
+  const commissionOnlyRates = useStore((s) => s.outletWorkspace.commissionOnlyRates);
 
   const [earningsSheet, setEarningsSheet] = useState<{
     kind: RosterEarningsSheetKind;
@@ -203,6 +210,7 @@ export function LiveWorkforceTable({
       happyHourStart,
       happyHourEnd,
       workspaceTierRates,
+      commissionOnlyRates,
     };
   }, [
     rosterScope,
@@ -213,6 +221,7 @@ export function LiveWorkforceTable({
     happyHourStart,
     happyHourEnd,
     workspaceTierRates,
+    commissionOnlyRates,
   ]);
 
   const openEarningsSheet = (kind: RosterEarningsSheetKind, slot: AgencyRosterSlot) => {

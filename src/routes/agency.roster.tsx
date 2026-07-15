@@ -206,6 +206,7 @@ function AgencyRoster() {
           happyHourStart: outletWorkspace.happyHourStart,
           happyHourEnd: outletWorkspace.happyHourEnd,
           workspaceTierRates: outletWorkspace.tierRates,
+          commissionOnlyRates: outletWorkspace.commissionOnlyRates,
         }
       : null;
     return filtered.reduce(
@@ -522,6 +523,7 @@ function AgencyRoster() {
             happyHourStart={outletWorkspace.happyHourStart}
             happyHourEnd={outletWorkspace.happyHourEnd}
             workspaceTierRates={outletWorkspace.tierRates}
+            commissionOnlyRates={outletWorkspace.commissionOnlyRates}
             canAssign={canAssign}
             onEdit={openEdit}
             onFlagLate={(id) => flagRosterAttendance(id, "late")}
@@ -646,7 +648,8 @@ function EditRosterModal({
   const shiftPreview = `${shiftStart} — ${shiftEnd}`;
   const swapTargets = OUTLET_NAMES.filter((o) => o !== slot.outlet);
   const releasedEarly = Boolean(slot.checkedOutAt);
-  const canRequestSwap = !releasedEarly && (!slot.outletSwap || slot.outletSwap.status !== "pending_pr");
+  const canRequestSwap =
+    !releasedEarly && (!slot.outletSwap || slot.outletSwap.status !== "pending_pr");
   const canCancelShift = !slot.checkedOutAt;
 
   const availableShifts = useMemo(
@@ -690,7 +693,13 @@ function EditRosterModal({
             <p className="iz-tiny iz-muted2 uppercase tracking-widest">Reassign</p>
             <h3>{slot.prName}</h3>
           </div>
-          <button type="button" className="iz-sheet-close" onClick={onClose} disabled={busy} aria-label="Close">
+          <button
+            type="button"
+            className="iz-sheet-close"
+            onClick={onClose}
+            disabled={busy}
+            aria-label="Close"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -710,7 +719,8 @@ function EditRosterModal({
         </div>
 
         <p className="iz-tiny iz-muted mt-1">
-          Pick an open shift today at another outlet. Hours already worked at {slot.outlet} stay paid.
+          Pick an open shift today at another outlet. Hours already worked at {slot.outlet} stay
+          paid.
         </p>
 
         {availableShifts.length === 0 ? (
@@ -744,7 +754,12 @@ function EditRosterModal({
         )}
 
         <div className="iz-sheet-actions">
-          <button type="button" className="iz-btn iz-btn-soft flex-1 !py-3" onClick={onClose} disabled={busy}>
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft flex-1 !py-3"
+            onClick={onClose}
+            disabled={busy}
+          >
             Close
           </button>
           <button

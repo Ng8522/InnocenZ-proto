@@ -5,7 +5,6 @@ import {
   OUTLET_BASE_TIER,
   OUTLET_COMMISSION_RULES,
   SEED_OUTLET_PNL,
-  tierHappyHourDrinkPct,
   tierOtRmPerHour,
   type AgencyRosterSlot,
   type OutletPnlRow,
@@ -35,14 +34,21 @@ import {
 import {
   averageDrinkPrice,
   effectiveShiftDrinkMenu,
+  effectiveShiftPayTierId,
   happyHourWindowHours,
   resolveOutletPrTier,
-  resolveShiftTierRates,
+  resolveShiftRateForPayTier,
   shiftHoursFromLabel,
   shiftStartTimeFromLabel,
   typicalDrinkPrice,
   type OutletDrinkPrice,
 } from "@/lib/outlet-demo";
+import {
+  defaultCommissionOnlyRateSettings,
+  isCommissionOnlyPayTier,
+  type CommissionOnlyRateSettings,
+} from "@/lib/post-job-pay-tiers";
+import type { PrPayClass } from "@/lib/pr-penalties";
 
 export const DEFAULT_PER_DRINK_RM = 120;
 export const DEFAULT_PER_TABLE_RM = 100;
@@ -351,6 +357,7 @@ export function rosterSlotBreakdownTotal(
     | "happyHourEnd"
     | "workspaceTierRates"
     | "agencyPRs"
+    | "commissionOnlyRates"
   >,
 ): number | null {
   const outletShift = findOutletShiftForRosterSlot(ctx.outletShifts, slot);
@@ -360,7 +367,8 @@ export function rosterSlotBreakdownTotal(
     outletShift as { tierRates?: Record<OutletPrTier, OutletTierRateSettings>; payPerHour: number },
     { tierRates: ctx.workspaceTierRates },
   );
-  const trainingLevel = ctx.agencyPRs.find((pr) => pr.id === slot.prId)?.trainingLevel;
+  const prProfile = ctx.agencyPRs.find((pr) => pr.id === slot.prId);
+  const trainingLevel = prProfile?.trainingLevel;
 
   const shiftForBreakdown: Pick<
     ShiftRequest,
@@ -378,11 +386,13 @@ export function rosterSlotBreakdownTotal(
     prId: slot.prId,
     prName: slot.prName,
     trainingLevel,
+    payClass: prProfile?.payClass,
     outletName: slot.outlet,
     shift: shiftForBreakdown as ShiftRequest,
     slot,
     drinkMenu: ctx.drinkMenu,
     tierRates,
+    commissionOnlyRates: ctx.commissionOnlyRates,
     happyHourStart: ctx.happyHourStart,
     happyHourEnd: ctx.happyHourEnd,
     receiptScans: ctx.receiptScans,
@@ -456,17 +466,32 @@ export function outletPrLiveEarningsBreakdown(opts: {
   prId: string;
   prName: string;
   trainingLevel?: string;
+  payClass?: PrPayClass;
   outletName: string;
   shift: ShiftRequest;
   slot?: AgencyRosterSlot;
   drinkMenu: OutletDrinkPrice[];
   tierRates: Record<OutletPrTier, OutletTierRateSettings>;
+  commissionOnlyRates?: CommissionOnlyRateSettings;
   happyHourStart: string;
   happyHourEnd: string;
   receiptScans?: PrReceiptScan[];
 }): OutletPrLiveEarningsBreakdown {
   const tier = resolveOutletPrTier(opts.trainingLevel);
   const tierRate = opts.tierRates[tier] ?? opts.tierRates[OUTLET_BASE_TIER];
+  // Pay class is orthogonal to training tier: the slot's recorded payTierId wins,
+  // else the PR's pay class, else their training tier. Commission-only earns RM 0
+  // wage + commission-only drink/tip rates; OT (wage-based) never applies to it.
+  const payTierId = effectiveShiftPayTierId(opts.slot?.payTierId, {
+    payClass: opts.payClass,
+    trainingLevel: opts.trainingLevel,
+  });
+  const commissionOnly = isCommissionOnlyPayTier(payTierId);
+  const effRate = resolveShiftRateForPayTier(
+    payTierId,
+    opts.tierRates,
+    opts.commissionOnlyRates ?? defaultCommissionOnlyRateSettings(),
+  );
   const floor = outletPrLiveFloorSales({
     prId: opts.prId,
     outletName: opts.outletName,
@@ -482,17 +507,17 @@ export function outletPrLiveEarningsBreakdown(opts: {
   const hhDrinkSalesRm = roundRm(floor.drinkSalesRm * hhRatio);
   const normalDrinkSalesRm = roundRm(floor.drinkSalesRm - hhDrinkSalesRm);
 
-  const hhDrinkPct = tierHappyHourDrinkPct(tierRate);
-  const normalDrinkPct = tierRate.drinkPct;
-  const tipPct = tierRate.tipPct;
+  const hhDrinkPct = effRate.happyHourDrinkPct;
+  const normalDrinkPct = effRate.drinkPct;
+  const tipPct = effRate.tipPct;
 
   const hhCommissionRm = roundRm((hhDrinkSalesRm * hhDrinkPct) / 100);
   const normalCommissionRm = roundRm((normalDrinkSalesRm * normalDrinkPct) / 100);
   const tipCommissionRm = roundRm((floor.tipRm * tipPct) / 100);
 
-  const dailyWagesRm = tierRate.wagePerHour;
-  const otHours = Math.max(0, shiftHours - tierRate.otAfterHours);
-  const otRmPerHour = roundRm(tierOtRmPerHour(tierRate));
+  const dailyWagesRm = effRate.wagePerHour;
+  const otHours = commissionOnly ? 0 : Math.max(0, shiftHours - tierRate.otAfterHours);
+  const otRmPerHour = commissionOnly ? 0 : roundRm(tierOtRmPerHour(tierRate));
   const otPayRm = roundRm(otHours * otRmPerHour);
 
   const totalEarnRm = roundRm(
@@ -528,7 +553,9 @@ export function outletTonightLiveEarningsRows(opts: {
   prIds: string[];
   prNameById: Record<string, string>;
   trainingLevelById: Record<string, string | undefined>;
+  payClassById?: Record<string, PrPayClass | undefined>;
   tierRates: Record<OutletPrTier, OutletTierRateSettings>;
+  commissionOnlyRates?: CommissionOnlyRateSettings;
   happyHourStart: string;
   happyHourEnd: string;
   receiptScans?: PrReceiptScan[];
@@ -542,11 +569,13 @@ export function outletTonightLiveEarningsRows(opts: {
         prId,
         prName,
         trainingLevel: opts.trainingLevelById[prId],
+        payClass: opts.payClassById?.[prId],
         outletName: opts.outletName,
         shift: opts.shift,
         slot: rosterByPr.get(prId),
         drinkMenu: opts.drinkMenu,
         tierRates: opts.tierRates,
+        commissionOnlyRates: opts.commissionOnlyRates,
         happyHourStart: opts.happyHourStart,
         happyHourEnd: opts.happyHourEnd,
         receiptScans: opts.receiptScans,
@@ -572,7 +601,7 @@ export function rosterSlotsForShiftBreakdown(
 
 export type RosterShiftEarningsContext = {
   rosterScope: AgencyRosterSlot[];
-  agencyPRs: { id: string; name: string; trainingLevel?: string }[];
+  agencyPRs: { id: string; name: string; trainingLevel?: string; payClass?: PrPayClass }[];
   outletShifts: Array<
     Pick<
       ShiftRequest,
@@ -592,6 +621,7 @@ export type RosterShiftEarningsContext = {
   happyHourStart: string;
   happyHourEnd: string;
   workspaceTierRates: Record<OutletPrTier, OutletTierRateSettings>;
+  commissionOnlyRates?: CommissionOnlyRateSettings;
 };
 
 export function rosterShiftEarningsRows(
@@ -625,11 +655,13 @@ export function rosterShiftEarningsRows(
       prId: slot.prId,
       prName: slot.prName,
       trainingLevel: prById.get(slot.prId)?.trainingLevel,
+      payClass: prById.get(slot.prId)?.payClass,
       outletName: slot.outlet,
       shift: shiftForBreakdown as ShiftRequest,
       slot,
       drinkMenu: ctx.drinkMenu,
       tierRates,
+      commissionOnlyRates: ctx.commissionOnlyRates,
       happyHourStart: ctx.happyHourStart,
       happyHourEnd: ctx.happyHourEnd,
       receiptScans: ctx.receiptScans,
@@ -661,8 +693,7 @@ export function withShiftFinancialDefaults(
   const drinkMenu = effectiveShiftDrinkMenu(shift, workspaceDrinkMenu);
   const perDrinkRm = shift.perDrinkRm ?? averageDrinkPrice(drinkMenu);
   const drinkUnits = totalDrinkUnits(shift);
-  const computed =
-    drinkUnits > 0 ? computeShiftLiveSales({ ...shift, drinkUnits }, drinkMenu) : 0;
+  const computed = drinkUnits > 0 ? computeShiftLiveSales({ ...shift, drinkUnits }, drinkMenu) : 0;
   const live = outletShiftFloorSalesStarted(shift) ? computed : 0;
   const anchorLiveSales = shift.anchorLiveSales ?? live;
   return {
@@ -706,9 +737,9 @@ export function buildSyncedOutletPnlRow(
     },
     commissionRules,
   );
-  const prCommission = Math.round(
-    (payout.drinkCommission + payout.tipCommission + payout.tableCommission) * 100,
-  ) / 100;
+  const prCommission =
+    Math.round((payout.drinkCommission + payout.tipCommission + payout.tableCommission) * 100) /
+    100;
   const prWages = s.estimatedCost;
   const anchorCommission = calcAnchorCommission(
     seedRow.outlet,
@@ -723,8 +754,11 @@ export function buildSyncedOutletPnlRow(
   const prPayoutDelta = prPayout - anchorPrPayout;
 
   const platformFee = Math.round(grossRevenue * (rule.platformPct / 100) * 100) / 100;
-  const agencyShareOnGross = seedRow.grossRevenue > 0 ? seedRow.agencyNet / seedRow.grossRevenue : 0.28;
-  const agencyNet = Math.round((seedRow.agencyNet + grossDelta * agencyShareOnGross + prPayoutDelta * 0.15) * 100) / 100;
+  const agencyShareOnGross =
+    seedRow.grossRevenue > 0 ? seedRow.agencyNet / seedRow.grossRevenue : 0.28;
+  const agencyNet =
+    Math.round((seedRow.agencyNet + grossDelta * agencyShareOnGross + prPayoutDelta * 0.15) * 100) /
+    100;
   const outletNet = Math.round((grossRevenue - prPayout - platformFee - agencyNet) * 100) / 100;
 
   return {
@@ -826,7 +860,10 @@ export function buildOutletLaborCostReport(
   for (const option of POST_JOB_PAY_TIER_OPTIONS) {
     const stats = staffing[option.id];
     const activeStats = activeStaffing[option.id];
-    if (!stats || (stats.demand === 0 && (activeStats?.supplied ?? 0) === 0 && !releasedIds.length)) {
+    if (
+      !stats ||
+      (stats.demand === 0 && (activeStats?.supplied ?? 0) === 0 && !releasedIds.length)
+    ) {
       continue;
     }
     if (!stats) continue;
@@ -834,7 +871,7 @@ export function buildOutletLaborCostReport(
     const wage = demandRow
       ? payTierRowShiftWage(demandRow, tierRates)
       : option.outletTier
-        ? tierRates[option.outletTier]?.wagePerHour ?? 0
+        ? (tierRates[option.outletTier]?.wagePerHour ?? 0)
         : 0;
     tierLines.push({
       id: option.id,
@@ -848,7 +885,13 @@ export function buildOutletLaborCostReport(
 
   return {
     lines: [
-      { id: "labor-total", label: "Labor cost", depth: 0, actualRm: totalActualRm, budgetRm: totalBudgetRm },
+      {
+        id: "labor-total",
+        label: "Labor cost",
+        depth: 0,
+        actualRm: totalActualRm,
+        budgetRm: totalBudgetRm,
+      },
       ...tierLines,
     ],
     totalActualRm,

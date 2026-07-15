@@ -16,6 +16,7 @@ import { formatRosterShiftTime } from "@/lib/pr-session";
 import { activePrSwapForRosterSlot, type PrSwapRequest } from "@/lib/pr-features";
 import { estimateRosterSlotPayout } from "@/lib/portal-sync";
 import { findOutletShiftForRosterSlot, type OutletDrinkPrice } from "@/lib/outlet-demo";
+import type { CommissionOnlyRateSettings } from "@/lib/post-job-pay-tiers";
 import {
   rosterSlotBreakdownTotal,
   rosterSlotHasReceiptFloorSales,
@@ -121,7 +122,11 @@ function RosterPrNameCell({
   agencyPRs?: AgencyManagedPR[];
   viewingAgencyId?: string;
 }) {
-  const displayName = resolveRosterPrName(slot.prId, slot.prName, agencyPRs ?? (profile ? [profile] : []));
+  const displayName = resolveRosterPrName(
+    slot.prId,
+    slot.prName,
+    agencyPRs ?? (profile ? [profile] : []),
+  );
   const agencyLabel = viewingAgencyId
     ? agencyPortalLabel(viewingAgencyId)
     : rosterSlotAgencyName(slot);
@@ -140,11 +145,7 @@ function RosterPrNameCell({
           )}
         </div>
       </div>
-      {prSwap && (
-        <p className="iz-roster-swap-note mt-1">
-          Swap → {prSwap.targetOutlet}
-        </p>
-      )}
+      {prSwap && <p className="iz-roster-swap-note mt-1">Swap → {prSwap.targetOutlet}</p>}
     </>
   );
 }
@@ -177,6 +178,7 @@ export function RosterShiftTable({
   happyHourStart = "20:00",
   happyHourEnd = "22:00",
   workspaceTierRates,
+  commissionOnlyRates,
   canAssign,
   onEdit,
   onFlagLate,
@@ -197,6 +199,7 @@ export function RosterShiftTable({
   happyHourStart?: string;
   happyHourEnd?: string;
   workspaceTierRates?: Record<OutletPrTier, OutletTierRateSettings>;
+  commissionOnlyRates?: CommissionOnlyRateSettings;
   canAssign: boolean;
   onEdit: (id: string) => void;
   onFlagLate: (id: string) => void;
@@ -219,9 +222,11 @@ export function RosterShiftTable({
       happyHourStart,
       happyHourEnd,
       workspaceTierRates,
+      commissionOnlyRates,
     };
   }, [
     workspaceTierRates,
+    commissionOnlyRates,
     rosterScopeSlots,
     slots,
     agencyPRs,
@@ -239,7 +244,9 @@ export function RosterShiftTable({
   if (slots.length === 0) {
     return (
       <IzCard className="text-center">
-        <p className="iz-sm iz-muted">No shifts match your filters — try clearing or widening the search.</p>
+        <p className="iz-sm iz-muted">
+          No shifts match your filters — try clearing or widening the search.
+        </p>
       </IzCard>
     );
   }
@@ -253,7 +260,8 @@ export function RosterShiftTable({
         <strong className="text-[var(--iz-gold-l)]">Drinks</strong>,{" "}
         <strong className="text-[var(--iz-gold-l)]">Tips</strong>, or{" "}
         <strong className="text-[var(--iz-gold-l)]">Est. payout</strong> for shift breakdown ·{" "}
-        <strong className="text-[var(--iz-gold-l)]">Edit</strong> to change status, shift times, or request outlet swap.
+        <strong className="text-[var(--iz-gold-l)]">Edit</strong> to change status, shift times, or
+        request outlet swap.
       </p>
 
       <div className="iz-roster-table-wrap hidden md:block">
@@ -274,34 +282,39 @@ export function RosterShiftTable({
           </thead>
           <tbody>
             {slots.map((slot) => {
-              const floor = resolveRosterSlotFloorSales(slot, outletShifts, drinkMenu, receiptScans);
+              const floor = resolveRosterSlotFloorSales(
+                slot,
+                outletShifts,
+                drinkMenu,
+                receiptScans,
+              );
               return (
-              <RosterTableRow
-                key={slot.id}
-                slot={slot}
-                profile={prById.get(slot.prId)}
-                agencyPRs={agencyPRs}
-                viewingAgencyId={viewingAgencyId}
-                prSwap={activePrSwapForRosterSlot(prSwapRequests, slot.id)}
-                floor={floor}
-                estPayout={rosterSlotDisplayPayout(
-                  slot,
-                  prById.get(slot.prId),
-                  outletCommissionRules,
-                  perDrinkRm,
-                  outletShifts,
-                  drinkMenu,
-                  receiptScans,
-                  earningsContext,
-                )}
-                canAssign={canAssign}
-                onEdit={onEdit}
-                onFlagLate={onFlagLate}
-                onFlagNoShow={onFlagNoShow}
-                onCancelPrSwap={onCancelPrSwap}
-                onOpenEarningsSheet={earningsContext ? openEarningsSheet : undefined}
-              />
-            );
+                <RosterTableRow
+                  key={slot.id}
+                  slot={slot}
+                  profile={prById.get(slot.prId)}
+                  agencyPRs={agencyPRs}
+                  viewingAgencyId={viewingAgencyId}
+                  prSwap={activePrSwapForRosterSlot(prSwapRequests, slot.id)}
+                  floor={floor}
+                  estPayout={rosterSlotDisplayPayout(
+                    slot,
+                    prById.get(slot.prId),
+                    outletCommissionRules,
+                    perDrinkRm,
+                    outletShifts,
+                    drinkMenu,
+                    receiptScans,
+                    earningsContext,
+                  )}
+                  canAssign={canAssign}
+                  onEdit={onEdit}
+                  onFlagLate={onFlagLate}
+                  onFlagNoShow={onFlagNoShow}
+                  onCancelPrSwap={onCancelPrSwap}
+                  onOpenEarningsSheet={earningsContext ? openEarningsSheet : undefined}
+                />
+              );
             })}
           </tbody>
         </table>
@@ -311,32 +324,32 @@ export function RosterShiftTable({
         {slots.map((slot) => {
           const floor = resolveRosterSlotFloorSales(slot, outletShifts, drinkMenu, receiptScans);
           return (
-          <RosterShiftCard
-            key={slot.id}
-            slot={slot}
-            profile={prById.get(slot.prId)}
-            agencyPRs={agencyPRs}
-            viewingAgencyId={viewingAgencyId}
-            prSwap={activePrSwapForRosterSlot(prSwapRequests, slot.id)}
-            floor={floor}
-            estPayout={rosterSlotDisplayPayout(
-              slot,
-              prById.get(slot.prId),
-              outletCommissionRules,
-              perDrinkRm,
-              outletShifts,
-              drinkMenu,
-              receiptScans,
-              earningsContext,
-            )}
-            canAssign={canAssign}
-            onEdit={onEdit}
-            onFlagLate={onFlagLate}
-            onFlagNoShow={onFlagNoShow}
-            onCancelPrSwap={onCancelPrSwap}
-            onOpenEarningsSheet={earningsContext ? openEarningsSheet : undefined}
-          />
-        );
+            <RosterShiftCard
+              key={slot.id}
+              slot={slot}
+              profile={prById.get(slot.prId)}
+              agencyPRs={agencyPRs}
+              viewingAgencyId={viewingAgencyId}
+              prSwap={activePrSwapForRosterSlot(prSwapRequests, slot.id)}
+              floor={floor}
+              estPayout={rosterSlotDisplayPayout(
+                slot,
+                prById.get(slot.prId),
+                outletCommissionRules,
+                perDrinkRm,
+                outletShifts,
+                drinkMenu,
+                receiptScans,
+                earningsContext,
+              )}
+              canAssign={canAssign}
+              onEdit={onEdit}
+              onFlagLate={onFlagLate}
+              onFlagNoShow={onFlagNoShow}
+              onCancelPrSwap={onCancelPrSwap}
+              onOpenEarningsSheet={earningsContext ? openEarningsSheet : undefined}
+            />
+          );
         })}
       </div>
 
@@ -432,9 +445,7 @@ function RosterTableRow({
       </td>
       <td className="iz-portal-table-meta">{agencyLabel}</td>
       <td className="iz-portal-table-meta">{slot.outlet}</td>
-      <td className="iz-portal-table-meta iz-portal-table-shift">
-        {formatRosterShiftTime(slot)}
-      </td>
+      <td className="iz-portal-table-meta iz-portal-table-shift">{formatRosterShiftTime(slot)}</td>
       <td className="iz-portal-table-meta">{slot.checkedInAt ?? "—"}</td>
       <td className="iz-portal-table-status">
         <StatusPills slot={slot} />
@@ -484,7 +495,12 @@ function RosterTableRow({
               </button>
             )}
             {showEdit && (
-              <button type="button" className="iz-roster-icon-btn" onClick={() => onEdit(slot.id)} title="Edit">
+              <button
+                type="button"
+                className="iz-roster-icon-btn"
+                onClick={() => onEdit(slot.id)}
+                title="Edit"
+              >
                 <Pencil className="h-3.5 w-3.5" />
               </button>
             )}
@@ -507,7 +523,11 @@ function RosterTableRow({
               </>
             )}
             {prSwap && (
-              <button type="button" className="iz-roster-mini-btn" onClick={() => onCancelPrSwap(prSwap.id)}>
+              <button
+                type="button"
+                className="iz-roster-mini-btn"
+                onClick={() => onCancelPrSwap(prSwap.id)}
+              >
                 Cancel
               </button>
             )}
@@ -624,7 +644,11 @@ function RosterShiftCard({
       {canAssign && (
         <div className="iz-roster-actions">
           {slot.status !== "swap-pending" && slot.status !== "assignment-pending" && (
-            <button type="button" className="iz-btn iz-btn-soft iz-roster-action-btn" onClick={() => onEdit(slot.id)}>
+            <button
+              type="button"
+              className="iz-btn iz-btn-soft iz-roster-action-btn"
+              onClick={() => onEdit(slot.id)}
+            >
               <Pencil className="h-3 w-3" /> Edit
             </button>
           )}

@@ -4,10 +4,15 @@ import { IzCard } from "@/components/iz/ui";
 import { OutletPage, OutletPageHeader } from "@/components/outlet/outlet-portal-ui";
 import { OutletSection } from "@/components/outlet/OutletSection";
 import { WorkspaceTierRatesEditor } from "@/components/outlet/WorkspaceTierRatesEditor";
+import { PenaltyRulesEditor } from "@/components/outlet/PenaltyRulesEditor";
 import { useStore } from "@/lib/store";
 import { outletCan } from "@/lib/outlet-rbac";
 import { OutletDrinkMenuEditor } from "@/components/outlet/OutletDrinkMenuEditor";
-import { drinkMenuPriceRange, OUTLET_SERVICE_ENTITLEMENT_SECTION_ID, sortOutletDrinkMenuByPrice } from "@/lib/outlet-demo";
+import {
+  drinkMenuPriceRange,
+  OUTLET_SERVICE_ENTITLEMENT_SECTION_ID,
+  sortOutletDrinkMenuByPrice,
+} from "@/lib/outlet-demo";
 import {
   OUTLET_BASE_TIER,
   OUTLET_PR_TIERS,
@@ -35,7 +40,9 @@ function TimeField({
 }) {
   return (
     <div className="min-w-0 flex-1">
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">{label}</div>
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
+        {label}
+      </div>
       <input
         type="text"
         value={value}
@@ -73,9 +80,13 @@ function NumField({
   };
   return (
     <div className="min-w-0 flex-1">
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">{label}</div>
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--iz-muted)]">
+        {label}
+      </div>
       <div className="flex items-center gap-1.5 rounded-xl border border-[var(--iz-line2)] bg-[rgba(255,255,255,0.03)] px-2.5 py-1.5">
-        {suffix === "RM" && <span className="text-[11px] font-semibold text-[var(--iz-muted)]">RM</span>}
+        {suffix === "RM" && (
+          <span className="text-[11px] font-semibold text-[var(--iz-muted)]">RM</span>
+        )}
         <input
           type="text"
           inputMode="decimal"
@@ -85,7 +96,9 @@ function NumField({
           onBlur={commit}
           className="min-w-0 flex-1 bg-transparent text-sm font-semibold tabular-nums outline-none"
         />
-        {suffix && suffix !== "RM" && <span className="text-[11px] text-[var(--iz-muted)]">{suffix}</span>}
+        {suffix && suffix !== "RM" && (
+          <span className="text-[11px] text-[var(--iz-muted)]">{suffix}</span>
+        )}
       </div>
     </div>
   );
@@ -189,20 +202,14 @@ function OutletWorkspacePage() {
 
   return (
     <OutletPage>
-      <OutletPageHeader
-        title="Workspace"
-        hint={`Rates for new shifts · ${draft.outletName}`}
-      />
+      <OutletPageHeader title="Workspace" hint={`Rates for new shifts · ${draft.outletName}`} />
       {!canEdit && (
         <p className="iz-tiny iz-muted rounded-lg border border-dashed border-[var(--iz-line)] px-2.5 py-1.5">
           Read-only (Finance)
         </p>
       )}
 
-      <OutletSection
-        title="Rates by PR tier"
-        className="!mt-4"
-      >
+      <OutletSection title="Rates by PR tier" className="!mt-4">
         <IzCard className="!py-3">
           <WorkspaceTierRatesEditor
             tierRates={draft.tierRates}
@@ -210,6 +217,21 @@ function OutletWorkspacePage() {
             onPatchTier={patchTier}
             onPatchCommissionOnly={patchCommissionOnly}
             readOnly={!canEdit}
+          />
+        </IzCard>
+      </OutletSection>
+
+      <OutletSection
+        title="Attendance and penalty rules"
+        hint="Discipline rules by pay class · Basic and Commission only"
+        collapsible
+        defaultOpen={false}
+      >
+        <IzCard className="!py-3">
+          <PenaltyRulesEditor
+            rules={draft.penaltyRules}
+            readOnly={!canEdit}
+            onChange={canEdit ? (penaltyRules) => patch({ penaltyRules }) : () => {}}
           />
         </IzCard>
       </OutletSection>
@@ -227,7 +249,11 @@ function OutletWorkspacePage() {
           <OutletDrinkMenuEditor
             drinks={draft.drinkMenu ?? []}
             readOnly={!canEdit}
-            onChange={canEdit ? (drinkMenu) => patch({ drinkMenu: sortOutletDrinkMenuByPrice(drinkMenu) }) : () => {}}
+            onChange={
+              canEdit
+                ? (drinkMenu) => patch({ drinkMenu: sortOutletDrinkMenuByPrice(drinkMenu) })
+                : () => {}
+            }
           />
         </IzCard>
       </OutletSection>
@@ -238,36 +264,36 @@ function OutletWorkspacePage() {
         collapsible
         defaultOpen={false}
       >
-      <IzCard className="!py-3">
-        <div className="flex gap-3">
-          <TimeField
-            label="Start"
-            value={draft.happyHourStart}
-            readOnly={!canEdit}
-            onChange={canEdit ? (v) => patch({ happyHourStart: v }) : undefined}
-          />
-          <TimeField
-            label="End"
-            value={draft.happyHourEnd}
-            readOnly={!canEdit}
-            onChange={canEdit ? (v) => patch({ happyHourEnd: v }) : undefined}
-          />
-          <NumField
-            label="Drink discount"
-            value={draft.happyHourDrinkDiscountPct}
-            suffix="%"
-            readOnly={!canEdit}
-            onChange={
-              canEdit
-                ? (n) =>
-                    patch({
-                      happyHourDrinkDiscountPct: Math.min(100, Math.max(0, Math.round(n))),
-                    })
-                : undefined
-            }
-          />
-        </div>
-      </IzCard>
+        <IzCard className="!py-3">
+          <div className="flex gap-3">
+            <TimeField
+              label="Start"
+              value={draft.happyHourStart}
+              readOnly={!canEdit}
+              onChange={canEdit ? (v) => patch({ happyHourStart: v }) : undefined}
+            />
+            <TimeField
+              label="End"
+              value={draft.happyHourEnd}
+              readOnly={!canEdit}
+              onChange={canEdit ? (v) => patch({ happyHourEnd: v }) : undefined}
+            />
+            <NumField
+              label="Drink discount"
+              value={draft.happyHourDrinkDiscountPct}
+              suffix="%"
+              readOnly={!canEdit}
+              onChange={
+                canEdit
+                  ? (n) =>
+                      patch({
+                        happyHourDrinkDiscountPct: Math.min(100, Math.max(0, Math.round(n))),
+                      })
+                  : undefined
+              }
+            />
+          </div>
+        </IzCard>
       </OutletSection>
 
       {canEdit && (

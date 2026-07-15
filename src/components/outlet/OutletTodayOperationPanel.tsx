@@ -233,7 +233,15 @@ export function OutletTodayOperationPanel({
           STATUS_SORT[a.displayStatus] - STATUS_SORT[b.displayStatus] ||
           a.pr.name.localeCompare(b.pr.name),
       );
-  }, [shift.prs, shift.shift, shift.releasedEarlyPrIds, prs, rosterTonight, tiedLive, agencyPrById]);
+  }, [
+    shift.prs,
+    shift.shift,
+    shift.releasedEarlyPrIds,
+    prs,
+    rosterTonight,
+    tiedLive,
+    agencyPrById,
+  ]);
 
   const statusCounts = useMemo(() => {
     const counts = { onDuty: 0, enRoute: 0, booked: 0, checkedOut: 0 };
@@ -281,7 +289,9 @@ export function OutletTodayOperationPanel({
         prIds: shift.prs ?? [],
         prNameById: Object.fromEntries(prs.map((p) => [p.id, p.name])),
         trainingLevelById: Object.fromEntries(agencyPRs.map((p) => [p.id, p.trainingLevel])),
+        payClassById: Object.fromEntries(agencyPRs.map((p) => [p.id, p.payClass])),
         tierRates,
+        commissionOnlyRates: outletWorkspace.commissionOnlyRates,
         happyHourStart: outletWorkspace.happyHourStart,
         happyHourEnd: outletWorkspace.happyHourEnd,
         receiptScans: prReceiptScans,

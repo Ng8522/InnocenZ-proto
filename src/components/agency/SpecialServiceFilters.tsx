@@ -28,7 +28,7 @@ export function SpecialServiceFilters({
   serviceOffers: AgencySpecialServiceOffer[];
   /** Narrow phone layout (PR host portal) */
   compact?: boolean;
-  /** Agency job postings — admin review statuses only */
+  /** Agency/outlet job postings — admin review statuses only */
   agencyStatuses?: boolean;
   /** Inline filters under job postings list (no filter card header) */
   jobPostingLayout?: boolean;

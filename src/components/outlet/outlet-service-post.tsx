@@ -18,13 +18,13 @@ import { SpecialServiceOrderCard } from "@/components/special-service/SpecialSer
 import { useStore } from "@/lib/store";
 import {
   EMPTY_SPECIAL_SERVICE_FILTERS,
+  agencyJobPostingInzLabel,
   agencyJobPostingStatusTone,
   bookableServiceOffers,
   collectSpecialServiceDateIsos,
   filterSpecialServiceRecords,
   isOthersService,
   specialServiceOffer,
-  specialServiceStatusLabel,
 } from "@/lib/special-service-demo";
 import {
   pendingSpecialServicesForOutlet,
@@ -91,13 +91,13 @@ export function OutletServicePostSection() {
           initiatedBy: "outlet",
           raisedBy: outletName,
           prId: "",
-          prName: "Agency assigns PR",
+          prName: "PR to be assigned",
           outlet: outletName,
           serviceType: job.serviceType,
           customServiceName: isOthersService(job.serviceType) ? job.customServiceName.trim() : undefined,
           description: job.remark.trim() || parsed.offer.summary,
           amountIn: parsed.budget,
-          amountOut: parsed.offer.defaultRate,
+          amountOut: 0, // admin sets service cost on review
           time: job.time,
           dateIso,
         });
@@ -194,7 +194,7 @@ export function OutletServicePostSection() {
           className="iz-btn iz-btn-primary iz-job-posting-submit-btn mt-3 w-full disabled:opacity-40"
         >
           Post{queuedJobs.length > 0 ? ` ${queuedOrderCount}` : ""} job
-          {queuedOrderCount !== 1 ? "s" : ""} to agency
+          {queuedOrderCount !== 1 ? "s" : ""} for admin review
           <ChevronRight className="h-4 w-4" />
         </button>
       </section>
@@ -214,13 +214,14 @@ export function OutletServicePostSection() {
           resultCount={filtered.length}
           totalCount={scopedRecords.length}
           serviceOffers={serviceOffers}
+          agencyStatuses
           jobPostingLayout
         />
 
         <div className="mt-2.5">
           <JobPostingsTable
             rows={filtered}
-            statusLabel={(row) => specialServiceStatusLabel(row.status)}
+            statusLabel={agencyJobPostingInzLabel}
             statusTone={agencyJobPostingStatusTone}
             emptyMessage="No service orders match this filter"
           />

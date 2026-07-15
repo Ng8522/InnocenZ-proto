@@ -4214,17 +4214,19 @@ export const useStore = create<StoreState>()(
         const serviceLabel = specialServiceTypeLabel(order.serviceType, order.customServiceName);
         set({ specialServiceOrders: [order, ...st.specialServiceOrders] });
 
-        if (input.initiatedBy === "agency") {
-          get().pushNotify({
-            type: "special_service_requested",
-            orderId: id,
-            serviceLabel,
-            initiatedBy: "agency",
-            prId: order.prId,
-            prName: order.prName,
-            outlet: order.outlet,
-            notifyAgency: true,
-          });
+        if (input.initiatedBy === "agency" || input.initiatedBy === "outlet") {
+          if (input.initiatedBy === "agency") {
+            get().pushNotify({
+              type: "special_service_requested",
+              orderId: id,
+              serviceLabel,
+              initiatedBy: "agency",
+              prId: order.prId,
+              prName: order.prName,
+              outlet: order.outlet,
+              notifyAgency: true,
+            });
+          }
           get().toast(`${serviceLabel} submitted — InnocenZ admin will review`, "info");
         } else {
           get().pushNotify({
@@ -4333,7 +4335,8 @@ export const useStore = create<StoreState>()(
           prName: order.prName,
           outlet: order.outlet,
           by: "admin",
-          notifyAgency: true,
+          notifyAgency: order.initiatedBy === "agency",
+          notifyOutlet: order.initiatedBy === "outlet",
         });
         get().toast(`${serviceLabel} accepted`, "success");
       },
@@ -4356,7 +4359,8 @@ export const useStore = create<StoreState>()(
           prName: order.prName,
           outlet: order.outlet,
           by: "admin",
-          notifyAgency: true,
+          notifyAgency: order.initiatedBy === "agency",
+          notifyOutlet: order.initiatedBy === "outlet",
         });
         get().toast(`${serviceLabel} rejected`, "warn");
       },

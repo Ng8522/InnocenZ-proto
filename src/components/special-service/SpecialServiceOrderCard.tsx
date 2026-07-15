@@ -54,10 +54,12 @@ export function SpecialServiceOrderCard({
         ) : (
           <p className="iz-tiny iz-muted2 mt-1">Support ticket · Raised by {row.raisedBy}</p>
         )}
-        {row.approvedAt && row.initiatedBy === "agency" && row.adminAccepted === "accepted" && (
-          <p className="iz-tiny text-[var(--iz-green)] mt-0.5">Accepted {row.approvedAt}</p>
-        )}
-        {row.approvedAt && row.initiatedBy !== "agency" && (
+        {row.approvedAt &&
+          (row.initiatedBy === "agency" || row.initiatedBy === "outlet") &&
+          row.adminAccepted === "accepted" && (
+            <p className="iz-tiny text-[var(--iz-green)] mt-0.5">Accepted {row.approvedAt}</p>
+          )}
+        {row.approvedAt && row.initiatedBy === "pr" && (
           <p className="iz-tiny text-[var(--iz-green)] mt-0.5">Agency approved {row.approvedAt}</p>
         )}
         {row.declineReason && (

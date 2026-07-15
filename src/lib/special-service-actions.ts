@@ -60,6 +60,9 @@ export function buildSpecialServiceOrder(
     adminAccepted = "pending";
     agencyAccepted = "accepted";
   } else if (input.initiatedBy === "outlet") {
+    // Outlet job postings go to InnocenZ admin (same gate as agency posts).
+    adminAccepted = "pending";
+    agencyAccepted = "accepted";
     outletAcceptance = "accepted";
     prAcceptance = "n/a";
   } else {
@@ -88,14 +91,21 @@ export function buildSpecialServiceOrder(
     agencyAccepted,
     prAcceptance,
     outletAcceptance,
-    status: input.initiatedBy === "agency" ? "pending_admin" : "pending_agency",
+    status:
+      input.initiatedBy === "agency" || input.initiatedBy === "outlet"
+        ? "pending_admin"
+        : "pending_agency",
   };
 
   return withStatus(base);
 }
 
+function isAdminJobPosting(record: SpecialServiceRecord) {
+  return record.initiatedBy === "agency" || record.initiatedBy === "outlet";
+}
+
 export function approveSpecialServiceByAdmin(record: SpecialServiceRecord): SpecialServiceRecord {
-  if (record.initiatedBy !== "agency" || record.adminAccepted !== "pending") return record;
+  if (!isAdminJobPosting(record) || record.adminAccepted !== "pending") return record;
   return withStatus({
     ...record,
     adminAccepted: "accepted",
@@ -108,7 +118,7 @@ export function declineSpecialServiceByAdmin(
   record: SpecialServiceRecord,
   reason?: string,
 ): SpecialServiceRecord {
-  if (record.initiatedBy !== "agency" || record.adminAccepted !== "pending") return record;
+  if (!isAdminJobPosting(record) || record.adminAccepted !== "pending") return record;
   return withStatus({
     ...record,
     adminAccepted: "declined",
@@ -238,11 +248,12 @@ export function pendingSpecialServicesForAgency(records: SpecialServiceRecord[])
 }
 
 export function pendingSpecialServicesForAdmin(records: SpecialServiceRecord[]): SpecialServiceRecord[] {
-  return records.filter((r) => r.initiatedBy === "agency" && r.adminAccepted === "pending");
+  return records.filter((r) => isAdminJobPosting(r) && r.adminAccepted === "pending");
 }
 
+/** Agency- and outlet-submitted jobs that go through InnocenZ admin review. */
 export function agencyPostedSpecialServices(records: SpecialServiceRecord[]): SpecialServiceRecord[] {
-  return records.filter((r) => r.initiatedBy === "agency");
+  return records.filter((r) => isAdminJobPosting(r));
 }
 
 export function isSpecialServiceActionable(
@@ -253,7 +264,7 @@ export function isSpecialServiceActionable(
     return false;
   }
   if (role === "admin") {
-    return record.initiatedBy === "agency" && record.adminAccepted === "pending";
+    return isAdminJobPosting(record) && record.adminAccepted === "pending";
   }
   if (role === "agency") return record.agencyAccepted === "pending" && record.initiatedBy !== "agency";
   if (role === "pr") return record.prAcceptance === "pending";

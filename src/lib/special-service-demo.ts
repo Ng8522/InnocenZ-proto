@@ -155,7 +155,7 @@ export type SpecialServiceRecord = {
   amountOut: number;
   initiatedBy: SpecialServiceInitiator;
   raisedBy: string;
-  /** InnocenZ admin review for agency-posted jobs */
+  /** InnocenZ admin review for agency- and outlet-posted jobs */
   adminAccepted: PartyAcceptance;
   agencyAccepted: PartyAcceptance;
   prAcceptance: PartyAcceptance;
@@ -167,7 +167,8 @@ export type SpecialServiceRecord = {
 };
 
 export function recomputeSpecialServiceStatus(record: SpecialServiceRecord): SpecialServiceStatus {
-  if (record.initiatedBy === "agency") {
+  // Agency and outlet job postings are gated by InnocenZ admin review.
+  if (record.initiatedBy === "agency" || record.initiatedBy === "outlet") {
     if (record.adminAccepted === "declined") return "rejected";
     if (record.adminAccepted === "pending") return "pending_admin";
     if (record.adminAccepted === "accepted") return "accepted";
@@ -184,7 +185,7 @@ export function recomputeSpecialServiceStatus(record: SpecialServiceRecord): Spe
     return "declined";
   }
 
-  if (record.initiatedBy !== "agency" && record.agencyAccepted === "pending") {
+  if (record.agencyAccepted === "pending") {
     return "pending_agency";
   }
 
@@ -278,14 +279,14 @@ export const SEED_SPECIAL_SERVICES: SpecialServiceRecord[] = [
     serviceType: "delivery",
     description: "Red heels size 38 + clutch — Velvet 23, Ladies Night",
     amountIn: 50,
-    amountOut: 35,
+    amountOut: 0,
     initiatedBy: "outlet",
     raisedBy: "Velvet 23",
-    adminAccepted: "n/a",
-    agencyAccepted: "pending",
+    adminAccepted: "pending",
+    agencyAccepted: "accepted",
     prAcceptance: "n/a",
     outletAcceptance: "accepted",
-    status: "pending_agency",
+    status: "pending_admin",
   },
   {
     id: "SS-2026-017",
@@ -402,15 +403,32 @@ function normalizeAgencyJobDemoRow(
   row: SpecialServiceRecord,
   seedRow?: SpecialServiceRecord,
 ): SpecialServiceRecord {
-  if (row.initiatedBy !== "agency") return row;
-  const base = seedRow
-    ? {
-        ...row,
-        prName: seedRow.prName,
-        description: seedRow.description,
-        amountIn: seedRow.amountIn,
-      }
-    : row;
+  if (row.initiatedBy !== "agency" && row.initiatedBy !== "outlet") return row;
+
+  let base =
+    row.initiatedBy === "agency" && seedRow
+      ? {
+          ...row,
+          prName: seedRow.prName,
+          description: seedRow.description,
+          amountIn: seedRow.amountIn,
+        }
+      : row;
+
+  // Legacy outlet posts went to agency first — migrate to admin review.
+  if (
+    base.initiatedBy === "outlet" &&
+    base.adminAccepted === "n/a" &&
+    base.agencyAccepted === "pending"
+  ) {
+    base = {
+      ...base,
+      adminAccepted: "pending",
+      agencyAccepted: "accepted",
+      amountOut: 0,
+    };
+  }
+
   if (base.adminAccepted === "pending") {
     return { ...base, amountOut: 0 };
   }
@@ -443,10 +461,10 @@ export function mergeSpecialServiceOrders(
     const migrated: SpecialServiceRecord = {
       ...normalized,
       adminAccepted:
-        normalized.initiatedBy === "agency"
-          ? normalized.status === "declined"
+        normalized.initiatedBy === "agency" || normalized.initiatedBy === "outlet"
+          ? normalized.status === "declined" || normalized.status === "rejected"
             ? "declined"
-            : normalized.status === "pending_admin"
+            : normalized.status === "pending_admin" || normalized.status === "pending_agency"
               ? "pending"
               : "accepted"
           : "n/a",

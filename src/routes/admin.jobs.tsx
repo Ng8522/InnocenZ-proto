@@ -30,7 +30,7 @@ function AdminJobPostings() {
     <div className="iz-screen !px-0">
       <header>
         <IzPageTitle>Job postings</IzPageTitle>
-        <p className="iz-tiny iz-muted mt-0.5">Review agency-submitted jobs · accept or reject</p>
+        <p className="iz-tiny iz-muted mt-0.5">Review agency- and outlet-submitted jobs · accept or reject</p>
       </header>
 
       <IzSectionLabel>Pending review</IzSectionLabel>

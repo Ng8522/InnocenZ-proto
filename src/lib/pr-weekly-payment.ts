@@ -29,7 +29,9 @@ function roundRm(n: number): number {
 }
 
 /** Gross commission from drink units, tip RM, and table units on a sealed row. */
-export function sealedShiftCommissionRm(row: Pick<ShiftHistoryRow, "totalDrinks" | "totalTips" | "totalTables">) {
+export function sealedShiftCommissionRm(
+  row: Pick<ShiftHistoryRow, "totalDrinks" | "totalTips" | "totalTables">,
+) {
   return {
     drinks: row.totalDrinks * RECEIPT_COMMISSION_RULES.drinkPerUnit,
     tips: row.totalTips * RECEIPT_COMMISSION_RULES.tipRate,
@@ -101,10 +103,24 @@ export type WeeklyPaymentSummary = {
   columns: WeeklyDayColumn[];
   rows: WeeklyIncomeRow[];
   dayStatus: WeeklyDayStatus[];
-  totals: { wages: number; drinks: number; tips: number; tables: number; others: number; net: number };
+  totals: {
+    wages: number;
+    drinks: number;
+    tips: number;
+    tables: number;
+    others: number;
+    net: number;
+  };
   verifiedDayCount: number;
   /** Totals from verified checkout days only (current-week preview) */
-  verifiedTotals: { wages: number; drinks: number; tips: number; tables: number; others: number; net: number };
+  verifiedTotals: {
+    wages: number;
+    drinks: number;
+    tips: number;
+    tables: number;
+    others: number;
+    net: number;
+  };
   /** Sunday when this week's PV is issued (day after week ends) */
   issueDayLabel: string;
   issueDayIso: string;
@@ -178,10 +194,18 @@ export function getWeekBounds(reference: [number, number, number] = getShiftToda
   issueDay.setDate(end.getDate() + 1);
   const startIso = toDateIso(start.getFullYear(), start.getMonth() + 1, start.getDate());
   const endIso = toDateIso(end.getFullYear(), end.getMonth() + 1, end.getDate());
-  const issueDayIso = toDateIso(issueDay.getFullYear(), issueDay.getMonth() + 1, issueDay.getDate());
+  const issueDayIso = toDateIso(
+    issueDay.getFullYear(),
+    issueDay.getMonth() + 1,
+    issueDay.getDate(),
+  );
   const startLabel = fmtDtable(start.getFullYear(), start.getMonth() + 1, start.getDate());
   const endLabel = fmtDtable(end.getFullYear(), end.getMonth() + 1, end.getDate());
-  const issueDayLabel = fmtDtable(issueDay.getFullYear(), issueDay.getMonth() + 1, issueDay.getDate());
+  const issueDayLabel = fmtDtable(
+    issueDay.getFullYear(),
+    issueDay.getMonth() + 1,
+    issueDay.getDate(),
+  );
   return {
     start,
     end,
@@ -198,15 +222,14 @@ export function getPreviousWeekBounds(reference: [number, number, number] = getS
   const bounds = getWeekBounds(reference);
   const prevStart = new Date(bounds.start);
   prevStart.setDate(prevStart.getDate() - 7);
-  return getWeekBounds([
-    prevStart.getFullYear(),
-    prevStart.getMonth() + 1,
-    prevStart.getDate(),
-  ]);
+  return getWeekBounds([prevStart.getFullYear(), prevStart.getMonth() + 1, prevStart.getDate()]);
 }
 
 /** PV for a week is issued on the Sunday after that week ends. */
-export function isWeekPvIssued(weekEndIso: string, reference: [number, number, number] = getShiftToday()) {
+export function isWeekPvIssued(
+  weekEndIso: string,
+  reference: [number, number, number] = getShiftToday(),
+) {
   return isWeekPvIssuedOnCalendar(weekEndIso, referenceToIso(reference));
 }
 
@@ -224,7 +247,20 @@ function parseRowDateIso(row: PrPvRow, year: number): string | null {
   if (!m) return null;
   const day = parseInt(m[1], 10);
   const mon = m[2].slice(0, 3).toLowerCase();
-  const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const months = [
+    "jan",
+    "feb",
+    "mar",
+    "apr",
+    "may",
+    "jun",
+    "jul",
+    "aug",
+    "sep",
+    "oct",
+    "nov",
+    "dec",
+  ];
   const mi = months.findIndex((x) => x === mon);
   if (mi < 0) return null;
   return toDateIso(year, mi + 1, day);
@@ -298,9 +334,7 @@ export function applyDisputeTargetsToRows(
 ): PrPvRow[] {
   if (!targets.length) return rows;
   return rows.map((row) =>
-    targets.some((t) => rowMatchesDisputeTarget(row, t, year))
-      ? { ...row, ref: "Disputed" }
-      : row,
+    targets.some((t) => rowMatchesDisputeTarget(row, t, year)) ? { ...row, ref: "Disputed" } : row,
   );
 }
 
@@ -345,8 +379,7 @@ export function removeDisputeLinesForTargets(
     const trimmed = block.trim();
     if (!trimmed || trimmed === "---") return false;
     return !targets.some(
-      (t) =>
-        trimmed.includes(`${t.dayLabel} ${t.dateLabel}`) && trimmed.includes(t.incomeLabel),
+      (t) => trimmed.includes(`${t.dayLabel} ${t.dateLabel}`) && trimmed.includes(t.incomeLabel),
     );
   });
   const next = blocks.join("\n\n").trim();
@@ -501,7 +534,12 @@ function buildColumns(weekStart: Date, reference: [number, number, number]): Wee
   return cols;
 }
 
-function breakdownsFromPvRows(rows: PrPvRow[], year: number, weekStartIso: string, weekEndIso: string) {
+function breakdownsFromPvRows(
+  rows: PrPvRow[],
+  year: number,
+  weekStartIso: string,
+  weekEndIso: string,
+) {
   const map = new Map<string, WeeklyDayBreakdown>();
   for (const row of rows) {
     const iso = parseRowDateIso(row, year);
@@ -553,7 +591,7 @@ export function syncWeeklyPvWithSummary(
   return reconcilePvTotals({
     ...pv,
     cycle: summary.weekLabel.replace(/\s+\d{4}$/, ""),
-    outlet: outlets.size > 1 ? `Multi-outlet (${outlets.size})` : rows[0]?.outlet ?? pv.outlet,
+    outlet: outlets.size > 1 ? `Multi-outlet (${outlets.size})` : (rows[0]?.outlet ?? pv.outlet),
     subtotal,
     net: Math.max(0, subtotal - pv.deduct),
     rows,
@@ -568,10 +606,7 @@ function mergePvRowsWithSummary(pv: PrPaymentVoucher, summary: WeeklyPaymentSumm
   const generated = pvRowsFromWeeklySummary(summary, pv.outlet);
   return generated.map((row) => {
     const match = pv.rows.find(
-      (r) =>
-        r.date === row.date &&
-        r.desc === row.desc &&
-        Math.abs(r.amt - row.amt) < 0.02,
+      (r) => r.date === row.date && r.desc === row.desc && Math.abs(r.amt - row.amt) < 0.02,
     );
     return match ? { ...row, receiptIds: match.receiptIds, ref: match.ref } : row;
   });
@@ -632,8 +667,8 @@ export function buildWeeklyPaymentSummary(opts: {
   const isCurrentWeek = weekStartIso === getWeekBounds(reference).startIso;
   const hasShiftHistorySource = Boolean(
     opts.shiftHistory?.length &&
-      opts.prId &&
-      weekHasShiftHistoryForPr(columns, opts.shiftHistory, opts.prId, isCurrentWeek),
+    opts.prId &&
+    weekHasShiftHistoryForPr(columns, opts.shiftHistory, opts.prId, isCurrentWeek),
   );
   /** Issued past weeks: shift history unless a seeded payroll PV defines the amounts. */
   const pvIsAuthoritative =
@@ -793,10 +828,28 @@ export function pvRowsFromWeeklySummary(
       });
     }
     if (drinks > 0) {
-      rows.push({ i: i++, date: dateLabel, day, outlet, desc: "Commission – Drinks", qty: 1, amt: drinks, ref });
+      rows.push({
+        i: i++,
+        date: dateLabel,
+        day,
+        outlet,
+        desc: "Commission – Drinks",
+        qty: 1,
+        amt: drinks,
+        ref,
+      });
     }
     if (tips > 0) {
-      rows.push({ i: i++, date: dateLabel, day, outlet, desc: "Commission – Tips", qty: 1, amt: tips, ref });
+      rows.push({
+        i: i++,
+        date: dateLabel,
+        day,
+        outlet,
+        desc: "Commission – Tips",
+        qty: 1,
+        amt: tips,
+        ref,
+      });
     }
     if (others > 0) {
       rows.push({ i: i++, date: dateLabel, day, outlet, desc: "Others", qty: 1, amt: others, ref });
@@ -811,18 +864,21 @@ export function buildSentWeeklyPv(opts: {
   summary: WeeklyPaymentSummary;
   fallbackOutlet?: string;
   existing?: PrPaymentVoucher | null;
+  /** Penalty fine (RM) to deduct — replaces (not compounds) the deduction so rebuilds are idempotent. */
+  penaltyDeductRm?: number;
 }): PrPaymentVoucher {
   const outlet = opts.fallbackOutlet ?? opts.existing?.outlet ?? "Velvet 23";
-  const synced = opts.existing
-    ? syncWeeklyPvWithSummary(opts.existing, opts.summary)
-    : null;
+  const synced = opts.existing ? syncWeeklyPvWithSummary(opts.existing, opts.summary) : null;
   const rows = synced?.rows ?? pvRowsFromWeeklySummary(opts.summary, outlet);
   const subtotal = opts.summary.totals.net;
   const issueDate = parseIsoDate(opts.summary.issueDayIso);
   const issuedLabel = format(issueDate, "d MMM yyyy");
-  const dueLabel =
-    format(parseISO(pvPayByDeadlineIsoFromIssueIso(opts.summary.issueDayIso)), "d MMM yyyy");
+  const dueLabel = format(
+    parseISO(pvPayByDeadlineIsoFromIssueIso(opts.summary.issueDayIso)),
+    "d MMM yyyy",
+  );
   const issuedStamp = formatPvSignTimestamp(issueDate);
+  const deduct = opts.penaltyDeductRm ?? opts.existing?.deduct ?? 0;
   return reconcilePvTotals({
     id: opts.existing?.id ?? makeWeeklyPvId(opts.summary.weekStartIso, opts.prSuffix),
     prName: opts.profile.name,
@@ -840,8 +896,8 @@ export function buildSentWeeklyPv(opts: {
     due: dueLabel,
     rows,
     subtotal,
-    deduct: opts.existing?.deduct ?? 0,
-    net: Math.max(0, subtotal - (opts.existing?.deduct ?? 0)),
+    deduct,
+    net: Math.max(0, subtotal - deduct),
     status: "SENT",
     ...seedFinanceHeadStamp(`${issuedStamp.split("·")[0]?.trim() ?? issuedLabel} · 09:00`),
     receiptIds: opts.existing?.receiptIds,

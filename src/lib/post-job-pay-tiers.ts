@@ -6,6 +6,7 @@ import {
   type OutletPrTier,
   type OutletTierRateSettings,
 } from "@/lib/agency-demo";
+import type { PrPayClass } from "@/lib/pr-penalties";
 
 export const POST_JOB_PAY_TIER_OPTIONS = [
   { id: "tier_1", label: "Tier 1", outletTier: "Tier I" as OutletPrTier },
@@ -48,11 +49,7 @@ export function ensureAllPayTierRows(
   return ALL_POST_JOB_PAY_TIER_IDS.map((payTierId) => {
     const existing = byTierId.get(payTierId);
     if (existing) return existing;
-    return newPostJobPayTierRow(
-      { payTierId, prCount: 0 },
-      workspaceTierRates,
-      commissionOnlyRates,
-    );
+    return newPostJobPayTierRow({ payTierId, prCount: 0 }, workspaceTierRates, commissionOnlyRates);
   });
 }
 
@@ -86,6 +83,16 @@ export function defaultCommissionOnlyRateSettings(): CommissionOnlyRateSettings 
 
 export function isCommissionOnlyPayTier(payTierId: PostJobPayTierId): boolean {
   return payTierId === "commission_only";
+}
+
+/** Pay class a shift's pay tier belongs to — commission_only slots are commissionOnly, all others basic. */
+export function payTierPayClass(payTierId: PostJobPayTierId): PrPayClass {
+  return isCommissionOnlyPayTier(payTierId) ? "commissionOnly" : "basic";
+}
+
+/** Booking rule: a commission-only PR may only work commission-only slots; a basic PR only basic-wage slots. */
+export function canPrWorkPayTier(prPayClass: PrPayClass, payTierId: PostJobPayTierId): boolean {
+  return payTierPayClass(payTierId) === prPayClass;
 }
 
 export function isServantPayTier(payTierId: PostJobPayTierId): boolean {
@@ -159,13 +166,13 @@ export function newPostJobPayTierRow(
   return {
     id: `pay-tier-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     payTierId,
-    wagePerHour: commissionOnly ? 0 : snapTierWage(partial?.wagePerHour ?? ws?.wagePerHour ?? baseWage),
-    targetSalesRm: partial?.targetSalesRm ?? (commissionOnly ? coDefaults.targetSalesRm : undefined),
-    drinkPct:
-      partial?.drinkPct ??
-      (commissionOnly ? coDefaults.drinkPct : ws?.drinkPct ?? 10),
-    tipPct:
-      partial?.tipPct ?? (commissionOnly ? coDefaults.tipPct : ws?.tipPct ?? 15),
+    wagePerHour: commissionOnly
+      ? 0
+      : snapTierWage(partial?.wagePerHour ?? ws?.wagePerHour ?? baseWage),
+    targetSalesRm:
+      partial?.targetSalesRm ?? (commissionOnly ? coDefaults.targetSalesRm : undefined),
+    drinkPct: partial?.drinkPct ?? (commissionOnly ? coDefaults.drinkPct : (ws?.drinkPct ?? 10)),
+    tipPct: partial?.tipPct ?? (commissionOnly ? coDefaults.tipPct : (ws?.tipPct ?? 15)),
     prCount: partial?.prCount != null ? Math.max(0, partial.prCount) : 1,
   };
 }
@@ -202,10 +209,7 @@ export function payTierRowsFromSplit(
   return split
     .filter((entry) => entry.prCount > 0 && !isCommissionOnlyPayTier(entry.payTierId))
     .map((entry) => ({
-      ...newPostJobPayTierRow(
-        { payTierId: entry.payTierId, prCount: entry.prCount },
-        tierRates,
-      ),
+      ...newPostJobPayTierRow({ payTierId: entry.payTierId, prCount: entry.prCount }, tierRates),
       ...(idPrefix ? { id: `${idPrefix}-${entry.payTierId}` } : {}),
     }));
 }
@@ -214,10 +218,7 @@ export function defaultPostJobPayTierRows(
   workspaceTierRates: Record<OutletPrTier, OutletTierRateSettings>,
   quantity = 6,
 ): PostJobPayTierRow[] {
-  return payTierRowsFromSplit(
-    workspaceTierRates,
-    allocateDiversePayTierSplit(quantity),
-  );
+  return payTierRowsFromSplit(workspaceTierRates, allocateDiversePayTierSplit(quantity));
 }
 
 export function payTierRowsFromLegacy(
@@ -378,8 +379,8 @@ export function applyPayTierRowChange(
     next = {
       ...next,
       wagePerHour: commissionOnly ? 0 : snapTierWage(ws?.wagePerHour ?? baseWage),
-      drinkPct: commissionOnly ? coDefaults.drinkPct : ws?.drinkPct ?? 10,
-      tipPct: commissionOnly ? coDefaults.tipPct : ws?.tipPct ?? 15,
+      drinkPct: commissionOnly ? coDefaults.drinkPct : (ws?.drinkPct ?? 10),
+      tipPct: commissionOnly ? coDefaults.tipPct : (ws?.tipPct ?? 15),
       targetSalesRm: commissionOnly ? coDefaults.targetSalesRm : ws?.targetSalesRm,
     };
   }
@@ -530,11 +531,7 @@ export function resolveEffectiveShiftPayTierRows(input: {
   const releasedIds = [...new Set(input.releasedEarlyPrIds ?? [])];
   // Seats that were filled (still on floor + released early) — demand cuts only remove never-filled opens.
   const filledForCut = [...new Set([...activeIds, ...releasedIds])];
-  const bookedForCut = countPrIdsByPayTier(
-    filledForCut,
-    input.agencyPRs,
-    input.prTierById,
-  );
+  const bookedForCut = countPrIdsByPayTier(filledForCut, input.agencyPRs, input.prTierById);
 
   let rows = baseRows;
   const demandCut = input.demandCut ?? 0;
@@ -543,11 +540,7 @@ export function resolveEffectiveShiftPayTierRows(input: {
   }
 
   if (releasedIds.length > 0) {
-    const releasedByTier = countPrIdsByPayTier(
-      releasedIds,
-      input.agencyPRs,
-      input.prTierById,
-    );
+    const releasedByTier = countPrIdsByPayTier(releasedIds, input.agencyPRs, input.prTierById);
     rows = rows.map((row) => {
       const peel = releasedByTier[row.payTierId] ?? 0;
       return { ...row, prCount: Math.max(0, row.prCount - peel) };
@@ -580,10 +573,7 @@ export function estimatePayTierRowsLaborCost(
   rows: PostJobPayTierRow[],
   tierRates?: Record<OutletPrTier, OutletTierRateSettings>,
 ): number {
-  return rows.reduce(
-    (sum, row) => sum + payTierRowShiftWage(row, tierRates) * row.prCount,
-    0,
-  );
+  return rows.reduce((sum, row) => sum + payTierRowShiftWage(row, tierRates) * row.prCount, 0);
 }
 
 export function basePayFromPayTierRows(rows?: PostJobPayTierRow[]): number {

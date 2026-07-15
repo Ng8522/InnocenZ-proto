@@ -32,15 +32,25 @@ import { publicAssetPath } from "@/lib/public-asset";
 import { ProfileLanguagePicker } from "@/components/iz/ProfileLanguagePicker";
 import { shiftHistoryForPr } from "@/lib/portal-sync";
 import {
-  CONSECUTIVE_LOW_SUSPEND_COUNT,
-  RATING_SUSPEND_SHIFT_THRESHOLD,
   RATING_WARN_THRESHOLD,
   getAgencyPrFlags,
   isAgencyPrActive,
   tiedMonthsLabel,
 } from "@/lib/agency-pr-flags";
 import {
+  evaluatePrPenalties,
+  normalizePenaltyRules,
+  prAttendanceWindow,
+  PR_PAY_CLASSES,
+  PR_PAY_CLASS_LABELS,
+  prPayClass,
+  totalPenaltyFineRm,
+  type PrPayClass,
+} from "@/lib/pr-penalties";
+import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
+import {
   AlertTriangle,
+  ChevronDown,
   Filter,
   Megaphone,
   MousePointerClick,
@@ -75,6 +85,17 @@ function AgencyManagePRs() {
   const detachAgencyPr = useStore((s) => s.detachAgencyPr);
   const requestAgencyPrDetach = useStore((s) => s.requestAgencyPrDetach);
   const updateAgencyPrProfile = useStore((s) => s.updateAgencyPrProfile);
+  const rawPenaltyRules = useStore((s) => s.outletWorkspace.penaltyRules);
+  const penalizedPrs = useMemo(() => {
+    const rules = normalizePenaltyRules(rawPenaltyRules);
+    return agencyPRs
+      .map((pr) => {
+        const breaches = evaluatePrPenalties(prPayClass(pr), prAttendanceWindow(pr), rules);
+        return { pr, breaches, total: totalPenaltyFineRm(breaches) };
+      })
+      .filter((x) => x.breaches.length > 0)
+      .sort((a, b) => b.total - a.total);
+  }, [agencyPRs, rawPenaltyRules]);
   const [ageMin, setAgeMin] = useState("");
   const [ratingMin, setRatingMin] = useState("");
   const [lang, setLang] = useState("");
@@ -85,6 +106,7 @@ function AgencyManagePRs() {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [penaltiesOpen, setPenaltiesOpen] = useState(false);
 
   useEffect(() => {
     if (prFromSearch) setDetailId(prFromSearch);
@@ -218,13 +240,71 @@ function AgencyManagePRs() {
       </header>
 
       <IzCard flat className="border-[var(--iz-line2)]">
-        <p className="iz-tiny iz-muted2 leading-relaxed">
-          <b className="text-[var(--iz-muted)]">Bulk:</b> tap Select → pick PRs → broadcast shift or
-          message. <b className="text-[var(--iz-amber)]">Warn</b> if avg &lt;{" "}
-          {RATING_WARN_THRESHOLD}★. <b className="text-[var(--iz-red)]">Suspend flag</b> at{" "}
-          {CONSECUTIVE_LOW_SUSPEND_COUNT} shifts &lt; {RATING_SUSPEND_SHIFT_THRESHOLD}★ in a row.{" "}
-          <b className="text-[var(--iz-violet-l)]">Tied &lt; 1 yr</b> cannot detach without admin.
-        </p>
+        <button
+          type="button"
+          onClick={() => setPenaltiesOpen((v) => !v)}
+          aria-expanded={penaltiesOpen}
+          className="flex w-full items-center gap-1.5 text-left"
+        >
+          <ChevronDown
+            className={`h-3.5 w-3.5 shrink-0 text-[var(--iz-muted)] transition-transform ${
+              penaltiesOpen ? "" : "-rotate-90"
+            }`}
+          />
+          <b className="iz-tiny uppercase tracking-wide text-[var(--iz-red,#e5484d)]">
+            Recent penalties
+          </b>
+          {penalizedPrs.length > 0 && (
+            <span className="iz-tiny iz-muted2">
+              · {penalizedPrs.length} PR{penalizedPrs.length > 1 ? "s" : ""} · RM{" "}
+              {penalizedPrs.reduce((s, x) => s + x.total, 0)} total
+            </span>
+          )}
+        </button>
+        {penaltiesOpen &&
+          (penalizedPrs.length === 0 ? (
+            <p className="iz-sm iz-muted2 mt-2">No active penalties this week.</p>
+          ) : (
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {penalizedPrs.map((x) => (
+                <div
+                  key={x.pr.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openPrProfile(x.pr.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openPrProfile(x.pr.id);
+                    }
+                  }}
+                  className="cursor-pointer rounded-lg border border-[var(--iz-line)] bg-[rgba(255,255,255,0.02)] p-2 transition-colors hover:border-[var(--iz-line2)] hover:bg-[rgba(255,255,255,0.04)]"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <b className="iz-sm text-[var(--iz-txt)]">{x.pr.name}</b>
+                    <span className="iz-sm font-semibold tabular-nums text-[var(--iz-red,#e5484d)]">
+                      {x.total > 0 ? `RM ${x.total}` : "Warning"}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-col gap-1">
+                    {x.breaches.map((b) => (
+                      <div key={b.ruleId} className="flex items-baseline justify-between gap-2">
+                        <span className="iz-sm leading-snug">
+                          <span className="text-[var(--iz-muted)]">{b.label}</span>
+                          <span className="iz-muted2"> · {b.detail}</span>
+                        </span>
+                        {b.fineRm > 0 && (
+                          <span className="iz-sm shrink-0 tabular-nums text-[var(--iz-muted2)]">
+                            RM {b.fineRm}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
       </IzCard>
 
       <IzCard flat className="iz-pr-manage-filters-card">
@@ -371,6 +451,7 @@ type AgencyPrDraft = {
   languages: string[];
   kpiTier: string;
   trainingLevel: string;
+  payClass: PrPayClass;
 };
 
 function buildAgencyPrDraft(pr: AgencyManagedPR): AgencyPrDraft {
@@ -388,6 +469,7 @@ function buildAgencyPrDraft(pr: AgencyManagedPR): AgencyPrDraft {
     languages: [...(pr.languages ?? [])],
     kpiTier: pr.kpiTier ?? "B",
     trainingLevel: pr.trainingLevel,
+    payClass: prPayClass(pr),
   };
 }
 
@@ -423,6 +505,7 @@ function AgencyPrDetail({
         | "yearsExp"
         | "kpiTier"
         | "trainingLevel"
+        | "payClass"
       >
     >,
   ) => void;
@@ -431,13 +514,39 @@ function AgencyPrDetail({
   onRequestDetach: (prId: string) => void;
 }) {
   const toast = useStore((s) => s.toast);
+  const penaltyRules = normalizePenaltyRules(useStore((s) => s.outletWorkspace.penaltyRules));
+  const penaltyBreaches = evaluatePrPenalties(
+    prPayClass(detail),
+    prAttendanceWindow(detail),
+    penaltyRules,
+  );
+  const penaltyTotalRm = totalPenaltyFineRm(penaltyBreaches);
   const [editing, setEditing] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [detachOpen, setDetachOpen] = useState(false);
   const [draft, setDraft] = useState<AgencyPrDraft>(() => buildAgencyPrDraft(detail));
+  const agencyRoster = useStore((s) => s.agencyRoster);
+  const [payClassConfirm, setPayClassConfirm] = useState<{
+    payload: Parameters<typeof onSaveProfile>[1];
+    next: PrPayClass;
+    conflicts: number;
+  } | null>(null);
 
   const flags = getAgencyPrFlags(detail);
   const tiedUnderOneYear = flags.tiedUnderOneYear;
+
+  // Future booked shifts incompatible with a switch to commission-only
+  // (commission-only PRs may only work commission-only shifts).
+  const futureIncompatibleSlots = (next: PrPayClass) => {
+    if (next !== "commissionOnly") return [];
+    return agencyRoster.filter(
+      (s) =>
+        s.prId === detail.id &&
+        s.dateIso >= DEFAULT_ROSTER_DATE_ISO &&
+        s.status !== "unavailable" &&
+        s.payTierId !== "commission_only",
+    );
+  };
 
   const startEdit = () => {
     setDraft(buildAgencyPrDraft(detail));
@@ -472,7 +581,7 @@ function AgencyPrDetail({
       toast("Select at least one language", "warn");
       return;
     }
-    onSaveProfile(detail.id, {
+    const payload = {
       name,
       icName,
       mobile: draft.mobile.trim(),
@@ -486,7 +595,26 @@ function AgencyPrDetail({
       languages: draft.languages,
       kpiTier: draft.kpiTier,
       trainingLevel: draft.trainingLevel,
-    });
+      payClass: draft.payClass,
+    };
+    // A pay-class flip is an employment change — confirm it (with any booking
+    // conflicts) before applying. Everything else saves straight away.
+    if (draft.payClass !== prPayClass(detail)) {
+      setPayClassConfirm({
+        payload,
+        next: draft.payClass,
+        conflicts: futureIncompatibleSlots(draft.payClass).length,
+      });
+      return;
+    }
+    onSaveProfile(detail.id, payload);
+    setEditing(false);
+  };
+
+  const commitPayClassChange = () => {
+    if (!payClassConfirm) return;
+    onSaveProfile(detail.id, payClassConfirm.payload);
+    setPayClassConfirm(null);
     setEditing(false);
   };
 
@@ -585,6 +713,45 @@ function AgencyPrDetail({
           <div className="n text-[var(--iz-gold-l)]">{(detail.totalPaid / 1000).toFixed(1)}k</div>
         </div>
       </div>
+
+      <IzSectionLabel>Penalties</IzSectionLabel>
+      <IzCard flat>
+        {penaltyBreaches.length === 0 ? (
+          <p className="iz-sm iz-muted">No active penalties.</p>
+        ) : (
+          <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {penaltyBreaches.map((b) => (
+                <div
+                  key={b.ruleId}
+                  className="rounded-lg border border-[var(--iz-line)] bg-[rgba(255,255,255,0.02)] p-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-[var(--iz-txt)]">{b.label}</span>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums text-[var(--iz-red,#e5484d)]">
+                      {b.fineRm > 0 ? `RM ${b.fineRm}` : "Warning"}
+                    </span>
+                  </div>
+                  <p className="iz-sm iz-muted mt-0.5">{b.detail}</p>
+                </div>
+              ))}
+            </div>
+            {penaltyTotalRm > 0 && (
+              <div className="flex items-center justify-between rounded-lg bg-[rgba(229,72,77,0.08)] px-2.5 py-2">
+                <span className="iz-sm font-semibold uppercase tracking-wide text-[var(--iz-red,#e5484d)]">
+                  Pending deduction
+                </span>
+                <span className="text-base font-bold tabular-nums text-[var(--iz-red,#e5484d)]">
+                  RM {penaltyTotalRm}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+        <p className="iz-tiny iz-muted2 mt-2">
+          Preview only · {PR_PAY_CLASS_LABELS[prPayClass(detail)]} · not yet deducted from payouts.
+        </p>
+      </IzCard>
 
       <IzSectionLabel>
         {detail.comcardImageUrl ? "Photo comcard" : "3D Comcard"}
@@ -739,6 +906,21 @@ function AgencyPrDetail({
                     ))}
                   </IzSelect>
                 </div>
+                <div className="iz-field !mb-0">
+                  <label>Pay class</label>
+                  <IzSelect
+                    value={draft.payClass}
+                    onChange={(e) =>
+                      setDraft((p) => ({ ...p, payClass: e.target.value as PrPayClass }))
+                    }
+                  >
+                    {PR_PAY_CLASSES.map((cls) => (
+                      <option key={cls} value={cls}>
+                        {PR_PAY_CLASS_LABELS[cls]}
+                      </option>
+                    ))}
+                  </IzSelect>
+                </div>
               </div>
             ) : (
               <div className="iz-kv-list">
@@ -761,6 +943,10 @@ function AgencyPrDetail({
                 <div className="iz-v-sum">
                   <span className="iz-muted">Training tier</span>
                   <b>{display.trainingLevel}</b>
+                </div>
+                <div className="iz-v-sum">
+                  <span className="iz-muted">Pay class</span>
+                  <b>{PR_PAY_CLASS_LABELS[display.payClass]}</b>
                 </div>
               </div>
             )}
@@ -831,6 +1017,24 @@ function AgencyPrDetail({
                 ))}
             </IzCard>
           </OutletSection>
+
+          {(detail.payClassHistory?.length ?? 0) > 0 && (
+            <OutletSection title="Pay class history" hint="Audit trail">
+              <IzCard flat>
+                {[...detail.payClassHistory!]
+                  .sort((a, b) => (a.fromIso < b.fromIso ? 1 : -1))
+                  .map((c, i) => (
+                    <div
+                      key={`${c.fromIso}-${i}`}
+                      className="iz-v-sum border-t border-[var(--iz-line)] py-1.5 first:border-0 first:pt-0"
+                    >
+                      <span className="iz-muted">From {c.fromIso}</span>
+                      <b>{PR_PAY_CLASS_LABELS[c.payClass]}</b>
+                    </div>
+                  ))}
+              </IzCard>
+            </OutletSection>
+          )}
 
           <OutletSection title="Ratings feed">
             <IzCard flat>
@@ -941,6 +1145,39 @@ function AgencyPrDetail({
               Confirm detach
             </button>
           )}
+        </div>
+      </IzSheet>
+
+      <IzSheet open={payClassConfirm !== null} onClose={() => setPayClassConfirm(null)}>
+        <IzCardTitle>Change pay class?</IzCardTitle>
+        <p className="iz-tiny iz-muted mb-3 leading-relaxed">
+          {detail.name} moves from <b>{PR_PAY_CLASS_LABELS[prPayClass(detail)]}</b> to{" "}
+          <b>{payClassConfirm ? PR_PAY_CLASS_LABELS[payClassConfirm.next] : ""}</b>, effective{" "}
+          {DEFAULT_ROSTER_DATE_ISO}. Shifts already worked or booked keep their original pay; new
+          shifts use the new class.
+        </p>
+        {payClassConfirm && payClassConfirm.conflicts > 0 && (
+          <IzCard flat className="mb-3 border-[var(--iz-amber)]">
+            <p className="iz-tiny flex items-start gap-1 text-[var(--iz-amber)]">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              {payClassConfirm.conflicts} upcoming booked shift
+              {payClassConfirm.conflicts === 1 ? " is" : "s are"} not commission-only.
+              Commission-only PRs may only work commission-only shifts — review or reassign these
+              bookings.
+            </p>
+          </IzCard>
+        )}
+        <div className="iz-grid2">
+          <button
+            type="button"
+            className="iz-btn iz-btn-ghost"
+            onClick={() => setPayClassConfirm(null)}
+          >
+            Cancel
+          </button>
+          <button type="button" className="iz-btn iz-btn-primary" onClick={commitPayClassChange}>
+            Confirm change
+          </button>
         </div>
       </IzSheet>
     </div>

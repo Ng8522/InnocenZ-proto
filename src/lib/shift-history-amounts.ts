@@ -6,6 +6,7 @@ import {
   SHIFT_HISTORY_FALLBACK_PER_DRINK_RM,
   type ShiftHistoryRow,
 } from "@/lib/shift-history-utils";
+import type { PrPayClass } from "@/lib/pr-penalties";
 
 export { SHIFT_HISTORY_FALLBACK_PER_DRINK_RM };
 
@@ -63,6 +64,7 @@ export function sealShiftHistoryAmounts(input: {
   drinkSalesRm?: number;
   rules?: OutletCommissionRule[];
   prTier?: string;
+  payClass?: PrPayClass;
 }): {
   totalDrinks: number;
   drinkSalesRm: number;
@@ -96,8 +98,10 @@ export function sealShiftHistoryAmounts(input: {
     },
     input.rules,
   );
-  const otRm = roundRm(payout.otSupplement);
-  const wagesRm = roundRm(payout.shiftPay);
+  // Commission-only PRs earn no base wage or OT — only drink/tip commission.
+  const commissionOnly = input.payClass === "commissionOnly";
+  const otRm = commissionOnly ? 0 : roundRm(payout.otSupplement);
+  const wagesRm = commissionOnly ? 0 : roundRm(payout.shiftPay);
   return {
     totalDrinks: input.drinkUnits,
     drinkSalesRm,
@@ -139,7 +143,12 @@ export function tipCommissionIgnoresWorkspacePct(
 /** Resolve received + payout line items for one shift (Workspace rates; reseal legacy 100% tips). */
 export function resolveShiftHistoryBreakdown(
   row: ShiftHistoryRow,
-  opts?: { rules?: OutletCommissionRule[]; prTier?: string; perDrinkRm?: number },
+  opts?: {
+    rules?: OutletCommissionRule[];
+    prTier?: string;
+    perDrinkRm?: number;
+    payClass?: PrPayClass;
+  },
 ): ShiftHistoryMoneyBreakdown {
   const sealed = sealShiftHistoryAmounts({
     outlet: row.outlet,
@@ -151,12 +160,12 @@ export function resolveShiftHistoryBreakdown(
     perDrinkRm: opts?.perDrinkRm,
     rules: opts?.rules,
     prTier: opts?.prTier,
+    payClass: opts?.payClass,
   });
 
   const drinkSalesRm = resolveShiftDrinkSalesRm(row, opts?.perDrinkRm);
   const tipSalesRm = roundRm(row.totalTips);
-  const useStored =
-    hasStoredPayoutBreakdown(row) && !tipCommissionIgnoresWorkspacePct(row);
+  const useStored = hasStoredPayoutBreakdown(row) && !tipCommissionIgnoresWorkspacePct(row);
 
   if (useStored) {
     const wagesRm = roundRm(row.wagesRm ?? 0);

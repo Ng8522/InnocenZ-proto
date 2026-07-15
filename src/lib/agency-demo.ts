@@ -5,6 +5,8 @@ import { buildDemoESignatureDataUrl } from "@/lib/finance-head-stamp";
 import { addDaysToIso, isoOnWeekday, migrateDemoDateIso } from "@/lib/demo-clock";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 import { SEED_COMCARD_AGENCY_PRS } from "@/lib/agency-pr-comcards";
+import type { PrPayClass, PrPayClassChange } from "@/lib/pr-penalties";
+import type { PostJobPayTierId } from "@/lib/post-job-pay-tiers";
 import {
   buildSeedPrPortfolio,
   fmtDateLabelFromIso,
@@ -706,6 +708,8 @@ export interface AgencyRosterSlot {
   outletSwap?: OutletSwapRequest;
   /** Operating agency that owns this roster slot (defaults to "atlas" when unset). */
   agencyId?: string;
+  /** Pay-tier column this assignment fills — gates commission-only vs basic eligibility. */
+  payTierId?: PostJobPayTierId;
 }
 
 export type OutletSwapStatus = "pending_pr" | "approved" | "declined";
@@ -930,6 +934,18 @@ export interface AgencyManagedPR {
   suspended?: boolean;
   detached?: boolean;
   tiedSince?: string;
+  /** Employment arrangement — "commissionOnly" earns no basic wage. Defaults to basic. */
+  payClass?: PrPayClass;
+  /**
+   * Audit trail of pay-class changes, each effective from a date (ISO yyyy-mm-dd).
+   * Sorted or unsorted; the class in force on a date is the latest entry with
+   * fromIso <= that date. `payClass` remains the current/live value.
+   */
+  payClassHistory?: PrPayClassChange[];
+  /** Demo attendance counters for penalty evaluation (Phase 2). */
+  shiftsThisWeek?: number;
+  lateThisWeek?: number;
+  mcThisMonth?: number;
   /** Consecutive shift outlet ratings below 3.0★ (most recent streak) */
   consecutiveLowRatings?: number;
   weight?: number;
@@ -966,6 +982,9 @@ export const SEED_AGENCY_PRS: AgencyManagedPR[] = sortAgencyPrsByName([
     trainingLevel: "Tier V",
     totalPaid: 18420,
     attendancePct: 98,
+    shiftsThisWeek: 5,
+    lateThisWeek: 0,
+    mcThisMonth: 0,
     checkIns: 41,
     checkOuts: 41,
     noShows: 0,

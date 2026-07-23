@@ -107,12 +107,18 @@ function HostShifts() {
     openShifts: false,
   });
 
+  /** Hub strip tap: open the matching section, or close it if already open. */
   const focusHubSection = useCallback((key: PrHubSectionKey) => {
-    setHubSectionsOpen((prev) => ({ ...prev, [key]: true }));
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById(`pr-hub-${key}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setHubSectionsOpen((prev) => {
+      const nextOpen = !prev[key];
+      if (nextOpen) {
+        window.requestAnimationFrame(() => {
+          document
+            .getElementById(`pr-hub-${key}`)
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+      return { ...prev, [key]: nextOpen };
     });
   }, []);
 

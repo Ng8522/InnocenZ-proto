@@ -53,7 +53,8 @@ export function buildPrUpcomingEvents(
         date: dateYmd,
         time: slot.shift,
         kind: "assignment",
-        detail: slot.agencyAssignment.agencyNote ?? "Agency assignment — approve or decline in schedule",
+        detail:
+          slot.agencyAssignment.agencyNote ?? "Agency assignment — approve or decline in schedule",
       });
       covered.add(key);
       continue;
@@ -150,13 +151,7 @@ export type TimetableEntry = {
   slot?: AgencyRosterSlot;
   upcoming?: PrUpcomingShift;
 };
-export type PrScheduleDayKind =
-  | "past"
-  | "open"
-  | "unavailable"
-  | "assigned"
-  | "pending"
-  | "active";
+export type PrScheduleDayKind = "past" | "open" | "unavailable" | "assigned" | "pending" | "active";
 
 export interface PrScheduleDay {
   dateIso: string;
@@ -197,7 +192,8 @@ function classifyDay(
   if (dateIso < baselineIso) return "past";
   if (slots.some((s) => s.status === "unavailable")) return "unavailable";
   if (slots.some((s) => ACTIVE_STATUSES.has(s.status))) return "active";
-  if (slots.some((s) => s.status === "assignment-pending" || s.status === "outlet-pending")) return "pending";
+  if (slots.some((s) => s.status === "assignment-pending" || s.status === "outlet-pending"))
+    return "pending";
   if (slots.some((s) => s.status === "scheduled" || s.status === "swap-pending")) return "assigned";
   if (upcoming) return upcoming.status === "pending" ? "pending" : "assigned";
   return "open";
@@ -209,9 +205,7 @@ export function buildPrScheduleDays(
   upcoming: PrUpcomingShift[],
   baselineIso = DEFAULT_ROSTER_DATE_ISO,
 ): PrScheduleDay[] {
-  const upcomingByDate = new Map(
-    upcoming.map((u) => [dateKeyFromTuple(u.date), u] as const),
-  );
+  const upcomingByDate = new Map(upcoming.map((u) => [dateKeyFromTuple(u.date), u] as const));
 
   return eachDateIsoInRange(getAgencyScheduleFromIso(), getAgencyScheduleToIso()).map((dateIso) => {
     const [y, m, d] = dateIso.split("-").map(Number);
@@ -259,7 +253,8 @@ function dedupeTimetableEntries(entries: TimetableEntry[]): TimetableEntry[] {
 
 function resolveSlotEntry(slot: AgencyRosterSlot): TimetableEntry {
   const [y, m, d] = slot.dateIso.split("-").map(Number);
-  const agency = slot.agencyAssignment?.agencyName ?? slot.outletSwap?.agencyName ?? DEFAULT_PR_AGENCY_NAME;
+  const agency =
+    slot.agencyAssignment?.agencyName ?? slot.outletSwap?.agencyName ?? DEFAULT_PR_AGENCY_NAME;
 
   if (slot.status === "assignment-pending") {
     const outletRequested = slot.agencyAssignment?.requestedByOutlet;
@@ -415,6 +410,10 @@ export function buildTimetableEntriesInRange(
 ): TimetableEntry[] {
   const slots = roster.filter((s) => {
     if (s.prId !== prId || s.status === "unavailable" || s.dateIso < baselineIso) return false;
+    // Hide the shift from the timetable only once the PR has actually checked
+    // in (checkedInAt / on-duty) or checked out — it then lives in the Today
+    // section. Before check-in (scheduled or en-route) it stays visible here.
+    if (s.checkedInAt || s.checkedOutAt) return false;
     return s.dateIso >= fromIso && s.dateIso <= toIso;
   });
 

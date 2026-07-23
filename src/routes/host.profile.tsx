@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
-import { AppTopbar } from "@/components/Nav";
+import { usePrTopbar } from "@/components/pr/PrChrome";
 import { PrSecuritySettingsSheets } from "@/components/pr/PrSecuritySettingsSheets";
 import { useStore } from "@/lib/store";
 import { goToWelcome } from "@/lib/go-welcome";
@@ -255,19 +255,19 @@ function ProfilePage() {
     });
   };
 
+  usePrTopbar({
+    onBack: () => {
+      if (editing) {
+        cancelEdit();
+        return;
+      }
+      return false;
+    },
+    backLabel: editing ? "Cancel edit" : undefined,
+  });
+
   return (
     <div className="iz-screen">
-      <AppTopbar
-        onBack={() => {
-          if (editing) {
-            cancelEdit();
-            return;
-          }
-          return false;
-        }}
-        backLabel={editing ? "Cancel edit" : undefined}
-      />
-
       <IzCard
         glow
         className={`iz-pr-account-hero mt-3${editing ? " iz-pr-account-hero--edit" : ""}`}

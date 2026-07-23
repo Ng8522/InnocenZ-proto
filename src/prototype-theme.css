@@ -103,33 +103,7 @@
   flex-direction: column;
 }
 
-.iz-phone::before {
-  content: "";
-  position: absolute;
-  top: 11px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 120px;
-  height: 30px;
-  background: #06030c;
-  border-radius: 0 0 18px 18px;
-  z-index: 60;
-  pointer-events: none;
-}
-
-.iz-statusbar {
-  height: 50px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  padding: 0 26px 6px;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--iz-txt);
-  z-index: 50;
-  flex-shrink: 0;
-  font-family: "Sora", sans-serif;
-}
+/* Fake Dynamic Island / status bar chrome removed — content starts at top of frame. */
 
 .iz-viewport {
   flex: 1 1 auto;
@@ -3332,6 +3306,36 @@
   font-size: 12px;
   color: var(--iz-muted);
   margin-top: 2px;
+}
+.iz-self-log-scanbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 132px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px dashed var(--iz-line2);
+  background: linear-gradient(180deg, rgba(232, 194, 122, 0.06), transparent);
+}
+.iz-self-log-scanbox__scanning {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.iz-self-log-drink-section {
+  margin-top: 12px;
+}
+.iz-self-log-drink-section__label {
+  font-family: "Sora", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--iz-gold-l);
+  margin-bottom: 6px;
 }
 .iz-self-log-drink-menu {
   display: flex;
@@ -9407,6 +9411,24 @@ button.iz-pr-offer-row:hover {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, transparent 100%);
 }
 
+/* Persistent PR identity/status bar — pinned to the top of every PR page so the
+   avatar + name + date/time + notification bell stay visible while content
+   scrolls beneath it. Rendered once by the /host layout (see PrChrome). */
+.iz-pr-chrome {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--iz-bg);
+  backdrop-filter: saturate(1.2) blur(10px);
+  -webkit-backdrop-filter: saturate(1.2) blur(10px);
+}
+.iz-pr-chrome .iz-topbar {
+  margin: 0;
+  padding: 12px 18px 12px;
+  background: transparent;
+  box-shadow: 0 8px 18px -14px rgba(0, 0, 0, 0.9);
+}
+
 .iz-topbar--no-back {
   grid-template-columns: minmax(0, 1fr) auto;
 }
@@ -9832,9 +9854,6 @@ button.iz-pr-offer-row:hover {
     max-height: none;
     border-radius: 0;
     box-shadow: none;
-  }
-  .iz-phone::before {
-    display: none;
   }
 }
 .iz-tabbar::before {

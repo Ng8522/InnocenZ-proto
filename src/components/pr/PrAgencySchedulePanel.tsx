@@ -17,17 +17,45 @@ import {
 } from "@/lib/pr-agency-schedule";
 import { useStore } from "@/lib/store";
 import type { PrUpcomingShift } from "@/lib/pr-features";
-import { CANCELLATION_RULE_SUMMARY, CANCEL_RULES, evaluateShiftCancellation } from "@/lib/pr-schedule-cancellation";
-import { calendarNavBounds, dateFromIsoKey, isoKeyFromDate } from "@/components/iz/HistDateCalendar";
+import {
+  CANCELLATION_RULE_SUMMARY,
+  CANCEL_RULES,
+  evaluateShiftCancellation,
+} from "@/lib/pr-schedule-cancellation";
+import {
+  calendarNavBounds,
+  dateFromIsoKey,
+  isoKeyFromDate,
+} from "@/components/iz/HistDateCalendar";
 import { getLiveTodayIso } from "@/lib/demo-clock";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Building2, CalendarDays, ChevronDown, Clock, Shield } from "lucide-react";
+import {
+  AlertTriangle,
+  Building2,
+  CalendarDays,
+  ChevronDown,
+  Clock,
+  MapPin,
+  Shield,
+} from "lucide-react";
+import { getOutletStreetAddress } from "@/lib/pr-shift-outlet";
+import { PR_LEAVE_KIND_LABEL, type PrLeaveKind } from "@/lib/pr-leave";
 import { DayButton } from "react-day-picker";
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 
 const MONTH_LABELS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 /** Fills each grid cell — shared CalendarDayButton uses size="icon" (36×36px) and overlaps on mobile. */
@@ -88,7 +116,12 @@ export function PrAgencySchedulePanel({
   const [selectedIso, setSelectedIso] = useState<string | null>(null);
   const [cancelEntry, setCancelEntry] = useState<TimetableEntry | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [leaveState, setLeaveState] = useState<{ entry: TimetableEntry; kind: PrLeaveKind } | null>(
+    null,
+  );
+  const [leaveReason, setLeaveReason] = useState("");
   const togglePrDayAvailability = useStore((s) => s.togglePrDayAvailability);
+  const applyPrShiftLeave = useStore((s) => s.applyPrShiftLeave);
 
   const navBounds = useMemo(
     () =>
@@ -152,6 +185,17 @@ export function PrAgencySchedulePanel({
     setCancelReason("");
   };
 
+  const closeLeave = () => {
+    setLeaveState(null);
+    setLeaveReason("");
+  };
+  const submitLeave = () => {
+    const slotId = leaveState?.entry.slot?.id;
+    if (!leaveState || !slotId || !leaveReason.trim()) return;
+    applyPrShiftLeave(slotId, leaveState.kind, leaveReason);
+    closeLeave();
+  };
+
   return (
     <div className="iz-pr-schedule">
       <div className="iz-pr-schedule-rules">
@@ -167,7 +211,9 @@ export function PrAgencySchedulePanel({
               Cancellation rules
             </span>
           </span>
-          <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", rulesOpen && "rotate-180")} />
+          <ChevronDown
+            className={cn("h-4 w-4 shrink-0 transition-transform", rulesOpen && "rotate-180")}
+          />
         </button>
         {rulesOpen && (
           <ul className="iz-pr-schedule-rules-list">
@@ -279,10 +325,18 @@ export function PrAgencySchedulePanel({
           className="w-full p-0 [--cell-size:100%]"
         />
         <div className="iz-pr-cal-legend">
-          <span><i className="sw open" /> Available</span>
-          <span><i className="sw assigned" /> Scheduled</span>
-          <span><i className="sw pending" /> Pending</span>
-          <span><i className="sw unavailable" /> Not available</span>
+          <span>
+            <i className="sw open" /> Available
+          </span>
+          <span>
+            <i className="sw assigned" /> Scheduled
+          </span>
+          <span>
+            <i className="sw pending" /> Pending
+          </span>
+          <span>
+            <i className="sw unavailable" /> Not available
+          </span>
         </div>
         <p className="iz-tiny iz-muted2 mt-2 text-center">
           Tap an available day to block it · tap a blocked day to reopen
@@ -307,6 +361,10 @@ export function PrAgencySchedulePanel({
                 key={entry.id}
                 entry={entry}
                 onCancel={() => setCancelEntry(entry)}
+                onLeave={(kind) => {
+                  setLeaveState({ entry, kind });
+                  setLeaveReason("");
+                }}
               />
             ))}
           </div>
@@ -329,9 +387,25 @@ export function PrAgencySchedulePanel({
         onSubmit={submitCancel}
         submitLabel={
           cancelEval && cancelEval.deductionRm > 0
-            ? `Cancel & accept −RM ${cancelEval.deductionRm}`
+            ? `Cancel & accept (−RM ${cancelEval.deductionRm})`
             : "Cancel shift"
         }
+      />
+
+      <PrShiftCancellationSheet
+        open={leaveState !== null}
+        onClose={closeLeave}
+        title={leaveState ? `Apply ${PR_LEAVE_KIND_LABEL[leaveState.kind]}` : "Apply leave"}
+        outlet={leaveState?.entry.outlet ?? ""}
+        dateLine={leaveState?.entry.dateLabel ?? ""}
+        shiftLine={leaveState?.entry.time}
+        evaluation={null}
+        hideRules
+        note="MC / leave is reviewed by your agency — no pay deduction. If approved early you're released from this shift and the agency backfills the slot."
+        reason={leaveReason}
+        onReasonChange={setLeaveReason}
+        onSubmit={submitLeave}
+        submitLabel={leaveState ? `Submit ${PR_LEAVE_KIND_LABEL[leaveState.kind]}` : "Submit"}
       />
     </div>
   );
@@ -350,11 +424,14 @@ function SourceBadge({ source, label }: { source: ShiftDataSource; label: string
 function TimetableRow({
   entry,
   onCancel,
+  onLeave,
 }: {
   entry: TimetableEntry;
   onCancel: () => void;
+  onLeave: (kind: PrLeaveKind) => void;
 }) {
   const slot = entry.slot;
+  const canAct = entryCanCancel(entry) && !!slot;
 
   return (
     <div className="iz-pr-inbox-card">
@@ -367,26 +444,51 @@ function TimetableRow({
             <PrStatusPill variant={entry.statusVariant}>{entry.statusLabel}</PrStatusPill>
           </div>
           <dl className="mt-2 space-y-1.5">
-            <div>
-              <dt className="iz-tiny iz-muted2 uppercase tracking-wide">Date</dt>
-              <dd className="iz-tiny iz-muted mt-0.5">{entry.dateLabel}</dd>
+            <div className="flex items-start gap-x-8 gap-y-1.5">
+              <div className="min-w-0">
+                <dt className="iz-tiny iz-muted2 uppercase tracking-wide">Date</dt>
+                <dd className="iz-tiny iz-muted mt-0.5">{entry.dateLabel}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="iz-tiny iz-muted2 uppercase tracking-wide">Time</dt>
+                <dd className="iz-tiny iz-muted mt-0.5">{entry.time}</dd>
+              </div>
             </div>
             <div>
-              <dt className="iz-tiny iz-muted2 uppercase tracking-wide">Time</dt>
-              <dd className="iz-tiny iz-muted mt-0.5">{entry.time}</dd>
+              <dt className="iz-tiny iz-muted2 uppercase tracking-wide">Address</dt>
+              <dd className="iz-tiny iz-muted mt-0.5 flex items-start gap-1">
+                <MapPin className="mt-[1px] h-3 w-3 shrink-0 text-[var(--iz-muted2)]" />
+                <span className="min-w-0">{getOutletStreetAddress(entry.outlet)}</span>
+              </dd>
             </div>
           </dl>
           {slot?.payDeductionRm ? (
             <p className="iz-tiny mt-2 text-[var(--iz-red)]">
-              −RM {slot.payDeductionRm} logged · {slot.cancelledAt}
+              (−RM {slot.payDeductionRm}) logged · {slot.cancelledAt}
             </p>
           ) : null}
         </div>
       </div>
-      {entryCanCancel(entry) && (
-        <button type="button" className="iz-btn iz-btn-danger iz-btn-sm mt-2 w-full" onClick={onCancel}>
-          Cancel
-        </button>
+      {canAct && (
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <button type="button" className="iz-btn iz-btn-danger iz-btn-sm" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft iz-btn-sm"
+            onClick={() => onLeave("mc")}
+          >
+            MC
+          </button>
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft iz-btn-sm"
+            onClick={() => onLeave("leave")}
+          >
+            Leave
+          </button>
+        </div>
       )}
     </div>
   );

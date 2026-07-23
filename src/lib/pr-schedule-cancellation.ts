@@ -57,7 +57,7 @@ export function evaluateShiftCancellation(
       tier: "short_notice",
       hoursUntilStart: hours,
       deductionRm,
-      headline: `Short notice — −RM ${deductionRm} from next PV`,
+      headline: `Short notice — (−RM ${deductionRm}) from next PV`,
       detail: `Less than ${CANCEL_RULES.safeNoticeHours}h but more than ${CANCEL_RULES.penaltyNoticeHours}h before start.`,
     };
   }
@@ -71,7 +71,7 @@ export function evaluateShiftCancellation(
     tier: "penalty",
     hoursUntilStart: hours,
     deductionRm,
-    headline: `Late cancel — −RM ${deductionRm} from next PV`,
+    headline: `Late cancel — (−RM ${deductionRm}) from next PV`,
     detail: `${lateLabel} · same rule as arriving ${CANCEL_RULES.lateArrivalMinutes}+ min late.`,
   };
 }
@@ -91,7 +91,7 @@ export function evaluateLateArrival(
   return {
     applies: true,
     deductionRm,
-    headline: `${minutesLate} min late — −RM ${deductionRm} wage deduction`,
+    headline: `${minutesLate} min late — (−RM ${deductionRm}) wage deduction`,
   };
 }
 

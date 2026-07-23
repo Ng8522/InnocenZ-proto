@@ -148,6 +148,7 @@ export function verifyReceiptScan(scan: PrReceiptScan): { ok: boolean; note: str
 
 const RECEIPT_CATEGORY_LABEL: Record<PrReceiptItem["category"], string> = {
   drinks: "Drinks",
+  service: "Service",
   tips: "Tips",
   tables: "Tables",
   other: "Other",
@@ -231,8 +232,7 @@ export function buildShiftStatusRows(
 
   for (const scan of scans) {
     const verify = verifyReceiptScan(scan);
-    const freezeSelfLog =
-      opts?.freezeSelfLogVerification && isManualSelfLog(scan);
+    const freezeSelfLog = opts?.freezeSelfLogVerification && isManualSelfLog(scan);
     rows.push({
       kind: "receipt",
       id: scan.id,

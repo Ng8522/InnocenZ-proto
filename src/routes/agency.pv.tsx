@@ -79,6 +79,7 @@ import {
   formatRM,
 } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
+import { AgencyWeekVerifyPanel } from "@/components/agency/AgencyWeekVerifyPanel";
 import {
   PV_WORKFLOW_STEPS,
   disputeDaysRemaining,
@@ -342,6 +343,7 @@ function AgencyPV() {
 
   return (
     <div className="iz-screen">
+      <AgencyWeekVerifyPanel />
       <header>
         <IzPageTitle>Payroll &amp; PV</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">

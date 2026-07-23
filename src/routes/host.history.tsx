@@ -8,7 +8,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { AppTopbar } from "@/components/Nav";
+import { usePrTopbar } from "@/components/pr/PrChrome";
 import { IzSheet } from "@/components/iz/Sheet";
 import { useStore } from "@/lib/store";
 import {
@@ -844,19 +844,19 @@ function HistoryPage() {
     setPaymentFilterOpen(false);
   };
 
+  usePrTopbar({
+    onBack: () => {
+      if (anyFilterOpen) {
+        closeFilters();
+        return;
+      }
+      return false;
+    },
+    backLabel: anyFilterOpen ? "History" : undefined,
+  });
+
   return (
     <div className="iz-screen">
-      <AppTopbar
-        onBack={() => {
-          if (anyFilterOpen) {
-            closeFilters();
-            return;
-          }
-          return false;
-        }}
-        backLabel={anyFilterOpen ? "History" : undefined}
-      />
-
       <PrPageHeader label="Earnings" title="History" />
 
       <div className="iz-hist-tabs mt-4">

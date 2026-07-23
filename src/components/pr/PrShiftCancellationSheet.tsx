@@ -26,6 +26,8 @@ export function PrShiftCancellationSheet({
   onReasonChange,
   onSubmit,
   submitLabel,
+  hideRules = false,
+  note,
 }: {
   open: boolean;
   onClose: () => void;
@@ -38,6 +40,10 @@ export function PrShiftCancellationSheet({
   onReasonChange: (value: string) => void;
   onSubmit: () => void;
   submitLabel: string;
+  /** Hide the cancellation-penalty rules block (e.g. for MC / leave requests). */
+  hideRules?: boolean;
+  /** Override the default "notifies your agency" note. */
+  note?: string;
 }) {
   return (
     <IzSheet open={open} onClose={onClose}>
@@ -48,8 +54,8 @@ export function PrShiftCancellationSheet({
         {shiftLine ? ` · ${shiftLine}` : ""}
       </p>
       <p className="iz-pr-note mb-3">
-        Shifts are assigned by your agency only — outlets may request you, but Atlas confirms every
-        assignment. Declining or cancelling notifies your agency.
+        {note ??
+          "Shifts are assigned by your agency only — outlets may request you, but Atlas confirms every assignment. Declining or cancelling notifies your agency."}
       </p>
       {evaluation && (
         <div className={cn("mb-3 rounded-xl border px-3 py-2.5", tierAlertClass(evaluation.tier))}>
@@ -57,22 +63,24 @@ export function PrShiftCancellationSheet({
           <p className="iz-tiny iz-muted2 mt-1">{evaluation.detail}</p>
         </div>
       )}
-      <div className="mb-3 overflow-hidden rounded-xl border border-[var(--iz-line)]">
-        <div className="iz-pr-schedule-rules-hd !cursor-default border-0 bg-transparent">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--iz-amber)]" />
-          <span className="text-xs font-bold uppercase tracking-wide text-[var(--iz-txt)]">
-            Cancellation rules
-          </span>
+      {!hideRules && (
+        <div className="mb-3 overflow-hidden rounded-xl border border-[var(--iz-line)]">
+          <div className="iz-pr-schedule-rules-hd !cursor-default border-0 bg-transparent">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--iz-amber)]" />
+            <span className="text-xs font-bold uppercase tracking-wide text-[var(--iz-txt)]">
+              Cancellation rules
+            </span>
+          </div>
+          <ul className="iz-pr-schedule-rules-list !mt-0 border-0">
+            {CANCELLATION_RULE_SUMMARY.map((r) => (
+              <li key={r.label} className={`tone-${r.tone}`}>
+                <span className="rule-when">{r.label}</span>
+                <span className="rule-out">{r.outcome}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-        <ul className="iz-pr-schedule-rules-list !mt-0 border-0">
-          {CANCELLATION_RULE_SUMMARY.map((r) => (
-            <li key={r.label} className={`tone-${r.tone}`}>
-              <span className="rule-when">{r.label}</span>
-              <span className="rule-out">{r.outcome}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      )}
       <label className="iz-tiny iz-muted2 mb-1 block" htmlFor="pr-shift-cancel-reason">
         Reason (required)
       </label>

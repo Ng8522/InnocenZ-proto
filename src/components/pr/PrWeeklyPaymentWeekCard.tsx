@@ -7,7 +7,12 @@ import { PrStatusPill } from "@/components/pr/PrOfferRow";
 import { pvNeedsPrReview, pvStatusLabel, pvStatusPillVariant } from "@/lib/pr-demo";
 import type { PrPaymentVoucher } from "@/lib/pr-demo";
 import { isPrPaymentActionPv } from "@/lib/pr-payment-history";
-import { buildWeeklyDisputeMessage, pvHasOpenDisputes, type WeeklyDisputeTarget, type WeeklyPaymentSummary } from "@/lib/pr-weekly-payment";
+import {
+  buildWeeklyDisputeMessage,
+  pvHasOpenDisputes,
+  type WeeklyDisputeTarget,
+  type WeeklyPaymentSummary,
+} from "@/lib/pr-weekly-payment";
 import { cn } from "@/lib/utils";
 
 function weekTotalRm(summary: WeeklyPaymentSummary): number {
@@ -44,7 +49,11 @@ export function PrWeeklyPaymentWeekCard({
 
   const needsReview = Boolean(pv && (pvNeedsPrReview(pv.status) || pv.status === "DISPUTED"));
   const actionPv = pv && isPrPaymentActionPv(pv) ? pv : null;
-  const canDispute = Boolean(weekPhase === "issued" && actionPv && needsReview && onDispute);
+  // Issued weeks require an actionable PV under review; the running (open) week
+  // can be disputed per-day as long as a dispute handler is wired.
+  const canDispute = Boolean(
+    onDispute && (weekPhase === "issued" ? actionPv && needsReview : true),
+  );
   const hasOpenDisputes = Boolean(pv && pvHasOpenDisputes(pv, summary));
 
   const openDisputeForDay = (targets: WeeklyDisputeTarget[]) => {
@@ -118,19 +127,26 @@ export function PrWeeklyPaymentWeekCard({
           <span className="iz-collapsible-section__title">{title}</span>
           {!open && (
             <span className="iz-collapsible-section__hint">
-              {summary.weekLabel} · {formatRM(weekTotalRm(summary))} · {summary.verifiedDayCount}/7 verified
+              {summary.weekLabel} · {formatRM(weekTotalRm(summary))} · {summary.verifiedDayCount}/7
+              verified
             </span>
           )}
-          <span className="iz-collapsible-section__action">{open ? "Tap to collapse" : "Tap to expand"}</span>
+          <span className="iz-collapsible-section__action">
+            {open ? "Tap to collapse" : "Tap to expand"}
+          </span>
         </span>
         {pv && (
-          <PrStatusPill variant={pvStatusPillVariant(pv.status)}>{pvStatusLabel(pv.status)}</PrStatusPill>
+          <PrStatusPill variant={pvStatusPillVariant(pv.status)}>
+            {pvStatusLabel(pv.status)}
+          </PrStatusPill>
         )}
         <span className="iz-pr-week-pay-collapsible__verified font-sora text-base font-extrabold text-[var(--iz-violet-l)]">
           {summary.verifiedDayCount}/7
         </span>
         <span className="iz-collapsible-section__chev" aria-hidden>
-          <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} />
+          <ChevronDown
+            className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")}
+          />
         </span>
       </button>
       {open && (
@@ -139,7 +155,9 @@ export function PrWeeklyPaymentWeekCard({
             <div className="iz-pr-week-pay-card__head">
               <div>
                 <p className="iz-pr-week-pay-card__title">{title}</p>
-                <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">{summary.weekLabel}</p>
+                <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">
+                  {summary.weekLabel}
+                </p>
               </div>
               <div className="text-right">
                 <p className="iz-tiny iz-muted2">Verified days</p>
@@ -161,8 +179,7 @@ export function PrWeeklyPaymentWeekCard({
               {weekPhase === "open" && !summary.pvReady ? (
                 <>
                   PV will be sent on <b>{summary.issueDayLabel}</b> after this week ends · running
-                  total{" "}
-                  <b className="text-[var(--iz-gold)]">{formatRM(weekTotalRm(summary))}</b>
+                  total <b className="text-[var(--iz-gold)]">{formatRM(weekTotalRm(summary))}</b>
                 </>
               ) : (
                 <>

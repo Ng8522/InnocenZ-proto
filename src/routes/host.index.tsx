@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState, useCallback, type ReactNode } from "react";
-import { AppTopbar } from "@/components/Nav";
 import { IzSheet } from "@/components/iz/Sheet";
 import { PrPageHeader } from "@/components/pr/PrPageHeader";
+import { usePrTopbar } from "@/components/pr/PrChrome";
 import { PrOfferRow, PrOfferRowActions, PrStatusPill } from "@/components/pr/PrOfferRow";
 import { PrAgencySchedulePanel } from "@/components/pr/PrAgencySchedulePanel";
 import { buildPrUpcomingEvents } from "@/lib/pr-agency-schedule";
@@ -29,14 +29,14 @@ import {
   swapBlocksRequestingPrShift,
   type MarketplaceListing,
 } from "@/lib/pr-features";
-import { SpecialServicePortalSection } from "@/components/special-service/SpecialServicePortalSection";
 import { SpecialServiceOrderCard } from "@/components/special-service/SpecialServiceOrderCard";
 import { pendingSpecialServicesForPr } from "@/lib/special-service-actions";
-import { Briefcase, ExternalLink, FileText, Filter, MapPin, Sparkles, Store } from "lucide-react";
+import { ExternalLink, FileText, Filter, MapPin, Store } from "lucide-react";
 import { formatRM, IzCardTitle } from "@/components/iz/ui";
 import { IconGuide } from "@/components/iz/IconGuide";
 import { LabelWithIcon } from "@/components/iz/TitleWithIcon";
 import { outletLogoForName } from "@/lib/outlet-demo";
+import { getOutletStreetAddress } from "@/lib/pr-shift-outlet";
 import { publicAssetPath } from "@/lib/public-asset";
 
 type HostHubView = "shifts" | "services";
@@ -70,7 +70,6 @@ const EMPTY_MKT_FILTERS: MktFilters = {
 
 function HostShifts() {
   const navigate = useNavigate();
-  const { view } = Route.useSearch();
   const prSubRole = useStore((s) => s.prSubRole);
   const shiftAccepted = useStore((s) => s.shiftAccepted);
   const pendingApproval = useStore((s) => s.pendingApproval);
@@ -133,7 +132,6 @@ function HostShifts() {
     () => pendingSpecialServicesForPr(specialServiceOrders, myRosterId),
     [specialServiceOrders, myRosterId],
   );
-  const setHubView = (next: HostHubView) => navigate({ to: "/host", search: { view: next } });
   const agencyTonight = useMemo(
     () => (tied ? findAgencyRosterTonight(agencyRoster, myRosterId) : undefined),
     [tied, agencyRoster, myRosterId],
@@ -263,283 +261,246 @@ function HostShifts() {
     pendingApproval ||
     (!tied && prMarketplaceApplication?.status === "pending");
 
+  usePrTopbar();
+
   return (
     <div className="iz-screen">
-      <AppTopbar />
-
       <PrPageHeader
-        label={
-          view === "services" ? "Agency add-on services" : tied ? "Agency shifts" : "Marketplace"
-        }
         title={
-          view === "services" ? (
-            "Job Posting"
-          ) : (
-            <>
-              Hi, <span className="iz-pr-page-header__accent">{firstName}</span>
-            </>
-          )
+          <>
+            Hi, <span className="iz-pr-page-header__accent">{firstName}</span>
+          </>
         }
       />
 
-      <div className="iz-pr-hub-toolbar mt-3">
-        <div className="iz-pr-hub-toggle">
-          <button
-            type="button"
-            className={view === "shifts" ? "on shifts" : ""}
-            onClick={() => setHubView("shifts")}
-          >
-            <Briefcase className="h-3.5 w-3.5 shrink-0" />
-            Shifts
-          </button>
-          <button
-            type="button"
-            className={view === "services" ? "on services" : ""}
-            onClick={() => setHubView("services")}
-          >
-            <Sparkles className="h-3.5 w-3.5 shrink-0" />
-            Job postings
-            {pendingServices.length > 0 && (
-              <span className="iz-pr-hub-toggle__badge">{pendingServices.length}</span>
-            )}
-          </button>
-        </div>
-      </div>
+      <PrHomeHubStrip
+        tied={tied}
+        hubSectionsOpen={hubSectionsOpen}
+        focusHubSection={focusHubSection}
+        todayStatus={todayStatus}
+        todoCount={todoCount}
+        upcomingCount={upcomingEvents.length}
+        offerCount={offerCount}
+        prUpcomingCount={prUpcomingShifts.length}
+        statusLabel={statusLabel}
+        openShiftCount={filteredMarketplace.length}
+      />
 
-      {view === "services" ? (
-        <div className="mt-3">
-          <SpecialServicePortalSection role="pr" />
-        </div>
-      ) : (
-        <>
-          <PrHomeHubStrip
-            tied={tied}
-            hubSectionsOpen={hubSectionsOpen}
-            focusHubSection={focusHubSection}
-            todayStatus={todayStatus}
-            todoCount={todoCount}
-            upcomingCount={upcomingEvents.length}
-            offerCount={offerCount}
-            prUpcomingCount={prUpcomingShifts.length}
-            statusLabel={statusLabel}
-            openShiftCount={filteredMarketplace.length}
-          />
-
-          {!effectiveShiftAccepted &&
-            !pendingApproval &&
-            (!tied || !rosterBooked) &&
-            prMarketplaceApplication?.status !== "pending" && (
-              <div className="mt-3 flex justify-end">
-                <button
-                  type="button"
-                  className="iz-btn iz-btn-soft iz-btn-sm !py-1.5"
-                  onClick={() => {
-                    demoPrShiftIn();
-                    void navigate({ to: "/host/tonight" });
-                  }}
-                >
-                  Demo shift in
-                </button>
-              </div>
-            )}
-
-          <div className="iz-pr-hub-sections">
-            <PrSection
-              id="pr-hub-today"
-              title="Today"
-              collapsible
-              open={hubSectionsOpen.today}
-              onOpenChange={(open) => setHubSectionOpen("today", open)}
+      {!effectiveShiftAccepted &&
+        !pendingApproval &&
+        (!tied || !rosterBooked) &&
+        prMarketplaceApplication?.status !== "pending" && (
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              className="iz-btn iz-btn-soft iz-btn-sm !py-1.5"
+              onClick={() => {
+                demoPrShiftIn();
+                void navigate({ to: "/host/tonight" });
+              }}
             >
-              {effectiveShiftAccepted && activeShift ? (
-                <TodayShiftCard
-                  eyebrow={checkedOut ? "Complete" : checkedIn ? "On duty" : "Tonight"}
-                  outlet={activeShift.outlet}
-                  date={fmtDFriendly(activeShift.date[0], activeShift.date[1], activeShift.date[2])}
-                  time={activeShift.time}
-                  footnote={`${activeShift.event} · ${formatRM(activeShift.base + activeShift.comm)}`}
-                  badge={
-                    checkedOut ? (
-                      <PrStatusPill variant="green">Checked out</PrStatusPill>
-                    ) : undefined
-                  }
-                >
-                  <Link
-                    to="/host/tonight"
-                    className={`iz-btn iz-btn-sm iz-pr-shift-card__cta w-full${checkedOut ? " iz-btn-soft" : " iz-btn-primary"}`}
-                  >
-                    <MapPin className="h-3.5 w-3.5" />
-                    {checkedOut ? "View summary" : checkedIn ? "Attendance" : "Check in"}
-                  </Link>
-                </TodayShiftCard>
-              ) : agencyTonight ? (
-                <TodayShiftCard
-                  eyebrow="Tonight"
-                  outlet={agencyTonight.outlet}
-                  date={agencyTonight.date}
-                  time={agencyTonight.shift}
-                  badge={
-                    <PrStatusPill
-                      variant={
-                        ["scheduled", "on-duty", "en-route"].includes(agencyTonight.status)
-                          ? "green"
-                          : "amber"
-                      }
-                    >
-                      {["scheduled", "on-duty", "en-route"].includes(agencyTonight.status)
-                        ? "Scheduled"
-                        : "Pending"}
-                    </PrStatusPill>
-                  }
-                />
-              ) : (
-                <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
-                  No shift scheduled for today.
-                </p>
-              )}
-            </PrSection>
-
-            <PrSection
-              id="pr-hub-todo"
-              title="To-do"
-              collapsible
-              open={hubSectionsOpen.todo}
-              onOpenChange={(open) => setHubSectionOpen("todo", open)}
-            >
-              {todoCount === 0 ? (
-                <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
-                  Nothing to do
-                </p>
-              ) : (
-                <div className="iz-pr-list">
-                  {todoPvs.map((pv) => (
-                    <TodoActionCard
-                      key={pv.id}
-                      icon={<FileText className="h-4 w-4" />}
-                      title="Review payment voucher"
-                      subtitle={`${pv.outlet} · ${pv.cycle} · ${formatRM(pv.net)}`}
-                      actionLabel="Review PV"
-                      to="/host/PaymentVoucher"
-                      search={{ pvId: pv.id }}
-                    />
-                  ))}
-                  {pendingServices.map((row) => (
-                    <div key={row.id} className="iz-pr-todo-service">
-                      <SpecialServiceOrderCard
-                        row={row}
-                        role="pr"
-                        onAccept={acceptSpecialServiceByPr}
-                        onDecline={declineSpecialServiceByPr}
-                      />
-                    </div>
-                  ))}
-                  {swapOffers.map((offer) => (
-                    <InboxCard
-                      key={offer.id}
-                      title={offer.outlet}
-                      subtitle={`Cover for ${offer.requestingPrName} · ${offer.date} · ${offer.shift}`}
-                      onApprove={() => acceptSwapReplacement(offer.id)}
-                      onReject={() => {
-                        setSwapRejectId(offer.id);
-                        setSwapRejectReason("");
-                      }}
-                    />
-                  ))}
-                  {outletPendingShifts.map((slot) => (
-                    <div key={slot.id} className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
-                      <PrOfferRow
-                        title={slot.outlet}
-                        subtitle={`${slot.date} · ${slot.shift} · Agency assigned — awaiting outlet roster sync`}
-                        badge={<PrStatusPill variant="amber">Outlet pending</PrStatusPill>}
-                      />
-                    </div>
-                  ))}
-                  {pendingApproval && (
-                    <div className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
-                      <PrOfferRow
-                        title="Agency assignment"
-                        subtitle="Your agency is finalizing this shift — no action needed from you"
-                        badge={<PrStatusPill variant="amber">Pending</PrStatusPill>}
-                      />
-                    </div>
-                  )}
-                  {!tied && prMarketplaceApplication?.status === "pending" && (
-                    <div className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
-                      <PrOfferRow
-                        title="Marketplace application"
-                        subtitle="Pending"
-                        badge={<PrStatusPill variant="amber">Pending</PrStatusPill>}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </PrSection>
-
-            {tied && (
-              <PrSection
-                id="pr-hub-agency"
-                title="Agency schedule"
-                collapsible
-                open={hubSectionsOpen.agency}
-                onOpenChange={(open) => setHubSectionOpen("agency", open)}
-              >
-                <PrAgencySchedulePanel
-                  prId={myRosterId}
-                  roster={agencyRoster}
-                  upcoming={prUpcomingShifts}
-                  onCancelShift={(entry, reason) => {
-                    if (entry.slot) {
-                      cancelPrRosterShift(entry.slot.id, reason);
-                    } else if (entry.upcoming) {
-                      cancelPrUpcomingShift(entry.upcoming.id, reason);
-                    }
-                  }}
-                />
-              </PrSection>
-            )}
-
-            {!tied && (
-              <PrSection
-                id="pr-hub-openShifts"
-                title="Open shifts"
-                collapsible
-                open={hubSectionsOpen.openShifts}
-                onOpenChange={(open) => setHubSectionOpen("openShifts", open)}
-                trailing={
-                  <button
-                    type="button"
-                    className="iz-outlet-quick-chip !py-1"
-                    onClick={() => setFiltersOpen(true)}
-                  >
-                    <Filter className="h-3 w-3" /> Filter
-                  </button>
-                }
-              >
-                <div className="iz-pr-list">
-                  {filteredMarketplace.map((l) => (
-                    <div key={l.id} className="iz-pr-inbox-card">
-                      <PrOfferRow
-                        title={l.outlet}
-                        subtitle={`${fmtDFriendly(l.date[0], l.date[1], l.date[2])} · ${l.time} · ${l.area}`}
-                        amount={formatRM(l.rate)}
-                        onClick={hideOfferActions ? undefined : () => setConfirmMktId(l.id)}
-                      />
-                      {!hideOfferActions && (
-                        <PrOfferRowActions
-                          primaryLabel="Apply"
-                          onPrimary={() => setConfirmMktId(l.id)}
-                          onSecondary={() => declinePrOffer(l.id)}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </PrSection>
-            )}
+              Demo shift in
+            </button>
           </div>
-        </>
-      )}
+        )}
+
+      <div className="iz-pr-hub-sections">
+        <PrSection
+          id="pr-hub-today"
+          title="Today"
+          collapsible
+          open={hubSectionsOpen.today}
+          onOpenChange={(open) => setHubSectionOpen("today", open)}
+        >
+          {checkedOut ? (
+            <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
+              Shift complete — waiting for your next shift.
+            </p>
+          ) : effectiveShiftAccepted && activeShift ? (
+            <TodayShiftCard
+              eyebrow={checkedIn ? "On duty" : "Tonight"}
+              outlet={activeShift.outlet}
+              date={fmtDFriendly(activeShift.date[0], activeShift.date[1], activeShift.date[2])}
+              time={activeShift.time}
+              footnote={`${activeShift.event} · ${formatRM(activeShift.base + activeShift.comm)}`}
+              badge={
+                checkedOut ? <PrStatusPill variant="green">Checked out</PrStatusPill> : undefined
+              }
+            >
+              <Link
+                to="/host/tonight"
+                className={`iz-btn iz-btn-sm iz-pr-shift-card__cta w-full${checkedOut ? " iz-btn-soft" : " iz-btn-primary"}`}
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                {checkedOut ? "View summary" : checkedIn ? "Attendance" : "Check in"}
+              </Link>
+            </TodayShiftCard>
+          ) : agencyTonight ? (
+            <TodayShiftCard
+              eyebrow="Tonight"
+              outlet={agencyTonight.outlet}
+              date={agencyTonight.date}
+              time={agencyTonight.shift}
+              badge={
+                <PrStatusPill
+                  variant={
+                    ["scheduled", "on-duty", "en-route"].includes(agencyTonight.status)
+                      ? "green"
+                      : "amber"
+                  }
+                >
+                  {["scheduled", "on-duty", "en-route"].includes(agencyTonight.status)
+                    ? "Scheduled"
+                    : "Pending"}
+                </PrStatusPill>
+              }
+            />
+          ) : (
+            <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
+              No shift scheduled for today.
+            </p>
+          )}
+        </PrSection>
+
+        <PrSection
+          id="pr-hub-todo"
+          title="To-do"
+          collapsible
+          open={hubSectionsOpen.todo}
+          onOpenChange={(open) => setHubSectionOpen("todo", open)}
+        >
+          {todoCount === 0 ? (
+            <p className="iz-tiny iz-muted2 rounded-xl border border-dashed border-[var(--iz-line)] px-4 py-6 text-center">
+              Nothing to do
+            </p>
+          ) : (
+            <div className="iz-pr-list">
+              {todoPvs.map((pv) => (
+                <TodoActionCard
+                  key={pv.id}
+                  icon={<FileText className="h-4 w-4" />}
+                  title="Review payment voucher"
+                  subtitle={`${pv.outlet} · ${pv.cycle} · ${formatRM(pv.net)}`}
+                  actionLabel="Review PV"
+                  to="/host/PaymentVoucher"
+                  search={{ pvId: pv.id }}
+                />
+              ))}
+              {pendingServices.map((row) => (
+                <div key={row.id} className="iz-pr-todo-service">
+                  <SpecialServiceOrderCard
+                    row={row}
+                    role="pr"
+                    onAccept={acceptSpecialServiceByPr}
+                    onDecline={declineSpecialServiceByPr}
+                  />
+                </div>
+              ))}
+              {swapOffers.map((offer) => (
+                <InboxCard
+                  key={offer.id}
+                  title={offer.outlet}
+                  subtitle={`Cover for ${offer.requestingPrName} · ${offer.date} · ${offer.shift}`}
+                  onApprove={() => acceptSwapReplacement(offer.id)}
+                  onReject={() => {
+                    setSwapRejectId(offer.id);
+                    setSwapRejectReason("");
+                  }}
+                />
+              ))}
+              {outletPendingShifts.map((slot) => (
+                <div key={slot.id} className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
+                  <PrOfferRow
+                    title={slot.outlet}
+                    subtitle={`${slot.date} · ${slot.shift} · Agency assigned — awaiting outlet roster sync`}
+                    badge={<PrStatusPill variant="amber">Outlet pending</PrStatusPill>}
+                  />
+                </div>
+              ))}
+              {pendingApproval && (
+                <div className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
+                  <PrOfferRow
+                    title="Agency assignment"
+                    subtitle="Your agency is finalizing this shift — no action needed from you"
+                    badge={<PrStatusPill variant="amber">Pending</PrStatusPill>}
+                  />
+                </div>
+              )}
+              {!tied && prMarketplaceApplication?.status === "pending" && (
+                <div className="iz-pr-inbox-card border-[rgba(244,183,64,.35)]">
+                  <PrOfferRow
+                    title="Marketplace application"
+                    subtitle="Pending"
+                    badge={<PrStatusPill variant="amber">Pending</PrStatusPill>}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </PrSection>
+
+        {tied && (
+          <PrSection
+            id="pr-hub-agency"
+            title="Agency schedule"
+            collapsible
+            open={hubSectionsOpen.agency}
+            onOpenChange={(open) => setHubSectionOpen("agency", open)}
+          >
+            <PrAgencySchedulePanel
+              prId={myRosterId}
+              roster={agencyRoster}
+              upcoming={prUpcomingShifts}
+              onCancelShift={(entry, reason) => {
+                if (entry.slot) {
+                  cancelPrRosterShift(entry.slot.id, reason);
+                } else if (entry.upcoming) {
+                  cancelPrUpcomingShift(entry.upcoming.id, reason);
+                }
+              }}
+            />
+          </PrSection>
+        )}
+
+        {!tied && (
+          <PrSection
+            id="pr-hub-openShifts"
+            title="Open shifts"
+            collapsible
+            open={hubSectionsOpen.openShifts}
+            onOpenChange={(open) => setHubSectionOpen("openShifts", open)}
+            trailing={
+              <button
+                type="button"
+                className="iz-outlet-quick-chip !py-1"
+                onClick={() => setFiltersOpen(true)}
+              >
+                <Filter className="h-3 w-3" /> Filter
+              </button>
+            }
+          >
+            <div className="iz-pr-list">
+              {filteredMarketplace.map((l) => (
+                <div key={l.id} className="iz-pr-inbox-card">
+                  <PrOfferRow
+                    title={l.outlet}
+                    subtitle={`${fmtDFriendly(l.date[0], l.date[1], l.date[2])} · ${l.time} · ${l.area}`}
+                    amount={formatRM(l.rate)}
+                    onClick={hideOfferActions ? undefined : () => setConfirmMktId(l.id)}
+                  />
+                  {!hideOfferActions && (
+                    <PrOfferRowActions
+                      primaryLabel="Apply"
+                      onPrimary={() => setConfirmMktId(l.id)}
+                      onSecondary={() => declinePrOffer(l.id)}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </PrSection>
+        )}
+      </div>
 
       <IzSheet open={confirmMkt !== null} onClose={() => setConfirmMktId(null)}>
         {confirmMkt && (
@@ -854,6 +815,12 @@ function TodayShiftCard({
             <LabelWithIcon label="Time" className="iz-pr-shift-card__fact-k" />
           </dt>
           <dd className="iz-pr-shift-card__fact-v">{time}</dd>
+        </div>
+        <div className="iz-pr-shift-card__fact">
+          <dt>
+            <LabelWithIcon label="Address" className="iz-pr-shift-card__fact-k" />
+          </dt>
+          <dd className="iz-pr-shift-card__fact-v">{getOutletStreetAddress(outlet)}</dd>
         </div>
       </dl>
       {footnote && <p className="iz-pr-shift-card__event">{footnote}</p>}

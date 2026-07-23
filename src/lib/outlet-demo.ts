@@ -19,6 +19,7 @@ import {
   type OutletTierRateSettings,
 } from "@/lib/agency-demo";
 import { DEFAULT_PER_DRINK_RM, DEFAULT_PER_TABLE_RM } from "@/lib/outlet-financial-sync";
+import type { OutletCatalogCategory } from "@/lib/outlet-drink-menu";
 import {
   DEFAULT_PENALTY_RULES,
   normalizePenaltyRules,
@@ -378,16 +379,24 @@ export interface OutletDrinkPrice {
   id: string;
   name: string;
   priceRm: number;
+  /** Catalog section — drinks, agency service items, or tips. Defaults to "drinks". */
+  category?: OutletCatalogCategory;
 }
 
 export const DEFAULT_OUTLET_DRINK_MENU: OutletDrinkPrice[] = [
-  { id: "booking-com", name: "Booking commission", priceRm: DEFAULT_PER_TABLE_RM },
-  { id: "cosmo", name: "Cosmo", priceRm: 150 },
-  { id: "heradura-anejo-ultra", name: "Heradura anejo ultra", priceRm: 150 },
-  { id: "laddies-drink", name: "Laddies drink", priceRm: 150 },
-  { id: "dom-perignon", name: "Dom perignon", priceRm: 200 },
-  { id: "donjulio", name: "Donjulio", priceRm: 200 },
-  { id: "havoc", name: "Havoc", priceRm: 1000 },
+  { id: "cosmo", name: "Cosmo", priceRm: 150, category: "drinks" },
+  { id: "heradura-anejo-ultra", name: "Heradura anejo ultra", priceRm: 150, category: "drinks" },
+  { id: "laddies-drink", name: "Laddies drink", priceRm: 150, category: "drinks" },
+  { id: "dom-perignon", name: "Dom perignon", priceRm: 200, category: "drinks" },
+  { id: "donjulio", name: "Donjulio", priceRm: 200, category: "drinks" },
+  {
+    id: "booking-com",
+    name: "Booking commission",
+    priceRm: DEFAULT_PER_TABLE_RM,
+    category: "service",
+  },
+  { id: "havoc", name: "Havoc", priceRm: 1000, category: "service" },
+  { id: "tip", name: "Tip", priceRm: 50, category: "tips" },
 ];
 
 const BOOKING_COMMISSION_MENU_ID = "booking-com";

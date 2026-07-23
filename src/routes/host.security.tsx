@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { AppTopbar } from "@/components/Nav";
+import { usePrTopbar } from "@/components/pr/PrChrome";
 import { PrSecuritySettingsSheets } from "@/components/pr/PrSecuritySettingsSheets";
 import { IzCard, IzPageTitle } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
@@ -50,10 +50,10 @@ function SecuritySettingsPage() {
     goToWelcome();
   };
 
+  usePrTopbar({ backTo: "/host/profile", backLabel: "Profile" });
+
   return (
     <div className="iz-screen">
-      <AppTopbar backTo="/host/profile" backLabel="Profile" />
-
       <header className="mb-2">
         <IzPageTitle>Security settings</IzPageTitle>
         <p className="iz-tiny iz-muted mt-0.5">{profile.name}</p>
@@ -105,10 +105,18 @@ function SecuritySettingsPage() {
           action cannot be undone in the prototype.
         </p>
         <div className="iz-sheet-actions mt-4">
-          <button type="button" className="iz-btn iz-btn-soft flex-1" onClick={() => setDeleteOpen(false)}>
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft flex-1"
+            onClick={() => setDeleteOpen(false)}
+          >
             Cancel
           </button>
-          <button type="button" className="iz-btn iz-btn-danger flex-1" onClick={confirmDeleteAccount}>
+          <button
+            type="button"
+            className="iz-btn iz-btn-danger flex-1"
+            onClick={confirmDeleteAccount}
+          >
             Delete account
           </button>
         </div>

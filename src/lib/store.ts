@@ -28,6 +28,7 @@ import {
   receiptScanFingerprint,
   buildManualReceiptItems,
   resolveManualSelfLogItems,
+  buildSelfLogItemsFromMenu,
   manualSelfLogTotal,
   receiptScanCategory,
   buildPaymentVoucherFromShift,
@@ -53,9 +54,19 @@ import { writePersistedPrSubRole } from "@/lib/use-pr-sub-role";
 import { DEMO_SOS_LOCATION, type OpsNotification, type SosIncident } from "@/lib/ops-notifications";
 import {
   buildPosIntegrationAdminNotification,
+  buildPrShiftCancelAdminNotification,
   type AdminNotification,
   type PosIntegrationQuoteRequest,
 } from "@/lib/admin-notifications";
+import {
+  PR_LEAVE_KIND_LABEL,
+  PR_LEAVE_KIND_SHORT,
+  pickBackfillPrName,
+  prHasActiveLeaveForSlot,
+  type PrLeaveKind,
+  type PrLeaveRequest,
+} from "@/lib/pr-leave";
+import { findWeekDayReview, type PrWeekDayReview } from "@/lib/pr-week-review";
 import {
   applyPushEvent,
   DEFAULT_NOTIFICATION_PREFS,
@@ -541,6 +552,16 @@ interface StoreState {
   } | null;
   prUpcomingShifts: PrUpcomingShift[];
   prSwapRequests: PrSwapRequest[];
+  /** Shift-level MC / personal-leave requests, reviewed and released by the agency. */
+  prShiftLeaves: PrLeaveRequest[];
+  applyPrShiftLeave: (rosterSlotId: string, kind: PrLeaveKind, reason: string) => void;
+  approvePrShiftLeave: (leaveId: string) => void;
+  rejectPrShiftLeave: (leaveId: string, reason?: string) => void;
+  /** Per-day agency verify / dispute overlay for the running week. */
+  prWeekDayReviews: PrWeekDayReview[];
+  disputePrWeekDay: (dateIso: string, reason: string) => void;
+  verifyPrWeekDay: (prId: string, dateIso: string) => void;
+  resolvePrWeekDispute: (prId: string, dateIso: string, approve: boolean) => void;
   prAgencyTiedAt: string;
   prCheckInMeta: {
     late?: boolean;
@@ -687,7 +708,7 @@ interface StoreState {
   togglePrDayAvailability: (dateIso: string) => void;
   setPrDayUnavailable: (dateIso: string, note?: string) => void;
   clearPrDayUnavailable: (dateIso: string) => void;
-  cancelPrRosterShift: (rosterSlotId: string) => void;
+  cancelPrRosterShift: (rosterSlotId: string, reason?: string) => void;
   assignPrToOutlet: (input: {
     prId: string;
     outlet: string;
@@ -1477,6 +1498,8 @@ export const useStore = create<StoreState>()(
       prNotifications: [...SEED_PR_NOTIFICATIONS],
       opsNotifications: [],
       adminNotifications: [],
+      prShiftLeaves: [],
+      prWeekDayReviews: [],
       posIntegrationQuoteRequests: [],
       sosIncidents: [],
       notificationPrefs: { ...DEFAULT_NOTIFICATION_PREFS },
@@ -2434,17 +2457,24 @@ export const useStore = create<StoreState>()(
         }
         const manual = draft.manualSelfLog;
         const outletNorm = draft.outlet.replace(/\s+KL$/i, "").trim() || draft.outlet;
+        const workspaceMenu = get().outletWorkspace.drinkMenu ?? [];
+        const menuItems =
+          manual?.drinkQtys && workspaceMenu.length
+            ? buildSelfLogItemsFromMenu(workspaceMenu, manual.drinkQtys)
+            : null;
         const items = manual
-          ? resolveManualSelfLogItems(
-              {
-                category: manual.category === "tables" ? "drinks" : manual.category,
-                amount: manual.amount,
-                drinkId: manual.drinkId,
-                drinkQty: manual.drinkQty,
-                drinkQtys: manual.drinkQtys,
-              },
-              outletNorm,
-            )
+          ? menuItems && menuItems.length
+            ? menuItems
+            : resolveManualSelfLogItems(
+                {
+                  category: manual.category === "tables" ? "drinks" : manual.category,
+                  amount: manual.amount,
+                  drinkId: manual.drinkId,
+                  drinkQty: manual.drinkQty,
+                  drinkQtys: manual.drinkQtys,
+                },
+                outletNorm,
+              )
           : draft.items;
         const totalLogged = manual ? manualSelfLogTotal(items) : draft.totalLogged;
         const fingerprint = receiptScanFingerprint({
@@ -2596,19 +2626,26 @@ export const useStore = create<StoreState>()(
               : patch.category
             : receiptScanCategory(scan);
         const outlet = scan.outlet.replace(/\s+KL$/i, "").trim() || scan.outlet;
+        const workspaceMenu = get().outletWorkspace.drinkMenu ?? [];
+        const menuItems =
+          patch.drinkQtys && workspaceMenu.length
+            ? buildSelfLogItemsFromMenu(workspaceMenu, patch.drinkQtys)
+            : null;
         const items =
-          category === "drinks" && (patch.drinkQtys || (patch.drinkId && patch.drinkQty))
-            ? resolveManualSelfLogItems(
-                {
-                  category: "drinks",
-                  amount: patch.amount ?? 0,
-                  drinkId: patch.drinkId,
-                  drinkQty: patch.drinkQty,
-                  drinkQtys: patch.drinkQtys,
-                },
-                outlet,
-              )
-            : buildManualReceiptItems(category, patch.amount ?? 0);
+          menuItems && menuItems.length
+            ? menuItems
+            : category === "drinks" && (patch.drinkQtys || (patch.drinkId && patch.drinkQty))
+              ? resolveManualSelfLogItems(
+                  {
+                    category: "drinks",
+                    amount: patch.amount ?? 0,
+                    drinkId: patch.drinkId,
+                    drinkQty: patch.drinkQty,
+                    drinkQtys: patch.drinkQtys,
+                  },
+                  outlet,
+                )
+              : buildManualReceiptItems(category, patch.amount ?? 0);
         const amount = manualSelfLogTotal(items);
         if (amount <= 0) {
           get().toast(
@@ -3606,7 +3643,7 @@ export const useStore = create<StoreState>()(
         if (!prDayIsUnavailable(daySlots)) return;
         get().togglePrDayAvailability(dateIso);
       },
-      cancelPrRosterShift: (rosterSlotId) => {
+      cancelPrRosterShift: (rosterSlotId, reason) => {
         const st = get();
         const prId = getPrRosterId(st.prSubRole);
         const slot = st.agencyRoster.find((s) => s.id === rosterSlotId);
@@ -3686,6 +3723,320 @@ export const useStore = create<StoreState>()(
           outlet: slot.outlet,
           detail: `PR cancelled shift${evalResult.deductionRm > 0 ? ` · −RM ${evalResult.deductionRm}` : ""}`,
         });
+        const adminNote = buildPrShiftCancelAdminNotification({
+          prName: slot.prName,
+          outlet: slot.outlet,
+          dateLabel: slot.dateIso,
+          deductionRm: evalResult.deductionRm,
+          reason: reason?.trim() ?? "",
+          at: stamp,
+        });
+        set((cur) => ({ adminNotifications: [adminNote, ...cur.adminNotifications] }));
+      },
+      applyPrShiftLeave: (rosterSlotId, kind, reason) => {
+        const st = get();
+        const prId = getPrRosterId(st.prSubRole);
+        const slot = st.agencyRoster.find((s) => s.id === rosterSlotId);
+        if (!slot || slot.prId !== prId) return;
+        if (!reason.trim()) {
+          get().toast("Add a reason first", "warn");
+          return;
+        }
+        if (prHasActiveLeaveForSlot(st.prShiftLeaves, prId, slot.dateIso, slot.outlet)) {
+          get().toast("You already submitted an MC / leave for this shift", "info");
+          return;
+        }
+        const at = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const req: PrLeaveRequest = {
+          id: `leave-${Date.now().toString(36)}`,
+          prId,
+          prName: slot.prName,
+          outlet: slot.outlet,
+          dateIso: slot.dateIso,
+          dateLabel: slot.dateIso,
+          shift: slot.shift,
+          rosterSlotId: slot.id,
+          kind,
+          reason: reason.trim(),
+          status: "pending",
+          at,
+        };
+        const kindLabel = PR_LEAVE_KIND_LABEL[kind];
+        set((cur) => ({
+          prShiftLeaves: [req, ...cur.prShiftLeaves],
+          // Notify the agency ops console — same "notifies your agency" path as cancel.
+          opsNotifications: [
+            {
+              id: `ops-leave-${req.id}`,
+              portal: "agency" as const,
+              kind: "shift_edit" as const,
+              title: `PR ${PR_LEAVE_KIND_SHORT[kind]} request`,
+              body: `${req.prName} requested ${kindLabel} for ${req.outlet} · ${req.dateLabel} — review & approve`,
+              at,
+              read: false,
+              href: "/agency/pending",
+              prName: req.prName,
+              outlet: req.outlet,
+            },
+            ...cur.opsNotifications,
+          ],
+        }));
+        get().toast(`${kindLabel} submitted — waiting for agency approval`, "success");
+      },
+      approvePrShiftLeave: (leaveId) => {
+        const st = get();
+        const req = st.prShiftLeaves.find((r) => r.id === leaveId);
+        if (!req || req.status !== "pending") return;
+        const at = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        // MC backfill: pick the nearest available PR the agency/outlet should call.
+        const backfillPrName =
+          req.kind === "mc"
+            ? pickBackfillPrName(
+                st.agencyPRs.map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  place: p.place,
+                  suspended: p.suspended,
+                  detached: p.detached,
+                })),
+                { excludePrId: req.prId },
+              )
+            : undefined;
+        set((cur) => ({
+          prShiftLeaves: cur.prShiftLeaves.map((r) =>
+            r.id === leaveId
+              ? { ...r, status: "approved" as const, respondedAt: at, backfillPrName }
+              : r,
+          ),
+          // Approving releases the PR from the shift — no penalty.
+          agencyRoster: req.rosterSlotId
+            ? cur.agencyRoster.map((s) =>
+                s.id === req.rosterSlotId
+                  ? {
+                      ...s,
+                      status: "unavailable" as const,
+                      payDeductionRm: 0,
+                      cancelledAt: at,
+                      prUnavailableNote: `On approved ${PR_LEAVE_KIND_SHORT[req.kind]}`,
+                    }
+                  : s,
+              )
+            : cur.agencyRoster,
+          prNotifications: [
+            {
+              id: `prn-leave-ok-${req.id}`,
+              kind: "assignment" as const,
+              title: `${PR_LEAVE_KIND_LABEL[req.kind]} approved`,
+              body: `Your ${PR_LEAVE_KIND_LABEL[req.kind]} for ${req.outlet} · ${req.dateLabel} is approved — you're released from this shift.`,
+              at,
+              read: false,
+              prId: req.prId,
+            },
+            ...cur.prNotifications,
+          ],
+        }));
+        // MC automation: remind the outlet + agency to backfill the empty slot.
+        if (req.kind === "mc") {
+          const fill = backfillPrName
+            ? `Nearest available PR: ${backfillPrName} — call to fill.`
+            : "No nearby PR free — assign manually.";
+          set((cur) => ({
+            opsNotifications: [
+              {
+                id: `ops-fill-agency-${req.id}`,
+                portal: "agency" as const,
+                kind: "shift_edit" as const,
+                title: "MC backfill needed",
+                body: `${req.outlet} · ${req.dateLabel} open after ${req.prName} MC. ${fill}`,
+                at,
+                read: false,
+                href: "/agency/roster",
+                outlet: req.outlet,
+              },
+              {
+                id: `ops-fill-outlet-${req.id}`,
+                portal: "outlet" as const,
+                kind: "shift_edit" as const,
+                title: "Shift slot open — PR on MC",
+                body: `${req.prName} is on MC for ${req.dateLabel}. ${fill}`,
+                at,
+                read: false,
+                outlet: req.outlet,
+              },
+              ...cur.opsNotifications,
+            ],
+          }));
+        }
+        get().toast(
+          `${PR_LEAVE_KIND_LABEL[req.kind]} approved — PR released${req.kind === "mc" ? " · backfill alert sent" : ""}`,
+          "success",
+        );
+      },
+      rejectPrShiftLeave: (leaveId, reason) => {
+        const st = get();
+        const req = st.prShiftLeaves.find((r) => r.id === leaveId);
+        if (!req || req.status !== "pending") return;
+        const at = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        set((cur) => ({
+          prShiftLeaves: cur.prShiftLeaves.map((r) =>
+            r.id === leaveId ? { ...r, status: "rejected" as const, respondedAt: at } : r,
+          ),
+          prNotifications: [
+            {
+              id: `prn-leave-no-${req.id}`,
+              kind: "assignment" as const,
+              title: `${PR_LEAVE_KIND_LABEL[req.kind]} declined`,
+              body: `Your ${PR_LEAVE_KIND_LABEL[req.kind]} for ${req.outlet} · ${req.dateLabel} was declined${reason ? `: ${reason}` : ""}. You are still on this shift.`,
+              at,
+              read: false,
+              prId: req.prId,
+            },
+            ...cur.prNotifications,
+          ],
+        }));
+        get().toast(`${PR_LEAVE_KIND_LABEL[req.kind]} declined`, "warn");
+      },
+      disputePrWeekDay: (dateIso, reason) => {
+        const st = get();
+        const prId = getPrRosterId(st.prSubRole);
+        if (!reason.trim()) {
+          get().toast("Add a dispute reason first", "warn");
+          return;
+        }
+        const existing = findWeekDayReview(st.prWeekDayReviews, prId, dateIso);
+        if (existing?.agencyVerified) {
+          get().toast("This day is verified & locked — it can no longer be disputed", "warn");
+          return;
+        }
+        const at = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const prName =
+          st.agencyPRs.find((p) => p.id === prId)?.name ?? getPrProfile(st.prSubRole).name;
+        const next: PrWeekDayReview = {
+          ...(existing ?? { prId, dateIso, agencyVerified: false }),
+          disputeReason: reason.trim(),
+          disputeStatus: "pending",
+          disputeAt: at,
+          disputeResolvedAt: undefined,
+        };
+        set((cur) => ({
+          prWeekDayReviews: [
+            next,
+            ...cur.prWeekDayReviews.filter((r) => !(r.prId === prId && r.dateIso === dateIso)),
+          ],
+          opsNotifications: [
+            {
+              id: `ops-wkdisp-${prId}-${dateIso}-${Date.now().toString(36)}`,
+              portal: "agency" as const,
+              kind: "dispute_raised" as const,
+              title: "PR disputed a shift day",
+              body: `${prName} disputed ${dateIso}: ${reason.trim()} — review this week`,
+              at,
+              read: false,
+              href: "/agency/pv",
+              prName,
+            },
+            ...cur.opsNotifications,
+          ],
+        }));
+        get().toast("Dispute sent to your agency for this week", "success");
+      },
+      verifyPrWeekDay: (prId, dateIso) => {
+        const st = get();
+        const existing = findWeekDayReview(st.prWeekDayReviews, prId, dateIso);
+        if (existing?.disputeStatus === "pending") {
+          get().toast("Resolve the dispute on this day before verifying", "warn");
+          return;
+        }
+        if (existing?.agencyVerified) return;
+        const at = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const next: PrWeekDayReview = {
+          ...(existing ?? { prId, dateIso }),
+          prId,
+          dateIso,
+          agencyVerified: true,
+          verifiedAt: at,
+        };
+        set((cur) => ({
+          prWeekDayReviews: [
+            next,
+            ...cur.prWeekDayReviews.filter((r) => !(r.prId === prId && r.dateIso === dateIso)),
+          ],
+          prNotifications: [
+            {
+              id: `prn-verify-${prId}-${dateIso}-${Date.now().toString(36)}`,
+              kind: "pv" as const,
+              title: "Shift day verified",
+              body: `Your agency verified ${dateIso} — it's locked into this week's PV.`,
+              at,
+              read: false,
+              prId,
+            },
+            ...cur.prNotifications,
+          ],
+        }));
+        get().toast(`Verified ${dateIso} — dispute window locked`, "success");
+      },
+      resolvePrWeekDispute: (prId, dateIso, approve) => {
+        const st = get();
+        const existing = findWeekDayReview(st.prWeekDayReviews, prId, dateIso);
+        if (!existing || existing.disputeStatus !== "pending") return;
+        const at = new Date().toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const next: PrWeekDayReview = {
+          ...existing,
+          disputeStatus: approve ? "approved" : "rejected",
+          disputeResolvedAt: at,
+        };
+        set((cur) => ({
+          prWeekDayReviews: cur.prWeekDayReviews.map((r) =>
+            r.prId === prId && r.dateIso === dateIso ? next : r,
+          ),
+          prNotifications: [
+            {
+              id: `prn-disp-res-${prId}-${dateIso}-${Date.now().toString(36)}`,
+              kind: "pv" as const,
+              title: approve ? "Dispute approved" : "Dispute declined",
+              body: `Your agency ${approve ? "approved" : "declined"} the dispute for ${dateIso}.`,
+              at,
+              read: false,
+              prId,
+            },
+            ...cur.prNotifications,
+          ],
+        }));
+        get().toast(
+          `Dispute ${approve ? "approved" : "declined"} for ${dateIso}`,
+          approve ? "success" : "warn",
+        );
       },
       declineOutletSwapByPr: (rosterSlotId) => {
         const slot = get().agencyRoster.find((s) => s.id === rosterSlotId);
@@ -5852,6 +6203,8 @@ export const useStore = create<StoreState>()(
           prMarketplaceApplication: s.prMarketplaceApplication,
           prUpcomingShifts: s.prUpcomingShifts,
           prSwapRequests: s.prSwapRequests,
+          prShiftLeaves: s.prShiftLeaves,
+          prWeekDayReviews: s.prWeekDayReviews,
           prAgencyTiedAt: s.prAgencyTiedAt,
           prCheckInMeta: s.prCheckInMeta,
           prLeaveRequest: s.prLeaveRequest,
@@ -6164,6 +6517,8 @@ export const useStore = create<StoreState>()(
             current.prSwapRequests,
             mergeAgencyRoster(p?.agencyRoster, demoSnapshot.agencyRoster),
           ),
+          prShiftLeaves: p?.prShiftLeaves ?? current.prShiftLeaves ?? [],
+          prWeekDayReviews: p?.prWeekDayReviews ?? current.prWeekDayReviews ?? [],
           prAgencyTiedAt: p?.prAgencyTiedAt ?? current.prAgencyTiedAt,
           prCheckInMeta: p?.prCheckInMeta ?? current.prCheckInMeta,
           prAvatarPhoto: migratePrPortfolioAssetPath(p?.prAvatarPhoto ?? current.prAvatarPhoto),

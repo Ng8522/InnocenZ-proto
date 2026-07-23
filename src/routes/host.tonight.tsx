@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { AppTopbar } from "@/components/Nav";
+import { usePrTopbar } from "@/components/pr/PrChrome";
 import { PrShiftCancellationSheet } from "@/components/pr/PrShiftCancellationSheet";
 import { PrShiftStatusPanel } from "@/components/pr/PrShiftStatusPanel";
 import { PrShiftOutletBriefCard } from "@/components/pr/PrShiftOutletBrief";
@@ -62,13 +62,7 @@ function AttendancePage() {
   );
 
   const shiftOffer = useMemo(
-    () =>
-      resolvePrShiftOfferForPr(
-        agencyRoster,
-        prId,
-        acceptedShiftIndex,
-        shifts,
-      ),
+    () => resolvePrShiftOfferForPr(agencyRoster, prId, acceptedShiftIndex, shifts),
     [agencyRoster, prId, acceptedShiftIndex, shifts],
   );
   const venueName = shiftOffer.outlet;
@@ -90,13 +84,7 @@ function AttendancePage() {
   const prTier = prAgencyRow?.trainingLevel;
 
   const outletShift = useMemo(
-    () =>
-      findOutletShiftForPr(
-        shifts,
-        venueName,
-        prId,
-        prMarketplaceApplication?.shiftId,
-      ),
+    () => findOutletShiftForPr(shifts, venueName, prId, prMarketplaceApplication?.shiftId),
     [shifts, venueName, prId, prMarketplaceApplication?.shiftId],
   );
   const tierSalesTargetRm = useMemo(
@@ -172,19 +160,19 @@ function AttendancePage() {
     }, 60);
   };
 
+  usePrTopbar({
+    onBack: () => {
+      if (cancelOpen) {
+        setCancelOpen(false);
+        return;
+      }
+      return false;
+    },
+    backLabel: cancelOpen ? "Attendance" : undefined,
+  });
+
   return (
     <div className="iz-screen">
-      <AppTopbar
-        onBack={() => {
-          if (cancelOpen) {
-            setCancelOpen(false);
-            return;
-          }
-          return false;
-        }}
-        backLabel={cancelOpen ? "Attendance" : undefined}
-      />
-
       {shiftAccepted ? (
         <div className="pt-1">
           <PrShiftOutletBriefCard
@@ -211,9 +199,15 @@ function AttendancePage() {
         {!shiftAccepted && (
           <div className="iz-pr-note py-6 text-center">
             <Calendar className="mx-auto mb-2 h-5 w-5 text-[var(--iz-muted)]" />
-            <p className="iz-sm iz-muted">Your agency will assign your shift — check in when assigned.</p>
+            <p className="iz-sm iz-muted">
+              Your agency will assign your shift — check in when assigned.
+            </p>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <Link to="/host" search={{ view: "shifts" }} className="iz-btn iz-btn-soft iz-btn-sm w-auto">
+              <Link
+                to="/host"
+                search={{ view: "shifts" }}
+                className="iz-btn iz-btn-soft iz-btn-sm w-auto"
+              >
                 View schedule
               </Link>
               <button

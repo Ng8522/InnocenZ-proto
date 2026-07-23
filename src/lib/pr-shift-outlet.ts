@@ -60,6 +60,11 @@ const OUTLET_META: Record<
 
 const DEFAULT_META = OUTLET_META["Velvet 23"];
 
+/** Full street address for an outlet — falls back to the default outlet's street. */
+export function getOutletStreetAddress(outlet: string): string {
+  return (OUTLET_META[outlet] ?? DEFAULT_META).street;
+}
+
 /** Check-in hero — agency assigns; outlets may request PRs but cannot assign directly. */
 export function getPrCheckInAssignmentLabel(slot: AgencyRosterSlot | undefined): string {
   if (!slot) return "Tonight's shift";

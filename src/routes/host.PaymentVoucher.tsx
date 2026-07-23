@@ -18,6 +18,7 @@ import {
 } from "@/lib/pr-demo";
 import { PvSummaryView } from "@/components/iz/PvSummaryView";
 import { PrWeeklyPaymentWeekCard } from "@/components/pr/PrWeeklyPaymentWeekCard";
+import { applyWeekDayReviews, weekDayReviewsForPr } from "@/lib/pr-week-review";
 import { PrWeeklyPaymentGrid } from "@/components/pr/PrWeeklyPaymentGrid";
 import { PrPvDisputeSheet } from "@/components/pr/PrPvDisputeSheet";
 import {
@@ -39,7 +40,7 @@ import { usePrPortalReady } from "@/lib/use-pr-sub-role";
 import { FileText, Check, Shield, Star, Clock, ChevronDown } from "lucide-react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { AppTopbar } from "@/components/Nav";
+import { usePrTopbar } from "@/components/pr/PrChrome";
 import { useStore } from "@/lib/store";
 import { IzSheet } from "@/components/iz/Sheet";
 import { PrSignaturePad } from "@/components/pr/PrSignaturePad";
@@ -60,7 +61,6 @@ function PaymentPage() {
   if (!ready || !prSubRole) {
     return (
       <div className="iz-screen">
-        <AppTopbar />
         <div className="flex flex-1 flex-col items-center justify-center gap-2 py-20">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--iz-line)] border-t-[var(--iz-gold)]" />
           <p className="iz-tiny iz-muted">Loading payment…</p>
@@ -88,6 +88,8 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
   const withdrawPrPvDispute = useStore((s) => s.withdrawPrPvDispute);
   const ensurePreviousWeekPv = useStore((s) => s.ensurePreviousWeekPv);
   const toast = useStore((s) => s.toast);
+  const prWeekDayReviews = useStore((s) => s.prWeekDayReviews);
+  const disputePrWeekDay = useStore((s) => s.disputePrWeekDay);
   const [detailId, setDetailId] = useState<string | null>(searchPvId ?? null);
   const [weekTab, setWeekTab] = useState<"last" | "current">("last");
 
@@ -165,6 +167,15 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
     [currentWeekPv, weekBounds.endIso, shiftHistory, myReceiptScans, prId],
   );
 
+  const currentWeekReviews = useMemo(
+    () => weekDayReviewsForPr(prWeekDayReviews, prId),
+    [prWeekDayReviews, prId],
+  );
+  const currentWeekDisplay = useMemo(
+    () => applyWeekDayReviews(currentWeekSummary, currentWeekReviews),
+    [currentWeekSummary, currentWeekReviews],
+  );
+
   useEffect(() => {
     if (searchPvId) setDetailId(searchPvId);
   }, [searchPvId]);
@@ -206,10 +217,12 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
     }
   }, [detailId, pv, navigate]);
 
+  const showingPvDetail = pv != null && isPrPaymentActionPv(pv);
+  usePrTopbar(showingPvDetail ? { onBack: closeDetail, backLabel: "Payment" } : {});
+
   if (pv && isPrPaymentActionPv(pv)) {
     return (
       <div className="iz-screen">
-        <AppTopbar onBack={closeDetail} backLabel="Payment" />
         <PvDetail
           pv={pv}
           profile={profile}
@@ -245,8 +258,6 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
 
   return (
     <div className="iz-screen">
-      <AppTopbar />
-
       <PrPageHeader
         label="Payroll"
         title="Payment"
@@ -319,11 +330,15 @@ function PaymentLoaded({ prSubRole, searchPvId }: { prSubRole: PrSubRole; search
       ) : (
         <PrWeeklyPaymentWeekCard
           title="This week"
-          summary={currentWeekSummary}
+          summary={currentWeekDisplay}
           weekPhase="open"
           defaultOpen
           pv={currentWeekActionPv}
           onOpenPv={openDetail}
+          onDispute={(reason, _photos, targets) => {
+            const iso = targets?.[0]?.dateIso;
+            if (iso) disputePrWeekDay(iso, reason);
+          }}
         />
       )}
     </div>

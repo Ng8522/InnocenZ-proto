@@ -8,24 +8,25 @@ export function PrPageHeader({
   meta,
   trailing,
 }: {
-  label: string;
+  label?: string;
   title: ReactNode;
   meta?: string;
   trailing?: React.ReactNode;
 }) {
+  const titleIconSource = typeof title === "string" ? title : label;
   return (
     <header className="iz-pr-page-header">
       <div className="iz-between items-start gap-3">
         <div className="min-w-0">
-          <p className="iz-pr-page-header__label">
-            <TitleWithIcon icon={iconForNav(label)} iconClassName="iz-title-icon--eyebrow">
-              {label}
-            </TitleWithIcon>
-          </p>
+          {label && (
+            <p className="iz-pr-page-header__label">
+              <TitleWithIcon icon={iconForNav(label)} iconClassName="iz-title-icon--eyebrow">
+                {label}
+              </TitleWithIcon>
+            </p>
+          )}
           <h2 className="iz-pr-page-header__title">
-            <TitleWithIcon
-              icon={iconForNav(typeof title === "string" ? title : label)}
-            >
+            <TitleWithIcon icon={titleIconSource ? iconForNav(titleIconSource) : null}>
               {title}
             </TitleWithIcon>
           </h2>

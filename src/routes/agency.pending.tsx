@@ -36,6 +36,7 @@ import {
   type ComcardPreviewData,
 } from "@/components/agency/Comcard3dPreview";
 import { cn } from "@/lib/utils";
+import { AgencyPrLeavePanel } from "@/components/agency/AgencyPrLeavePanel";
 
 function docImageSrc(src: string) {
   return src.startsWith("data:") ? src : publicAssetPath(src);
@@ -910,6 +911,7 @@ function AgencyPending() {
 
   return (
     <div className="iz-screen iz-approvals-page">
+      <AgencyPrLeavePanel />
       <div className="iz-approvals-layout">
         <aside className="iz-approvals-sidebar">
           <header className="iz-approvals-sidebar-head">

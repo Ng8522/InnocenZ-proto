@@ -1572,7 +1572,7 @@ export interface HistRow {
 }
 
 /** Receipt OCR line item */
-export type ReceiptItemCategory = "drinks" | "tips" | "tables" | "other";
+export type ReceiptItemCategory = "drinks" | "service" | "tips" | "tables" | "other";
 
 export interface PrReceiptItem {
   label: string;
@@ -1638,12 +1638,14 @@ export const RECEIPT_COMMISSION_RULES = {
   drinkPerUnit: 15,
   tablePerUnit: 60,
   tipRate: 1,
+  serviceRate: 1,
 } as const;
 
 export function calcReceiptCommissions(items: PrReceiptItem[]) {
   let drinkCommission = 0;
   let tipCommission = 0;
   let tableCommission = 0;
+  let serviceCommission = 0;
   for (const item of items) {
     if (item.category === "drinks")
       drinkCommission += item.qty * RECEIPT_COMMISSION_RULES.drinkPerUnit;
@@ -1651,12 +1653,15 @@ export function calcReceiptCommissions(items: PrReceiptItem[]) {
       tipCommission += item.amount * RECEIPT_COMMISSION_RULES.tipRate;
     else if (item.category === "tables")
       tableCommission += item.qty * RECEIPT_COMMISSION_RULES.tablePerUnit;
+    else if (item.category === "service")
+      serviceCommission += item.amount * RECEIPT_COMMISSION_RULES.serviceRate;
   }
   return {
     drinkCommission,
     tipCommission,
     tableCommission,
-    totalCommission: drinkCommission + tipCommission + tableCommission,
+    serviceCommission,
+    totalCommission: drinkCommission + tipCommission + tableCommission + serviceCommission,
   };
 }
 
@@ -1980,17 +1985,41 @@ export type ManualSelfLogInput = {
   drinkQtys?: Record<string, number>;
 };
 
+/** Catalog section (drinks/service/tips) → receipt-item commission category. */
+function catalogToReceiptCategory(item: {
+  category?: "drinks" | "service" | "tips";
+}): ReceiptItemCategory {
+  const cat = item.category ?? "drinks";
+  return cat === "drinks" ? "drinks" : cat === "service" ? "service" : "tips";
+}
+
+/** Build self-log receipt items from a catalog menu + per-item quantities. */
+export function buildSelfLogItemsFromMenu(
+  menu: { id: string; name: string; priceRm: number; category?: "drinks" | "service" | "tips" }[],
+  qtys: Record<string, number>,
+): PrReceiptItem[] {
+  const items: PrReceiptItem[] = [];
+  for (const drink of menu) {
+    const qty = Math.floor(qtys[drink.id] ?? 0);
+    if (qty <= 0) continue;
+    const safeQty = Math.max(1, qty);
+    const amount = Math.round(drink.priceRm * safeQty * 100) / 100;
+    items.push({
+      label: drink.name,
+      qty: safeQty,
+      unitPrice: drink.priceRm,
+      amount,
+      category: catalogToReceiptCategory(drink),
+    });
+  }
+  return items;
+}
+
 export function buildDrinkSelfLogItemsFromQtys(
   outlet: string,
   qtys: Record<string, number>,
 ): PrReceiptItem[] {
-  const menu = getDrinkMenuForOutlet(outlet);
-  const items: PrReceiptItem[] = [];
-  for (const drink of menu) {
-    const qty = Math.floor(qtys[drink.id] ?? 0);
-    if (qty > 0) items.push(...buildDrinkSelfLogItems(drink, qty));
-  }
-  return items;
+  return buildSelfLogItemsFromMenu(getDrinkMenuForOutlet(outlet), qtys);
 }
 
 export function resolveManualSelfLogItems(

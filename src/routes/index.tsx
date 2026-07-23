@@ -60,7 +60,7 @@ function Welcome() {
   };
 
   return (
-    <PhoneFrame showStatusBar>
+    <PhoneFrame>
       <div className="iz-welcome">
         <InnocenZLogoMark className="!mt-[26px]" />
 

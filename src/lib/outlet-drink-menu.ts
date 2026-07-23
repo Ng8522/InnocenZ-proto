@@ -1,20 +1,38 @@
 /** Per-outlet drink menus — no agency/pr imports (safe for pr-demo). */
 
+/** Catalog line category — drinks, agency service items, or tips. */
+export type OutletCatalogCategory = "drinks" | "service" | "tips";
+
 export interface OutletDrinkPrice {
   id: string;
   name: string;
   priceRm: number;
+  /** Which catalog section this line belongs to. Defaults to "drinks". */
+  category?: OutletCatalogCategory;
 }
 
 export const DEFAULT_OUTLET_DRINK_MENU: OutletDrinkPrice[] = [
-  { id: "booking-com", name: "Booking commission", priceRm: 100 },
-  { id: "cosmo", name: "Cosmo", priceRm: 150 },
-  { id: "heradura-anejo-ultra", name: "Heradura anejo ultra", priceRm: 150 },
-  { id: "laddies-drink", name: "Laddies drink", priceRm: 150 },
-  { id: "dom-perignon", name: "Dom perignon", priceRm: 200 },
-  { id: "donjulio", name: "Donjulio", priceRm: 200 },
-  { id: "havoc", name: "Havoc", priceRm: 1000 },
+  { id: "cosmo", name: "Cosmo", priceRm: 150, category: "drinks" },
+  { id: "heradura-anejo-ultra", name: "Heradura anejo ultra", priceRm: 150, category: "drinks" },
+  { id: "laddies-drink", name: "Laddies drink", priceRm: 150, category: "drinks" },
+  { id: "dom-perignon", name: "Dom perignon", priceRm: 200, category: "drinks" },
+  { id: "donjulio", name: "Donjulio", priceRm: 200, category: "drinks" },
+  { id: "booking-com", name: "Booking commission", priceRm: 100, category: "service" },
+  { id: "havoc", name: "Havoc", priceRm: 1000, category: "service" },
+  { id: "tip", name: "Tip", priceRm: 50, category: "tips" },
 ];
+
+/** Category of a catalog line, defaulting older/un-tagged lines to drinks. */
+export function catalogCategoryOf(item: OutletDrinkPrice): OutletCatalogCategory {
+  return item.category ?? "drinks";
+}
+
+export function catalogItemsByCategory(
+  menu: OutletDrinkPrice[],
+  category: OutletCatalogCategory,
+): OutletDrinkPrice[] {
+  return menu.filter((d) => catalogCategoryOf(d) === category);
+}
 
 /** Per-outlet drink menus — prices differ by venue */
 export const OUTLET_DRINK_MENUS: Record<string, OutletDrinkPrice[]> = {
@@ -48,7 +66,10 @@ export const OUTLET_DRINK_MENUS: Record<string, OutletDrinkPrice[]> = {
 const FALLBACK_DRINK_RM = 120;
 
 export function getDrinkMenuForOutlet(outlet: string): OutletDrinkPrice[] {
-  const trimmed = outlet.trim().replace(/\s+KL$/i, "").trim();
+  const trimmed = outlet
+    .trim()
+    .replace(/\s+KL$/i, "")
+    .trim();
   return (
     OUTLET_DRINK_MENUS[trimmed] ??
     OUTLET_DRINK_MENUS[outlet.trim()] ??

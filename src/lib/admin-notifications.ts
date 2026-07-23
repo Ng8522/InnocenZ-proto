@@ -2,7 +2,7 @@
 
 import type { OutletSubscriptionPlanId } from "@/lib/outlet-demo";
 
-export type AdminNotificationKind = "pos_integration_quote";
+export type AdminNotificationKind = "pos_integration_quote" | "pr_shift_cancel";
 
 export interface AdminNotification {
   id: string;
@@ -48,8 +48,31 @@ export function buildPosIntegrationAdminNotification(
   };
 }
 
+export function buildPrShiftCancelAdminNotification(args: {
+  prName: string;
+  outlet: string;
+  dateLabel: string;
+  deductionRm: number;
+  reason: string;
+  at: string;
+}): AdminNotification {
+  const penalty = args.deductionRm > 0 ? ` · −RM ${args.deductionRm} penalty` : " · no penalty";
+  return {
+    id: `admin-cancel-${Date.now().toString(36)}`,
+    kind: "pr_shift_cancel",
+    title: "PR cancelled a shift",
+    body: `${args.prName} cancelled ${args.outlet} · ${args.dateLabel}${penalty}`,
+    at: args.at,
+    read: false,
+    href: "/admin/jobs",
+    outlet: args.outlet,
+    contactLine: args.reason ? `Reason: ${args.reason}` : undefined,
+  };
+}
+
 export function adminNotificationKindLabel(kind: AdminNotificationKind): string {
   if (kind === "pos_integration_quote") return "POS integration";
+  if (kind === "pr_shift_cancel") return "Shift cancellation";
   return "Admin alert";
 }
 

@@ -12,6 +12,7 @@ import { deriveLiveWorkforce } from "@/lib/portal-sync";
 import { ownedByAgency, rosterSlotsForAgency } from "@/lib/agency-demo";
 import { getAgencyManagedPvs } from "@/lib/agency-payroll";
 import { cutlostRequestTitle } from "@/lib/outlet-cutlost-requests";
+import { pendingPrLeaveRequests, PR_LEAVE_KIND_LABEL } from "@/lib/pr-leave";
 import { DEFAULT_ROSTER_DATE_ISO } from "@/lib/roster-availability";
 
 type HubTab = "on-duty" | "approvals" | "review" | "disputes";
@@ -44,6 +45,7 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
   const perDrinkRm = useStore((s) => s.outletWorkspace.perDrinkRm);
   const pendingPRs = useStore((s) => s.pendingPRs);
   const pendingCutlostRequests = useStore((s) => s.pendingCutlostRequests);
+  const prShiftLeaves = useStore((s) => s.prShiftLeaves);
   const allPrPaymentVouchers = useStore((s) => s.prPaymentVouchers ?? []);
   // Tenant scoping — PVs attributed via OWNED PRs so Delta's tiles never count Atlas PVs.
   const prPaymentVouchers = useMemo(
@@ -80,12 +82,13 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
     (p) => p.status === "pending" && (p.agencyId ?? "atlas") === activeAgencyId,
   );
   const cutlostRequests = pendingCutlostRequests.filter((r) => r.status === "pending");
+  const leaveRequests = pendingPrLeaveRequests(prShiftLeaves);
   const pendingReview = prPaymentVouchers.filter((p) => p.status === "PENDING_REVIEW");
   const disputes = prPaymentVouchers.filter((p) => p.status === "DISPUTED");
 
   const counts: Record<HubTab, number> = {
     "on-duty": workforce.length,
-    approvals: signups.length + cutlostRequests.length,
+    approvals: signups.length + cutlostRequests.length + leaveRequests.length,
     review: pendingReview.length,
     disputes: disputes.length,
   };
@@ -130,7 +133,7 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
             <h3 className="font-sora text-base font-bold">Pending approvals</h3>
             <HubPanelLink to="/agency/pending" label="Open approvals" />
           </div>
-          {signups.length + cutlostRequests.length === 0 ? (
+          {signups.length + cutlostRequests.length + leaveRequests.length === 0 ? (
             <p className="iz-tiny iz-muted px-4 py-6 text-center">Nothing awaiting approval.</p>
           ) : (
             <div className="iz-portal-table-wrap">
@@ -170,6 +173,23 @@ export function AgencyHomeHubTabs({ agencySubRole }: { agencySubRole: AgencySubR
                       <td className="iz-portal-table-meta">
                         {cutlostRequestTitle(req)} · ~RM{" "}
                         {Math.round(req.estimatedSavings).toLocaleString("en-MY")}
+                      </td>
+                    </PortalClickableTableRow>
+                  ))}
+                  {leaveRequests.map((req) => (
+                    <PortalClickableTableRow
+                      key={req.id}
+                      target={{ to: "/agency/pending", search: { tab: "leaves" } }}
+                    >
+                      <td>
+                        <div className="iz-portal-table-pr">
+                          <span className="iz-portal-table-av">{req.prName.trim()[0]}</span>
+                          <span className="iz-portal-table-name">{req.prName}</span>
+                        </div>
+                      </td>
+                      <td className="iz-portal-table-meta">{PR_LEAVE_KIND_LABEL[req.kind]}</td>
+                      <td className="iz-portal-table-meta">
+                        {req.outlet} · {req.dateLabel} · {req.shift}
                       </td>
                     </PortalClickableTableRow>
                   ))}

@@ -56,7 +56,18 @@ export function OpsNotificationBell({ portal }: { portal: OpsPortal }) {
     }
     setOpen(false);
     if (n.href) {
-      void navigate({ to: n.href });
+      const qIdx = n.href.indexOf("?");
+      if (qIdx === -1) {
+        void navigate({ to: n.href });
+      } else {
+        const path = n.href.slice(0, qIdx);
+        const params = new URLSearchParams(n.href.slice(qIdx + 1));
+        const search: Record<string, string> = {};
+        params.forEach((v, k) => {
+          search[k] = v;
+        });
+        void navigate({ to: path, search });
+      }
     }
   };
 

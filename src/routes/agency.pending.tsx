@@ -10,6 +10,7 @@ import { IzCard, IzPill } from "@/components/iz/ui";
 import { IzSheet } from "@/components/iz/Sheet";
 import {
   Calendar,
+  CalendarOff,
   Camera,
   Check,
   Clock,
@@ -18,6 +19,7 @@ import {
   Mail,
   Phone,
   Sparkles,
+  Stethoscope,
   TrendingDown,
   UserMinus,
   UserPlus,
@@ -36,7 +38,11 @@ import {
   type ComcardPreviewData,
 } from "@/components/agency/Comcard3dPreview";
 import { cn } from "@/lib/utils";
-import { AgencyPrLeavePanel } from "@/components/agency/AgencyPrLeavePanel";
+import {
+  pendingPrLeaveRequests,
+  PR_LEAVE_KIND_LABEL,
+  type PrLeaveRequest,
+} from "@/lib/pr-leave";
 
 function docImageSrc(src: string) {
   return src.startsWith("data:") ? src : publicAssetPath(src);
@@ -91,7 +97,7 @@ function PendingComcardVisual({
   );
 }
 
-type Tab = "signups" | "cutlost";
+type Tab = "signups" | "cutlost" | "leaves";
 
 const AVATAR_VARIANTS = ["rose", "sky", "violet", "amber", "mint"] as const;
 
@@ -778,6 +784,96 @@ function CutlostDetailPanel({
   );
 }
 
+function LeaveDetailPanel({
+  req,
+  onApprove,
+  onReject,
+}: {
+  req: PrLeaveRequest;
+  onApprove: () => void;
+  onReject: (reason: string) => void;
+}) {
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const isMc = req.kind === "mc";
+  const KindIcon = isMc ? Stethoscope : CalendarOff;
+
+  return (
+    <>
+      <div className="iz-approvals-detail-head">
+        <div className="iz-approvals-detail-profile">
+          <ApprovalsAvatar name={req.prName} id={req.id} size="lg" />
+          <div className="min-w-0">
+            <h2 className="iz-approvals-detail-name">{req.prName}</h2>
+            <p className="iz-approvals-detail-meta">
+              {req.outlet} · {req.dateLabel} · {req.shift}
+            </p>
+            <p className="iz-approvals-detail-meta mt-0.5">
+              <Clock className="mr-1 inline h-3 w-3" />
+              Requested {req.at}
+            </p>
+          </div>
+        </div>
+        <div className="iz-approvals-detail-actions">
+          <button
+            type="button"
+            className="iz-btn iz-btn-primary !py-2 !text-xs"
+            onClick={onApprove}
+          >
+            Approve & release
+          </button>
+          <button
+            type="button"
+            className="iz-btn iz-btn-soft !py-2 !text-xs"
+            onClick={() => setRejectOpen(true)}
+          >
+            Decline
+          </button>
+        </div>
+      </div>
+
+      <div className="iz-approvals-cutlost-summary">
+        <KindIcon
+          className={`h-4 w-4 shrink-0 ${isMc ? "text-[var(--iz-red)]" : "text-[var(--iz-amber)]"}`}
+        />
+        <div className="min-w-0">
+          <p className="font-sora text-sm font-bold text-[var(--iz-txt)]">
+            {PR_LEAVE_KIND_LABEL[req.kind]}
+          </p>
+          <p className="iz-tiny iz-muted2 mt-0.5">
+            No pay deduction. If approved early, PR is released from this shift
+            {isMc ? " and the outlet is nudged to backfill." : "."}
+          </p>
+        </div>
+      </div>
+
+      <div className="iz-approvals-info-chips mt-3">
+        <IzPill variant={isMc ? "red" : "amber"}>{PR_LEAVE_KIND_LABEL[req.kind]}</IzPill>
+        <IzPill variant="violet">{req.outlet}</IzPill>
+        <IzPill variant="violet">{req.dateLabel}</IzPill>
+        <IzPill variant="violet">{req.shift}</IzPill>
+      </div>
+
+      <div className="iz-approvals-info-card mt-3">
+        <h3 className="iz-approvals-info-title">Reason</h3>
+        <p className="iz-tiny iz-muted">{req.reason}</p>
+      </div>
+
+      <RejectSheet
+        open={rejectOpen}
+        title={`Decline ${PR_LEAVE_KIND_LABEL[req.kind]}`}
+        subtitle={`${req.prName} · ${req.outlet} · ${req.dateLabel}`}
+        placeholder="Reason for declining…"
+        confirmLabel="Confirm decline"
+        onClose={() => setRejectOpen(false)}
+        onConfirm={(reason) => {
+          onReject(reason);
+          setRejectOpen(false);
+        }}
+      />
+    </>
+  );
+}
+
 function LinkRequestDetailPanel({
   link,
   onApprove,
@@ -835,7 +931,10 @@ function LinkRequestDetailPanel({
 export const Route = createFileRoute("/agency/pending")({
   component: AgencyPending,
   validateSearch: (search: Record<string, unknown>): { tab?: Tab } => ({
-    tab: search.tab === "cutlost" ? "cutlost" : undefined,
+    tab:
+      search.tab === "cutlost" || search.tab === "leaves" || search.tab === "signups"
+        ? (search.tab as Tab)
+        : undefined,
   }),
 });
 
@@ -844,10 +943,13 @@ function AgencyPending() {
   const {
     pendingPRs,
     pendingCutlostRequests,
+    prShiftLeaves,
     approvePendingPR,
     rejectPendingPR,
     approveCutlostRequest,
     rejectCutlostRequest,
+    approvePrShiftLeave,
+    rejectPrShiftLeave,
     invitePendingPR,
     agencySubRole,
     pendingAgencyLinks,
@@ -863,6 +965,7 @@ function AgencyPending() {
   const [tab, setTab] = useState<Tab>("signups");
   const [selectedSignupId, setSelectedSignupId] = useState<string | null>(null);
   const [selectedCutlostId, setSelectedCutlostId] = useState<string | null>(null);
+  const [selectedLeaveId, setSelectedLeaveId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [invite, setInvite] = useState({ name: "", ic: "", mobile: "", email: "" });
 
@@ -881,6 +984,7 @@ function AgencyPending() {
     () => pendingCutlostRequests.filter((r) => r.status === "pending"),
     [pendingCutlostRequests],
   );
+  const leaveRequests = useMemo(() => pendingPrLeaveRequests(prShiftLeaves), [prShiftLeaves]);
 
   useEffect(() => {
     if (tab === "signups") {
@@ -888,16 +992,21 @@ function AgencyPending() {
         const ids = [...signups.map((s) => s.id), ...agencyLinkRequests.map((l) => l.id)];
         return id && ids.includes(id) ? id : (ids[0] ?? null);
       });
-    } else {
+    } else if (tab === "cutlost") {
       setSelectedCutlostId((id) =>
         id && cutlostRequests.some((r) => r.id === id) ? id : (cutlostRequests[0]?.id ?? null),
       );
+    } else {
+      setSelectedLeaveId((id) =>
+        id && leaveRequests.some((r) => r.id === id) ? id : (leaveRequests[0]?.id ?? null),
+      );
     }
-  }, [tab, signups, agencyLinkRequests, cutlostRequests]);
+  }, [tab, signups, agencyLinkRequests, cutlostRequests, leaveRequests]);
 
   const selectedSignup = signups.find((s) => s.id === selectedSignupId) ?? null;
   const selectedLink = agencyLinkRequests.find((l) => l.id === selectedSignupId) ?? null;
   const selectedCutlost = cutlostRequests.find((r) => r.id === selectedCutlostId) ?? null;
+  const selectedLeave = leaveRequests.find((r) => r.id === selectedLeaveId) ?? null;
 
   if (!agencyCan(agencySubRole, "approvePrSignups")) {
     return (
@@ -911,7 +1020,6 @@ function AgencyPending() {
 
   return (
     <div className="iz-screen iz-approvals-page">
-      <AgencyPrLeavePanel />
       <div className="iz-approvals-layout">
         <aside className="iz-approvals-sidebar">
           <header className="iz-approvals-sidebar-head">
@@ -935,6 +1043,13 @@ function AgencyPending() {
               onClick={() => setTab("cutlost")}
             >
               Cutlost ({cutlostRequests.length})
+            </button>
+            <button
+              type="button"
+              className={cn("iz-approvals-tab", tab === "leaves" && "on")}
+              onClick={() => setTab("leaves")}
+            >
+              MC/Leaves ({leaveRequests.length})
             </button>
           </div>
 
@@ -1007,31 +1122,68 @@ function AgencyPending() {
                   ))}
                 </>
               )
-            ) : cutlostRequests.length === 0 ? (
-              <p className="iz-tiny iz-muted px-1 py-4 text-center">No cutlost requests</p>
+            ) : tab === "cutlost" ? (
+              cutlostRequests.length === 0 ? (
+                <p className="iz-tiny iz-muted px-1 py-4 text-center">No cutlost requests</p>
+              ) : (
+                cutlostRequests.map((req) => (
+                  <button
+                    key={req.id}
+                    type="button"
+                    className={cn("iz-approvals-list-item", selectedCutlostId === req.id && "on")}
+                    onClick={() => setSelectedCutlostId(req.id)}
+                  >
+                    <span className="iz-approvals-cutlost-icon sm">
+                      {req.kind === "best_effort" ? (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      ) : req.kind === "release_prs" ? (
+                        <UserMinus className="h-3.5 w-3.5" />
+                      ) : (
+                        <TrendingDown className="h-3.5 w-3.5" />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="name">{req.outletName}</span>
+                      <span className="sub">{cutlostRequestTitle(req)}</span>
+                      <span className="badges">
+                        <span className="iz-approvals-verify-badge gallery">
+                          ~RM {Math.round(req.estimatedSavings).toLocaleString("en-MY")}
+                        </span>
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )
+            ) : leaveRequests.length === 0 ? (
+              <p className="iz-tiny iz-muted px-1 py-4 text-center">No MC / leave requests</p>
             ) : (
-              cutlostRequests.map((req) => (
+              leaveRequests.map((req) => (
                 <button
                   key={req.id}
                   type="button"
-                  className={cn("iz-approvals-list-item", selectedCutlostId === req.id && "on")}
-                  onClick={() => setSelectedCutlostId(req.id)}
+                  className={cn("iz-approvals-list-item", selectedLeaveId === req.id && "on")}
+                  onClick={() => setSelectedLeaveId(req.id)}
                 >
                   <span className="iz-approvals-cutlost-icon sm">
-                    {req.kind === "best_effort" ? (
-                      <Sparkles className="h-3.5 w-3.5" />
-                    ) : req.kind === "release_prs" ? (
-                      <UserMinus className="h-3.5 w-3.5" />
+                    {req.kind === "mc" ? (
+                      <Stethoscope className="h-3.5 w-3.5" />
                     ) : (
-                      <TrendingDown className="h-3.5 w-3.5" />
+                      <CalendarOff className="h-3.5 w-3.5" />
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <span className="name">{req.outletName}</span>
-                    <span className="sub">{cutlostRequestTitle(req)}</span>
+                    <span className="name">{req.prName}</span>
+                    <span className="sub">
+                      {req.outlet} · {req.dateLabel}
+                    </span>
                     <span className="badges">
-                      <span className="iz-approvals-verify-badge gallery">
-                        ~RM {Math.round(req.estimatedSavings).toLocaleString("en-MY")}
+                      <span
+                        className={cn(
+                          "iz-approvals-verify-badge",
+                          req.kind === "mc" ? "bad" : "gallery",
+                        )}
+                      >
+                        {PR_LEAVE_KIND_LABEL[req.kind]}
                       </span>
                     </span>
                   </div>
@@ -1060,15 +1212,27 @@ function AgencyPending() {
                 <p className="iz-sm iz-muted">Select a sign-up to review</p>
               </div>
             )
-          ) : selectedCutlost ? (
-            <CutlostDetailPanel
-              req={selectedCutlost}
-              onApprove={() => approveCutlostRequest(selectedCutlost.id)}
-              onReject={(reason) => rejectCutlostRequest(selectedCutlost.id, reason)}
+          ) : tab === "cutlost" ? (
+            selectedCutlost ? (
+              <CutlostDetailPanel
+                req={selectedCutlost}
+                onApprove={() => approveCutlostRequest(selectedCutlost.id)}
+                onReject={(reason) => rejectCutlostRequest(selectedCutlost.id, reason)}
+              />
+            ) : (
+              <div className="iz-approvals-empty">
+                <p className="iz-sm iz-muted">Select a cutlost request to review</p>
+              </div>
+            )
+          ) : selectedLeave ? (
+            <LeaveDetailPanel
+              req={selectedLeave}
+              onApprove={() => approvePrShiftLeave(selectedLeave.id)}
+              onReject={(reason) => rejectPrShiftLeave(selectedLeave.id, reason)}
             />
           ) : (
             <div className="iz-approvals-empty">
-              <p className="iz-sm iz-muted">Select a cutlost request to review</p>
+              <p className="iz-sm iz-muted">Select an MC / leave request to review</p>
             </div>
           )}
         </main>

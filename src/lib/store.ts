@@ -1382,6 +1382,7 @@ export const useStore = create<StoreState>()(
         set({
           ...demo,
           prSwapRequests: [],
+          prShiftLeaves: [],
           prSessionByRole: demo.prSessionByRole ?? {},
           role: null,
           prSubRole: null,

@@ -3779,7 +3779,7 @@ export const useStore = create<StoreState>()(
               body: `${req.prName} requested ${kindLabel} for ${req.outlet} · ${req.dateLabel} — review & approve`,
               at,
               read: false,
-              href: "/agency/pending",
+              href: "/agency/pending?tab=leaves",
               prName: req.prName,
               outlet: req.outlet,
             },

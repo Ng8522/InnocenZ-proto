@@ -5,7 +5,7 @@ import type { KeyboardEvent, ReactNode } from "react";
 type RowTarget =
   | { to: "/agency/prs"; search?: { pr?: string } }
   | { to: "/agency/pv"; search?: { pv?: string; status?: PrPvStatus } }
-  | { to: "/agency/pending"; search?: { tab?: "signups" | "cutlost" } }
+  | { to: "/agency/pending"; search?: { tab?: "signups" | "cutlost" | "leaves" } }
   | { to: "/agency/roster" };
 
 export function PortalClickableTableRow({

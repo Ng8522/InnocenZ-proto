@@ -1300,6 +1300,7 @@ export function buildDemoStoreReset() {
       },
     ],
     pendingCutlostRequests: [],
+    prShiftLeaves: [],
     specialServiceOrders: SEED_SPECIAL_SERVICES.map((r) => ({ ...r })),
     ...prDemo,
     // Append Delta's own PVs AFTER the Atlas ledger spread so they reach the store's PV
